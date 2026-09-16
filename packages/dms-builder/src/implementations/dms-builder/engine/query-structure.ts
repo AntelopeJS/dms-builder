@@ -1,4 +1,5 @@
 import type {
+  QueryOutputKind,
   QueryStructure,
   ResourceRef,
 } from "@antelopejs/interface-dms-builder";
@@ -14,6 +15,7 @@ import {
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
 import { bindName } from "./query-chain";
+import { outputForResponseKey } from "./query-emit";
 import {
   getQueryTemplate,
   parseModelMethod,
@@ -34,6 +36,8 @@ export type QueryArg =
 export interface QueryRouteCall {
   modelMethod: string;
   args: QueryArg[];
+  /** What the route answers, read from the property its response carries. */
+  output: QueryOutputKind;
 }
 
 export interface QueryRoute {
@@ -284,7 +288,11 @@ function unwrapReturnedCall(method: MethodDeclaration) {
     return undefined;
   }
   const [property] = properties;
-  if (!Node.isPropertyAssignment(property) || property.getName() !== "value") {
+  if (!Node.isPropertyAssignment(property)) {
+    return undefined;
+  }
+  const output = outputForResponseKey(property.getName());
+  if (!output) {
     return undefined;
   }
   const initializer = property.getInitializer();
@@ -292,7 +300,7 @@ function unwrapReturnedCall(method: MethodDeclaration) {
     return undefined;
   }
   const call = initializer.getExpression();
-  return Node.isCallExpression(call) ? call : undefined;
+  return Node.isCallExpression(call) ? { call, output } : undefined;
 }
 
 /**
@@ -303,10 +311,11 @@ function unwrapReturnedCall(method: MethodDeclaration) {
 export function parseQueryRouteCall(
   method: MethodDeclaration,
 ): QueryRouteCall | undefined {
-  const call = unwrapReturnedCall(method);
-  if (!call) {
+  const unwrapped = unwrapReturnedCall(method);
+  if (!unwrapped) {
     return undefined;
   }
+  const { call, output } = unwrapped;
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) {
     return undefined;
@@ -334,7 +343,7 @@ export function parseQueryRouteCall(
     }
     args.push(parsed);
   }
-  return { modelMethod: callee.getName(), args };
+  return { modelMethod: callee.getName(), args, output };
 }
 
 type ParamSource = "query" | "param" | "header";
@@ -467,6 +476,9 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     return { ...base, opaque: true, opaqueReason: "unparseable_route" };
   }
   base.modelMethod = call.modelMethod;
+  // From the route's own response, so a query whose calculation no longer parses
+  // still tells a caller what it answers with.
+  base.output = call.output;
   const method = findModelMethod(resource.ref, call.modelMethod);
   const parsed = method ? parseModelMethod(method) : undefined;
   if (!method || !parsed) {
@@ -480,6 +492,6 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     ...base,
     template: parsed.template,
     params: resolved,
-    output: getQueryTemplate(parsed.template)?.descriptor.output,
+    output: getQueryTemplate(parsed.template)?.descriptor.output ?? call.output,
   };
 }

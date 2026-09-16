@@ -10,8 +10,12 @@ import type { MutationOpts, OpResult } from "./results";
  */
 export type QueryRef = string;
 
-/** The shape a query's route responds with. Scalar (`{ value }`) in v1. */
-export type QueryOutputKind = "scalar";
+/**
+ * The shape a query's route responds with: one number as `{ value }`, or one
+ * point per group as `{ series }`, each point carrying its group as `x` and what
+ * was measured as `y`.
+ */
+export type QueryOutputKind = "scalar" | "series";
 
 /** The comparison operators a filter may use. */
 export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";

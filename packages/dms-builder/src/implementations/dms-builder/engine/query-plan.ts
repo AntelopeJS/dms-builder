@@ -35,13 +35,48 @@ export type PlanMeasure =
   | { kind: "aggregate"; op: string; field: string };
 
 /**
- * A calculation over one resource: which rows, and what is computed from them.
+ * The periods a date field is bucketed into before grouping.
+ *
+ * No week: neither adapter exposes an ISO week, and deriving one from the day of
+ * the year puts the first days of January in a week that belongs to the previous
+ * year. A wrong week is worse than a missing one.
+ */
+export const PLAN_BUCKETS = ["day", "month", "quarter", "year"] as const;
+export type PlanBucket = (typeof PLAN_BUCKETS)[number];
+
+/** How the rows are grouped: by a field's value, or by a period of a date field. */
+export interface PlanGroup {
+  field: string;
+  /** Absent for a plain field; set to bucket a date field into periods. */
+  bucket?: PlanBucket;
+  /**
+   * IANA zone the bucket is computed in. The database extracts in UTC when this
+   * is absent, which shifts every row near a period boundary into its neighbour.
+   */
+  timezone?: string;
+}
+
+/** Ordering of the groups: by the group itself, or by what was measured. */
+export interface PlanOrder {
+  by: "group" | "measure";
+  direction: "asc" | "desc";
+}
+
+/**
+ * A calculation over one resource: which rows, how they are grouped, what is
+ * computed from them, and which of the results are kept.
+ *
  * Deliberately says nothing about `this.table`, method bodies or streams — that
  * is each backend's business.
  */
 export interface QueryPlan {
   filters: PlanFilter[];
   measure: PlanMeasure;
+  /** Absent for a scalar: the measure is taken over every selected row at once. */
+  group?: PlanGroup;
+  order?: PlanOrder;
+  /** Keeps the first N groups after ordering — a top N. */
+  limit?: number;
 }
 
 /** Read a template's `where` parameter as the plan's filters. */
@@ -161,11 +196,109 @@ function emitFilters(
   };
 }
 
-function measureCall(measure: PlanMeasure): string {
+function measureCall(measure: PlanMeasure, over: string): string {
   if (measure.kind === "count") {
     return "count()";
   }
-  return `${measure.op}(${JSON.stringify(measure.field)})`;
+  return `${measure.op}(${JSON.stringify(over)})`;
+}
+
+/** The zone argument the date extractors take, or nothing when none was asked for. */
+function zoneArgument(group: PlanGroup): string {
+  return group.timezone ? JSON.stringify(group.timezone) : "";
+}
+
+/**
+ * A date field reduced to one ordered number per period: `2026` for a year,
+ * `202601` for a month, `20260114` for a day.
+ *
+ * A number rather than a label, because the group is also what the series is
+ * ordered by — and because a label belongs to the response, which knows the
+ * viewer's locale, not to a chain compiled into the source. The response envelope
+ * turns it back into a date.
+ */
+function bucketExpression(group: PlanGroup, row: string): string {
+  const zone = zoneArgument(group);
+  const part = (name: string) =>
+    `${row}.key(${JSON.stringify(group.field)}).${name}(${zone})`;
+  const year = part("year");
+  if (group.bucket === "year") {
+    return year;
+  }
+  if (group.bucket === "quarter") {
+    // Months are 1-based, so the quarter is (month - 1) / 3 floored, plus one.
+    return `${year}.mul(10).add(${part("month")}.sub(1).div(3).floor().add(1))`;
+  }
+  const month = `${year}.mul(100).add(${part("month")})`;
+  if (group.bucket === "month") {
+    return month;
+  }
+  return `${month}.mul(100).add(${part("day")})`;
+}
+
+/** The projected field a bucketed group is grouped on. */
+const GROUP_KEY = "bucket";
+/** The projected field a bucketed aggregate measures, the row being replaced. */
+const VALUE_KEY = "value";
+/** The mapper's parameter: the group being folded, whatever it was grouped by. */
+const GROUP_PARAM = "group";
+
+/**
+ * Projects what the grouping needs before grouping on it.
+ *
+ * Only a bucketed group needs this: `group` takes a field name, not an
+ * expression, so the period has to become a field of its own first. The measured
+ * field rides along, since the projection replaces the row.
+ */
+function bucketProjection(plan: QueryPlan, group: PlanGroup): string {
+  const members = [`${GROUP_KEY}: ${bucketExpression(group, "row")}`];
+  if (plan.measure.kind === "aggregate") {
+    members.push(
+      `${VALUE_KEY}: row.key(${JSON.stringify(plan.measure.field)})`,
+    );
+  }
+  return `.map((row) => ({ ${members.join(", ")} }))`;
+}
+
+function orderCall(order: PlanOrder | undefined): string {
+  if (!order) {
+    return "";
+  }
+  const key = order.by === "group" ? "x" : "y";
+  return `.orderBy(${JSON.stringify(key)}, ${JSON.stringify(order.direction)})`;
+}
+
+function limitCall(limit: number | undefined): string {
+  return limit === undefined ? "" : `.slice(0, ${limit})`;
+}
+
+/**
+ * The grouped form: one row per group, shaped as the points a series is made of.
+ *
+ * `x`/`y` rather than the field's own names because every consumer of a grouped
+ * result reads points, and naming them here keeps the response envelope from
+ * having to know which field was grouped on.
+ */
+function emitGrouped(
+  plan: QueryPlan,
+  group: PlanGroup,
+  filterText: string,
+): string {
+  const bucketed = group.bucket !== undefined;
+  const projection = bucketed ? bucketProjection(plan, group) : "";
+  const key = bucketed ? GROUP_KEY : group.field;
+  const measuredField =
+    bucketed && plan.measure.kind === "aggregate" ? VALUE_KEY : "";
+  const over =
+    plan.measure.kind === "aggregate"
+      ? measuredField || plan.measure.field
+      : "";
+  const mapper = `(rows, ${GROUP_PARAM}) => ({ x: ${GROUP_PARAM}, y: rows.${measureCall(plan.measure, over)} })`;
+  return (
+    `this.table${filterText}${projection}` +
+    `.group(${JSON.stringify(key)}, ${mapper})` +
+    `${orderCall(plan.order)}${limitCall(plan.limit)}`
+  );
 }
 
 /**
@@ -177,8 +310,14 @@ export function emitPlan(
   fields: ResourceFieldStructure[],
 ): CompiledChain {
   const filters = emitFilters(plan.filters, fields);
+  const chain = plan.group
+    ? emitGrouped(plan, plan.group, filters.text)
+    : `this.table${filters.text}.${measureCall(
+        plan.measure,
+        plan.measure.kind === "aggregate" ? plan.measure.field : "",
+      )}`;
   return {
-    body: `{\n\treturn this.table${filters.text}.${measureCall(plan.measure)};\n}`,
+    body: `{\n\treturn ${chain};\n}`,
     parameters: filters.parameters,
     warnings: filters.warnings,
   };

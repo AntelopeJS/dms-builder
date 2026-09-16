@@ -1,46 +1,23 @@
-// The templates the engine ships: what each accepts as parameters, what it
-// computes, and how it reads itself back from emitted code.
+// Les templates que le moteur fournit : ce que chacun accepte en paramètres, ce
+// qu'il calcule, et comment il se relit depuis le code émis.
 //
-// The chain's text is rendered by query-plan.ts: a template describes a plan, it
-// does not write code.
+// Le texte de la chaîne, lui, est rendu par query-plan.ts : un template décrit un
+// plan, il n'écrit pas de code.
 
-import type {
-  OptionSchema,
-  ResourceFieldStructure,
-  ValidationIssue,
-} from "@antelopejs/interface-dms-builder";
 import { stringLiteralValue } from "./literals";
+import { seriesTemplate } from "./query-template-series";
+import { checkFilters, whereSchema } from "./query-where";
 import { emitPlan, planFilters } from "./query-plan";
-import { FILTER_OPS, readChain, whereParams } from "./query-chain";
+import { readChain, whereParams } from "./query-chain";
 import { describeValue } from "./describe-value";
 import {
   AGGREGATE_OPS,
   checkField,
-  checkFilter,
-  checkParamConflicts,
   issue,
   QueryTemplate,
   registerQueryTemplate,
   scanForExpr,
 } from "./query-template";
-/** Validates a `where` clause: an optional array of well-typed filters. */
-export function checkFilters(
-  where: unknown,
-  fields: ResourceFieldStructure[],
-  pointer = "/where",
-): ValidationIssue[] {
-  if (where === undefined) {
-    return [];
-  }
-  if (!Array.isArray(where)) {
-    return [issue(pointer, "where must be an array of filters")];
-  }
-  const issues = where.flatMap((filter, index) =>
-    checkFilter(filter, fields, `${pointer}/${index}`),
-  );
-  return issues.length > 0 ? issues : checkParamConflicts(where, fields);
-}
-
 function countTemplate(): QueryTemplate {
   return {
     descriptor: {
@@ -151,78 +128,6 @@ function aggregateTemplate(): QueryTemplate {
 }
 
 /**
- * A filter value is either baked into the chain or bound to a request parameter.
- * The two shapes are spelled out rather than left as a bare `object`, so a caller
- * reading the descriptor learns the `$param` sentinel from the schema instead of
- * from prose that has to be kept in step with it.
- */
-function filterValueSchema(): OptionSchema {
-  return {
-    type: "unknown",
-    description:
-      "Either a literal matching the field's type (baked into the chain), or a $param binding (supplied per request).",
-    oneOf: [
-      {
-        type: "string",
-        description:
-          "A literal. Must match the field's type; a date field takes an ISO string.",
-      },
-      { type: "number", description: "A numeric literal." },
-      { type: "boolean", description: "A boolean literal." },
-      {
-        type: "object",
-        description:
-          "Binds this filter to a request parameter instead of baking a value in, so one query answers any value the caller passes.",
-        properties: {
-          $param: {
-            type: "object",
-            properties: {
-              name: {
-                type: "string",
-                description:
-                  "camelCase identifier; becomes the parameter's name (e.g. `min` → `?min=25`).",
-              },
-              in: {
-                type: "string",
-                enum: ["query", "param"],
-                optional: true,
-                description:
-                  "Where the route reads the value. Defaults to `query` (`?name=…`). `param` reads a path segment, so the query's endpoint must declare a matching `:name` — the `/stats/…` default has none, so prefer `query` unless the value belongs in the path.",
-              },
-            },
-          },
-        },
-      },
-    ],
-  };
-}
-
-function whereSchema(): OptionSchema {
-  return {
-    type: "array",
-    description:
-      "Filters combined with AND. Omit for no filtering. Two filters may bind the same $param name if they agree on its type and source.",
-    items: {
-      type: "object",
-      properties: {
-        field: {
-          type: "string",
-          description:
-            "A field of the resource — must exist and not be opaque (see GetResourceStructure).",
-        },
-        op: {
-          type: "string",
-          enum: [...FILTER_OPS],
-          description:
-            "Comparison. The ordering ops (gt/ge/lt/le) are rejected on boolean and select fields.",
-        },
-        value: filterValueSchema(),
-      },
-    },
-  };
-}
-
-/**
  * Fill the template registry with the templates the engine ships.
  *
  * Called explicitly by the implementation's entry point rather than run as an
@@ -234,4 +139,5 @@ function whereSchema(): OptionSchema {
 export function registerBuiltinQueryTemplates(): void {
   registerQueryTemplate(countTemplate());
   registerQueryTemplate(aggregateTemplate());
+  registerQueryTemplate(seriesTemplate());
 }

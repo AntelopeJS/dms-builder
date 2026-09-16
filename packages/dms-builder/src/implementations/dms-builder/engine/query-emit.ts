@@ -1,5 +1,12 @@
-import type { ImportRef } from "@antelopejs/interface-dms-builder";
-import type { CompiledChain, MethodParam } from "./query-template";
+import type {
+  ImportRef,
+  QueryOutputKind,
+} from "@antelopejs/interface-dms-builder";
+import {
+  type CompiledChain,
+  getQueryTemplate,
+  type MethodParam,
+} from "./query-template";
 import { decoratorImport } from "./resource-emit-types";
 
 /**
@@ -8,10 +15,56 @@ import { decoratorImport } from "./resource-emit-types";
  * where they sit.
  */
 export const DEFAULT_ENDPOINT_PREFIX = "/stats/";
-export const TENANT_SCHEMA_NAME_VALUE = "dms-tenant";
+export const TENANT_SCHEMA_NAME_VALUE = "cms-tenant";
 
-/** The route's inline structural return type. Scalar output in v1. */
-const SCALAR_RETURN = "Promise<{ value: number }>";
+/**
+ * How a route hands back what the model computed, by the template's output kind.
+ *
+ * The return type is written inline rather than imported: the page owns its
+ * routes, and a structural type keeps the emitted file readable without dragging
+ * a shared alias into every app that the builder has written a query for.
+ */
+interface ResponseShape {
+  /** The single property the route's object literal carries. */
+  key: string;
+  returnType: string;
+  /** The returned object, given the awaited model call. */
+  body: (call: string) => string;
+}
+
+const RESPONSE_SHAPES: Record<QueryOutputKind, ResponseShape> = {
+  scalar: {
+    key: "value",
+    returnType: "Promise<{ value: number }>",
+    body: (call) => `{ value: await ${call} }`,
+  },
+  series: {
+    key: "series",
+    returnType: "Promise<{ series: { x: number | string; y: number }[] }>",
+    body: (call) => `{ series: await ${call} }`,
+  },
+};
+
+function responseShapeFor(template: string): ResponseShape {
+  const output = getQueryTemplate(template)?.descriptor.output;
+  return RESPONSE_SHAPES[output ?? "scalar"];
+}
+
+/**
+ * The output kind a route's response property names, or `undefined` for a
+ * property no shape emits.
+ *
+ * Read-back resolves the kind from the property rather than from the template,
+ * so a route whose calculation is no longer recognized still reports what it
+ * answers — and so emission and recognition cannot drift apart: they read the
+ * same table.
+ */
+export function outputForResponseKey(key: string): QueryOutputKind | undefined {
+  const found = Object.entries(RESPONSE_SHAPES).find(
+    ([, shape]) => shape.key === key,
+  );
+  return found?.[0] as QueryOutputKind | undefined;
+}
 
 export interface CompiledQuery {
   /** Query name — the route method's name. */
@@ -123,12 +176,13 @@ export function queryRouteMethodText(
     );
   }
   const args = spec.chain.parameters.map(routeArgument).join(", ");
+  const response = responseShapeFor(spec.template);
   const text = [
     `@Get(${JSON.stringify(spec.endpoint)})`,
     `async ${spec.name}(`,
     ...parameters,
-    `): ${SCALAR_RETURN} {`,
-    `\treturn { value: await model.${modelMethod}(${args}) };`,
+    `): ${response.returnType} {`,
+    `\treturn ${response.body(`model.${modelMethod}(${args})`)};`,
     "}",
   ].join("\n");
   return { text, symbols };
