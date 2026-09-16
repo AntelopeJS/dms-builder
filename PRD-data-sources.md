@@ -187,11 +187,23 @@ Les quatre formes de réponse attendues par les blocs, telles qu'elles sont typ�
 Autres contraintes relevées :
 
 - Le regroupement sur une expression (bucket temporel) impose de projeter le bucket avant de
-  grouper. Vérifié sur l'adapter PostgreSQL : la projection est enveloppée en sous-requête et le
-  `GROUP BY` porte sur l'expression. Conséquence de performance : ce regroupement n'utilise pas
-  d'index — d'où le plafond de lignes et un avertissement quand la ressource est volumineuse.
-- Le même chemin est cohérent à la lecture sur l'adapter MongoDB, sans test exécuté : à
-  confirmer par un test d'intégration avant de figer le template `series`.
+  grouper. **Vérifié sur les deux adapters** : côté PostgreSQL la projection est enveloppée en
+  sous-requête et le `GROUP BY` porte sur l'expression ; côté MongoDB le même enchaînement rend
+  les bons totaux par mois, filtre appliqué avant regroupement, `orderBy` et `slice` compris.
+  Conséquence de performance : ce regroupement n'utilise pas d'index — d'où le plafond de lignes
+  et un avertissement quand la ressource est volumineuse.
+- **L'ordre des groupes n'est pas garanti** : MongoDB rend les buckets dans le désordre. Le
+  template émet donc toujours un tri sur le regroupement, sans quoi un graphique reçoit ses
+  points dans un ordre arbitraire.
+- **Le fuseau est explicite ou faux** : PostgreSQL extrait l'année et le mois en UTC par défaut.
+  Les extracteurs de date acceptent un fuseau ; l'omettre décale les buckets d'un mois pour
+  toute donnée proche d'une fin de mois.
+- **Une méthode de modèle est partagée par nom, pas par chaîne** : les noms candidats dérivent du
+  nom de la requête (`revenue`, `revenue2`, …), donc deux requêtes de noms différents ne
+  partagent jamais une méthode, même à calcul identique. `docs/interfaces/cms-builder/6.queries.md`
+  laisse entendre l'inverse et est à corriger. Le plan ne doit pas élargir ce partage : une
+  requête qui se mettrait à appeler la méthode d'une autre changerait ce que cette autre renvoie
+  à sa prochaine édition.
 - La grammaire de relecture actuelle ne reconnaît qu'une chaîne `this.table.filter(…)*` terminée
   par un agrégat, dans un `return` unique. La relecture d'un `map`/`group`/`orderBy`/`slice` et
   d'une enveloppe à plusieurs `await` est l'élément le plus coûteux du chantier, et la règle
@@ -215,24 +227,41 @@ Autres contraintes relevées :
 
 ## Découpage en tâches
 
-| # | Tâche | Dépend de | Estimation |
-| --- | --- | --- | --- |
-| T1 | Spike : regroupement sur champ projeté côté MongoDB (test d'intégration) | — | 0,5 j |
-| T2 | `cms` : widget `dataSource`, `responseShape`, repointage des quatre blocs | — | 0,5 j |
-| T3 | `cms` : `RegisterDataSource` / `ListDataSources` | — | 0,5 j |
-| T4 | Moteur : IR `QueryPlan`, report de `count`/`aggregate` (émission inchangée) | — | 1,5 j |
-| T5 | Moteur : template `series` (bucket temporel et catégoriel, tri, limite, fuseau) | T1, T4 | 1,5 j |
-| T6 | Moteur : enveloppes de réponse (4 formes) et comparaison de période | T5 | 1,5 j |
-| T7 | Moteur : relecture des nouvelles chaînes et des enveloppes | T6 | 2 j |
-| T8 | Moteur : `PageDraft.queries`, `SavePage` transactionnel, nettoyage des orphelines | T4 | 1,5 j |
-| T9 | Moteur : backend `execute` et `RunDraftQuery` | T5, T6 | 1,5 j |
-| T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j |
-| T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j |
-| T12 | Layer : `DataSource.vue`, patch multi-clés, réécriture d'URL en aperçu | T2, T11 | 2 j |
-| T13 | Vue « Sources » du rail : consommateurs, suppression, partage | T12 | 0,5 j |
-| T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j |
+| # | Tâche | Dépend de | Estimation | État |
+| --- | --- | --- | --- | --- |
+| T0 | Harnais de test du moteur et correctif du registre de templates | — | 1 j | **fait** |
+| T1 | Spike : regroupement sur champ projeté côté MongoDB | — | 0,5 j | **fait** |
+| T2 | `cms` : widget `dataSource`, `responseShape`, repointage des quatre blocs | — | 0,5 j | à faire |
+| T3 | `cms` : `RegisterDataSource` / `ListDataSources` | — | 0,5 j | à faire |
+| T4 | Moteur : IR `QueryPlan`, report de `count`/`aggregate` (émission inchangée) | — | 1,5 j | à faire |
+| T5 | Moteur : template `series` (bucket temporel et catégoriel, tri, limite, fuseau) | T1, T4 | 1,5 j | à faire |
+| T6 | Moteur : enveloppes de réponse (4 formes) et comparaison de période | T5 | 1,5 j | à faire |
+| T7 | Moteur : relecture des nouvelles chaînes et des enveloppes | T6 | 2 j | à faire |
+| T8 | Moteur : `PageDraft.queries`, `SavePage` transactionnel, nettoyage des orphelines | T4 | 1,5 j | à faire |
+| T9 | Moteur : backend `execute` et `RunDraftQuery` | T5, T6 | 1,5 j | à faire |
+| T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | à faire |
+| T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j | à faire |
+| T12 | Layer : `DataSource.vue`, patch multi-clés, réécriture d'URL en aperçu | T2, T11 | 2 j | à faire |
+| T13 | Vue « Sources » du rail : consommateurs, suppression, partage | T12 | 0,5 j | à faire |
+| T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j | à faire |
 
-Chemin critique : T1 → T5 → T6 → T7. T2, T3, T4 et T10 sont parallélisables d'emblée.
+Chemin critique restant : T4 → T5 → T6 → T7. T2, T3 et T10 sont parallélisables d'emblée.
+
+### Ce que T0 et T1 ont établi
+
+- **Le regroupement temporel fonctionne sur les deux adapters.** C'était le risque qui pouvait
+  invalider le template `series` ; il est levé, avec les réserves de fuseau et de tri notées en
+  contraintes.
+- **Le registre de templates était vide sur `main`** depuis le découpage du moteur (#15, 7
+  septembre) : le fichier portant `count` et `aggregate` n'était plus importé par personne.
+  `AddQuery` et `ConfigureQuery` échouaient sur `unknown query template`, `ListQueryTemplates`
+  répondait une liste vide, et **toute requête déjà écrite se relisait comme opaque**. Corrigé.
+  La 0.0.4 publiée est antérieure au découpage et n'est pas touchée.
+- **Le dépôt n'avait aucun test**, ce qui explique que la régression ait tenu neuf jours. Trente
+  specs couvrent désormais le catalogue, le brouillon de page, les ressources et les requêtes,
+  et tournent en dix secondes sans runtime Antelope.
+- **Deux interfaces manquaient au manifeste** (`interface-data-api`,
+  `interface-database-decorators`) : le paquet ne pouvait pas typechecker le code qu'il génère.
 
 Jalon intermédiaire livrable : T1‑T6 + T8‑T12 donne le parcours de référence complet ; T7 (la
 relecture) est ce qui le rend *réouvrable*, et ne peut pas être reporté au-delà de la première
