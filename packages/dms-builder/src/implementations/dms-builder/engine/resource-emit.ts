@@ -1,7 +1,7 @@
 import type { ResourceRoute } from "@antelopejs/interface-dms-builder";
 import { pascalCase } from "./emit";
 
-export const CORE_SCHEMA_NAME_VALUE = "dms-core";
+export const CORE_SCHEMA_NAME_VALUE = "cms-core";
 const CORE_SCHEMA_IDENTIFIER = "CORE_SCHEMA_NAME";
 
 const API_MODULE = "@antelopejs/interface-api";
@@ -10,10 +10,15 @@ const METADATA_MODULE = "@antelopejs/interface-data-api/metadata";
 const DB_MODULE = "@antelopejs/interface-database-decorators";
 const DATATYPE_MODULE =
   "@antelopejs/interface-dms/base/data-types/default-types";
-const SEARCHABLE_MODULE = "@antelopejs/interface-dms/base/searchable";
-export const TABLE_VIEW_MODULE = "@antelopejs/interface-dms/base/table-view";
+const SEARCHABLE_MODULE =
+  "@antelopejs/interface-dms/base/searchable";
+export const TABLE_VIEW_MODULE =
+  "@antelopejs/interface-dms/base/table-view";
 const CONSTANTS_MODULE = "@antelopejs/interface-dms/constants";
-const TENANT_MODEL_MODULE = "@antelopejs/interface-dms/tenant-scoped-model";
+const GUARDS_MODULE = "@antelopejs/interface-dms/guards";
+const AUTH_DB_MODULE = "@antelopejs/interface-dms/auth/db";
+const TENANT_MODEL_MODULE =
+  "@antelopejs/interface-dms/tenant-scoped-model";
 export const DATABASE_LOCAL = "./database";
 
 export const RESOURCE_ROUTES: readonly ResourceRoute[] = [
@@ -124,6 +129,8 @@ export const DECORATOR_IMPORTS: Record<string, string> = {
   Get: API_MODULE,
   Parameter: API_MODULE,
   TenantScopedModel: TENANT_MODEL_MODULE,
+  AuthUserWithPermission: GUARDS_MODULE,
+  User: AUTH_DB_MODULE,
   Searchable: SEARCHABLE_MODULE,
   Column: TABLE_VIEW_MODULE,
   Select: TABLE_VIEW_MODULE,

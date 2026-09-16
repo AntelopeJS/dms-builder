@@ -110,6 +110,21 @@ describe("the query engine", () => {
       expect(page).to.contain("return { value: await model.paidRevenue() };");
     });
 
+    it("guards the route with the page's own permission", async () => {
+      const page = app.read(PAGE_FILE);
+
+      // On this route alone, as a parameter decorator: a generated route would
+      // otherwise answer anyone who reaches the server, while the layout it
+      // feeds is gated — and a class-level guard would change every other route
+      // the page owns.
+      expect(page).to.contain(
+        "@AuthUserWithPermission(OrdersPage) _user: User,",
+      );
+      expect(page).to.contain(
+        'import { AuthUserWithPermission } from "@antelopejs/interface-dms/guards";',
+      );
+    });
+
     it("counts rows with no filter at all", async function () {
       this.timeout(OP_TIMEOUT);
       expectOk(

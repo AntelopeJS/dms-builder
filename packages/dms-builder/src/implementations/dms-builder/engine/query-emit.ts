@@ -163,10 +163,21 @@ export function queryRouteMethodText(
   modelName: string,
   schema: string,
   modelMethod: string,
+  pageClass: string,
 ): { text: string; symbols: ImportRef[] } {
   const modelDecorator = modelDecoratorFor(schema);
-  const symbols = [decoratorImport("Get"), decoratorImport(modelDecorator)];
+  const symbols = [
+    decoratorImport("Get"),
+    decoratorImport(modelDecorator),
+    decoratorImport("AuthUserWithPermission"),
+    decoratorImport("User"),
+  ];
   const parameters = [
+    // The page's own permission, on this route alone. A generated route would
+    // otherwise answer to anyone who can reach the server, while the layout it
+    // feeds is gated; a parameter decorator keeps the gate off every other route
+    // the page owns. The class names itself, which its own body can do.
+    `\t@AuthUserWithPermission(${pageClass}) _user: User,`,
     `\t@${modelDecorator}(${modelName}) model: ${modelName},`,
   ];
   for (const param of spec.chain.parameters) {

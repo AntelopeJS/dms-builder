@@ -25,6 +25,9 @@ import { findResourceBySymbol, findResourceRecord } from "./resource-index";
 import { getWritableProject } from "./writable";
 
 export const MODEL_DECORATORS = ["Model", "TenantScopedModel"];
+
+/** What a generated query route imports beyond its model, for pruning. */
+export const ROUTE_GUARD_SYMBOLS = ["AuthUserWithPermission", "User"];
 const ROUTE_DECORATORS = ["Get", "Post", "Put", "Patch", "Delete"];
 const PARAM_SOURCES = new Set(["query", "param", "header"]);
 

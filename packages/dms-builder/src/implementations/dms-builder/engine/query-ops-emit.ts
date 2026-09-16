@@ -1,7 +1,7 @@
-// Emitting a query method into the model, and the public operations that call
-// it.
+// Émission d'une méthode de requête dans le modèle, et les opérations
+// publiques qui l'appellent.
 //
-// Split out of query-ops.ts to stay under the size the linter allows.
+// Découpé de query-ops.ts pour tenir sous la taille que le linter autorise.
 
 import type {
   AddQueryInput,
@@ -30,6 +30,7 @@ import {
   buildQueryStructure,
   findQueryRoute,
   MODEL_DECORATORS,
+  ROUTE_GUARD_SYMBOLS,
   parseQueryRouteCall,
   routeModelMethodNames,
   routeResourceRef,
@@ -74,6 +75,7 @@ function emitQuery({
     opened.record.modelName,
     opened.record.schema,
     target.name,
+    pageClass.getName() ?? "",
   );
   pageClass.addMember(route.text);
   for (const symbol of route.symbols) {
@@ -183,9 +185,9 @@ function locateQuery(query: QueryRef, opts: MutationOpts | undefined) {
   if (current.opaque || !current.template || !current.resource) {
     return opaque(query);
   }
-  // `resource` and `template` are returned separately: the narrowing from the
-  // test above does not cross the function boundary, and the caller wants them
-  // non-optional.
+  // `resource` et `template` sont renvoyés à part : le narrowing du test
+  // ci-dessus ne traverse pas la frontière de fonction, et l'appelant les
+  // veut non-optionnels.
   return {
     parsed,
     context,
@@ -273,6 +275,7 @@ export function configureQuery(
   pruneUnusedImports(context.sourceFile, [
     "Parameter",
     ...MODEL_DECORATORS,
+    ...ROUTE_GUARD_SYMBOLS,
     ...modelClassNames(previous.resource),
   ]);
   return commit(transaction, undefined, spec.chain.warnings ?? []);
@@ -320,6 +323,7 @@ export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
     "Get",
     "Parameter",
     ...MODEL_DECORATORS,
+    ...ROUTE_GUARD_SYMBOLS,
     ...(resource ? modelClassNames(resource) : []),
   ]);
   if (resource) {
