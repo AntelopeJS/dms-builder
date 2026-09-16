@@ -336,5 +336,16 @@ function whereSchema(): OptionSchema {
   };
 }
 
-registerQueryTemplate(countTemplate());
-registerQueryTemplate(aggregateTemplate());
+/**
+ * Fill the template registry with the templates the engine ships.
+ *
+ * Called explicitly by the implementation's entry point rather than run as an
+ * import side effect: nothing else imports this module for a value, so a bare
+ * side-effecting import reads as dead to a linter and was already dropped once —
+ * leaving the registry empty, every `AddQuery` failing on an unknown template and
+ * every written query reading back as opaque.
+ */
+export function registerBuiltinQueryTemplates(): void {
+  registerQueryTemplate(countTemplate());
+  registerQueryTemplate(aggregateTemplate());
+}

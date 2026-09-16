@@ -50,6 +50,7 @@ import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
 import { addQuery, configureQuery, removeQuery } from "./engine/query-ops-emit";
 import { listQueryTemplates } from "./engine/query-template";
+import { registerBuiltinQueryTemplates } from "./engine/query-template-emit";
 import { listResourceSummaries } from "./engine/resource-index";
 import { createResource } from "./engine/resource-ops";
 import {
@@ -65,6 +66,10 @@ import {
   listCategorySummaries,
   listPageSummaries,
 } from "./engine/source-index";
+
+// Every operation below reaches the template registry — compiling a query, or
+// recognizing one already written — so it is filled as this module loads.
+registerBuiltinQueryTemplates();
 
 export async function ListPages(): Promise<PageSummary[]> {
   return listPageSummaries();
