@@ -237,6 +237,28 @@ function bucketExpression(group: PlanGroup, row: string): string {
 }
 
 /** The projected field a bucketed group is grouped on. */
+/**
+ * Which period an emitted bucket expression computes, by rebuilding each
+ * candidate and comparing — the emitter is the grammar, so a reader asking it
+ * cannot drift from what was written.
+ *
+ * Whitespace is ignored on both sides: the expression is read out of a file a
+ * formatter may have rewrapped since it was emitted.
+ */
+export function readBucketExpression(
+  text: string,
+  row: string,
+  field: string,
+  timezone?: string,
+): PlanBucket | undefined {
+  const squeeze = (value: string) => value.replace(/\s+/g, "");
+  const target = squeeze(text);
+  return PLAN_BUCKETS.find(
+    (bucket) =>
+      squeeze(bucketExpression({ field, bucket, timezone }, row)) === target,
+  );
+}
+
 const GROUP_KEY = "bucket";
 /** The projected field a bucketed aggregate measures, the row being replaced. */
 const VALUE_KEY = "value";

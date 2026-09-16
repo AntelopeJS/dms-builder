@@ -45,19 +45,19 @@ export interface BindRef {
   $bind: string;
 }
 
-function propName(call: CallExpression): string | undefined {
+export function propName(call: CallExpression): string | undefined {
   const expr = call.getExpression();
   return Node.isPropertyAccessExpression(expr) ? expr.getName() : undefined;
 }
 
-function receiver(call: CallExpression): Node | undefined {
+export function receiver(call: CallExpression): Node | undefined {
   const expr = call.getExpression();
   return Node.isPropertyAccessExpression(expr)
     ? expr.getExpression()
     : undefined;
 }
 
-function isThisTable(node: Node): boolean {
+export function isThisTable(node: Node): boolean {
   return (
     Node.isPropertyAccessExpression(node) &&
     node.getName() === "table" &&
@@ -66,7 +66,9 @@ function isThisTable(node: Node): boolean {
 }
 
 /** The single `return <call>;` of a method body, or `undefined` for any other shape. */
-function returnedCall(method: MethodDeclaration): CallExpression | undefined {
+export function returnedCall(
+  method: MethodDeclaration,
+): CallExpression | undefined {
   const body = method.getBody();
   if (!body || !Node.isBlock(body)) {
     return undefined;
@@ -120,7 +122,10 @@ function readValue(node: Node, params: Set<string>): RawValue | undefined {
 }
 
 /** One `.filter((row) => row.key("field").op(arg))` hop, or `undefined` if off-grammar. */
-function readFilter(arrow: Node, params: Set<string>): RawFilter | undefined {
+export function readFilter(
+  arrow: Node,
+  params: Set<string>,
+): RawFilter | undefined {
   if (!Node.isArrowFunction(arrow)) {
     return undefined;
   }
@@ -240,44 +245,45 @@ export function bindName(value: unknown): string | undefined {
 
 /**
  * A chain's identity as a string, independent of parameter names and sources:
- * every bound value collapses to a positional slot (assigned in `where` order),
+ * every bound value collapses to a positional slot (assigned in encounter order),
  * every baked value to its literal. Two chains share this key iff they compute
  * the same thing, whatever their parameters are called or wherever the route
  * reads them — which is exactly when the builder may share one model method
  * between them. Accepts params carrying either the `$bind` (parsed) or `$param`
  * (input) sentinel, so a method on disk and an `AddQuery` input compare directly.
+ *
+ * Every parameter counts, whatever the template names them. Listing the keys it
+ * knew about instead made two chains differing only in a key outside that list —
+ * a series and the same series bucketed by quarter — read as identical, so
+ * reconfiguring one reused the other's method and silently changed nothing.
  */
 export function canonicalChain(
   template: string,
   params: Record<string, unknown>,
 ): string {
   const slots = new Map<string, number>();
-  const canonValue = (value: unknown): unknown => {
+  const canon = (value: unknown): unknown => {
     const name = bindName(value);
-    if (name === undefined) {
-      return { lit: value };
+    if (name !== undefined) {
+      let slot = slots.get(name);
+      if (slot === undefined) {
+        slot = slots.size;
+        slots.set(name, slot);
+      }
+      return { slot };
     }
-    let slot = slots.get(name);
-    if (slot === undefined) {
-      slot = slots.size;
-      slots.set(name, slot);
+    if (Array.isArray(value)) {
+      return value.map(canon);
     }
-    return { slot };
+    if (value !== null && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .filter(([, member]) => member !== undefined)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, member]) => [key, canon(member)]),
+      );
+    }
+    return { lit: value };
   };
-  const where = Array.isArray(params.where)
-    ? params.where.map((filter) => {
-        const record = filter as Record<string, unknown>;
-        return {
-          field: record.field,
-          op: record.op,
-          value: canonValue(record.value),
-        };
-      })
-    : [];
-  return JSON.stringify({
-    template,
-    op: params.op ?? null,
-    field: params.field ?? null,
-    where,
-  });
+  return JSON.stringify({ template, params: canon(params) });
 }

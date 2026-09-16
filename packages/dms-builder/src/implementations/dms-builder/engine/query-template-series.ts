@@ -28,6 +28,8 @@ import {
   scanForExpr,
 } from "./query-template";
 import { checkFilters, whereSchema } from "./query-where";
+import { readSeriesChain, type SeriesChain } from "./query-chain-series";
+import { whereParams } from "./query-chain";
 import { describeValue } from "./describe-value";
 
 const ORDER_KEYS = ["group", "measure"] as const;
@@ -238,6 +240,34 @@ function seriesParamsSchema(): Record<string, OptionSchema> {
   };
 }
 
+/**
+ * A read chain as the parameters that would produce it. Only what was written is
+ * reported: a default the emitter always applies — the ordering every series
+ * carries — comes back explicitly, since a caller editing these params and
+ * sending them again must get the same chain.
+ */
+function seriesParams(chain: SeriesChain): Record<string, unknown> {
+  const params: Record<string, unknown> = { groupBy: chain.group.field };
+  if (chain.measure.kind === "aggregate") {
+    params.op = chain.measure.op;
+    params.field = chain.measure.field;
+  }
+  if (chain.group.bucket) {
+    params.bucket = chain.group.bucket;
+  }
+  if (chain.group.timezone) {
+    params.timezone = chain.group.timezone;
+  }
+  if (chain.order) {
+    params.orderBy = chain.order.by;
+    params.direction = chain.order.direction;
+  }
+  if (chain.limit !== undefined) {
+    params.limit = chain.limit;
+  }
+  return { ...params, ...whereParams(chain.filters) };
+}
+
 export function seriesTemplate(): QueryTemplate {
   return {
     descriptor: {
@@ -267,8 +297,9 @@ export function seriesTemplate(): QueryTemplate {
         },
         fields,
       ),
-    // Reading a grouped chain back is its own task: until then a series reads as
-    // opaque, which keeps the builder from rewriting what it cannot yet parse.
-    parse: () => undefined,
+    parse: (method) => {
+      const chain = readSeriesChain(method);
+      return chain ? seriesParams(chain) : undefined;
+    },
   };
 }

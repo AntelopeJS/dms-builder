@@ -3,6 +3,7 @@ import {
   AddQuery,
   CreateCategory,
   CreatePage,
+  ConfigureQuery,
   CreateResource,
   GetPageStructure,
   ListQueryTemplates,
@@ -146,11 +147,7 @@ describe("a series query", () => {
     );
   });
 
-  it("stays visible and removable while its calculation is not yet readable", async () => {
-    // Deliberate intermediate state: reading a grouped chain back is its own
-    // task. What matters meanwhile is that the builder still sees the query —
-    // a route it could not see is one nobody can remove — and refuses to rewrite
-    // what it cannot parse rather than silently reverting an edit.
+  it("reads back as the parameters that produced it", async () => {
     const structure = expectOk(
       await GetPageStructure(PAGE),
       "GetPageStructure",
@@ -159,36 +156,66 @@ describe("a series query", () => {
       (query) => query.name === "monthlyRevenue",
     );
 
-    expect(
-      series,
-      "an unreadable calculation is still a listed query",
-    ).to.not.equal(undefined);
-    expect(series?.opaque).to.equal(true);
-    expect(series?.opaqueReason).to.equal("unparseable_chain");
-    expect(series?.endpoint).to.equal("/stats/monthly-revenue");
-    expect(series?.resource).to.equal("order");
-    expect(series?.modelMethod).to.equal("monthlyRevenue");
-    expect(
-      series?.output,
-      "what it answers is read from the route, not from the calculation",
-    ).to.equal("series");
+    expect(series?.opaque, "the builder recognizes its own chain").to.not.equal(
+      true,
+    );
+    expect(series?.template).to.equal("series");
+    expect(series?.output).to.equal("series");
+    expect(series?.params).to.deep.equal({
+      ...MONTHLY_REVENUE.params,
+      // The ordering every series carries comes back explicitly: a caller
+      // editing these params and sending them again must get the same chain.
+      orderBy: "group",
+      direction: "asc",
+    });
   });
 
-  it("has its route removed, and leaves its calculation behind for now", async function () {
+  it("reads a ranking back as an ordering and a limit", async () => {
+    const structure = expectOk(
+      await GetPageStructure(PAGE),
+      "GetPageStructure",
+    );
+    const top = structure.queries.find((query) => query.name === "topStatuses");
+    expect(top?.params).to.deep.equal({
+      op: "sum",
+      field: "amount",
+      groupBy: "status",
+      orderBy: "measure",
+      direction: "desc",
+      limit: 5,
+    });
+  });
+
+  it("is edited in place, like any readable query", async function () {
+    this.timeout(OP_TIMEOUT);
+    expectOk(
+      await ConfigureQuery(`${PAGE}@monthlyRevenue`, {
+        params: { ...MONTHLY_REVENUE.params, bucket: "quarter" },
+      }),
+      "ConfigureQuery",
+    );
+
+    expect(app.read(MODEL_FILE), "the period is recompiled").to.contain(
+      ".sub(1).div(3).floor().add(1)",
+    );
+    const structure = expectOk(
+      await GetPageStructure(PAGE),
+      "GetPageStructure",
+    );
+    const series = structure.queries.find(
+      (query) => query.name === "monthlyRevenue",
+    );
+    expect(series?.params).to.include({ bucket: "quarter" });
+  });
+
+  it("is removed entirely, route and calculation", async function () {
     this.timeout(OP_TIMEOUT);
     expectOk(await RemoveQuery(`${PAGE}@topStatuses`), "RemoveQuery");
 
-    expect(app.read(PAGE_FILE), "the route is gone").to.not.contain(
-      "topStatuses",
-    );
-
-    // The model method stays, and this is the conservative rule working as
-    // designed: the engine only deletes a method it recognizes as one of its
-    // own, and recognition *is* reading the chain back. Until the reader learns
-    // grouped chains, a removed series leaves a dead method behind — which is the
-    // right side to err on, since the alternative is deleting something a human
-    // wrote. Teaching the reader closes this without touching removal.
-    expect(app.read(MODEL_FILE)).to.contain("topStatuses(");
+    expect(app.read(PAGE_FILE)).to.not.contain("topStatuses");
+    // The model method goes with it: the engine deletes a method it recognizes
+    // as one of its own, and recognition is reading the chain back.
+    expect(app.read(MODEL_FILE)).to.not.contain("topStatuses");
   });
 
   describe("refuses what the database could not compute", () => {
