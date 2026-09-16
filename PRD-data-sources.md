@@ -233,21 +233,21 @@ Autres contraintes relevées :
 | T1 | Spike : regroupement sur champ projeté côté MongoDB | — | 0,5 j | **fait** |
 | T2 | `cms` : widget `dataSource`, `responseShape`, repointage des quatre blocs | — | 0,5 j | à faire |
 | T3 | `cms` : `RegisterDataSource` / `ListDataSources` | — | 0,5 j | à faire |
-| T4 | Moteur : IR `QueryPlan`, report de `count`/`aggregate` (émission inchangée) | — | 1,5 j | à faire |
-| T5 | Moteur : template `series` (bucket temporel et catégoriel, tri, limite, fuseau) | T1, T4 | 1,5 j | à faire |
+| T4 | Moteur : IR `QueryPlan`, report de `count`/`aggregate` (émission inchangée) | — | 1,5 j | **fait** |
+| T5 | Moteur : template `series` (bucket temporel et catégoriel, tri, limite, fuseau) | T1, T4 | 1,5 j | **fait** |
 | T6 | Moteur : enveloppes de réponse (4 formes) et comparaison de période | T5 | 1,5 j | à faire |
-| T7 | Moteur : relecture des nouvelles chaînes et des enveloppes | T6 | 2 j | à faire |
+| T7 | Moteur : relecture des nouvelles chaînes et des enveloppes | T6 | 2 j | **fait** |
 | T8 | Moteur : `PageDraft.queries`, `SavePage` transactionnel, nettoyage des orphelines | T4 | 1,5 j | à faire |
 | T9 | Moteur : backend `execute` et `RunDraftQuery` | T5, T6 | 1,5 j | à faire |
-| T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | à faire |
+| T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | **fait** |
 | T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j | à faire |
 | T12 | Layer : `DataSource.vue`, patch multi-clés, réécriture d'URL en aperçu | T2, T11 | 2 j | à faire |
 | T13 | Vue « Sources » du rail : consommateurs, suppression, partage | T12 | 0,5 j | à faire |
 | T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j | à faire |
 
-Chemin critique restant : T4 → T5 → T6 → T7. T2, T3 et T10 sont parallélisables d'emblée.
+Chemin critique restant : T6, puis T8 et T9. T2 et T3 vivent dans `cms` et sont parallélisables d'emblée.
 
-### Ce que T0 et T1 ont établi
+### Ce que l'implémentation a établi
 
 - **Le regroupement temporel fonctionne sur les deux adapters.** C'était le risque qui pouvait
   invalider le template `series` ; il est levé, avec les réserves de fuseau et de tri notées en
@@ -262,6 +262,15 @@ Chemin critique restant : T4 → T5 → T6 → T7. T2, T3 et T10 sont paralléli
   et tournent en dix secondes sans runtime Antelope.
 - **Deux interfaces manquaient au manifeste** (`interface-data-api`,
   `interface-database-decorators`) : le paquet ne pouvait pas typechecker le code qu'il génère.
+- **L'identité d'une chaîne ignorait la plupart de ses paramètres.** La clé qui décide si deux
+  requêtes calculent la même chose énumérait `template`, `op`, `field` et `where` ; une série et
+  la même série regroupée par trimestre avaient donc la même clé, et reconfigurer l'une
+  réutilisait la méthode de l'autre **sans rien changer, silencieusement**. La clé couvre
+  désormais tous les paramètres, quel que soit le template.
+- **Les routes générées n'avaient aucune garde.** Elles portent maintenant la permission de la
+  page, en décorateur de paramètre sur la seule route générée (décision D5).
+- **Pas de semaine dans les buckets** : aucun adapter n'expose la semaine ISO, et la dériver du
+  jour de l'année place début janvier dans la semaine de l'année précédente.
 
 Jalon intermédiaire livrable : T1‑T6 + T8‑T12 donne le parcours de référence complet ; T7 (la
 relecture) est ce qui le rend *réouvrable*, et ne peut pas être reporté au-delà de la première
