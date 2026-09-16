@@ -1,0 +1,27 @@
+{
+	"name": "@antelopejs/dms-builder-frontend-vue",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"license": "Apache-2.0",
+	"packageManager": "pnpm@10.2.0",
+	"scripts": {
+		"typecheck": "ajs-dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix"
+	},
+	"dependencies": {
+		"vue": "^3.5.18"
+	},
+	"devDependencies": {
+		"@antelopejs/dms": ">=0.0.1 <1.0.0",
+		"@antelopejs/dms-frontend": ">=0.0.1 <1.0.0",
+		"@eslint/js": "^9.0.0",
+		"typescript-eslint": "^8.0.0",
+		"eslint": "^9.0.0",
+		"eslint-plugin-vue": "^10.0.0",
+		"globals": "^16.0.0",
+		"typescript": "^5.8.2",
+		"vue-tsc": "^3.1.1"
+	}
+}

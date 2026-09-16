@@ -1,0 +1,485 @@
+import type {
+  QueryStructure,
+  ResourceRef,
+} from "@antelopejs/interface-dms-builder";
+import {
+  type BinaryExpression,
+  type CallExpression,
+  type ClassDeclaration,
+  type MethodDeclaration,
+  type NewExpression,
+  Node,
+  type ParameterDeclaration,
+  SyntaxKind,
+} from "ts-morph";
+import { stringLiteralValue } from "./literals";
+import { bindName } from "./query-chain";
+import {
+  getQueryTemplate,
+  parseModelMethod,
+  type QueryTemplate,
+} from "./query-template";
+import { findResourceBySymbol, findResourceRecord } from "./resource-index";
+import { getWritableProject } from "./writable";
+
+export const MODEL_DECORATORS = ["Model", "TenantScopedModel"];
+const ROUTE_DECORATORS = ["Get", "Post", "Put", "Patch", "Delete"];
+const PARAM_SOURCES = new Set(["query", "param", "header"]);
+
+/** One argument of a route's call into its model method, per the §4 grammar. */
+export type QueryArg =
+  | { kind: "literal"; text: string }
+  | { kind: "param"; name: string; coerce?: "number" | "date" | "boolean" };
+
+export interface QueryRouteCall {
+  modelMethod: string;
+  args: QueryArg[];
+}
+
+export interface QueryRoute {
+  method: MethodDeclaration;
+  name: string;
+  endpoint: string;
+}
+
+/**
+ * Hop 1 — the query routes on a page, found by what they *are* rather than
+ * where they sit. A query route is a `@Get` that injects a known resource's
+ * model and returns a scalar from it; the URL is free, and a hand-written route
+ * matching the shape is as much a query as a generated one.
+ */
+export function findQueryRoutes(pageClass: ClassDeclaration): QueryRoute[] {
+  const routes: QueryRoute[] = [];
+  for (const method of pageClass.getMethods()) {
+    const endpoint = getDecoratorPath(method, "Get");
+    if (endpoint !== undefined && isQueryRouteMethod(method)) {
+      routes.push({ method, name: method.getName(), endpoint });
+    }
+  }
+  return routes;
+}
+
+/** The page's query route of a given name, if it has one. */
+export function findQueryRoute(
+  pageClass: ClassDeclaration,
+  name: string,
+): QueryRoute | undefined {
+  return findQueryRoutes(pageClass).find((route) => route.name === name);
+}
+
+/** Every path the page serves, for endpoint-collision checks. */
+export function pageRoutePaths(
+  pageClass: ClassDeclaration,
+  except?: MethodDeclaration,
+): string[] {
+  const paths: string[] = [];
+  for (const method of pageClass.getMethods()) {
+    if (method === except) {
+      continue;
+    }
+    for (const verb of ROUTE_DECORATORS) {
+      const path = getDecoratorPath(method, verb);
+      if (path !== undefined) {
+        paths.push(path);
+      }
+    }
+  }
+  return paths;
+}
+
+/** Hop 2 — the resource whose model a route injects, or `undefined` if it injects none. */
+export function routeResourceRef(
+  method: MethodDeclaration,
+): string | undefined {
+  return resolveRouteResource(method)?.ref;
+}
+
+function resolveRouteResource(
+  method: MethodDeclaration,
+): { ref: string } | undefined {
+  const modelClassName = routeModelClassName(method);
+  const found = modelClassName
+    ? findResourceBySymbol(modelClassName)
+    : undefined;
+  return found?.as === "model" ? { ref: found.ref } : undefined;
+}
+
+/**
+ * A route counts as a query when its body reads as one, or — when the body has
+ * drifted past the grammar — when it still calls a model method that parses as a
+ * chain. The second case is what lets a mangled route read back
+ * `unparseable_route` instead of vanishing.
+ */
+function isQueryRouteMethod(method: MethodDeclaration): boolean {
+  const resource = resolveRouteResource(method);
+  if (!resource) {
+    return false;
+  }
+  return (
+    parseQueryRouteCall(method) !== undefined ||
+    callsParseableModelMethod(method, resource.ref)
+  );
+}
+
+/**
+ * The parseable model methods a route body calls — the query methods it binds to
+ * even when the route itself has drifted off-grammar. This is what lets an opaque
+ * route's backing method still be found for caller-counting and orphan cleanup.
+ */
+export function routeModelMethodNames(
+  method: MethodDeclaration,
+  resource: string,
+): string[] {
+  const record = findResourceRecord(resource);
+  const modelClass = record?.tableClass
+    .getSourceFile()
+    .getClass(record.modelName);
+  const body = method.getBody();
+  const modelName = modelParameter(method)?.getName();
+  if (!modelClass || !body || !modelName) {
+    return [];
+  }
+  const names = new Set<string>();
+  for (const access of body.getDescendantsOfKind(
+    SyntaxKind.PropertyAccessExpression,
+  )) {
+    const receiver = access.getExpression();
+    if (!Node.isIdentifier(receiver) || receiver.getText() !== modelName) {
+      continue;
+    }
+    const called = modelClass.getMethod(access.getName());
+    if (called && parseModelMethod(called) !== undefined) {
+      names.add(access.getName());
+    }
+  }
+  return [...names];
+}
+
+function callsParseableModelMethod(
+  method: MethodDeclaration,
+  resource: string,
+): boolean {
+  return routeModelMethodNames(method, resource).length > 0;
+}
+
+function getDecoratorPath(
+  method: MethodDeclaration,
+  name: string,
+): string | undefined {
+  const decorator = method.getDecorator(name);
+  return stringLiteralValue(decorator?.getCallExpression()?.getArguments()[0]);
+}
+
+function modelParameter(
+  method: MethodDeclaration,
+): ParameterDeclaration | undefined {
+  return method
+    .getParameters()
+    .find((parameter) =>
+      MODEL_DECORATORS.some((name) => parameter.getDecorator(name)),
+    );
+}
+
+/** Hop 2 — the model class a route injects, as a bare identifier. */
+export function routeModelClassName(
+  method: MethodDeclaration,
+): string | undefined {
+  const parameter = modelParameter(method);
+  if (!parameter) {
+    return undefined;
+  }
+  for (const name of MODEL_DECORATORS) {
+    const argument = parameter
+      .getDecorator(name)
+      ?.getCallExpression()
+      ?.getArguments()[0];
+    if (argument && Node.isIdentifier(argument)) {
+      return argument.getText();
+    }
+  }
+  return undefined;
+}
+
+/**
+ * `Number(x)` and `new Date(x)` both read as the parameter `x` carrying a
+ * coercion. Anything else in that position is not a shape this can describe.
+ */
+function coercedParam(
+  node: CallExpression | NewExpression,
+  calleeName: string,
+  coerce: "number" | "date",
+): QueryArg | undefined {
+  const callee = node.getExpression();
+  const inner = node.getArguments()[0];
+  if (
+    Node.isIdentifier(callee) &&
+    callee.getText() === calleeName &&
+    inner &&
+    Node.isIdentifier(inner)
+  ) {
+    return { kind: "param", name: inner.getText(), coerce };
+  }
+  return undefined;
+}
+
+/** `x === "true"` is how a boolean parameter arrives from a query string. */
+function booleanParam(node: BinaryExpression): QueryArg | undefined {
+  const left = node.getLeft();
+  const right = node.getRight();
+  if (
+    node.getOperatorToken().getKind() === SyntaxKind.EqualsEqualsEqualsToken &&
+    Node.isIdentifier(left) &&
+    Node.isStringLiteral(right) &&
+    right.getLiteralValue() === "true"
+  ) {
+    return { kind: "param", name: left.getText(), coerce: "boolean" };
+  }
+  return undefined;
+}
+
+function unwrapArgument(node: Node): QueryArg | undefined {
+  if (Node.isIdentifier(node)) {
+    return { kind: "param", name: node.getText() };
+  }
+  if (Node.isCallExpression(node)) {
+    return coercedParam(node, "Number", "number");
+  }
+  if (Node.isNewExpression(node)) {
+    return coercedParam(node, "Date", "date");
+  }
+  if (Node.isBinaryExpression(node)) {
+    return booleanParam(node);
+  }
+  if (
+    Node.isStringLiteral(node) ||
+    Node.isNumericLiteral(node) ||
+    Node.isTrueLiteral(node) ||
+    Node.isFalseLiteral(node) ||
+    Node.isNullLiteral(node)
+  ) {
+    return { kind: "literal", text: node.getText() };
+  }
+  return undefined;
+}
+
+function unwrapReturnedCall(method: MethodDeclaration) {
+  const body = method.getBody();
+  if (!body || !Node.isBlock(body)) {
+    return undefined;
+  }
+  const statements = body.getStatements();
+  if (statements.length !== 1) {
+    return undefined;
+  }
+  const [statement] = statements;
+  if (!Node.isReturnStatement(statement)) {
+    return undefined;
+  }
+  const returned = statement.getExpression();
+  if (!returned || !Node.isObjectLiteralExpression(returned)) {
+    return undefined;
+  }
+  const properties = returned.getProperties();
+  if (properties.length !== 1) {
+    return undefined;
+  }
+  const [property] = properties;
+  if (!Node.isPropertyAssignment(property) || property.getName() !== "value") {
+    return undefined;
+  }
+  const initializer = property.getInitializer();
+  if (!initializer || !Node.isAwaitExpression(initializer)) {
+    return undefined;
+  }
+  const call = initializer.getExpression();
+  return Node.isCallExpression(call) ? call : undefined;
+}
+
+/**
+ * Hop 3 — the single `return { value: await model.<method>(...) }` call in a
+ * route body, matched as a shape rather than evaluated. Anything outside the
+ * grammar yields `undefined`, which the caller reports as `unparseable_route`.
+ */
+export function parseQueryRouteCall(
+  method: MethodDeclaration,
+): QueryRouteCall | undefined {
+  const call = unwrapReturnedCall(method);
+  if (!call) {
+    return undefined;
+  }
+  const callee = call.getExpression();
+  if (!Node.isPropertyAccessExpression(callee)) {
+    return undefined;
+  }
+  const receiver = callee.getExpression();
+  const modelParam = modelParameter(method);
+  if (
+    !Node.isIdentifier(receiver) ||
+    !modelParam ||
+    receiver.getText() !== modelParam.getName()
+  ) {
+    return undefined;
+  }
+  const paramNames = new Set(
+    method.getParameters().map((parameter) => parameter.getName()),
+  );
+  const args: QueryArg[] = [];
+  for (const argument of call.getArguments()) {
+    const parsed = unwrapArgument(argument);
+    if (!parsed) {
+      return undefined;
+    }
+    if (parsed.kind === "param" && !paramNames.has(parsed.name)) {
+      return undefined;
+    }
+    args.push(parsed);
+  }
+  return { modelMethod: callee.getName(), args };
+}
+
+type ParamSource = "query" | "param" | "header";
+
+/**
+ * The route's declared parameters. `@Parameter` defaults to `query` when its
+ * source is omitted, and a hand-written route may bind a `header` — reporting
+ * that as `query` would describe a binding the caller cannot reproduce.
+ */
+function routeParams(
+  method: MethodDeclaration,
+): { name: string; in: ParamSource }[] {
+  const params: { name: string; in: ParamSource }[] = [];
+  for (const parameter of method.getParameters()) {
+    const args = parameter
+      .getDecorator("Parameter")
+      ?.getCallExpression()
+      ?.getArguments();
+    const name = stringLiteralValue(args?.[0]);
+    if (!name) {
+      continue;
+    }
+    const source = stringLiteralValue(args?.[1]) ?? "query";
+    params.push({
+      name,
+      in: PARAM_SOURCES.has(source) ? (source as ParamSource) : "query",
+    });
+  }
+  return params;
+}
+
+function findModelMethod(
+  resource: ResourceRef,
+  modelMethod: string,
+): MethodDeclaration | undefined {
+  const record = findResourceRecord(resource);
+  if (!record) {
+    return undefined;
+  }
+  return getWritableProject()
+    .getSourceFile(record.databaseFile)
+    ?.getClass(record.modelName)
+    ?.getMethod(modelMethod);
+}
+
+/**
+ * A template's params may only carry keys the template declares. The write path
+ * checks this before compiling, so an `AddQuery` with an unknown key is refused
+ * rather than emitted.
+ */
+export function unknownParamKeys(
+  template: QueryTemplate,
+  params: Record<string, unknown>,
+): string[] {
+  const known = new Set(Object.keys(template.descriptor.params));
+  return Object.keys(params).filter((key) => !known.has(key));
+}
+
+/**
+ * Resolves a parsed method's `$bind` sentinels into public `$param` bindings by
+ * following each to the route: the model parameter it names → its position in
+ * the signature → the route argument in that slot → the route's `@Parameter`
+ * name and source. Returns `undefined` if a bound value cannot be traced to a
+ * `query`/`param` route parameter, which degrades the whole query to opaque —
+ * the route no longer supplies what the chain reads.
+ */
+function resolveBindings(
+  params: Record<string, unknown>,
+  method: MethodDeclaration,
+  call: QueryRouteCall,
+  route: { name: string; in: ParamSource }[],
+): Record<string, unknown> | undefined {
+  if (!Array.isArray(params.where)) {
+    return params;
+  }
+  const positionOf = new Map(
+    method
+      .getParameters()
+      .map((parameter, index) => [parameter.getName(), index]),
+  );
+  const where: unknown[] = [];
+  for (const raw of params.where) {
+    const filter = raw as { field: string; op: string; value: unknown };
+    const name = bindName(filter.value);
+    if (name === undefined) {
+      where.push(filter);
+      continue;
+    }
+    const position = positionOf.get(name);
+    const argument = position !== undefined ? call.args[position] : undefined;
+    if (!argument || argument.kind !== "param") {
+      return undefined;
+    }
+    const routeParam = route.find((param) => param.name === argument.name);
+    if (!routeParam || routeParam.in === "header") {
+      return undefined;
+    }
+    where.push({
+      field: filter.field,
+      op: filter.op,
+      value: { $param: { name: routeParam.name, in: routeParam.in } },
+    });
+  }
+  return { ...params, where };
+}
+
+/** Read-back for every query route on a page. */
+export function buildQueryStructures(
+  pageClass: ClassDeclaration,
+): QueryStructure[] {
+  return findQueryRoutes(pageClass).map((route) => buildQueryStructure(route));
+}
+
+export function buildQueryStructure(route: QueryRoute): QueryStructure {
+  const params = routeParams(route.method);
+  const base: QueryStructure = {
+    name: route.name,
+    endpoint: route.endpoint,
+    routeParams: params,
+  };
+  const modelClassName = routeModelClassName(route.method);
+  const resource = modelClassName
+    ? findResourceBySymbol(modelClassName)
+    : undefined;
+  if (resource) {
+    base.resource = resource.ref;
+  }
+  const call = parseQueryRouteCall(route.method);
+  if (!call || !resource) {
+    return { ...base, opaque: true, opaqueReason: "unparseable_route" };
+  }
+  base.modelMethod = call.modelMethod;
+  const method = findModelMethod(resource.ref, call.modelMethod);
+  const parsed = method ? parseModelMethod(method) : undefined;
+  if (!method || !parsed) {
+    return { ...base, opaque: true, opaqueReason: "unparseable_chain" };
+  }
+  const resolved = resolveBindings(parsed.params, method, call, params);
+  if (!resolved) {
+    return { ...base, opaque: true, opaqueReason: "unparseable_chain" };
+  }
+  return {
+    ...base,
+    template: parsed.template,
+    params: resolved,
+    output: getQueryTemplate(parsed.template)?.descriptor.output,
+  };
+}

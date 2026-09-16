@@ -1,0 +1,90 @@
+import { InterfaceFunction } from "@antelopejs/interface-core";
+import type { BlockPath, PageRef } from "./addressing";
+import type { ResourceRef } from "./resources";
+import type { MutationOpts, OpResult } from "./results";
+import type { EditablePageMeta } from "./structure";
+
+/**
+ * A block as the caller wants it written. The whole tree is declarative: what
+ * the draft describes is what the page file ends up holding.
+ */
+export interface BlockDraft {
+  /** Static key (top-level) or `.child()` id (nested). Must be an identifier. */
+  name: string;
+  /** A block type from the catalog. Ignored when `preserve` is set. */
+  type?: string;
+  config?: Record<string, unknown>;
+  slot?: string;
+  /** Child metadata emitted with `slot`, e.g. `{ colSpan: 2 }`. */
+  meta?: Record<string, unknown>;
+  /** Required for a controller-leading block type such as `TableView`. */
+  controller?: ResourceRef;
+  children?: BlockDraft[];
+  /**
+   * Write the block back exactly as it stands on disk, identified by its name
+   * among its siblings. This is how an opaque block — a `CustomComponent`, a
+   * computed expression, anything the builder can read but not rewrite —
+   * survives a whole-tree write. A `preserve` block whose name no longer
+   * matches anything fails with `not_found`.
+   */
+  preserve?: boolean;
+}
+
+/** A page as the caller wants it written. */
+export interface PageDraft {
+  /** Metadata to patch alongside the blocks; omit to leave it alone. */
+  page?: Partial<EditablePageMeta>;
+  blocks: BlockDraft[];
+}
+
+/** A component tree in the shape the DMS frontend consumes. */
+export interface ComponentPreview {
+  componentName: string;
+  options?: Record<string, unknown>;
+  children?: ComponentPreviewChild[];
+}
+
+export interface ComponentPreviewChild {
+  id: string;
+  slot?: string;
+  component: ComponentPreview;
+  [key: string]: unknown;
+}
+
+/** The preview of a page draft, keyed by top-level block name. */
+export interface PageLayoutPreview {
+  components: Record<string, ComponentPreview>;
+  /**
+   * Blocks the preview could not build faithfully — an unresolved `$ref` or
+   * `$expr`, a factory that threw. Render the last known-good layout for those
+   * rather than trusting this one.
+   */
+  degraded: BlockPath[];
+}
+
+/**
+ * Write a page's whole block tree in one transaction: one typecheck, one write,
+ * one `changes` list. The declarative counterpart of the per-block operations,
+ * meant for an editor holding a draft of the page rather than replaying edits.
+ *
+ * Blocks absent from the draft are removed; static members that are not blocks
+ * are left alone. Pass `expectedVersion` to make the write conditional.
+ */
+export const SetPageBlocks =
+  InterfaceFunction<
+    (
+      page: PageRef,
+      draft: PageDraft,
+      opts?: MutationOpts,
+    ) => Promise<OpResult<{ version: string }>>
+  >();
+
+/**
+ * Serialize a draft the way the runtime would, without writing anything. The
+ * factories are the real ones, so the result is what the page would render.
+ * Nothing is typechecked and nothing reaches disk.
+ */
+export const PreviewLayout =
+  InterfaceFunction<
+    (page: PageRef, draft: PageDraft) => Promise<OpResult<PageLayoutPreview>>
+  >();

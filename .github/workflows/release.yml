@@ -1,0 +1,73 @@
+name: Release DMS builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: npm distribution channel
+        required: true
+        default: latest
+        type: choice
+        options:
+          - latest
+          - next
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release source and package metadata
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
+            echo "Releases must run from the default branch ($DEFAULT_BRANCH)." >&2
+            exit 1
+          }
+          case "$CHANNEL" in
+            latest|next) ;;
+            *) echo "Unsupported npm channel: $CHANNEL" >&2; exit 1 ;;
+          esac
+          node <<'NODE'
+          const pkg = require('./packages/dms-builder/package.json')
+          const errors = []
+          if (pkg.name !== '@antelopejs/dms-builder') errors.push('name must be @antelopejs/dms-builder')
+          if (pkg.private === true) errors.push('private must not be true')
+          if (pkg.license !== 'Apache-2.0') errors.push('license must be Apache-2.0')
+          if (pkg.repository?.url !== 'git+https://github.com/AntelopeJS/dms-builder.git') errors.push('repository.url must point at AntelopeJS/dms-builder')
+          if (pkg.publishConfig?.access !== 'public') errors.push('publishConfig.access must be public')
+          if (pkg.publishConfig?.provenance !== true) errors.push('publishConfig.provenance must be true')
+          if (pkg.publishConfig?.registry !== 'https://registry.npmjs.org/') errors.push('publishConfig.registry must be npmjs')
+          if (errors.length) {
+            console.error(errors.join('\n'))
+            process.exit(1)
+          }
+          NODE
+
+      # pnpm rewrites `workspace:*` to the interface's local version when it
+      # packs the runtime, so a runtime release that runs ahead of its interface
+      # publishes a dependency npm cannot resolve. This workflow never releases
+      # the interface itself: run `release-interface.yml` first.
+      - name: Verify the interface is resolvable on npmjs
+        run: |
+          version=$(node -p "require('./packages/interface-dms-builder/package.json').version")
+          npm view "@antelopejs/interface-dms-builder@$version" version --registry=https://registry.npmjs.org/ || {
+            echo "@antelopejs/interface-dms-builder@$version is not published: release the interface first." >&2
+            exit 1
+          }
+
+  release:
+    needs: validate
+    uses: AntelopeJS/.github/.github/workflows/release-npm-public.yml@1df63ee37c5ecb869124cb58f199cef1e19dd138
+    with:
+      channel: ${{ inputs.channel }}
+      package-directory: packages/dms-builder
+    secrets:
+      RELEASE_GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}

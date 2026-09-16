@@ -1,0 +1,86 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useBuilder } from '../runtime/session'
+
+const builder = useBuilder()
+const session = builder.session
+
+// A drawer that edits a table's fields or shows the whole page as JSON needs
+// room; the design gives those the wide rail.
+const WIDE_VIEWS = new Set(['resource', 'json'])
+const BACK_VIEWS = new Set(['resource', 'query', 'json', 'pages'])
+
+const wide = computed(() => WIDE_VIEWS.has(session.value.view))
+const canGoBack = computed(() => BACK_VIEWS.has(session.value.view))
+
+const heading = computed(() => {
+	const headings: Record<string, { title: string; subtitle: string }> = {
+		library: {
+			title: 'Components',
+			subtitle: 'Drag onto the page, or click to append',
+		},
+		config: {
+			title:
+				builder.selectedDescriptor.value?.label ??
+				(builder.selected.value ? 'Block' : 'Selection'),
+			subtitle: builder.selected.value
+				? `#${builder.selected.value.name}`
+				: 'Nothing selected',
+		},
+		page: { title: 'Page', subtitle: 'Title, description and icon' },
+		pages: { title: 'Pages', subtitle: 'Pages and categories of the project' },
+		resource: {
+			title: 'Displayed fields',
+			subtitle: builder.selected.value?.controller
+				? `Table · ${builder.selected.value.controller}`
+				: 'Fields and API of the resource',
+		},
+		query: { title: 'Queries', subtitle: session.value.pageRef ?? '' },
+		json: { title: 'Configuration', subtitle: 'Export and import the page' },
+	}
+	return headings[session.value.view] ?? { title: '', subtitle: '' }
+})
+</script>
+
+<template>
+	<aside
+		class="flex shrink-0 flex-col border-l border-default bg-default transition-[width]"
+		:class="wide ? 'w-[620px]' : 'w-[340px]'"
+	>
+		<div class="flex items-center gap-2 border-b border-default px-3 py-3">
+			<UButton
+				v-if="canGoBack"
+				icon="i-ph-arrow-left"
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				aria-label="Back"
+				@click="builder.back()"
+			/>
+			<div class="min-w-0 flex-1">
+				<p class="truncate text-sm font-semibold text-highlighted">
+					{{ heading.title }}
+				</p>
+				<p class="truncate text-xs text-dimmed">{{ heading.subtitle }}</p>
+			</div>
+			<UButton
+				icon="i-ph-x"
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				aria-label="Close the panel"
+				@click="session.railOpen = false"
+			/>
+		</div>
+
+		<div class="flex-1 overflow-y-auto p-4">
+			<DmsBuilderPagesPanel v-if="session.view === 'pages'" />
+			<DmsBuilderLibrary v-else-if="session.view === 'library'" />
+			<DmsBuilderConfig v-else-if="session.view === 'config'" />
+			<DmsBuilderPagePanel v-else-if="session.view === 'page'" />
+			<DmsBuilderResourcePanel v-else-if="session.view === 'resource'" />
+			<DmsBuilderQueryPanel v-else-if="session.view === 'query'" />
+			<DmsBuilderJsonPanel v-else-if="session.view === 'json'" />
+		</div>
+	</aside>
+</template>

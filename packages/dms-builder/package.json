@@ -1,0 +1,67 @@
+{
+  "name": "@antelopejs/dms-builder",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AntelopeJS/dms-builder.git"
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "dist",
+    "frontend-vue"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "pnpm --filter @antelopejs/interface-dms-builder build && rimraf dist && tsc -p tsconfig.build.json",
+    "dev": "ajs project run -w -p playground",
+    "generate": "ajs module exports generate",
+    "typecheck": "pnpm --filter @antelopejs/interface-dms-builder build && tsc -p tsconfig.json",
+    "test": "pnpm run build && pnpm run test:package-contract && pnpm run test:frontend-registration",
+    "test:frontend-registration": "node --test tests/frontend-registration.test.cjs",
+    "test:package-contract": "node --test tests/package-contract.test.cjs",
+    "release": "pnpm --filter @antelopejs/interface-dms-builder build && pnpm run test:package-contract && release-it",
+    "prepack": "pnpm run build",
+    "knip": "knip --dependencies",
+    "knip:all": "knip"
+  },
+  "dependencies": {
+    "@antelopejs/interface-api": ">=0.0.12 <1.0.0",
+    "@antelopejs/interface-core": "^0.0.12",
+    "@antelopejs/interface-database": "0.1.7",
+    "@antelopejs/interface-dms": ">=0.0.1 <1.0.0",
+    "@antelopejs/interface-dms-builder": "workspace:*",
+    "ts-morph": "^23.0.0"
+  },
+  "devDependencies": {
+    "@antelopejs/core": "^1.4.11",
+    "@antelopejs/tooling-configs": "^0.0.4",
+    "@types/node": "^24.0.0",
+    "knip": "^6.34.0",
+    "release-it": "^19.2.4",
+    "release-it-changelogen": "^0.1.0",
+    "rimraf": "^6.1.3",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@10.2.0",
+  "antelopeJs": {
+    "baseUrl": "dist",
+    "implements": [
+      "@antelopejs/interface-dms-builder"
+    ]
+  }
+}

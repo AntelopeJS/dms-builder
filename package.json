@@ -1,0 +1,28 @@
+{
+  "name": "@antelopejs/dms-builder-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AntelopeJS/dms-builder.git"
+  },
+  "scripts": {
+    "lint": "oxlint && oxfmt --check .",
+    "lint:fix": "oxlint --fix --max-warnings=1000000 && oxfmt .",
+    "format": "oxfmt .",
+    "build": "pnpm --filter @antelopejs/dms-builder build",
+    "typecheck": "pnpm --filter @antelopejs/interface-dms-builder typecheck && pnpm --filter @antelopejs/dms-builder typecheck",
+    "test": "pnpm --filter @antelopejs/dms-builder test",
+    "knip": "pnpm --filter @antelopejs/dms-builder knip"
+  },
+  "devDependencies": {
+    "@antelopejs/tooling-configs": "^0.0.4",
+    "@types/node": "^24.0.0",
+    "oxfmt": "^0.66.0",
+    "oxlint": "1.81.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@10.2.0"
+}
