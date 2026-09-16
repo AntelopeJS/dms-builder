@@ -1,17 +1,16 @@
-// Validating filters, and rendering the text of literals and compiled chains.
+// The templates the engine ships: what each accepts as parameters, what it
+// computes, and how it reads itself back from emitted code.
 //
-// Split out of query-template.ts to stay under the size the linter allows.
+// The chain's text is rendered by query-plan.ts: a template describes a plan, it
+// does not write code.
 
 import type {
-  FilterOp,
   OptionSchema,
-  OpWarning,
-  QueryFilter,
-  QueryParamBinding,
   ResourceFieldStructure,
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import { stringLiteralValue } from "./literals";
+import { emitPlan, planFilters } from "./query-plan";
 import { FILTER_OPS, readChain, whereParams } from "./query-chain";
 import { describeValue } from "./describe-value";
 import {
@@ -19,10 +18,7 @@ import {
   checkField,
   checkFilter,
   checkParamConflicts,
-  fallbackTypeWarning,
-  isParamBinding,
   issue,
-  MethodParam,
   QueryTemplate,
   registerQueryTemplate,
   scanForExpr,
@@ -45,116 +41,6 @@ export function checkFilters(
   return issues.length > 0 ? issues : checkParamConflicts(where, fields);
 }
 
-function literalText(value: unknown, ts: string): string {
-  if (ts === "Date") {
-    return `new Date(${JSON.stringify(value)})`;
-  }
-  return JSON.stringify(value);
-}
-
-interface CompiledFilters {
-  text: string;
-  parameters: MethodParam[];
-  warnings: OpWarning[];
-}
-
-function compileFilters(
-  where: unknown,
-  fields: ResourceFieldStructure[],
-): CompiledFilters {
-  if (!Array.isArray(where)) {
-    return { text: "", parameters: [], warnings: [] };
-  }
-  const parameters = new Map<string, MethodParam>();
-  const taken = new Set<string>();
-  const warnings: OpWarning[] = [];
-  const parts = where.map((raw) => {
-    const filter = raw as QueryFilter;
-    const resolved = checkField(fields, filter.field, "");
-    const ts = "ts" in resolved ? resolved.ts : "string";
-    if ("ts" in resolved) {
-      warnings.push(...fallbackTypeWarning(filter.field, resolved));
-    }
-    const argument = isParamBinding(filter.value)
-      ? paramArgument({
-          value: filter.value,
-          field: filter.field,
-          op: filter.op,
-          ts,
-          parameters,
-          taken,
-        })
-      : literalText(filter.value, ts);
-    return `.filter((row) => row.key(${JSON.stringify(filter.field)}).${filter.op}(${argument}))`;
-  });
-  return {
-    text: parts.join(""),
-    parameters: [...parameters.values()],
-    warnings,
-  };
-}
-
-/**
- * A model parameter name from the field it filters — `minPrice`, `maxPrice`,
- * `priceNot`, or just `price` — never the route's public name. The two names are
- * independent: the route exposes its own, the model reads a meaningful one. On a
- * name clash (two ops on one field), fall back to a numeric suffix.
- */
-function deriveName(field: string, op: FilterOp, taken: Set<string>): string {
-  const capital = field.charAt(0).toUpperCase() + field.slice(1);
-  const base =
-    op === "ge" || op === "gt"
-      ? `min${capital}`
-      : op === "le" || op === "lt"
-        ? `max${capital}`
-        : op === "ne"
-          ? `${field}Not`
-          : field;
-  if (!taken.has(base)) {
-    return base;
-  }
-  let suffix = 2;
-  while (taken.has(`${base}${suffix}`)) {
-    suffix++;
-  }
-  return `${base}${suffix}`;
-}
-
-/** What a filter needs to bind one route parameter. */
-interface ParamArgument {
-  value: QueryParamBinding;
-  field: string;
-  op: FilterOp;
-  ts: string;
-  parameters: Map<string, MethodParam>;
-  taken: Set<string>;
-}
-
-/**
- * Binds the parameter, or reuses the binding a previous filter already made for
- * this public name — `checkParamConflicts` has established they agree. The model
- * parameter is named from this filter's field/op; the body references that name,
- * while the binding's `$param.name` rides along only for the route to expose.
- */
-function paramArgument({
-  value,
-  field,
-  op,
-  ts,
-  parameters,
-  taken,
-}: ParamArgument): string {
-  const routeName = value.$param.name;
-  let param = parameters.get(routeName);
-  if (!param) {
-    const name = deriveName(field, op, taken);
-    taken.add(name);
-    param = { name, routeName, type: ts, in: value.$param.in ?? "query" };
-    parameters.set(routeName, param);
-  }
-  return param.name;
-}
-
 function countTemplate(): QueryTemplate {
   return {
     descriptor: {
@@ -169,14 +55,11 @@ function countTemplate(): QueryTemplate {
       ...scanForExpr(params),
       ...checkFilters(params.where, fields),
     ],
-    compile: (params, fields) => {
-      const filters = compileFilters(params.where, fields);
-      return {
-        body: `{\n\treturn this.table${filters.text}.count();\n}`,
-        parameters: filters.parameters,
-        warnings: filters.warnings,
-      };
-    },
+    compile: (params, fields) =>
+      emitPlan(
+        { filters: planFilters(params.where), measure: { kind: "count" } },
+        fields,
+      ),
     parse: (method) => {
       const chain = readChain(method);
       if (
@@ -237,15 +120,18 @@ function aggregateTemplate(): QueryTemplate {
       }
       return issues;
     },
-    compile: (params, fields) => {
-      const filters = compileFilters(params.where, fields);
-      const call = `${params.op as string}(${JSON.stringify(params.field)})`;
-      return {
-        body: `{\n\treturn this.table${filters.text}.${call};\n}`,
-        parameters: filters.parameters,
-        warnings: filters.warnings,
-      };
-    },
+    compile: (params, fields) =>
+      emitPlan(
+        {
+          filters: planFilters(params.where),
+          measure: {
+            kind: "aggregate",
+            op: params.op as string,
+            field: params.field as string,
+          },
+        },
+        fields,
+      ),
     parse: (method) => {
       const chain = readChain(method);
       if (
