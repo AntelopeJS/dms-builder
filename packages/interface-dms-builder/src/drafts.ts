@@ -1,6 +1,6 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { BlockPath, PageRef } from "./addressing";
-import type { AddQueryInput } from "./queries";
+import type { AddQueryInput, QueryPreview } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
@@ -99,3 +99,25 @@ export const PreviewLayout =
   InterfaceFunction<
     (page: PageRef, draft: PageDraft) => Promise<OpResult<PageLayoutPreview>>
   >();
+
+/**
+ * Run a query that has not been written, and answer what its route would.
+ *
+ * The other half of previewing a draft: `PreviewLayout` says what the page will
+ * look like, this says what its blocks will be showing. Read-only, and limited to
+ * a page of points — a preview that returned a million rows would be answering a
+ * different question.
+ */
+export const PreviewQuery =
+  InterfaceFunction<
+    (request: QueryPreviewRequest) => Promise<OpResult<QueryPreview>>
+  >();
+
+/** What to run, and what the route would have been handed. */
+export interface QueryPreviewRequest {
+  query: AddQueryInput;
+  /** Values the route would receive, by the name it exposes them under. */
+  args?: Record<string, unknown>;
+  /** The tenant whose rows to read, for a resource in a per-tenant schema. */
+  tenant?: string;
+}

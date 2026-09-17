@@ -17,7 +17,6 @@ import {
   type PlanGroup,
   type PlanMeasure,
   type PlanOrder,
-  emitPlan,
   planFilters,
 } from "./query-plan";
 import {
@@ -296,17 +295,13 @@ export function seriesTemplate(): QueryTemplate {
       ...checkGroup(params, fields),
       ...checkOrderAndLimit(params),
     ],
-    compile: (params, fields) =>
-      emitPlan(
-        {
-          filters: planFilters(params.where),
-          measure: measureOf(params),
-          group: groupOf(params),
-          order: orderOf(params),
-          limit: params.limit as number | undefined,
-        },
-        fields,
-      ),
+    plan: (params) => ({
+      filters: planFilters(params.where),
+      measure: measureOf(params),
+      group: groupOf(params),
+      order: orderOf(params),
+      limit: params.limit as number | undefined,
+    }),
     parse: (method) => {
       const chain = readSeriesChain(method);
       return chain ? seriesParams(chain) : undefined;

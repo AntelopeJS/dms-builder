@@ -245,8 +245,8 @@ Autres contraintes relevées :
 | T5 | Moteur : template `series` (bucket temporel et catégoriel, tri, limite, fuseau) | T1, T4 | 1,5 j | **fait** |
 | T6 | Moteur : enveloppes de réponse (4 formes) et comparaison de période | T5 | 1,5 j | à faire |
 | T7 | Moteur : relecture des nouvelles chaînes et des enveloppes | T6 | 2 j | **fait** |
-| T8 | Moteur : `PageDraft.queries`, `SavePage` transactionnel, nettoyage des orphelines | T4 | 1,5 j | à faire |
-| T9 | Moteur : backend `execute` (fait) et `RunDraftQuery` (attend T8 et T11) | T5 | 1,5 j | **partiel** |
+| T8 | Moteur : `PageDraft.queries`, `SavePage` transactionnel, nettoyage des orphelines | T4 | 1,5 j | **fait** |
+| T9 | Moteur : backend `execute` et `PreviewQuery` | T5, T8 | 1,5 j | **fait** |
 | T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | **fait** |
 | T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j | à faire |
 | T12 | Front (Inertia) : éditeur de source, patch multi-clés, réécriture d'URL en aperçu — **à re-spécifier depuis la migration Inertia** | T2, T11 | 2 j | à faire |

@@ -26,6 +26,9 @@ export default defineConfig({
         // splitting one to satisfy a length ceiling buys nothing and costs the
         // shared fixture. The ceiling still applies to everything it tests.
         "max-lines-per-function": "off",
+        // A stand-in for a database stream has to be thenable, because the
+        // stream it stands in for is: that is how a query is awaited.
+        "unicorn/no-thenable": "off",
       },
     },
   ],

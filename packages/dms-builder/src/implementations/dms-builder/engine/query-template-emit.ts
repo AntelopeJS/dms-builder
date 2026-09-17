@@ -7,7 +7,7 @@
 import { stringLiteralValue } from "./literals";
 import { seriesTemplate } from "./query-template-series";
 import { checkFilters, whereSchema } from "./query-where";
-import { emitPlan, planFilters } from "./query-plan";
+import { planFilters } from "./query-plan";
 import { readChain, whereParams } from "./query-chain";
 import { describeValue } from "./describe-value";
 import {
@@ -32,11 +32,10 @@ function countTemplate(): QueryTemplate {
       ...scanForExpr(params),
       ...checkFilters(params.where, fields),
     ],
-    compile: (params, fields) =>
-      emitPlan(
-        { filters: planFilters(params.where), measure: { kind: "count" } },
-        fields,
-      ),
+    plan: (params) => ({
+      filters: planFilters(params.where),
+      measure: { kind: "count" },
+    }),
     parse: (method) => {
       const chain = readChain(method);
       if (
@@ -97,18 +96,14 @@ function aggregateTemplate(): QueryTemplate {
       }
       return issues;
     },
-    compile: (params, fields) =>
-      emitPlan(
-        {
-          filters: planFilters(params.where),
-          measure: {
-            kind: "aggregate",
-            op: params.op as string,
-            field: params.field as string,
-          },
-        },
-        fields,
-      ),
+    plan: (params) => ({
+      filters: planFilters(params.where),
+      measure: {
+        kind: "aggregate",
+        op: params.op as string,
+        field: params.field as string,
+      },
+    }),
     parse: (method) => {
       const chain = readChain(method);
       if (

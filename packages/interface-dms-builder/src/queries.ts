@@ -67,6 +67,21 @@ export interface QueryTemplateDescriptor {
   params: ConfigSchema;
 }
 
+/**
+ * What a draft query answers when run without being written.
+ *
+ * The same shape its route would serve, so a block can be handed it directly —
+ * plus `truncated`, because a preview stops reading at some point and a chart
+ * that silently lost its tail is worse than one that says so.
+ */
+export type QueryPreview =
+  | { output: QueryOutputKind; value: number; truncated?: false }
+  | {
+      output: QueryOutputKind;
+      series: { x: number | string; y: number }[];
+      truncated: boolean;
+    };
+
 /** Input for `AddQuery`. */
 export interface AddQueryInput {
   /**

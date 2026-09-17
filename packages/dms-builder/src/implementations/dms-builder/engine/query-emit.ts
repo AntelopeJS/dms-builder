@@ -45,6 +45,13 @@ const RESPONSE_SHAPES: Record<QueryOutputKind, ResponseShape> = {
   },
 };
 
+/** What a template's queries answer with, for a caller outside the emitter. */
+export function outputForTemplate(
+  template: string,
+): QueryOutputKind | undefined {
+  return getQueryTemplate(template)?.descriptor.output;
+}
+
 function responseShapeFor(template: string): ResponseShape {
   const output = getQueryTemplate(template)?.descriptor.output;
   return RESPONSE_SHAPES[output ?? "scalar"];

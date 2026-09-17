@@ -13,6 +13,7 @@ import {
 import { duplicate, invalidConfig, opaque } from "./ops";
 import { isIdentifier } from "./paths";
 import { canonicalBody } from "./query-chain";
+import { emitPlan } from "./query-plan";
 import {
   type CompiledQuery,
   defaultEndpoint,
@@ -312,7 +313,7 @@ export function compileQuery(
   if (issues.length > 0) {
     return invalidIssues<never>(issues);
   }
-  const chain = template.compile(params, fields);
+  const chain = emitPlan(template.plan(params, fields), fields);
   const segmentIssues = checkParamSegments(endpoint, chain.parameters);
   if (segmentIssues.length > 0) {
     return invalidIssues<never>(segmentIssues);

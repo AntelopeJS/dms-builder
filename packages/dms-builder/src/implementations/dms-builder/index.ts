@@ -23,6 +23,8 @@ import type {
   PageRef,
   PageStructure,
   PageSummary,
+  QueryPreview,
+  QueryPreviewRequest,
   QueryRef,
   QueryTemplateDescriptor,
   RefreshScope,
@@ -48,6 +50,7 @@ import {
 import { setPageBlocks } from "./engine/page-draft";
 import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
+import { runQueryPreview } from "./engine/query-preview";
 import { addQuery, configureQuery, removeQuery } from "./engine/query-ops-emit";
 import { listQueryTemplates } from "./engine/query-template";
 import { registerBuiltinQueryTemplates } from "./engine/query-template-emit";
@@ -95,6 +98,12 @@ export async function SetPageBlocks(
   opts?: MutationOpts,
 ): Promise<OpResult<{ version: string }>> {
   return setPageBlocks(page, draft, opts);
+}
+
+export async function PreviewQuery(
+  request: QueryPreviewRequest,
+): Promise<OpResult<QueryPreview>> {
+  return runQueryPreview(request);
 }
 
 export async function PreviewLayout(
