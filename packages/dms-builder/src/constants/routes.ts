@@ -20,6 +20,7 @@ export const ROUTES = {
   refresh: "/refresh",
 } as const;
 
-export const FRONTEND_MODULE_NAME = "dms-builder";
+export const FRONTEND_MODULE_NAME = "@antelopejs/dms-builder-frontend-vue";
+export const FRONTEND_MODULE_CONFIG_KEY = "dmsBuilder";
 export const FRONTEND_MODULE_DIR = "../frontend-vue";
 export const FRONTEND_MODULE_PRIORITY = 100;

@@ -26,9 +26,10 @@ test("registers the Vue frontend only when the builder API is enabled", async ()
   await compiledModule.exports.start();
   assert.deepEqual(registrations, [
     {
-      name: "dms-builder",
+      name: "@antelopejs/dms-builder-frontend-vue",
       sourcePath: path.resolve(__dirname, "../frontend-vue"),
       renderer: { name: "vue", version: "3" },
+      configKey: "dmsBuilder",
       priority: 100,
     },
   ]);
