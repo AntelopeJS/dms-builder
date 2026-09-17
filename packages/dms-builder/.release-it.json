@@ -8,7 +8,7 @@
     "releaseName": "@antelopejs/dms-builder v${version}"
   },
   "hooks": {
-    "after:bump": "git add CHANGELOG.md"
+    "after:bump": ["git add CHANGELOG.md", "node scripts/publish.mjs"]
   },
   "plugins": {
     "release-it-changelogen": {
@@ -16,6 +16,7 @@
     }
   },
   "npm": {
+    "publish": false,
     "skipChecks": true
   }
 }

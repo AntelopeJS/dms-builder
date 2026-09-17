@@ -13,6 +13,21 @@ const interfacePackage = require(
 const PUBLIC_REGISTRY = "https://registry.npmjs.org/";
 const REPOSITORY = "git+https://github.com/AntelopeJS/dms-builder.git";
 
+/**
+ * The fleet shape is `>=<floor> <1.0.0`: the ceiling is out of reach for a 0.x
+ * package, so comparing the release triples against the floor is enough.
+ */
+function compareVersions(a, b) {
+  const parts = (version) => version.split("-")[0].split(".").map(Number);
+  const [x, y] = [parts(a), parts(b)];
+  return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+}
+
+function satisfiesFleetRange(version, range) {
+  const floor = /^>=(\d+\.\d+\.\d+) <1\.0\.0$/.exec(range ?? "")?.[1];
+  return floor !== undefined && compareVersions(version, floor) >= 0;
+}
+
 test("both packages publish publicly from this repository", () => {
   for (const pkg of [dmsBuilder, interfacePackage]) {
     assert.equal(pkg.private, undefined);
@@ -38,9 +53,14 @@ test("the interface is a separately publishable workspace package", () => {
   });
   assert.equal(interfacePackage.files.includes("dist"), true);
   assert.equal(interfacePackage.files.includes("docs"), true);
+  // The interface in this tree only has to satisfy the published range: a floor
+  // that lags it widens what consumers may install, it never pulls a second copy.
   assert.equal(
-    dmsBuilder.dependencies["@antelopejs/interface-dms-builder"],
-    "workspace:*",
+    satisfiesFleetRange(
+      interfacePackage.version,
+      dmsBuilder.dependencies["@antelopejs/interface-dms-builder"],
+    ),
+    true,
   );
 });
 
@@ -228,7 +248,8 @@ test("the dist twins are declared for every subpath the exports map carries", ()
  * pins them to one patch, and `@antelopejs/core` refuses to start when a
  * module's range does not admit the interface version the project installed.
  * The fleet range is the same one the other `@antelopejs/interface-*` packages
- * use; a workspace link is exempt, pnpm rewrites it when it packs.
+ * use, including the sibling interface: pnpm links it inside the workspace
+ * through `link-workspace-packages`, the published manifest keeps the range.
  */
 test("DMS packages are depended on by range, not by patch", () => {
   const manifests = [
@@ -239,9 +260,7 @@ test("DMS packages are depended on by range, not by patch", () => {
     ["dependencies", "devDependencies", "peerDependencies"].flatMap((field) =>
       Object.entries(manifest[field] ?? {})
         .filter(([name]) => /^@antelopejs\/(dms|interface-dms)/.test(name))
-        .filter(
-          ([, range]) => range !== "workspace:*" && range !== ">=0.0.1 <1.0.0",
-        )
+        .filter(([, range]) => !/^>=\d+\.\d+\.\d+ <1\.0\.0$/.test(range))
         .map(([name, range]) => `${manifest.name} ${field} ${name}@${range}`),
     ),
   );

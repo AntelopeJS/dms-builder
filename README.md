@@ -41,8 +41,8 @@ Each package releases on its own; releasing one never releases the other.
 
 1. `release-interface.yml` publishes `@antelopejs/interface-dms-builder`.
 2. `release.yml` publishes `@antelopejs/dms-builder`. It refuses to run until
-   the interface version the module's `workspace:*` resolves to is on npmjs,
-   since pnpm rewrites that protocol into a published range when it packs.
+   the interface version the module's range is floored at is on npmjs, since
+   that published range is what consumers install.
 
 ## Contributing
 
