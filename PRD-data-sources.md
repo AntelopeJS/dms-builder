@@ -243,15 +243,15 @@ Autres contraintes relevées :
 | T3 | `dms` : `RegisterDataSource` + lecture côté builder | — | 0,5 j | **fait** (2 PR) |
 | T4 | Moteur : IR `QueryPlan`, report de `count`/`aggregate` (émission inchangée) | — | 1,5 j | **fait** |
 | T5 | Moteur : template `series` (bucket temporel et catégoriel, tri, limite, fuseau) | T1, T4 | 1,5 j | **fait** |
-| T6 | Moteur : enveloppes de réponse (4 formes) et comparaison de période | T5 | 1,5 j | à faire |
+| T6 | Moteur : enveloppes de réponse (4 formes) et comparaison de période | T5 | 1,5 j | **fait** |
 | T7 | Moteur : relecture des nouvelles chaînes et des enveloppes | T6 | 2 j | **fait** |
 | T8 | Moteur : `PageDraft.queries`, `SavePage` transactionnel, nettoyage des orphelines | T4 | 1,5 j | **fait** |
 | T9 | Moteur : backend `execute` et `PreviewQuery` | T5, T8 | 1,5 j | **fait** |
 | T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | **fait** |
 | T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j | **fait** |
 | T12 | Front : éditeur de source, patch multi-clés, aperçu des données | T2, T11 | 2 j | **écrit, non vérifié** |
-| T13 | Front : vue « Sources » — consommateurs, suppression, partage | T12 | 0,5 j | à faire |
-| T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j | à faire |
+| T13 | Front : vue « Sources » — consommateurs, suppression, partage | T12 | 0,5 j | **fait, non vérifié** |
+| T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j | **fait** |
 
 Chemin critique restant : T6, puis T8 et T9. T2 et T3 vivent dans `cms` et sont parallélisables d'emblée.
 
