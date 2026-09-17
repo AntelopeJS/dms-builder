@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useDmsRouter as useRouter } from '#dms-inertia/frontend-module'
 import { categoryOptions } from '../runtime/categories'
+import { openWhenServed } from '../runtime/dev-reload'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
@@ -47,31 +48,19 @@ async function confirmMove(): Promise<void> {
 		if (ref) {
 			// The move rewrites the page's registration: the new route only
 			// answers once the backend module has reloaded under it.
-			await settleRoute(ref)
-			await router.push(ref)
+			await openWhenServed(
+				{
+					devReload,
+					router,
+					onWaitFailure: (failure) => {
+						session.value.error = failure
+					},
+				},
+				ref,
+			)
 		}
 	} finally {
 		moving.value = false
-	}
-}
-
-/**
- * Wait for the host to serve `ref`, and navigate either way.
- *
- * `awaitRoute` answers false when it gives up rather than throwing, so a
- * timeout is not an error: the page opens at its new address and the layout
- * snaps in when the reload lands. A rejection is different -- the host could
- * not tell us anything -- but the page has already moved, so it is reported
- * and the navigation goes ahead unwaited.
- */
-async function settleRoute(ref: string): Promise<void> {
-	try {
-		await devReload.awaitRoute(ref)
-	} catch (error) {
-		session.value.error = {
-			code: 'unsupported',
-			detail: error instanceof Error ? error.message : String(error),
-		}
 	}
 }
 </script>

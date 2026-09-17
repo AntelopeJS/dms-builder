@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useDmsRouter as useRouter } from '#dms-inertia/frontend-module'
 import { categoryOptions } from '../runtime/categories'
+import { openWhenServed } from '../runtime/dev-reload'
 import { useBuilder } from '../runtime/session'
 import type { CategorySummary, PageSummary } from '../runtime/types'
 
@@ -167,28 +168,16 @@ async function write(): Promise<void> {
 		// Navigating to a route the DMS has not registered yet renders the page
 		// without its layout, so wait for the reload that brings it in. The
 		// route watcher then opens the builder on it.
-		await settleRoute(ref)
-		await router.push(ref)
-	}
-}
-
-/**
- * Wait for the host to serve `ref`, and navigate either way.
- *
- * `awaitRoute` answers false when it gives up rather than throwing, so a
- * timeout is not an error: the page opens and its layout snaps in when the
- * reload lands. A rejection is different -- the host could not tell us
- * anything -- but it is still no reason to strand the user on the panel, so it
- * is reported and the navigation goes ahead unwaited.
- */
-async function settleRoute(ref: string): Promise<void> {
-	try {
-		await devReload.awaitRoute(ref)
-	} catch (error) {
-		session.value.error = {
-			code: 'unsupported',
-			detail: error instanceof Error ? error.message : String(error),
-		}
+		await openWhenServed(
+			{
+				devReload,
+				router,
+				onWaitFailure: (failure) => {
+					session.value.error = failure
+				},
+			},
+			ref,
+		)
 	}
 }
 </script>

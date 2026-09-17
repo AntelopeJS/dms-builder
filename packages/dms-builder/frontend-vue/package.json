@@ -8,7 +8,8 @@
 	"scripts": {
 		"typecheck": "ajs-dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
 		"lint": "eslint .",
-		"lint:fix": "eslint . --fix"
+		"lint:fix": "eslint . --fix",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"vue": "^3.5.18"
@@ -17,11 +18,12 @@
 		"@antelopejs/dms": ">=0.0.1 <1.0.0",
 		"@antelopejs/dms-frontend": ">=0.0.1 <1.0.0",
 		"@eslint/js": "^9.0.0",
-		"typescript-eslint": "^8.0.0",
 		"eslint": "^9.0.0",
 		"eslint-plugin-vue": "^10.0.0",
 		"globals": "^16.0.0",
 		"typescript": "^5.8.2",
+		"typescript-eslint": "^8.0.0",
+		"vitest": "^4.1.8",
 		"vue-tsc": "^3.1.1"
 	}
 }
