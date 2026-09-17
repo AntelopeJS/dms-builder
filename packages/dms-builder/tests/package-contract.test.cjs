@@ -45,7 +45,7 @@ test("the interface is a separately publishable workspace package", () => {
   assert.equal(interfacePackage.name, "@antelopejs/interface-dms-builder");
   assert.equal(
     interfacePackage.peerDependencies["@antelopejs/interface-core"],
-    ">=0.0.12 <1.0.0",
+    ">=0.0.13 <1.0.0",
   );
   assert.deepEqual(interfacePackage.exports["."], {
     types: "./dist/index.d.ts",
