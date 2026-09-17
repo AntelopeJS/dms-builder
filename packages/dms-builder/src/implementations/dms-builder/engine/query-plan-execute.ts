@@ -64,43 +64,76 @@ class MissingArgument extends Error {
 }
 
 /**
- * The value a filter compares against: the literal it bakes in, or the argument
- * standing in for it — coerced to a date when the field is one, as the generated
- * route's own coercion does.
+ * A supplied value in the field's own type.
+ *
+ * The generated route coerces what arrives as text before handing it to the
+ * model — `Number(x)`, `new Date(x)`, `x === "true"` — and a preview reading the
+ * same query string has to do the same, or it compares a string where the route
+ * compares a number and answers something else entirely.
  */
-function filterValue(
-  filter: PlanFilter,
-  fields: ResourceFieldStructure[],
-  args: PlanArguments,
-): unknown {
-  const resolved = checkField(fields, filter.field, "");
-  const ts = "ts" in resolved ? resolved.ts : "string";
-  let value = filter.value;
-  if (isParamBinding(filter.value)) {
-    const name = filter.value.$param.name;
-    if (!(name in args)) {
-      throw new MissingArgument(name);
-    }
-    value = args[name];
+function coerce(value: unknown, ts: string): unknown {
+  if (ts === "number") {
+    return typeof value === "number" ? value : Number(value);
   }
-  if (ts === "Date" && !(value instanceof Date)) {
-    return new Date(value as string | number);
+  if (ts === "Date") {
+    return value instanceof Date ? value : new Date(value as string | number);
+  }
+  if (ts === "boolean") {
+    return typeof value === "boolean" ? value : value === "true";
   }
   return value;
 }
 
-function applyFilters(
-  stream: PlanStream,
+interface ResolvedFilter {
+  field: string;
+  op: PlanFilter["op"];
+  value: unknown;
+}
+
+/**
+ * Every filter with its value settled, before a single call is built.
+ *
+ * Resolved up front rather than inside each predicate: a missing argument has to
+ * stop the query from being dispatched at all, and a `throw` from inside a
+ * predicate only reaches the caller if the adapter happens to evaluate it eagerly.
+ */
+function resolveFilters(
   plan: QueryPlan,
   fields: ResourceFieldStructure[],
   args: PlanArguments,
+): ResolvedFilter[] {
+  return plan.filters.map((filter) => {
+    const resolved = checkField(fields, filter.field, "");
+    const ts = "ts" in resolved ? resolved.ts : "string";
+    if (!isParamBinding(filter.value)) {
+      // A baked literal follows the emitter's own rule: it writes `new Date(x)`
+      // for a date field and the literal as-is for everything else, the value
+      // having already been checked against the field's type.
+      return {
+        field: filter.field,
+        op: filter.op,
+        value: ts === "Date" ? coerce(filter.value, ts) : filter.value,
+      };
+    }
+    const name = filter.value.$param.name;
+    if (!(name in args)) {
+      throw new MissingArgument(name);
+    }
+    return {
+      field: filter.field,
+      op: filter.op,
+      value: coerce(args[name], ts),
+    };
+  });
+}
+
+function applyFilters(
+  stream: PlanStream,
+  filters: ResolvedFilter[],
 ): PlanStream {
-  return plan.filters.reduce(
+  return filters.reduce(
     (narrowed, filter) =>
-      narrowed.filter((row) => {
-        const value = filterValue(filter, fields, args);
-        return row.key(filter.field)[filter.op](value);
-      }),
+      narrowed.filter((row) => row.key(filter.field)[filter.op](filter.value)),
     stream,
   );
 }
@@ -184,7 +217,7 @@ export function executePlan(
   fields: ResourceFieldStructure[],
   args: PlanArguments = {},
 ): unknown {
-  const narrowed = applyFilters(table, plan, fields, args);
+  const narrowed = applyFilters(table, resolveFilters(plan, fields, args));
   if (plan.group) {
     return applyGroup(narrowed, plan, plan.group);
   }

@@ -120,7 +120,17 @@ function checkGroup(
     return [resolved];
   }
   if (params.bucket === undefined) {
-    return [];
+    // A point's group reaches the response as `number | string`, which is what a
+    // chart plots and a list labels. Grouping on anything else emits code that
+    // fails to typecheck, and a diagnostic is not something a caller can act on.
+    return resolved.ts === "string" || resolved.ts === "number"
+      ? []
+      : [
+          issue(
+            "/groupBy",
+            `field ${describeValue(params.groupBy)} is a ${resolved.ts}; group by a text or numeric field, or bucket a date field into periods`,
+          ),
+        ];
   }
   if (
     typeof params.bucket !== "string" ||

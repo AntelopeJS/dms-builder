@@ -17,6 +17,7 @@ import {
   isError,
   notFound,
   opaque,
+  unsupported,
   openPage,
 } from "./ops";
 import {
@@ -48,7 +49,7 @@ import {
   QueryEmission,
   resolveModelTarget,
 } from "./query-ops";
-function emitQuery({
+export function emitQuery({
   pageClass,
   pageFile,
   opened,
@@ -70,12 +71,21 @@ function emitQuery({
       queryModelMethodText(spec, target.name),
     );
   }
+  const pageClassName = pageClass.getName();
+  if (!pageClassName) {
+    // The guard names the page class, so an anonymous one would emit
+    // `@AuthUserWithPermission()` — code that does not compile, and a guard that
+    // would wave everything through if the decorator ever tolerated it.
+    return unsupported<never>(
+      "the page class has no name, so a generated route cannot name it in its permission guard",
+    );
+  }
   const route = queryRouteMethodText(
     spec,
     opened.record.modelName,
     opened.record.schema,
     target.name,
-    pageClass.getName() ?? "",
+    pageClassName,
   );
   pageClass.addMember(route.text);
   for (const symbol of route.symbols) {
@@ -386,7 +396,7 @@ function pruneUnusedImports(sourceFile: SourceFile, names: string[]): void {
 }
 
 /** Drops the model method only once no route on any page still calls it. */
-function dropOrphanedModelMethod(
+export function dropOrphanedModelMethod(
   resource: string,
   modelMethod: string,
   transaction: Transaction,

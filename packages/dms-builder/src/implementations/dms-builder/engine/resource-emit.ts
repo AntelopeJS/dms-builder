@@ -1,7 +1,7 @@
 import type { ResourceRoute } from "@antelopejs/interface-dms-builder";
 import { pascalCase } from "./emit";
 
-export const CORE_SCHEMA_NAME_VALUE = "cms-core";
+export const CORE_SCHEMA_NAME_VALUE = "dms-core";
 const CORE_SCHEMA_IDENTIFIER = "CORE_SCHEMA_NAME";
 
 const API_MODULE = "@antelopejs/interface-api";

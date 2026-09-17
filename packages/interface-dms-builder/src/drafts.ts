@@ -1,5 +1,6 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { BlockPath, PageRef } from "./addressing";
+import type { AddQueryInput } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
@@ -35,6 +36,16 @@ export interface PageDraft {
   /** Metadata to patch alongside the blocks; omit to leave it alone. */
   page?: Partial<EditablePageMeta>;
   blocks: BlockDraft[];
+  /**
+   * The queries the page should serve, written in the same transaction as the
+   * blocks — a block and the data it reads are one edit.
+   *
+   * Omit to leave the page's queries untouched. An empty array is not the same
+   * thing: it says the page should serve none, and removes the generated ones.
+   * A query a human has taken over is never rewritten or removed; it comes back
+   * as a warning instead.
+   */
+  queries?: AddQueryInput[];
 }
 
 /** A component tree in the shape the DMS frontend consumes. */

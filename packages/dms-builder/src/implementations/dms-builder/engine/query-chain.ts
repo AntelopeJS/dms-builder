@@ -244,46 +244,26 @@ export function bindName(value: unknown): string | undefined {
 }
 
 /**
- * A chain's identity as a string, independent of parameter names and sources:
- * every bound value collapses to a positional slot (assigned in encounter order),
- * every baked value to its literal. Two chains share this key iff they compute
- * the same thing, whatever their parameters are called or wherever the route
- * reads them — which is exactly when the builder may share one model method
- * between them. Accepts params carrying either the `$bind` (parsed) or `$param`
- * (input) sentinel, so a method on disk and an `AddQuery` input compare directly.
+ * A chain's identity: its compiled body, with parameter names reduced to their
+ * position and whitespace flattened.
  *
- * Every parameter counts, whatever the template names them. Listing the keys it
- * knew about instead made two chains differing only in a key outside that list —
- * a series and the same series bucketed by quarter — read as identical, so
- * reconfiguring one reused the other's method and silently changed nothing.
+ * The code is what two queries either share or do not — comparing the parameters
+ * that produced it cannot work, because a template applies defaults on the way
+ * out (a series is always ordered) and a read-back reports them explicitly, so
+ * the same chain hashes two ways depending on which side you came from.
+ *
+ * A name is only substituted where an identifier stands on its own: a parameter
+ * named after a field that happens to read like an operator must not rewrite
+ * `.min("x")` into `.$0("x")`.
  */
-export function canonicalChain(
-  template: string,
-  params: Record<string, unknown>,
-): string {
-  const slots = new Map<string, number>();
-  const canon = (value: unknown): unknown => {
-    const name = bindName(value);
-    if (name !== undefined) {
-      let slot = slots.get(name);
-      if (slot === undefined) {
-        slot = slots.size;
-        slots.set(name, slot);
-      }
-      return { slot };
-    }
-    if (Array.isArray(value)) {
-      return value.map(canon);
-    }
-    if (value !== null && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>)
-          .filter(([, member]) => member !== undefined)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([key, member]) => [key, canon(member)]),
-      );
-    }
-    return { lit: value };
-  };
-  return JSON.stringify({ template, params: canon(params) });
+export function canonicalBody(body: string, parameters: string[]): string {
+  let text = body.replace(/\s+/g, " ").trim();
+  parameters.forEach((name, index) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(
+      new RegExp(`(?<![.\\w$])${escaped}\\b`, "g"),
+      `$${index}`,
+    );
+  });
+  return text;
 }

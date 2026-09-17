@@ -39,6 +39,11 @@ export interface Fixture {
   read(relativePath: string): string;
   /** Whether an emitted file exists, relative to the app's `src`. */
   exists(relativePath: string): boolean;
+  /**
+   * Overwrite an emitted file — how a suite stands in for a developer editing
+   * generated code by hand.
+   */
+  write(relativePath: string, content: string): void;
 }
 
 /**
@@ -68,6 +73,8 @@ export function createFixture(): Fixture {
       fs.readFileSync(path.join(FIXTURE_ROOT, "src", relativePath), "utf8"),
     exists: (relativePath) =>
       fs.existsSync(path.join(FIXTURE_ROOT, "src", relativePath)),
+    write: (relativePath, content) =>
+      fs.writeFileSync(path.join(FIXTURE_ROOT, "src", relativePath), content),
   };
 }
 

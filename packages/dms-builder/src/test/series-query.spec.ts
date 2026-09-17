@@ -256,6 +256,14 @@ describe("a series query", () => {
       ).to.include("/field");
     });
 
+    it("a date field grouped by its exact value rather than a period", async function () {
+      this.timeout(OP_TIMEOUT);
+      // Without a bucket the group is a Date, which is not what a point carries.
+      expect(await rejected("rawDate", { groupBy: "createdAt" })).to.include(
+        "/groupBy",
+      );
+    });
+
     it("a grouping field the resource does not have", async function () {
       this.timeout(OP_TIMEOUT);
       expect(await rejected("badGroup", { groupBy: "nope" })).to.include(

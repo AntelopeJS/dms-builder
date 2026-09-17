@@ -20,6 +20,7 @@ const FIELDS = [
   field("amount", "number"),
   field("status", "string"),
   field("createdAt", "date"),
+  field("archived", "boolean"),
 ];
 
 /** A value, written down rather than computed. */
@@ -215,12 +216,54 @@ describe("running a plan", () => {
       expect(text).to.contain('new Date("2026-03-01T00:00:00.000Z")');
     });
 
-    it("refuses to run with a bound value missing", () => {
-      // Running anyway would quietly compare against undefined and answer a
-      // number the caller would have no reason to doubt.
-      expect(() => ran(bound, { from: "2026-01-01T00:00:00.000Z" })).to.throw(
-        /"cap"/,
+    it("coerces a number the way the route's `Number(x)` does", () => {
+      // A route hands the model `Number(cap)`; a preview reading the same query
+      // string must not compare the string "100" where the route compares 100.
+      const text = ran(bound, { from: "2026-01-01T00:00:00.000Z", cap: "100" });
+      expect(text).to.contain('row.key("amount").lt(100)');
+      expect(text).to.not.contain('lt("100")');
+    });
+
+    it('coerces a boolean the way the route\'s `x === "true"` does', () => {
+      const flagged: QueryPlan = {
+        filters: [
+          {
+            field: "archived",
+            op: "eq",
+            value: { $param: { name: "archived" } },
+          },
+        ],
+        measure: COUNT,
+      };
+      // The string "false" is truthy; passing it through would invert the filter.
+      expect(ran(flagged, { archived: "false" })).to.contain(
+        'row.key("archived").eq(false)',
       );
+      expect(ran(flagged, { archived: "true" })).to.contain(
+        'row.key("archived").eq(true)',
+      );
+    });
+
+    it("refuses before building anything, not inside a predicate", () => {
+      // Running anyway would quietly compare against undefined and answer a
+      // number the caller would have no reason to doubt. Raised while resolving
+      // the filters, so it reaches the caller even against an adapter that
+      // evaluates predicates lazily at execution time.
+      const table = stream("this.table");
+      let built = false;
+      const watched = {
+        ...table,
+        filter: () => {
+          built = true;
+          return table;
+        },
+      };
+      expect(() =>
+        executePlan(watched as PlanStream, bound, FIELDS, {
+          from: "2026-01-01T00:00:00.000Z",
+        }),
+      ).to.throw(/"cap"/);
+      expect(built, "no call was built before it refused").to.equal(false);
     });
   });
 });

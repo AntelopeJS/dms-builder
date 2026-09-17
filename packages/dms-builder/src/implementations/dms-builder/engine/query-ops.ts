@@ -12,7 +12,7 @@ import {
 } from "ts-morph";
 import { duplicate, invalidConfig, opaque } from "./ops";
 import { isIdentifier } from "./paths";
-import { canonicalChain } from "./query-chain";
+import { canonicalBody } from "./query-chain";
 import {
   type CompiledQuery,
   defaultEndpoint,
@@ -109,12 +109,17 @@ function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
 
 /** Whether a model method computes exactly the chain `spec` describes. */
 function bodyMatches(method: MethodDeclaration, spec: CompiledQuery): boolean {
-  const parsed = parseModelMethod(method);
+  const body = method.getBody();
+  const names = method.getParameters().map((parameter) => parameter.getName());
+  if (!body || names.length !== spec.chain.parameters.length) {
+    return false;
+  }
   return (
-    parsed !== undefined &&
-    parsed.template === spec.template &&
-    canonicalChain(parsed.template, parsed.params) ===
-      canonicalChain(spec.template, spec.params)
+    canonicalBody(body.getText(), names) ===
+    canonicalBody(
+      spec.chain.body,
+      spec.chain.parameters.map((parameter) => parameter.name),
+    )
   );
 }
 

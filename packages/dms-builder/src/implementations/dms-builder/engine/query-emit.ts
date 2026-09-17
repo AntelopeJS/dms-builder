@@ -15,7 +15,7 @@ import { decoratorImport } from "./resource-emit-types";
  * where they sit.
  */
 export const DEFAULT_ENDPOINT_PREFIX = "/stats/";
-export const TENANT_SCHEMA_NAME_VALUE = "cms-tenant";
+export const TENANT_SCHEMA_NAME_VALUE = "dms-tenant";
 
 /**
  * How a route hands back what the model computed, by the template's output kind.

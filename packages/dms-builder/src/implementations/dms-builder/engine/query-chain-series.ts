@@ -321,7 +321,11 @@ function resolveGroup(
     timezone: projection.timezone,
   };
   if (measured.measure.kind !== "aggregate") {
-    return { group, measure: measured.measure };
+    // A count needs nothing carried through the projection, so the emitter never
+    // writes one. A chain that has one is someone else's.
+    return projection.measured === undefined
+      ? { group, measure: measured.measure }
+      : undefined;
   }
   return projection.measured === undefined
     ? undefined

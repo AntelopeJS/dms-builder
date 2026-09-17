@@ -495,6 +495,8 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     ...base,
     template: parsed.template,
     params: resolved,
-    output: getQueryTemplate(parsed.template)?.descriptor.output ?? call.output,
+    // The route's own response wins: a body edited to answer something else is
+    // what a caller will actually receive, whatever its chain still parses as.
+    output: call.output ?? getQueryTemplate(parsed.template)?.descriptor.output,
   };
 }
