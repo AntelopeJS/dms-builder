@@ -55,14 +55,14 @@
     "prepack": "pnpm run build"
   },
   "devDependencies": {
-    "@antelopejs/interface-core": "^0.0.12",
+    "@antelopejs/interface-core": ">=0.0.13 <1.0.0",
     "release-it": "^19.2.4",
     "release-it-changelogen": "^0.1.0",
     "rimraf": "^6.1.3",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "@antelopejs/interface-core": ">=0.0.12 <1.0.0"
+    "@antelopejs/interface-core": ">=0.0.13 <1.0.0"
   },
   "packageManager": "pnpm@10.2.0",
   "antelopeJs": {}
