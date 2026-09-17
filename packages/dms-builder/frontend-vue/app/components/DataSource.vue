@@ -53,6 +53,16 @@ interface DraftFilter {
 	value: string
 }
 
+/**
+ * A filter as the engine takes it. The value is not a string: a period bound is
+ * written as a parameter the route supplies, not as a literal.
+ */
+interface QueryFilter {
+	field: string
+	op: string
+	value: unknown
+}
+
 /** The block option this editor writes the URL into. */
 const PROP = 'fetchUrl'
 
@@ -116,7 +126,7 @@ const ready = computed(() => {
 
 /** The parameters the engine compiles, assembled from the choices above. */
 function queryParams(): Record<string, unknown> {
-	const where = filters.value
+	const where: QueryFilter[] = filters.value
 		.filter((filter) => filter.field && filter.value !== '')
 		.map((filter) => ({
 			field: filter.field,
