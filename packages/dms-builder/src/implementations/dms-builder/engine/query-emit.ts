@@ -18,59 +18,122 @@ export const DEFAULT_ENDPOINT_PREFIX = "/stats/";
 export const TENANT_SCHEMA_NAME_VALUE = "dms-tenant";
 
 /**
- * How a route hands back what the model computed, by the template's output kind.
+ * How a route hands back what the model computed.
  *
- * The return type is written inline rather than imported: the page owns its
- * routes, and a structural type keeps the emitted file readable without dragging
- * a shared alias into every app that the builder has written a query for.
+ * A calculation answers one thing; the block reading it wants that arranged its
+ * own way. The arrangements that need more than a property name — a headline
+ * figure, a ranked list, a variation — are built by helpers the DMS publishes,
+ * so a route stays one expression and the reader can still recognize it.
  */
-interface ResponseShape {
-  /** The single property the route's object literal carries. */
-  key: string;
+interface ResponseEmission {
   returnType: string;
-  /** The returned object, given the awaited model call. */
-  body: (call: string) => string;
+  /** Given the awaited call, and the preceding period's when comparing. */
+  body: (current: string, previous?: string) => string;
+  /** Symbols the route has to import for that body.  */
+  imports: string[];
 }
 
-const RESPONSE_SHAPES: Record<QueryOutputKind, ResponseShape> = {
-  scalar: {
-    key: "value",
-    returnType: "Promise<{ value: number }>",
-    body: (call) => `{ value: await ${call} }`,
-  },
-  series: {
-    key: "series",
-    returnType: "Promise<{ series: { x: number | string; y: number }[] }>",
-    body: (call) => `{ series: await ${call} }`,
-  },
+/** How the helpers are reached from a generated route. */
+const RESPONSE_HELPERS: Record<string, string> = {
+  card: "chartCardData",
+  value: "kpiCardData",
+  items: "topListData",
 };
+
+const RESPONSE_TYPES: Record<string, string> = {
+  card: "ChartCardData",
+  value: "KpiCardData",
+  items: "TopListData",
+};
+
+/** The options a helper is handed: what the measure was, and what came before. */
+function helperOptions(measure: string | undefined, previous?: string): string {
+  const parts: string[] = [];
+  if (measure) {
+    parts.push(`measure: ${JSON.stringify(measure)}`);
+  }
+  if (previous) {
+    parts.push(`previous: await ${previous}`);
+  }
+  return parts.length > 0 ? `, { ${parts.join(", ")} }` : "";
+}
+
+function plainResponse(key: string, type: string): ResponseEmission {
+  return {
+    returnType: `Promise<{ ${key}: ${type} }>`,
+    body: (current) => `{ ${key}: await ${current} }`,
+    imports: [],
+  };
+}
+
+const SERIES_TYPE = "{ x: number | string; y: number }[]";
+
+/**
+ * The arrangement a query's route emits, from what it computes and what the
+ * block reading it asked for.
+ *
+ * A scalar calculation has one arrangement — the number itself; asking for
+ * anything else of it would be asking a question the chain did not answer.
+ */
+function responseEmission(
+  output: QueryOutputKind,
+  response: string | undefined,
+  measure: string | undefined,
+): ResponseEmission {
+  if (output === "scalar") {
+    return plainResponse("value", "number");
+  }
+  const shape = response ?? "series";
+  if (shape === "series") {
+    return plainResponse("series", SERIES_TYPE);
+  }
+  const helper = RESPONSE_HELPERS[shape];
+  if (!helper) {
+    return plainResponse("series", SERIES_TYPE);
+  }
+  return {
+    returnType: `Promise<${RESPONSE_TYPES[shape]}>`,
+    body: (current, previous) =>
+      `${helper}(await ${current}${helperOptions(measure, previous)})`,
+    imports: [helper, RESPONSE_TYPES[shape]],
+  };
+}
+
+/**
+ * The property a plain response carries, for read-back. The arrangements built
+ * by a helper are recognized by the helper's name instead.
+ */
+const RESPONSE_KEYS: Record<QueryOutputKind, string> = {
+  scalar: "value",
+  series: "series",
+};
+
+/**
+ * The output kind a route's response property names, or `undefined` for a
+ * property no shape emits.
+ *
+ * Read-back resolves the kind from what the route returns rather than from the
+ * template, so a route whose calculation is no longer recognized still reports
+ * what it answers — and so emission and recognition cannot drift apart.
+ */
+export function outputForResponseKey(key: string): QueryOutputKind | undefined {
+  const found = Object.entries(RESPONSE_KEYS).find(([, name]) => name === key);
+  return found?.[0] as QueryOutputKind | undefined;
+}
+
+/** The arrangement a helper name stands for, for read-back. */
+export function shapeForHelper(helper: string): string | undefined {
+  const found = Object.entries(RESPONSE_HELPERS).find(
+    ([, name]) => name === helper,
+  );
+  return found?.[0];
+}
 
 /** What a template's queries answer with, for a caller outside the emitter. */
 export function outputForTemplate(
   template: string,
 ): QueryOutputKind | undefined {
   return getQueryTemplate(template)?.descriptor.output;
-}
-
-function responseShapeFor(template: string): ResponseShape {
-  const output = getQueryTemplate(template)?.descriptor.output;
-  return RESPONSE_SHAPES[output ?? "scalar"];
-}
-
-/**
- * The output kind a route's response property names, or `undefined` for a
- * property no shape emits.
- *
- * Read-back resolves the kind from the property rather than from the template,
- * so a route whose calculation is no longer recognized still reports what it
- * answers — and so emission and recognition cannot drift apart: they read the
- * same table.
- */
-export function outputForResponseKey(key: string): QueryOutputKind | undefined {
-  const found = Object.entries(RESPONSE_SHAPES).find(
-    ([, shape]) => shape.key === key,
-  );
-  return found?.[0] as QueryOutputKind | undefined;
 }
 
 export interface CompiledQuery {
@@ -81,6 +144,10 @@ export interface CompiledQuery {
   template: string;
   params: Record<string, unknown>;
   chain: CompiledChain;
+  /** How the answer is arranged for the block reading it. */
+  response?: string;
+  /** Whether the route also answers the preceding period. */
+  compare?: boolean;
 }
 
 /**
@@ -165,6 +232,42 @@ function routeArgument(param: MethodParam): string {
   return param.routeName;
 }
 
+/** The route parameters a comparison reads the preceding period's bounds from. */
+export const COMPARISON_PARAMETERS = ["compareFrom", "compareTo"] as const;
+
+/** Where the response helpers are published. */
+const RESPONSE_MODULE = "@antelopejs/interface-dms/base";
+
+/**
+ * The same model call over the preceding period, or nothing when the query does
+ * not compare.
+ *
+ * Only a query whose period the route supplies can compare: the bounds are its
+ * own parameters, and there is nothing to shift for a calculation that bakes its
+ * dates in.
+ */
+function comparisonCall(
+  spec: CompiledQuery,
+  modelMethod: string,
+): string | undefined {
+  if (spec.compare !== true) {
+    return undefined;
+  }
+  const bounds = spec.chain.parameters.filter(
+    (parameter) => parameter.type === "Date",
+  );
+  if (bounds.length !== COMPARISON_PARAMETERS.length) {
+    return undefined;
+  }
+  const args = spec.chain.parameters.map((parameter) => {
+    const at = bounds.indexOf(parameter);
+    return at === -1
+      ? routeArgument(parameter)
+      : `new Date(${COMPARISON_PARAMETERS[at]})`;
+  });
+  return `model.${modelMethod}(${args.join(", ")})`;
+}
+
 export function queryRouteMethodText(
   spec: CompiledQuery,
   modelName: string,
@@ -194,13 +297,32 @@ export function queryRouteMethodText(
     );
   }
   const args = spec.chain.parameters.map(routeArgument).join(", ");
-  const response = responseShapeFor(spec.template);
+  const response = responseEmission(
+    outputForTemplate(spec.template) ?? "scalar",
+    spec.response,
+    spec.params.op as string | undefined,
+  );
+  for (const name of response.imports) {
+    symbols.push({ name, module: RESPONSE_MODULE });
+  }
+  const call = `model.${modelMethod}(${args})`;
+  const previous = comparisonCall(spec, modelMethod);
+  if (previous) {
+    // The preceding period reuses the same method with the bounds the route
+    // received for it: one calculation, asked twice.
+    for (const parameter of COMPARISON_PARAMETERS) {
+      symbols.push(decoratorImport("Parameter"));
+      parameters.push(
+        `\t@Parameter(${JSON.stringify(parameter)}, "query") ${parameter}: string,`,
+      );
+    }
+  }
   const text = [
     `@Get(${JSON.stringify(spec.endpoint)})`,
     `async ${spec.name}(`,
     ...parameters,
     `): ${response.returnType} {`,
-    `\treturn ${response.body(`model.${modelMethod}(${args})`)};`,
+    `\treturn ${response.body(call, previous)};`,
     "}",
   ].join("\n");
   return { text, symbols };

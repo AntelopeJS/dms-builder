@@ -324,6 +324,8 @@ export function compileQuery(
     template: input.template,
     params,
     chain,
+    response: input.response,
+    compare: input.compare,
   };
 }
 

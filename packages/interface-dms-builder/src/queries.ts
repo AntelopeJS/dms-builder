@@ -17,6 +17,15 @@ export type QueryRef = string;
  */
 export type QueryOutputKind = "scalar" | "series";
 
+/**
+ * How a query's answer is arranged for the block that reads it.
+ *
+ * The calculation is the same either way — a measure, possibly per group. This
+ * says what the route wraps it in: the points themselves, a headline figure above
+ * them, that figure alone, or the points as a ranked list.
+ */
+export type QueryResponseShape = "series" | "card" | "value" | "items";
+
 /** The comparison operators a filter may use. */
 export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";
 
@@ -98,6 +107,19 @@ export interface AddQueryInput {
   /** The template's parameters. */
   params?: Record<string, QueryParamValue>;
   /**
+   * How the answer is arranged for the block reading it. Defaults to what the
+   * template computes: a number for a scalar, its points for a series.
+   *
+   * A grouped calculation feeds a bare chart, a card with a headline figure, or
+   * a ranked list without being described three times.
+   */
+  response?: QueryResponseShape;
+  /**
+   * Answer the preceding period alongside the current one, so a card can show a
+   * variation. Only meaningful when the query binds a period.
+   */
+  compare?: boolean;
+  /**
    * The route path, relative to the page's slug. Defaults to
    * `/stats/<kebab-name>`; any path is allowed, since read-back identifies a
    * query by its shape rather than its URL. Must not collide with another route
@@ -117,6 +139,8 @@ export interface AddQueryInput {
  */
 export interface QueryStructure {
   name: string;
+  /** How the answer is arranged, when the route wraps the calculation. */
+  response?: QueryResponseShape;
   /** The route path relative to the page's slug, as {@link AddQueryInput.endpoint} takes it. */
   endpoint: string;
   resource?: ResourceRef;

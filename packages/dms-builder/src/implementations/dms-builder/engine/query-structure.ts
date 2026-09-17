@@ -15,7 +15,7 @@ import {
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
 import { bindName } from "./query-chain";
-import { outputForResponseKey } from "./query-emit";
+import { outputForResponseKey, shapeForHelper } from "./query-emit";
 import {
   getQueryTemplate,
   parseModelMethod,
@@ -39,8 +39,10 @@ export type QueryArg =
 export interface QueryRouteCall {
   modelMethod: string;
   args: QueryArg[];
-  /** What the route answers, read from the property its response carries. */
+  /** What the route answers, read from what its response is built out of. */
   output: QueryOutputKind;
+  /** The arrangement a helper applied, when one did. */
+  response?: string;
 }
 
 export interface QueryRoute {
@@ -283,7 +285,13 @@ function unwrapReturnedCall(method: MethodDeclaration) {
     return undefined;
   }
   const returned = statement.getExpression();
-  if (!returned || !Node.isObjectLiteralExpression(returned)) {
+  if (!returned) {
+    return undefined;
+  }
+  if (Node.isCallExpression(returned)) {
+    return unwrapHelperCall(returned);
+  }
+  if (!Node.isObjectLiteralExpression(returned)) {
     return undefined;
   }
   const properties = returned.getProperties();
@@ -306,6 +314,39 @@ function unwrapReturnedCall(method: MethodDeclaration) {
   return Node.isCallExpression(call) ? { call, output } : undefined;
 }
 
+/** What unwrapping a route's return produced: the call, and how it was dressed. */
+interface UnwrappedResponse {
+  call: CallExpression;
+  output: QueryOutputKind;
+  response?: string;
+}
+
+/**
+ * `return chartCardData(await model.m(...), { … })` — the arrangements a helper
+ * builds rather than a property name.
+ *
+ * Only the first argument is the calculation; the options that follow, including
+ * the preceding period's call, are read off the route separately.
+ */
+function unwrapHelperCall(call: CallExpression): UnwrappedResponse | undefined {
+  const callee = call.getExpression();
+  if (!Node.isIdentifier(callee)) {
+    return undefined;
+  }
+  const shape = shapeForHelper(callee.getText());
+  if (!shape) {
+    return undefined;
+  }
+  const [first] = call.getArguments();
+  if (!first || !Node.isAwaitExpression(first)) {
+    return undefined;
+  }
+  const inner = first.getExpression();
+  return Node.isCallExpression(inner)
+    ? { call: inner, output: "series", response: shape }
+    : undefined;
+}
+
 /**
  * Hop 3 — the single `return { value: await model.<method>(...) }` call in a
  * route body, matched as a shape rather than evaluated. Anything outside the
@@ -318,7 +359,7 @@ export function parseQueryRouteCall(
   if (!unwrapped) {
     return undefined;
   }
-  const { call, output } = unwrapped;
+  const { call, output, response } = unwrapped;
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) {
     return undefined;
@@ -346,7 +387,7 @@ export function parseQueryRouteCall(
     }
     args.push(parsed);
   }
-  return { modelMethod: callee.getName(), args, output };
+  return { modelMethod: callee.getName(), args, output, response };
 }
 
 type ParamSource = "query" | "param" | "header";
@@ -490,6 +531,11 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
   const resolved = resolveBindings(parsed.params, method, call, params);
   if (!resolved) {
     return { ...base, opaque: true, opaqueReason: "unparseable_chain" };
+  }
+  if (call.response) {
+    // The arrangement lives on the route rather than in the chain, so it reads
+    // back beside the parameters instead of among them.
+    base.response = call.response as QueryStructure["response"];
   }
   return {
     ...base,
