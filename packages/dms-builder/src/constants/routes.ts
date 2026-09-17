@@ -16,6 +16,7 @@ export const ROUTES = {
   fields: "/resource/fields",
   queryTemplates: "/query-templates",
   queries: "/queries",
+  queryPreview: "/query-preview",
   refresh: "/refresh",
 } as const;
 
