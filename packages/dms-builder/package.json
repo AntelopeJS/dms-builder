@@ -49,7 +49,7 @@
     "ts-morph": "^23.0.0"
   },
   "devDependencies": {
-    "@antelopejs/core": ">=2.0.0 <3",
+    "@antelopejs/core": ">=1.7.0 <2",
     "@antelopejs/tooling-configs": ">=0.0.6 <1.0.0",
     "@types/node": "^24.0.0",
     "knip": "^6.34.0",
