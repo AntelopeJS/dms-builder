@@ -10,6 +10,13 @@ route et son garde, puis les sauvegarde dans la même transaction que les blocs 
 
 Ce document prolonge `PRD.md` (visual builder), dont les lots A/B/C sont livrés sur `main`.
 
+**Mise à jour du 17/09/2026** — le dépôt a été restructuré entre-temps : monorepo public
+`@antelopejs/dms-builder` + `@antelopejs/interface-dms-builder`, moteur sous
+`packages/dms-builder/src/implementations/dms-builder/`, et **front migré vers Inertia**
+(`frontend-vue`, le layer Nuxt n'existe plus). Le vocabulaire a suivi : `@antelopejs-private/cms`
+devient `@antelopejs/interface-dms`. Les lots A et B sont inchangés ; le lot C est à relire à la
+lumière d'Inertia.
+
 ## Problème
 
 Le builder génère les panneaux de configuration à partir des schémas de blocs. Pour les
@@ -151,8 +158,9 @@ effet de bord sur le reste du contrôleur.
 
 - `POST /api/builder/preview-query`, et `POST /api/builder/save` étendu au brouillon complet.
 - `GET /api/builder/data-sources` (sources déclarées + templates disponibles, filtrés par forme).
-- `CmsBuilderDataSource.vue` : Source, Mesure, Regroupement, Filtres, Période, Comparaison,
-  Présentation de l'URL résultante, et repli « Avancé » pour une URL saisie à la main.
+- L'éditeur de source : Source, Mesure, Regroupement, Filtres, Période, Comparaison, aperçu de
+  l'URL résultante, et repli « Avancé » pour une URL saisie à la main. **À re-spécifier** : la
+  description ci-dessous visait le layer Nuxt, remplacé par Inertia (`frontend-vue`).
 - `Option.vue` gagne un émetteur de patch multi-clés : lier une période écrit `fetchUrl` **et**
   `periodScope` en un seul patch de configuration.
 - En aperçu, le moteur réécrit les `fetchUrl` qui désignent une requête du brouillon vers
@@ -241,8 +249,8 @@ Autres contraintes relevées :
 | T9 | Moteur : backend `execute` (fait) et `RunDraftQuery` (attend T8 et T11) | T5 | 1,5 j | **partiel** |
 | T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | **fait** |
 | T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j | à faire |
-| T12 | Layer : `DataSource.vue`, patch multi-clés, réécriture d'URL en aperçu | T2, T11 | 2 j | à faire |
-| T13 | Vue « Sources » du rail : consommateurs, suppression, partage | T12 | 0,5 j | à faire |
+| T12 | Front (Inertia) : éditeur de source, patch multi-clés, réécriture d'URL en aperçu — **à re-spécifier depuis la migration Inertia** | T2, T11 | 2 j | à faire |
+| T13 | Front : vue « Sources » — consommateurs, suppression, partage | T12 | 0,5 j | à faire |
 | T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j | à faire |
 
 Chemin critique restant : T6, puis T8 et T9. T2 et T3 vivent dans `cms` et sont parallélisables d'emblée.
