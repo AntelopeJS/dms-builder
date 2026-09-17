@@ -264,6 +264,14 @@ export class BuilderController extends Controller(getRoutePrefix()) {
     });
   }
 
+  @Get(ROUTES.dataSources)
+  async dataSources(
+    @AuthTenantOwner() _user: User,
+    @Parameter("responseShape", "query") responseShape?: string,
+  ) {
+    return engine.ListDataSources(responseShape);
+  }
+
   @Get(ROUTES.queryTemplates)
   async queryTemplates(@AuthTenantOwner() _user: User) {
     return engine.ListQueryTemplates();

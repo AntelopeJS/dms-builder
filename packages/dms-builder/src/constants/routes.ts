@@ -17,6 +17,7 @@ export const ROUTES = {
   queryTemplates: "/query-templates",
   queries: "/queries",
   queryPreview: "/query-preview",
+  dataSources: "/data-sources",
   refresh: "/refresh",
 } as const;
 

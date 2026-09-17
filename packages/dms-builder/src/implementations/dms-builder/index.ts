@@ -8,6 +8,7 @@ import type {
   CreateCategoryInput,
   CreatePageInput,
   CreateResourceInput,
+  DataSourceDescriptor,
   DeleteResourceOpts,
   EditableCategoryMeta,
   EditablePageMeta,
@@ -33,7 +34,11 @@ import type {
   ResourceStructure,
   ResourceSummary,
 } from "@antelopejs/interface-dms-builder";
-import { buildCatalog, invalidateCatalog } from "./engine/catalog";
+import {
+  buildCatalog,
+  invalidateCatalog,
+  listDeclaredDataSources,
+} from "./engine/catalog";
 import { addBlock, configureBlock } from "./engine/ops";
 import {
   configureCategory,
@@ -84,6 +89,12 @@ export async function ListCategories(): Promise<CategorySummary[]> {
 
 export async function GetCatalog(): Promise<BlockCatalog> {
   return buildCatalog();
+}
+
+export async function ListDataSources(
+  responseShape?: string,
+): Promise<DataSourceDescriptor[]> {
+  return listDeclaredDataSources(responseShape);
 }
 
 export async function GetPageStructure(
