@@ -51,10 +51,10 @@ jobs:
           }
           NODE
 
-      # pnpm rewrites `workspace:*` to the interface's local version when it
-      # packs the runtime, so a runtime release that runs ahead of its interface
-      # publishes a dependency npm cannot resolve. This workflow never releases
-      # the interface itself: run `release-interface.yml` first.
+      # The runtime's dependency range is floored at the interface version
+      # sitting in the tree, so a runtime release that runs ahead of its
+      # interface publishes a dependency npm cannot resolve. This workflow never
+      # releases the interface itself: run `release-interface.yml` first.
       - name: Verify the interface is resolvable on npmjs
         run: |
           version=$(node -p "require('./packages/interface-dms-builder/package.json').version")
