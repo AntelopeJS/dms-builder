@@ -11,11 +11,23 @@ const props = defineProps<{
 	modelValue: unknown
 	/** The resource a `field` widget resolves its choices against. */
 	resource?: string
+	/** The block being configured, so a data source can name its query. */
+	blockName?: string
 	/** Rule the row off from the switch above it, as a list of features reads. */
 	separated?: boolean
 }>()
 
-const emit = defineEmits<{ 'update:modelValue': [unknown] }>()
+const emit = defineEmits<{
+	'update:modelValue': [unknown]
+	/**
+	 * Several of the block's options at once.
+	 *
+	 * A data source writes both the URL it produced and the period scope the block
+	 * follows: writing one without the other leaves a chart asking for bounds
+	 * nobody sends, so they travel as one patch.
+	 */
+	patch: [Record<string, unknown>]
+}>()
 
 const builder = useBuilder()
 const session = builder.session
@@ -362,6 +374,15 @@ const nestedProperties = computed(() =>
 			:placeholder="resource ? 'Choose a field…' : 'Pick a resource first'"
 			:disabled="!resource"
 			@update:model-value="set($event)"
+		/>
+
+		<DmsBuilderDataSource
+			v-else-if="widget === 'dataSource'"
+			:model-value="modelValue"
+			:response-shape="ui.responseShape"
+			:period-option="ui.periodOption"
+			:block-name="blockName ?? name"
+			@patch="emit('patch', $event)"
 		/>
 
 		<div v-else-if="widget === 'query'" class="flex flex-col gap-1.5">
