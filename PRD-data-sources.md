@@ -249,7 +249,7 @@ Autres contraintes relevées :
 | T9 | Moteur : backend `execute` et `PreviewQuery` | T5, T8 | 1,5 j | **fait** |
 | T10 | Garde d'autorisation sur les routes générées | T4 | 0,5 j | **fait** |
 | T11 | HTTP : `preview-query`, `save` étendu, `data-sources` | T8, T9 | 0,5 j | **fait** |
-| T12 | Front (Inertia) : éditeur de source, patch multi-clés, réécriture d'URL en aperçu — **à re-spécifier depuis la migration Inertia** | T2, T11 | 2 j | à faire |
+| T12 | Front : éditeur de source, patch multi-clés, aperçu des données | T2, T11 | 2 j | **écrit, non vérifié** |
 | T13 | Front : vue « Sources » — consommateurs, suppression, partage | T12 | 0,5 j | à faire |
 | T14 | Documentation d'interface et parcours de référence | T7, T12 | 1 j | à faire |
 
