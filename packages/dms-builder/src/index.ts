@@ -3,6 +3,7 @@ import { ImplementInterface } from "@antelopejs/interface-core";
 import { AddFrontendModule } from "@antelopejs/interface-dms/page";
 import { type DmsBuilderConfig, isApiEnabled, setModuleConfig } from "./config";
 import {
+  FRONTEND_MODULE_CONFIG_KEY,
   FRONTEND_MODULE_DIR,
   FRONTEND_MODULE_NAME,
   FRONTEND_MODULE_PRIORITY,
@@ -36,6 +37,7 @@ export async function start(): Promise<void> {
     name: FRONTEND_MODULE_NAME,
     sourcePath: path.join(__dirname, FRONTEND_MODULE_DIR),
     renderer: { name: "vue", version: "3" },
+    configKey: FRONTEND_MODULE_CONFIG_KEY,
     priority: FRONTEND_MODULE_PRIORITY,
   });
 }
