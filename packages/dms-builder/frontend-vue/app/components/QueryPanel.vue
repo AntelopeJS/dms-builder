@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useBuilder } from '../runtime/session'
+import type { BlockDraft } from '../runtime/types'
 
 const builder = useBuilder()
 const session = builder.session
@@ -13,6 +14,57 @@ const field = ref<string | undefined>(undefined)
 const op = ref('sum')
 
 const queries = computed(() => session.value.structure?.queries ?? [])
+
+/**
+ * Which blocks read each source, by the URL they fetch.
+ *
+ * Discovered from the draft rather than recorded anywhere: a block points at its
+ * data by URL, so what reads a source is whatever carries that URL — including a
+ * block someone wired by hand.
+ */
+const readers = computed(() => {
+	const found = new Map<string, string[]>()
+	const page = session.value.pageRef ?? ''
+	const walk = (blocks: BlockDraft[]): void => {
+		for (const block of blocks) {
+			for (const url of stringsIn(block.config)) {
+				if (!url.startsWith(page)) {
+					continue
+				}
+				const endpoint = url.slice(page.length)
+				found.set(endpoint, [...(found.get(endpoint) ?? []), block.name])
+			}
+			if (block.children) {
+				walk(block.children)
+			}
+		}
+	}
+	walk(session.value.draft?.blocks ?? [])
+	return found
+})
+
+function stringsIn(value: unknown, found: string[] = []): string[] {
+	if (typeof value === 'string') {
+		found.push(value)
+		return found
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) {
+			stringsIn(entry, found)
+		}
+		return found
+	}
+	if (value !== null && typeof value === 'object') {
+		for (const entry of Object.values(value as Record<string, unknown>)) {
+			stringsIn(entry, found)
+		}
+	}
+	return found
+}
+
+function readersOf(query: { endpoint: string }): string[] {
+	return readers.value.get(query.endpoint) ?? []
+}
 const templates = computed(() => session.value.queryTemplates)
 const needsField = computed(() => template.value === 'aggregate')
 const fields = computed(() =>
@@ -113,6 +165,20 @@ function endpointOf(query: { endpoint: string }): string {
 					variant="subtle"
 					label="hand-written"
 				/>
+				<UBadge
+					v-else-if="readersOf(query).length > 1"
+					size="xs"
+					color="warning"
+					variant="subtle"
+					:label="`read by ${readersOf(query).length} blocks`"
+				/>
+				<UBadge
+					v-else-if="readersOf(query).length === 0"
+					size="xs"
+					color="neutral"
+					variant="subtle"
+					label="unused"
+				/>
 				<UButton
 					icon="i-ph-trash"
 					size="xs"
@@ -123,7 +189,11 @@ function endpointOf(query: { endpoint: string }): string {
 				/>
 			</div>
 			<p v-if="!queries.length" class="text-sm text-dimmed">
-				No query yet. Cards read their value from one.
+				No source yet. A card, a chart or a list reads its data from one.
+			</p>
+			<p class="text-xs text-dimmed">
+				Removing a source a block still reads breaks that block; the badge says
+				how many read each one.
 			</p>
 		</div>
 
