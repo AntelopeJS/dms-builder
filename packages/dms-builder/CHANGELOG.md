@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.2
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.1.1...v0.1.2)
+
+### 🩹 Fixes
+
+- **builder:** Gate the builder on the project's development mode ([#11](https://github.com/AntelopeJS/dms-builder/pull/11))
+
+### 💅 Refactors
+
+- **frontend:** Import the SDK through #dms/frontend-module ([#12](https://github.com/AntelopeJS/dms-builder/pull/12))
+
+### 🏡 Chore
+
+- Require @antelopejs/core 1.7 ([#8](https://github.com/AntelopeJS/dms-builder/pull/8))
+- Align community files with the organization defaults ([#10](https://github.com/AntelopeJS/dms-builder/pull/10))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.1.0...v0.1.1)
