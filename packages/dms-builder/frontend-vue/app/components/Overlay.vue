@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch } from 'vue'
-import { useDmsRoute as useRoute } from '#dms-inertia/frontend-module'
+import { useDmsRoute as useRoute } from '#dms/frontend-module'
 import { useContentAnchor } from '../runtime/anchor'
 import { useBuilder } from '../runtime/session'
 import type { BuilderError } from '../runtime/types'

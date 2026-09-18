@@ -1,6 +1,6 @@
 /**
  * Stand-in for the host runtime the DMS frontend loader materializes as
- * `#dms-inertia/frontend-module`. It exists so the module entry point can be
+ * `#dms/frontend-module`. It exists so the module entry point can be
  * exercised outside a generated Inertia workspace; only what this package
  * imports from the host is declared.
  */

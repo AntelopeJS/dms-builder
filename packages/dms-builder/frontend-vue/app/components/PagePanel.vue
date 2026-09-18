@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useDmsRouter as useRouter } from '#dms-inertia/frontend-module'
+import { useDmsRouter as useRouter } from '#dms/frontend-module'
 import { categoryOptions } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
 import { useBuilder } from '../runtime/session'
