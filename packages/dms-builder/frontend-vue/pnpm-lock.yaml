@@ -16,8 +16,8 @@ importers:
         specifier: '>=0.0.1 <1.0.0'
         version: 0.0.1(@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12))
       '@antelopejs/dms-frontend':
-        specifier: '>=0.0.1 <1.0.0'
-        version: 0.0.1(@antelopejs/core@1.7.0)
+        specifier: '>=0.2.0 <1.0.0'
+        version: 0.2.0(@antelopejs/core@1.7.0)
       '@eslint/js':
         specifier: ^9.0.0
         version: 9.39.5
@@ -52,11 +52,12 @@ packages:
     resolution: {integrity: sha512-2VdIAGPGQXRtmabq3jds9T7iFXPsRByqJHeBhk6s6fgnZwW4Z0zZVP3ForkwoY18+rn/aUpv6UkxVYr95ApYeA==}
     hasBin: true
 
-  '@antelopejs/dms-frontend@0.0.1':
-    resolution: {integrity: sha512-00lgHT52WQcaH7m34Yn1n3tbF3fxYS3fXwMjVJXI8FCrC95Kika6DwioJBD5c0824bjxMGhq/9ArmD401yb4Jw==}
+  '@antelopejs/dms-frontend@0.2.0':
+    resolution: {integrity: sha512-E1k+DCgFtOSJMnt6Ocxga5Dct30BjV6uo4BNJJ1wI9IauqAtgqOE32xeqd/YYQCCWa+sauUy21dfKNQiftR2Jw==}
+    engines: {node: '>=20.12.0'}
     hasBin: true
     peerDependencies:
-      '@antelopejs/core': '>=1.5.0 <2'
+      '@antelopejs/core': '>=1.7.0 <2'
     peerDependenciesMeta:
       '@antelopejs/core':
         optional: true
@@ -1032,6 +1033,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -2121,7 +2123,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@antelopejs/dms-frontend@0.0.1(@antelopejs/core@1.7.0)':
+  '@antelopejs/dms-frontend@0.2.0(@antelopejs/core@1.7.0)':
     dependencies:
       boxen: 5.1.2
       chalk: 4.1.2
