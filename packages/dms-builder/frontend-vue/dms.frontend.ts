@@ -1,5 +1,5 @@
 import { defineAsyncComponent, type Component } from 'vue'
-import type { DmsFrontendModule } from '#dms-inertia/frontend-module'
+import type { DmsFrontendModule } from '#dms/frontend-module'
 import builderPlugin from './app/plugins/builder.client'
 
 interface VueModule {

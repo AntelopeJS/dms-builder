@@ -13,11 +13,11 @@ importers:
         version: 3.5.42(typescript@5.9.3)
     devDependencies:
       '@antelopejs/dms':
-        specifier: '>=0.0.1 <1.0.0'
-        version: 0.0.1(@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12))
+        specifier: '>=0.3.5 <1.0.0'
+        version: 0.3.5(@antelopejs/core@1.7.0)(@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13))
       '@antelopejs/dms-frontend':
-        specifier: '>=0.0.1 <1.0.0'
-        version: 0.0.1(@antelopejs/core@1.7.0)
+        specifier: '>=0.2.0 <1.0.0'
+        version: 0.2.0(@antelopejs/core@1.7.0)
       '@eslint/js':
         specifier: ^9.0.0
         version: 9.39.5
@@ -52,17 +52,23 @@ packages:
     resolution: {integrity: sha512-2VdIAGPGQXRtmabq3jds9T7iFXPsRByqJHeBhk6s6fgnZwW4Z0zZVP3ForkwoY18+rn/aUpv6UkxVYr95ApYeA==}
     hasBin: true
 
-  '@antelopejs/dms-frontend@0.0.1':
-    resolution: {integrity: sha512-00lgHT52WQcaH7m34Yn1n3tbF3fxYS3fXwMjVJXI8FCrC95Kika6DwioJBD5c0824bjxMGhq/9ArmD401yb4Jw==}
+  '@antelopejs/dms-frontend@0.2.0':
+    resolution: {integrity: sha512-E1k+DCgFtOSJMnt6Ocxga5Dct30BjV6uo4BNJJ1wI9IauqAtgqOE32xeqd/YYQCCWa+sauUy21dfKNQiftR2Jw==}
+    engines: {node: '>=20.12.0'}
     hasBin: true
     peerDependencies:
-      '@antelopejs/core': '>=1.5.0 <2'
+      '@antelopejs/core': '>=1.7.0 <2'
     peerDependenciesMeta:
       '@antelopejs/core':
         optional: true
 
-  '@antelopejs/dms@0.0.1':
-    resolution: {integrity: sha512-6RSOhGfUUywm1sJ3K4w2wniUFnXB+wBDNjU79KmXR7gOOyPdncjiOdANUR1Cey0udG4qNl2hb6XBiMUYYSMuJg==}
+  '@antelopejs/dms@0.3.5':
+    resolution: {integrity: sha512-84zgMFyYO3eovZcnnlAvBirBTcXefkAX82oqodhVq6zCllHfZ4sk0a29C3kF6HfdtF/HOhI7XN8DlIlFb0M/4A==}
+    peerDependencies:
+      '@antelopejs/core': '>=1.7.0 <2'
+    peerDependenciesMeta:
+      '@antelopejs/core':
+        optional: true
 
   '@antelopejs/interface-api-util@0.1.2':
     resolution: {integrity: sha512-iLuh23J2pQVCqnQzFyMbcoLvOzEQIwBYDNO97SBEUmTDgW++JhOUozUSbkVqHjQvyoFMERaDAvJTijVkckwvvQ==}
@@ -83,6 +89,9 @@ packages:
 
   '@antelopejs/interface-core@0.0.12':
     resolution: {integrity: sha512-SuHSQXOFEa04JEErN3PprdwT/jrtXGP6Eiwrk19wZ9QRSjaYkq54xpwFnq9NkYh3BG2EdNmIB9CIwadiCZUsaw==}
+
+  '@antelopejs/interface-core@0.0.13':
+    resolution: {integrity: sha512-zMVhW5OefmVNRLHvd3rPQTaShy+k9w6+cOhqOryyfxgVyRZ18nBlV8VSq9TuPkFIo5OGNAXFybOf54DRSnPVsw==}
 
   '@antelopejs/interface-data-api@0.1.9':
     resolution: {integrity: sha512-LQBroBvJc/iTciLXf2QVsZW5gtqj7i5MfD3IP1sCLUZBZDeRLErhxgdHrlI+e6IcoCzTrTlBYe2FivmGb4T8mg==}
@@ -110,13 +119,13 @@ packages:
     peerDependencies:
       '@antelopejs/interface-core': '>=0.0.6 <1.0.0'
 
-  '@antelopejs/interface-dms@0.0.1':
-    resolution: {integrity: sha512-7Koi/ztoMpXhbYMOmhdPc0i+uwUkuDoFpe9sVRlWrLpZKA18PaWmj0t/ktN9IBx5kAwI3z4e9mQYzYsMsYDwUw==}
+  '@antelopejs/interface-dms@0.1.0':
+    resolution: {integrity: sha512-myGTus7xJs39XiOB5GNb76ahWKbI5qt1FBqjk9z9TB18kuQfg0JlK8K3z7hjL3ITiiAb5Q60NOoX+SDu8QNOtg==}
     peerDependencies:
       '@antelopejs/interface-api': '>=0.0.13 <1.0.0'
       '@antelopejs/interface-api-util': '>=0.1.2 <1.0.0'
       '@antelopejs/interface-auth': '>=0.0.6 <1.0.0'
-      '@antelopejs/interface-core': '>=0.0.12 <1.0.0'
+      '@antelopejs/interface-core': '>=0.0.13 <1.0.0'
       '@antelopejs/interface-data-api': '>=0.1.9 <1.0.0'
       '@antelopejs/interface-database': '>=0.1.7 <1.0.0'
       '@antelopejs/interface-database-decorators': '>=0.1.6 <1.0.0'
@@ -1032,6 +1041,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -2120,8 +2130,9 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - '@types/node'
+    optional: true
 
-  '@antelopejs/dms-frontend@0.0.1(@antelopejs/core@1.7.0)':
+  '@antelopejs/dms-frontend@0.2.0(@antelopejs/core@1.7.0)':
     dependencies:
       boxen: 5.1.2
       chalk: 4.1.2
@@ -2139,19 +2150,18 @@ snapshots:
       '@oxc-parser/binding-linux-x64-gnu': 0.95.0
       '@oxc-parser/binding-win32-x64-msvc': 0.95.0
 
-  '@antelopejs/dms@0.0.1(@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12))':
+  '@antelopejs/dms@0.3.5(@antelopejs/core@1.7.0)(@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13))':
     dependencies:
       2fa: 0.1.2
-      '@antelopejs/core': 1.7.0
-      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-core': 0.0.12
-      '@antelopejs/interface-data-api': 0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))
-      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-database-decorators': 0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))
-      '@antelopejs/interface-dms': 0.0.1(d86b7f7b6cd32377604a6881e8132abb)
-      '@antelopejs/interface-email': 0.0.5(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-file-storage': 0.1.3(@antelopejs/interface-core@0.0.12)
+      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-core': 0.0.13
+      '@antelopejs/interface-data-api': 0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))
+      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-database-decorators': 0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))
+      '@antelopejs/interface-dms': 0.1.0(3f7cd49a1e16a51e159b69ca2fd4c45d)
+      '@antelopejs/interface-email': 0.0.5(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-file-storage': 0.1.3(@antelopejs/interface-core@0.0.13)
       archiver: 7.0.1
       csv-stringify: 6.8.3
       defu: 6.1.7
@@ -2164,85 +2174,90 @@ snapshots:
       ua-parser-js: 2.0.10
       zod: 3.24.4
     optionalDependencies:
-      '@antelopejs/interface-dms-automation': 0.0.1(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-redis': 0.0.8(@antelopejs/interface-core@0.0.12)
+      '@antelopejs/core': 1.7.0
+      '@antelopejs/interface-dms-automation': 0.0.1(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-redis': 0.0.8(@antelopejs/interface-core@0.0.13)
     transitivePeerDependencies:
       - '@antelopejs/interface-auth'
-      - '@types/node'
       - bare-abort-controller
       - bare-buffer
       - react-native-b4a
       - supports-color
 
-  '@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-core': 0.0.13
 
-  '@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-core': 0.0.13
 
-  '@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-auth@0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-core': 0.0.13
 
   '@antelopejs/interface-core@0.0.12':
     dependencies:
       reflect-metadata: 0.2.2
+    optional: true
 
-  '@antelopejs/interface-data-api@0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))':
+  '@antelopejs/interface-core@0.0.13':
     dependencies:
-      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-core': 0.0.12
-      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-database-decorators': 0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))
+      reflect-metadata: 0.2.2
 
-  '@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))':
+  '@antelopejs/interface-data-api@0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))':
     dependencies:
-      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-core': 0.0.12
-      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.12)
+      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-core': 0.0.13
+      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-database-decorators': 0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))
+
+  '@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))':
+    dependencies:
+      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-core': 0.0.13
+      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.13)
       randomstring: 1.3.1
       reflect-metadata: 0.2.2
 
-  '@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-core': 0.0.13
 
-  '@antelopejs/interface-dms-automation@0.0.1(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-dms-automation@0.0.1(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-core': 0.0.13
     optional: true
 
-  '@antelopejs/interface-dms@0.0.1(d86b7f7b6cd32377604a6881e8132abb)':
+  '@antelopejs/interface-dms@0.1.0(3f7cd49a1e16a51e159b69ca2fd4c45d)':
     dependencies:
-      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-auth': 0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-core': 0.0.12
-      '@antelopejs/interface-data-api': 0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))
-      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.12)
-      '@antelopejs/interface-database-decorators': 0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.12))(@antelopejs/interface-core@0.0.12)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.12))
-      '@antelopejs/interface-file-storage': 0.1.3(@antelopejs/interface-core@0.0.12)
+      '@antelopejs/interface-api': 0.0.13(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-auth': 0.0.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-core': 0.0.13
+      '@antelopejs/interface-data-api': 0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))
+      '@antelopejs/interface-database': 0.1.7(@antelopejs/interface-core@0.0.13)
+      '@antelopejs/interface-database-decorators': 0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.0.13))(@antelopejs/interface-core@0.0.13)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.0.13))
+      '@antelopejs/interface-file-storage': 0.1.3(@antelopejs/interface-core@0.0.13)
       jsonwebtoken: 9.0.3
       randomstring: 1.3.1
       zod: 3.24.4
       zod-to-json-schema: 3.24.6(zod@3.24.4)
 
-  '@antelopejs/interface-email@0.0.5(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-email@0.0.5(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-core': 0.0.13
 
-  '@antelopejs/interface-file-storage@0.1.3(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-file-storage@0.1.3(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-core': 0.0.13
 
-  '@antelopejs/interface-redis@0.0.8(@antelopejs/interface-core@0.0.12)':
+  '@antelopejs/interface-redis@0.0.8(@antelopejs/interface-core@0.0.13)':
     dependencies:
-      '@antelopejs/interface-core': 0.0.12
+      '@antelopejs/interface-core': 0.0.13
       ioredis: 5.11.1
     transitivePeerDependencies:
       - supports-color
@@ -2323,7 +2338,8 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@inquirer/ansi@1.0.2': {}
+  '@inquirer/ansi@1.0.2':
+    optional: true
 
   '@inquirer/checkbox@4.3.2':
     dependencies:
@@ -2332,11 +2348,13 @@ snapshots:
       '@inquirer/figures': 1.0.15
       '@inquirer/type': 3.0.10
       yoctocolors-cjs: 2.1.3
+    optional: true
 
   '@inquirer/confirm@5.1.21':
     dependencies:
       '@inquirer/core': 10.3.2
       '@inquirer/type': 3.0.10
+    optional: true
 
   '@inquirer/core@10.3.2':
     dependencies:
@@ -2348,41 +2366,49 @@ snapshots:
       signal-exit: 4.1.0
       wrap-ansi: 6.2.0
       yoctocolors-cjs: 2.1.3
+    optional: true
 
   '@inquirer/editor@4.2.23':
     dependencies:
       '@inquirer/core': 10.3.2
       '@inquirer/external-editor': 1.0.3
       '@inquirer/type': 3.0.10
+    optional: true
 
   '@inquirer/expand@4.0.23':
     dependencies:
       '@inquirer/core': 10.3.2
       '@inquirer/type': 3.0.10
       yoctocolors-cjs: 2.1.3
+    optional: true
 
   '@inquirer/external-editor@1.0.3':
     dependencies:
       chardet: 2.2.0
       iconv-lite: 0.7.3
+    optional: true
 
-  '@inquirer/figures@1.0.15': {}
+  '@inquirer/figures@1.0.15':
+    optional: true
 
   '@inquirer/input@4.3.1':
     dependencies:
       '@inquirer/core': 10.3.2
       '@inquirer/type': 3.0.10
+    optional: true
 
   '@inquirer/number@3.0.23':
     dependencies:
       '@inquirer/core': 10.3.2
       '@inquirer/type': 3.0.10
+    optional: true
 
   '@inquirer/password@4.0.23':
     dependencies:
       '@inquirer/ansi': 1.0.2
       '@inquirer/core': 10.3.2
       '@inquirer/type': 3.0.10
+    optional: true
 
   '@inquirer/prompts@7.10.1':
     dependencies:
@@ -2396,12 +2422,14 @@ snapshots:
       '@inquirer/rawlist': 4.1.11
       '@inquirer/search': 3.2.2
       '@inquirer/select': 4.4.2
+    optional: true
 
   '@inquirer/rawlist@4.1.11':
     dependencies:
       '@inquirer/core': 10.3.2
       '@inquirer/type': 3.0.10
       yoctocolors-cjs: 2.1.3
+    optional: true
 
   '@inquirer/search@3.2.2':
     dependencies:
@@ -2409,6 +2437,7 @@ snapshots:
       '@inquirer/figures': 1.0.15
       '@inquirer/type': 3.0.10
       yoctocolors-cjs: 2.1.3
+    optional: true
 
   '@inquirer/select@4.4.2':
     dependencies:
@@ -2417,8 +2446,10 @@ snapshots:
       '@inquirer/figures': 1.0.15
       '@inquirer/type': 3.0.10
       yoctocolors-cjs: 2.1.3
+    optional: true
 
-  '@inquirer/type@3.0.10': {}
+  '@inquirer/type@3.0.10':
+    optional: true
 
   '@ioredis/commands@1.10.0':
     optional: true
@@ -2532,8 +2563,10 @@ snapshots:
   '@types/proper-lockfile@4.1.4':
     dependencies:
       '@types/retry': 0.12.5
+    optional: true
 
-  '@types/retry@0.12.5': {}
+  '@types/retry@0.12.5':
+    optional: true
 
   '@typescript-eslint/eslint-plugin@8.70.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
@@ -2852,12 +2885,14 @@ snapshots:
       tar-fs: 2.1.5
       tar-stream: 2.2.0
       try-to-catch: 3.0.1
+    optional: true
 
   bl@4.1.0:
     dependencies:
       buffer: 5.7.1
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   bluebird@3.7.2: {}
 
@@ -2884,6 +2919,7 @@ snapshots:
       type-fest: 4.41.0
       widest-line: 5.0.0
       wrap-ansi: 9.0.2
+    optional: true
 
   brace-expansion@1.1.18:
     dependencies:
@@ -2898,22 +2934,26 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
-  browser-stdout@1.3.1: {}
+  browser-stdout@1.3.1:
+    optional: true
 
   browserify-zlib@0.1.4:
     dependencies:
       pako: 0.2.9
+    optional: true
 
   buffer-crc32@1.0.0: {}
 
   buffer-equal-constant-time@1.0.1: {}
 
-  buffer-from@1.1.2: {}
+  buffer-from@1.1.2:
+    optional: true
 
   buffer@5.7.1:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
+    optional: true
 
   buffer@6.0.3:
     dependencies:
@@ -2927,12 +2967,14 @@ snapshots:
       pumpify: 1.5.1
       through2: 2.0.5
       unbzip2-stream: 1.4.3
+    optional: true
 
   callsites@3.1.0: {}
 
   camelcase@6.3.0: {}
 
-  camelcase@8.0.0: {}
+  camelcase@8.0.0:
+    optional: true
 
   chai@6.2.2: {}
 
@@ -2941,27 +2983,33 @@ snapshots:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
-  chalk@5.6.2: {}
+  chalk@5.6.2:
+    optional: true
 
-  chardet@2.2.0: {}
+  chardet@2.2.0:
+    optional: true
 
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
 
-  chownr@1.1.4: {}
+  chownr@1.1.4:
+    optional: true
 
   cli-boxes@2.2.1: {}
 
-  cli-boxes@3.0.0: {}
+  cli-boxes@3.0.0:
+    optional: true
 
-  cli-width@4.1.0: {}
+  cli-width@4.1.0:
+    optional: true
 
   cliui@8.0.1:
     dependencies:
       string-width: 4.2.3
       strip-ansi: 6.0.1
       wrap-ansi: 7.0.0
+    optional: true
 
   cluster-key-slot@1.1.1:
     optional: true
@@ -3009,7 +3057,8 @@ snapshots:
 
   csv-stringify@6.8.3: {}
 
-  currify@4.0.0: {}
+  currify@4.0.0:
+    optional: true
 
   debug@4.4.3(supports-color@8.1.1):
     dependencies:
@@ -3017,7 +3066,8 @@ snapshots:
     optionalDependencies:
       supports-color: 8.1.1
 
-  decamelize@4.0.0: {}
+  decamelize@4.0.0:
+    optional: true
 
   deep-is@0.1.4: {}
 
@@ -3030,7 +3080,8 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  diff@7.0.0: {}
+  diff@7.0.0:
+    optional: true
 
   duplexer2@0.1.4:
     dependencies:
@@ -3042,6 +3093,7 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 2.3.8
       stream-shift: 1.0.3
+    optional: true
 
   eastasianwidth@0.2.0: {}
 
@@ -3049,7 +3101,8 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
-  emoji-regex@10.6.0: {}
+  emoji-regex@10.6.0:
+    optional: true
 
   emoji-regex@8.0.0: {}
 
@@ -3058,12 +3111,14 @@ snapshots:
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
+    optional: true
 
   entities@7.0.1: {}
 
   es-module-lexer@2.3.2: {}
 
-  escalade@3.2.0: {}
+  escalade@3.2.0:
+    optional: true
 
   escape-string-regexp@4.0.0: {}
 
@@ -3207,14 +3262,16 @@ snapshots:
       locate-path: 6.0.0
       path-exists: 4.0.0
 
-  findit2@2.2.3: {}
+  findit2@2.2.3:
+    optional: true
 
   flat-cache@4.0.1:
     dependencies:
       flatted: 3.4.4
       keyv: 4.5.4
 
-  flat@5.0.2: {}
+  flat@5.0.2:
+    optional: true
 
   flatted@3.4.4: {}
 
@@ -3223,7 +3280,8 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  fs-constants@1.0.0: {}
+  fs-constants@1.0.0:
+    optional: true
 
   fs-extra@11.3.1:
     dependencies:
@@ -3231,14 +3289,17 @@ snapshots:
       jsonfile: 6.2.1
       universalify: 2.0.1
 
-  fs.realpath@1.0.0: {}
+  fs.realpath@1.0.0:
+    optional: true
 
   fsevents@2.3.3:
     optional: true
 
-  get-caller-file@2.0.5: {}
+  get-caller-file@2.0.5:
+    optional: true
 
-  get-east-asian-width@1.6.0: {}
+  get-east-asian-width@1.6.0:
+    optional: true
 
   glob-parent@6.0.2:
     dependencies:
@@ -3261,6 +3322,7 @@ snapshots:
       minimatch: 3.1.5
       once: 1.4.0
       path-is-absolute: 1.0.1
+    optional: true
 
   globals@14.0.0: {}
 
@@ -3276,14 +3338,17 @@ snapshots:
       peek-stream: 1.1.3
       pumpify: 1.5.1
       through2: 2.0.5
+    optional: true
 
   has-flag@4.0.0: {}
 
-  he@1.2.0: {}
+  he@1.2.0:
+    optional: true
 
   iconv-lite@0.7.3:
     dependencies:
       safer-buffer: 2.1.2
+    optional: true
 
   ieee754@1.2.1: {}
 
@@ -3302,6 +3367,7 @@ snapshots:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
+    optional: true
 
   inherits@2.0.4: {}
 
@@ -3316,6 +3382,7 @@ snapshots:
       try-to-catch: 3.0.1
       unbzip2-stream: 1.4.3
       yargs-parser: 21.1.1
+    optional: true
 
   inquirer@12.11.1:
     dependencies:
@@ -3326,6 +3393,7 @@ snapshots:
       mute-stream: 2.0.0
       run-async: 4.0.6
       rxjs: 7.8.2
+    optional: true
 
   ioredis@5.11.1:
     dependencies:
@@ -3340,9 +3408,11 @@ snapshots:
       - supports-color
     optional: true
 
-  is-bzip2@1.0.0: {}
+  is-bzip2@1.0.0:
+    optional: true
 
-  is-deflate@1.0.0: {}
+  is-deflate@1.0.0:
+    optional: true
 
   is-extglob@2.1.1: {}
 
@@ -3352,17 +3422,21 @@ snapshots:
     dependencies:
       is-extglob: 2.1.1
 
-  is-gzip@1.0.0: {}
+  is-gzip@1.0.0:
+    optional: true
 
-  is-path-inside@3.0.3: {}
+  is-path-inside@3.0.3:
+    optional: true
 
-  is-plain-obj@2.1.0: {}
+  is-plain-obj@2.1.0:
+    optional: true
 
   is-standalone-pwa@0.1.1: {}
 
   is-stream@2.0.1: {}
 
-  is-unicode-supported@0.1.0: {}
+  is-unicode-supported@0.1.0:
+    optional: true
 
   isarray@1.0.0: {}
 
@@ -3384,8 +3458,10 @@ snapshots:
       tar-fs: 2.1.5
       tar-stream: 2.2.0
       try-to-catch: 3.0.1
+    optional: true
 
-  jiti@2.7.0: {}
+  jiti@2.7.0:
+    optional: true
 
   js-yaml@4.3.2:
     dependencies:
@@ -3515,6 +3591,7 @@ snapshots:
     dependencies:
       chalk: 4.1.2
       is-unicode-supported: 0.1.0
+    optional: true
 
   lru-cache@10.4.3: {}
 
@@ -3538,11 +3615,13 @@ snapshots:
     dependencies:
       brace-expansion: 2.1.7
 
-  minimist@1.2.8: {}
+  minimist@1.2.8:
+    optional: true
 
   minipass@7.1.3: {}
 
-  mkdirp-classic@0.5.3: {}
+  mkdirp-classic@0.5.3:
+    optional: true
 
   mocha@11.8.0:
     dependencies:
@@ -3567,12 +3646,14 @@ snapshots:
       yargs: 17.7.3
       yargs-parser: 21.1.1
       yargs-unparser: 2.0.0
+    optional: true
 
   ms@2.1.3: {}
 
   muggle-string@0.4.1: {}
 
-  mute-stream@2.0.0: {}
+  mute-stream@2.0.0:
+    optional: true
 
   nanoid@3.3.18: {}
 
@@ -3595,6 +3676,7 @@ snapshots:
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
+    optional: true
 
   onezip@6.1.1:
     dependencies:
@@ -3606,6 +3688,7 @@ snapshots:
       yargs-parser: 21.1.1
       yauzl: 3.4.0
       yazl: 3.3.1
+    optional: true
 
   optionator@0.9.4:
     dependencies:
@@ -3626,7 +3709,8 @@ snapshots:
 
   package-json-from-dist@1.0.1: {}
 
-  pako@0.2.9: {}
+  pako@0.2.9:
+    optional: true
 
   parent-module@1.0.1:
     dependencies:
@@ -3636,7 +3720,8 @@ snapshots:
 
   path-exists@4.0.0: {}
 
-  path-is-absolute@1.0.1: {}
+  path-is-absolute@1.0.1:
+    optional: true
 
   path-key@3.1.1: {}
 
@@ -3652,14 +3737,17 @@ snapshots:
       buffer-from: 1.1.2
       duplexify: 3.7.1
       through2: 2.0.5
+    optional: true
 
-  pend@1.2.0: {}
+  pend@1.2.0:
+    optional: true
 
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
 
-  pipe-io@4.0.1: {}
+  pipe-io@4.0.1:
+    optional: true
 
   postcss-selector-parser@7.1.5:
     dependencies:
@@ -3689,22 +3777,26 @@ snapshots:
       graceful-fs: 4.2.11
       retry: 0.12.0
       signal-exit: 3.0.7
+    optional: true
 
   pump@2.0.1:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+    optional: true
 
   pump@3.0.4:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+    optional: true
 
   pumpify@1.5.1:
     dependencies:
       duplexify: 3.7.1
       inherits: 2.0.4
       pump: 2.0.1
+    optional: true
 
   punycode@2.3.1: {}
 
@@ -3733,6 +3825,7 @@ snapshots:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
+    optional: true
 
   readable-stream@4.7.0:
     dependencies:
@@ -3758,11 +3851,13 @@ snapshots:
 
   reflect-metadata@0.2.2: {}
 
-  require-directory@2.1.1: {}
+  require-directory@2.1.1:
+    optional: true
 
   resolve-from@4.0.0: {}
 
-  retry@0.12.0: {}
+  retry@0.12.0:
+    optional: true
 
   rolldown@1.2.9:
     dependencies:
@@ -3785,23 +3880,27 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.9
       '@rolldown/binding-win32-x64-msvc': 1.2.9
 
-  run-async@4.0.6: {}
+  run-async@4.0.6:
+    optional: true
 
   rxjs@7.8.2:
     dependencies:
       tslib: 2.8.1
+    optional: true
 
   safe-buffer@5.1.2: {}
 
   safe-buffer@5.2.1: {}
 
-  safer-buffer@2.1.2: {}
+  safer-buffer@2.1.2:
+    optional: true
 
   semver@7.8.5: {}
 
   serialize-javascript@6.0.2:
     dependencies:
       randombytes: 2.1.0
+    optional: true
 
   shebang-command@2.0.0:
     dependencies:
@@ -3811,7 +3910,8 @@ snapshots:
 
   siginfo@2.0.0: {}
 
-  signal-exit@3.0.7: {}
+  signal-exit@3.0.7:
+    optional: true
 
   signal-exit@4.1.0: {}
 
@@ -3824,7 +3924,8 @@ snapshots:
 
   std-env@4.2.0: {}
 
-  stream-shift@1.0.3: {}
+  stream-shift@1.0.3:
+    optional: true
 
   streamx@2.28.1:
     dependencies:
@@ -3852,6 +3953,7 @@ snapshots:
       emoji-regex: 10.6.0
       get-east-asian-width: 1.6.0
       strip-ansi: 7.2.0
+    optional: true
 
   string_decoder@1.1.1:
     dependencies:
@@ -3880,6 +3982,7 @@ snapshots:
   supports-color@8.1.1:
     dependencies:
       has-flag: 4.0.0
+    optional: true
 
   tar-fs@2.1.5:
     dependencies:
@@ -3887,6 +3990,7 @@ snapshots:
       mkdirp-classic: 0.5.3
       pump: 3.0.4
       tar-stream: 2.2.0
+    optional: true
 
   tar-stream@2.2.0:
     dependencies:
@@ -3895,6 +3999,7 @@ snapshots:
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   tar-stream@3.2.1:
     dependencies:
@@ -3926,12 +4031,15 @@ snapshots:
     dependencies:
       readable-stream: 2.3.8
       xtend: 4.0.2
+    optional: true
 
   through2@4.0.2:
     dependencies:
       readable-stream: 3.6.2
+    optional: true
 
-  through@2.3.8: {}
+  through@2.3.8:
+    optional: true
 
   tinybench@2.9.0: {}
 
@@ -3944,13 +4052,15 @@ snapshots:
 
   tinyrainbow@3.1.1: {}
 
-  try-to-catch@3.0.1: {}
+  try-to-catch@3.0.1:
+    optional: true
 
   ts-api-utils@2.5.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
 
-  tslib@2.8.1: {}
+  tslib@2.8.1:
+    optional: true
 
   type-check@0.4.0:
     dependencies:
@@ -3958,7 +4068,8 @@ snapshots:
 
   type-fest@0.20.2: {}
 
-  type-fest@4.41.0: {}
+  type-fest@4.41.0:
+    optional: true
 
   typescript-eslint@8.70.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3):
     dependencies:
@@ -3985,6 +4096,7 @@ snapshots:
     dependencies:
       buffer: 5.7.1
       through: 2.3.8
+    optional: true
 
   universalify@2.0.1: {}
 
@@ -4084,16 +4196,19 @@ snapshots:
   widest-line@5.0.0:
     dependencies:
       string-width: 7.2.0
+    optional: true
 
   word-wrap@1.2.5: {}
 
-  workerpool@9.3.4: {}
+  workerpool@9.3.4:
+    optional: true
 
   wrap-ansi@6.2.0:
     dependencies:
       ansi-styles: 4.3.0
       string-width: 4.2.3
       strip-ansi: 6.0.1
+    optional: true
 
   wrap-ansi@7.0.0:
     dependencies:
@@ -4112,16 +4227,21 @@ snapshots:
       ansi-styles: 6.2.3
       string-width: 7.2.0
       strip-ansi: 7.2.0
+    optional: true
 
-  wrappy@1.0.2: {}
+  wrappy@1.0.2:
+    optional: true
 
   xml-name-validator@5.0.0: {}
 
-  xtend@4.0.2: {}
+  xtend@4.0.2:
+    optional: true
 
-  y18n@5.0.8: {}
+  y18n@5.0.8:
+    optional: true
 
-  yargs-parser@21.1.1: {}
+  yargs-parser@21.1.1:
+    optional: true
 
   yargs-unparser@2.0.0:
     dependencies:
@@ -4129,6 +4249,7 @@ snapshots:
       decamelize: 4.0.0
       flat: 5.0.2
       is-plain-obj: 2.1.0
+    optional: true
 
   yargs@17.7.3:
     dependencies:
@@ -4139,18 +4260,22 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+    optional: true
 
   yauzl@3.4.0:
     dependencies:
       pend: 1.2.0
+    optional: true
 
   yazl@3.3.1:
     dependencies:
       buffer-crc32: 1.0.0
+    optional: true
 
   yocto-queue@0.1.0: {}
 
-  yoctocolors-cjs@2.1.3: {}
+  yoctocolors-cjs@2.1.3:
+    optional: true
 
   zip-stream@6.0.1:
     dependencies:

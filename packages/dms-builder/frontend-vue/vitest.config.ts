@@ -6,7 +6,7 @@ export default defineConfig({
     alias: {
       // The host runtime only exists inside a generated Inertia workspace; the
       // tests substitute the slice of it this package imports.
-      '#dms-inertia/frontend-module': fileURLToPath(
+      '#dms/frontend-module': fileURLToPath(
         new URL('./tests/stubs/frontend-module.ts', import.meta.url),
       ),
     },

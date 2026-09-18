@@ -2,7 +2,7 @@ import {
   defineDmsPlugin,
   useDmsRoute as useRoute,
   useDmsState as useState,
-} from '#dms-inertia/frontend-module'
+} from '#dms/frontend-module'
 import {
   ACTION_ICON,
   ACTION_ID,

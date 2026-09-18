@@ -141,7 +141,7 @@ this module carries `dmsBuilder.enabled === true` in its public options — the
 loader nests a module's options under its `configKey`. A frontend is built once and
 served later, so the module re-checks rather than trusting the Vite build mode,
 which says nothing about how the backend runs. Navigation and shared state use
-the host's `#dms-inertia/frontend-module` runtime.
+the host's `#dms/frontend-module` runtime.
 
 The published DMS frontend loader verifies the source module in a generated
 Inertia workspace:

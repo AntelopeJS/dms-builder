@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
-import { useDmsState as useState } from '#dms-inertia/frontend-module'
+import { useDmsState as useState } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
 import { descriptorOf, missingConfig, newBlockDraft } from './catalog'
 import {
