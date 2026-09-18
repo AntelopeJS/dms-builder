@@ -80,7 +80,8 @@ function opts(expectedVersion?: string): MutationOpts | undefined {
 
 /**
  * The HTTP surface a builder UI drives. Every route is owner-gated, and the
- * controller is only loaded when the API is enabled — see `isApiEnabled`.
+ * controller is only imported when the builder is enabled — see
+ * `isBuilderEnabled` — so every route below 404s outside development.
  */
 export class BuilderController extends Controller(getRoutePrefix()) {
   @Get(ROUTES.status)

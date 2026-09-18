@@ -53,11 +53,9 @@ function registerAction(onSelect: () => void, isActive: () => boolean): void {
 }
 
 export default defineDmsPlugin(() => {
-  // The builder rewrites the app's TypeScript sources, which only exist in a
-  // development checkout; its API refuses to answer anywhere else.
-  if (!import.meta.env.DEV) {
-    return
-  }
+  // Whether the builder is available at all is settled in `dms.frontend.ts`,
+  // from the option the backend publishes: the Vite build mode of the frontend
+  // says nothing about whether the backend runs in development.
   const builder = useBuilder()
   const route = useRoute()
   registerOverlay()
