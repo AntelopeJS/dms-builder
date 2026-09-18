@@ -1,10 +1,15 @@
 import path from "node:path";
 import { ImplementInterface } from "@antelopejs/interface-core";
 import { AddFrontendModule } from "@antelopejs/interface-dms/page";
-import { type DmsBuilderConfig, isApiEnabled, setModuleConfig } from "./config";
+import {
+  type DmsBuilderConfig,
+  isBuilderEnabled,
+  setModuleConfig,
+} from "./config";
 import {
   FRONTEND_MODULE_CONFIG_KEY,
   FRONTEND_MODULE_DIR,
+  FRONTEND_MODULE_ENABLED_OPTION,
   FRONTEND_MODULE_NAME,
   FRONTEND_MODULE_PRIORITY,
 } from "./constants/routes";
@@ -17,7 +22,7 @@ export async function construct(config?: DmsBuilderConfig): Promise<void> {
     await import("@antelopejs/interface-dms-builder"),
     await import("./implementations/dms-builder"),
   );
-  if (isApiEnabled()) {
+  if (await isBuilderEnabled()) {
     // The controller registers its routes as it is decorated, so importing it
     // is what mounts the API.
     await import("./routes");
@@ -30,7 +35,7 @@ export async function construct(config?: DmsBuilderConfig): Promise<void> {
  * connected, which is what serves the module to the frontend.
  */
 export async function start(): Promise<void> {
-  if (!isApiEnabled()) {
+  if (!(await isBuilderEnabled())) {
     return;
   }
   await AddFrontendModule({
@@ -39,5 +44,10 @@ export async function start(): Promise<void> {
     renderer: { name: "vue", version: "3" },
     configKey: FRONTEND_MODULE_CONFIG_KEY,
     priority: FRONTEND_MODULE_PRIORITY,
+    // Belt and braces: the module is only registered at all when the builder
+    // is enabled, but a frontend can be built once and served later, so the
+    // manifest says so out loud and the module checks it before registering
+    // its plugin.
+    options: { [FRONTEND_MODULE_ENABLED_OPTION]: true },
   });
 }

@@ -39,12 +39,21 @@ HTTP routes, alongside the interfaces the engine itself uses.
 | --- | --- | --- |
 | `projectRoot` | `string` | Absolute path to the app source root where page files live. Defaults to the process working directory. |
 | `factoring` | `FactoringConfig` | Thresholds past which the emitter factors a sub-tree into a module-level const. |
-| `api.enabled` | `boolean` | Whether to mount the HTTP API. Defaults to `true` outside production. |
+| `api.enabled` | `boolean` | Forces the builder on or off. Defaults to the project's development mode. |
 
 The builder rewrites the app's TypeScript sources, which only exist in a
-development checkout, so the API refuses to mount when `NODE_ENV` is
-`production` unless `api.enabled` says otherwise. Every route additionally
-requires an authenticated tenant owner.
+development checkout, so it is available only while the project runs in
+development — `ajs project run`, with or without `-w`. `ajs project start`,
+which runs a build, gets no builder: no HTTP routes, and no frontend module, so
+the **Edit this page** action does not exist in the dashboard either. The flag
+consulted is the core's own (`GetRuntimeInfo().dev`), the same one the DMS uses
+for dev reload, not `NODE_ENV`.
+
+Set `api.enabled` to override that decision in either direction — `true` mounts
+the builder on a started build for whoever wants it there on purpose, `false`
+keeps it off in development. Every route additionally requires an authenticated
+tenant owner, and when the builder is disabled the controller is never imported,
+so every route under `/api/builder` answers `404`.
 
 ## HTTP API
 
@@ -95,7 +104,7 @@ edit — fails with `stale` instead of overwriting. See
 ## The builder UI
 
 The module ships a Vue 3 frontend module, registered with `AddFrontendModule`
-when the API is enabled. It adds an **Edit this page** action to the DMS header;
+only when the builder is enabled. It adds an **Edit this page** action to the DMS header;
 opening it overlays the page's content area with the builder and leaves the DMS
 chrome — sidebar, header, breadcrumb — usable behind it.
 
@@ -127,7 +136,11 @@ while you were editing refuses the write and offers a reload rather than
 overwriting.
 
 `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the
-development-only client plugin at priority 100. Navigation and shared state use
+client plugin at priority 100, and only when the backend's manifest entry for
+this module carries `dmsBuilder.enabled === true` in its public options — the
+loader nests a module's options under its `configKey`. A frontend is built once and
+served later, so the module re-checks rather than trusting the Vite build mode,
+which says nothing about how the backend runs. Navigation and shared state use
 the host's `#dms-inertia/frontend-module` runtime.
 
 The published DMS frontend loader verifies the source module in a generated

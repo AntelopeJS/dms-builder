@@ -4,7 +4,7 @@ const Module = require("node:module");
 const path = require("node:path");
 const { test } = require("node:test");
 
-test("registers the Vue frontend only when the builder API is enabled", async () => {
+test("registers the Vue frontend only when the builder is enabled", async () => {
   const filename = path.resolve(__dirname, "../dist/index.js");
   const load = Module.createRequire(filename);
   const registrations = [];
@@ -13,7 +13,7 @@ test("registers the Vue frontend only when the builder API is enabled", async ()
     "@antelopejs/interface-dms/page": {
       AddFrontendModule: (registration) => registrations.push(registration),
     },
-    "./config": { isApiEnabled: () => enabled },
+    "./config": { isBuilderEnabled: async () => enabled },
   };
   const compiledModule = new Module(filename, module);
   compiledModule.filename = filename;
@@ -31,6 +31,7 @@ test("registers the Vue frontend only when the builder API is enabled", async ()
       renderer: { name: "vue", version: "3" },
       configKey: "dmsBuilder",
       priority: 100,
+      options: { enabled: true },
     },
   ]);
 });
