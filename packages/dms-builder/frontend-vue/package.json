@@ -6,7 +6,7 @@
 	"license": "Apache-2.0",
 	"packageManager": "pnpm@10.2.0",
 	"scripts": {
-		"typecheck": "ajs-dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
+		"typecheck": "ajs dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"test": "vitest run"
@@ -15,6 +15,7 @@
 		"vue": "^3.5.18"
 	},
 	"devDependencies": {
+		"@antelopejs/core": "1.8.0",
 		"@antelopejs/dms": ">=0.3.5 <1.0.0",
 		"@antelopejs/dms-frontend": ">=0.2.0 <1.0.0",
 		"@eslint/js": "^9.0.0",
