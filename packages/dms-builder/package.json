@@ -28,7 +28,6 @@
   },
   "scripts": {
     "build": "pnpm --filter @antelopejs/interface-dms-builder build && rimraf dist && tsc -p tsconfig.build.json",
-    "dev": "ajs project run -w -p playground",
     "generate": "ajs module exports generate",
     "typecheck": "pnpm --filter @antelopejs/interface-dms-builder build && tsc -p tsconfig.json",
     "test": "pnpm run build && pnpm run test:package-contract && pnpm run test:builder-enabled && pnpm run test:frontend-registration && pnpm run test:frontend",
