@@ -10,8 +10,21 @@ import type { MutationOpts, OpResult } from "./results";
  */
 export type QueryRef = string;
 
-/** The shape a query's route responds with. Scalar (`{ value }`) in v1. */
-export type QueryOutputKind = "scalar";
+/**
+ * The shape a query's route responds with: one number as `{ value }`, or one
+ * point per group as `{ series }`, each point carrying its group as `x` and what
+ * was measured as `y`.
+ */
+export type QueryOutputKind = "scalar" | "series";
+
+/**
+ * How a query's answer is arranged for the block that reads it.
+ *
+ * The calculation is the same either way — a measure, possibly per group. This
+ * says what the route wraps it in: the points themselves, a headline figure above
+ * them, that figure alone, or the points as a ranked list.
+ */
+export type QueryResponseShape = "series" | "card" | "value" | "items";
 
 /** The comparison operators a filter may use. */
 export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";
@@ -63,6 +76,21 @@ export interface QueryTemplateDescriptor {
   params: ConfigSchema;
 }
 
+/**
+ * What a draft query answers when run without being written.
+ *
+ * The same shape its route would serve, so a block can be handed it directly —
+ * plus `truncated`, because a preview stops reading at some point and a chart
+ * that silently lost its tail is worse than one that says so.
+ */
+export type QueryPreview =
+  | { output: QueryOutputKind; value: number; truncated?: false }
+  | {
+      output: QueryOutputKind;
+      series: { x: number | string; y: number }[];
+      truncated: boolean;
+    };
+
 /** Input for `AddQuery`. */
 export interface AddQueryInput {
   /**
@@ -78,6 +106,19 @@ export interface AddQueryInput {
   template: string;
   /** The template's parameters. */
   params?: Record<string, QueryParamValue>;
+  /**
+   * How the answer is arranged for the block reading it. Defaults to what the
+   * template computes: a number for a scalar, its points for a series.
+   *
+   * A grouped calculation feeds a bare chart, a card with a headline figure, or
+   * a ranked list without being described three times.
+   */
+  response?: QueryResponseShape;
+  /**
+   * Answer the preceding period alongside the current one, so a card can show a
+   * variation. Only meaningful when the query binds a period.
+   */
+  compare?: boolean;
   /**
    * The route path, relative to the page's slug. Defaults to
    * `/stats/<kebab-name>`; any path is allowed, since read-back identifies a
@@ -98,6 +139,8 @@ export interface AddQueryInput {
  */
 export interface QueryStructure {
   name: string;
+  /** How the answer is arranged, when the route wraps the calculation. */
+  response?: QueryResponseShape;
   /** The route path relative to the page's slug, as {@link AddQueryInput.endpoint} takes it. */
   endpoint: string;
   resource?: ResourceRef;

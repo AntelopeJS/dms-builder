@@ -40,6 +40,7 @@ import type {
 	FieldSpec,
 	PageStructure,
 	PageSummary,
+	QueryPreview,
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
@@ -165,6 +166,20 @@ export interface BuilderController {
 	move: (path: string, parent: string | null, index: number) => void
 	nudge: (path: string, delta: number) => void
 	patchConfig: (path: string, patch: Record<string, unknown>) => void
+	/**
+	 * Put a query in the draft, to be written with the blocks on the next save.
+	 *
+	 * Replaces the one of that name, so an editor re-sending its whole definition
+	 * on every keystroke is the normal way to use it.
+	 */
+	setDraftQuery: (input: AddQueryInput) => void
+	/** Drop a query from the draft. */
+	removeDraftQuery: (name: string) => void
+	/** Run an unsaved query and answer what its route would. */
+	previewQuery: (
+		input: AddQueryInput,
+		args?: Record<string, unknown>,
+	) => Promise<QueryPreview | null>
 	patchMeta: (path: string, patch: Record<string, unknown>) => void
 	setController: (path: string, resource: string | undefined) => void
 	setSlot: (path: string, slot: string | undefined) => void
@@ -525,6 +540,51 @@ export function useBuilder(): BuilderController {
 			}
 			block.config = mergePatch(block.config ?? {}, patch)
 		})
+	}
+
+	/**
+	 * The queries the page already serves, as draft entries.
+	 *
+	 * Seeded from what was read off the page the first time the editor touches
+	 * one: sending a draft that carries only the query being edited would tell the
+	 * engine the page serves nothing else.
+	 */
+	function draftQueries(draft: PageDraft): AddQueryInput[] {
+		if (draft.queries) {
+			return draft.queries
+		}
+		return (session.value.structure?.queries ?? [])
+			.filter((query) => !query.opaque && query.resource && query.template)
+			.map((query) => ({
+				name: query.name,
+				resource: query.resource as string,
+				template: query.template as string,
+				params: query.params ?? {},
+				endpoint: query.endpoint,
+			}))
+	}
+
+	function setDraftQuery(input: AddQueryInput): void {
+		mutate((draft) => {
+			const queries = draftQueries(draft).filter(
+				(query) => query.name !== input.name,
+			)
+			draft.queries = [...queries, input]
+		})
+	}
+
+	function removeDraftQuery(name: string): void {
+		mutate((draft) => {
+			draft.queries = draftQueries(draft).filter((query) => query.name !== name)
+		})
+	}
+
+	async function previewQuery(
+		input: AddQueryInput,
+		args?: Record<string, unknown>,
+	): Promise<QueryPreview | null> {
+		const result = await api.previewQuery(input, args)
+		return result.ok ? result.data : null
 	}
 
 	function patchMeta(path: string, patch: Record<string, unknown>): void {
@@ -994,6 +1054,9 @@ export function useBuilder(): BuilderController {
 		move,
 		nudge,
 		patchConfig,
+		setDraftQuery,
+		removeDraftQuery,
+		previewQuery,
 		patchMeta,
 		setController,
 		setSlot,

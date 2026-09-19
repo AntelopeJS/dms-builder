@@ -45,19 +45,19 @@ export interface BindRef {
   $bind: string;
 }
 
-function propName(call: CallExpression): string | undefined {
+export function propName(call: CallExpression): string | undefined {
   const expr = call.getExpression();
   return Node.isPropertyAccessExpression(expr) ? expr.getName() : undefined;
 }
 
-function receiver(call: CallExpression): Node | undefined {
+export function receiver(call: CallExpression): Node | undefined {
   const expr = call.getExpression();
   return Node.isPropertyAccessExpression(expr)
     ? expr.getExpression()
     : undefined;
 }
 
-function isThisTable(node: Node): boolean {
+export function isThisTable(node: Node): boolean {
   return (
     Node.isPropertyAccessExpression(node) &&
     node.getName() === "table" &&
@@ -66,7 +66,9 @@ function isThisTable(node: Node): boolean {
 }
 
 /** The single `return <call>;` of a method body, or `undefined` for any other shape. */
-function returnedCall(method: MethodDeclaration): CallExpression | undefined {
+export function returnedCall(
+  method: MethodDeclaration,
+): CallExpression | undefined {
   const body = method.getBody();
   if (!body || !Node.isBlock(body)) {
     return undefined;
@@ -120,7 +122,10 @@ function readValue(node: Node, params: Set<string>): RawValue | undefined {
 }
 
 /** One `.filter((row) => row.key("field").op(arg))` hop, or `undefined` if off-grammar. */
-function readFilter(arrow: Node, params: Set<string>): RawFilter | undefined {
+export function readFilter(
+  arrow: Node,
+  params: Set<string>,
+): RawFilter | undefined {
   if (!Node.isArrowFunction(arrow)) {
     return undefined;
   }
@@ -239,45 +244,26 @@ export function bindName(value: unknown): string | undefined {
 }
 
 /**
- * A chain's identity as a string, independent of parameter names and sources:
- * every bound value collapses to a positional slot (assigned in `where` order),
- * every baked value to its literal. Two chains share this key iff they compute
- * the same thing, whatever their parameters are called or wherever the route
- * reads them — which is exactly when the builder may share one model method
- * between them. Accepts params carrying either the `$bind` (parsed) or `$param`
- * (input) sentinel, so a method on disk and an `AddQuery` input compare directly.
+ * A chain's identity: its compiled body, with parameter names reduced to their
+ * position and whitespace flattened.
+ *
+ * The code is what two queries either share or do not — comparing the parameters
+ * that produced it cannot work, because a template applies defaults on the way
+ * out (a series is always ordered) and a read-back reports them explicitly, so
+ * the same chain hashes two ways depending on which side you came from.
+ *
+ * A name is only substituted where an identifier stands on its own: a parameter
+ * named after a field that happens to read like an operator must not rewrite
+ * `.min("x")` into `.$0("x")`.
  */
-export function canonicalChain(
-  template: string,
-  params: Record<string, unknown>,
-): string {
-  const slots = new Map<string, number>();
-  const canonValue = (value: unknown): unknown => {
-    const name = bindName(value);
-    if (name === undefined) {
-      return { lit: value };
-    }
-    let slot = slots.get(name);
-    if (slot === undefined) {
-      slot = slots.size;
-      slots.set(name, slot);
-    }
-    return { slot };
-  };
-  const where = Array.isArray(params.where)
-    ? params.where.map((filter) => {
-        const record = filter as Record<string, unknown>;
-        return {
-          field: record.field,
-          op: record.op,
-          value: canonValue(record.value),
-        };
-      })
-    : [];
-  return JSON.stringify({
-    template,
-    op: params.op ?? null,
-    field: params.field ?? null,
-    where,
+export function canonicalBody(body: string, parameters: string[]): string {
+  let text = body.replace(/\s+/g, " ").trim();
+  parameters.forEach((name, index) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(
+      new RegExp(`(?<![.\\w$])${escaped}\\b`, "g"),
+      `$${index}`,
+    );
   });
+  return text;
 }

@@ -1,7 +1,7 @@
-// Emitting a query method into the model, and the public operations that call
-// it.
+// Émission d'une méthode de requête dans le modèle, et les opérations
+// publiques qui l'appellent.
 //
-// Split out of query-ops.ts to stay under the size the linter allows.
+// Découpé de query-ops.ts pour tenir sous la taille que le linter autorise.
 
 import type {
   AddQueryInput,
@@ -17,6 +17,7 @@ import {
   isError,
   notFound,
   opaque,
+  unsupported,
   openPage,
 } from "./ops";
 import {
@@ -30,6 +31,7 @@ import {
   buildQueryStructure,
   findQueryRoute,
   MODEL_DECORATORS,
+  ROUTE_GUARD_SYMBOLS,
   parseQueryRouteCall,
   routeModelMethodNames,
   routeResourceRef,
@@ -47,7 +49,7 @@ import {
   QueryEmission,
   resolveModelTarget,
 } from "./query-ops";
-function emitQuery({
+export function emitQuery({
   pageClass,
   pageFile,
   opened,
@@ -69,11 +71,21 @@ function emitQuery({
       queryModelMethodText(spec, target.name),
     );
   }
+  const pageClassName = pageClass.getName();
+  if (!pageClassName) {
+    // The guard names the page class, so an anonymous one would emit
+    // `@AuthUserWithPermission()` — code that does not compile, and a guard that
+    // would wave everything through if the decorator ever tolerated it.
+    return unsupported<never>(
+      "the page class has no name, so a generated route cannot name it in its permission guard",
+    );
+  }
   const route = queryRouteMethodText(
     spec,
     opened.record.modelName,
     opened.record.schema,
     target.name,
+    pageClassName,
   );
   pageClass.addMember(route.text);
   for (const symbol of route.symbols) {
@@ -183,9 +195,9 @@ function locateQuery(query: QueryRef, opts: MutationOpts | undefined) {
   if (current.opaque || !current.template || !current.resource) {
     return opaque(query);
   }
-  // `resource` and `template` are returned separately: the narrowing from the
-  // test above does not cross the function boundary, and the caller wants them
-  // non-optional.
+  // `resource` et `template` sont renvoyés à part : le narrowing du test
+  // ci-dessus ne traverse pas la frontière de fonction, et l'appelant les
+  // veut non-optionnels.
   return {
     parsed,
     context,
@@ -273,6 +285,7 @@ export function configureQuery(
   pruneUnusedImports(context.sourceFile, [
     "Parameter",
     ...MODEL_DECORATORS,
+    ...ROUTE_GUARD_SYMBOLS,
     ...modelClassNames(previous.resource),
   ]);
   return commit(transaction, undefined, spec.chain.warnings ?? []);
@@ -320,6 +333,7 @@ export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
     "Get",
     "Parameter",
     ...MODEL_DECORATORS,
+    ...ROUTE_GUARD_SYMBOLS,
     ...(resource ? modelClassNames(resource) : []),
   ]);
   if (resource) {
@@ -382,7 +396,7 @@ function pruneUnusedImports(sourceFile: SourceFile, names: string[]): void {
 }
 
 /** Drops the model method only once no route on any page still calls it. */
-function dropOrphanedModelMethod(
+export function dropOrphanedModelMethod(
   resource: string,
   modelMethod: string,
   transaction: Transaction,

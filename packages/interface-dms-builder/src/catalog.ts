@@ -215,3 +215,25 @@ export interface BlockCatalog {
   /** Cache key; invalidated on module-source change. */
   generatedAt: string;
 }
+
+/**
+ * A route a developer declared as something a block may read.
+ *
+ * Listed beside the calculations the builder generates, so a source editor
+ * offers both in one place. The builder never reads or rewrites the code behind
+ * one: it knows only what the declaration says.
+ */
+export interface DataSourceDescriptor {
+  id: string;
+  title: string;
+  description?: string;
+  /** The shape it answers with, matched against what a block can read. */
+  responseShape: string;
+  /** The path a block fetches, as declared. */
+  path: string;
+  method?: string;
+  /** Parameters it takes, in the same vocabulary as a block's options. */
+  params?: ConfigSchema;
+  /** The query parameters it reads a period from, when it takes one. */
+  period?: { from: string; to: string };
+}

@@ -267,8 +267,10 @@ async function setSearchField(name: string): Promise<void> {
 					:schema="option.schema"
 					:model-value="option.value"
 					:resource="block.controller"
+					:block-name="block.name"
 					:separated="option.separated"
 					@update:model-value="option.update($event)"
+					@patch="builder.patchConfig(path, $event)"
 				/>
 
 				<div

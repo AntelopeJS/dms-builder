@@ -370,3 +370,4 @@ $RECYCLE.BIN/
 
 # pnpm store
 .pnpm-store
+.test-app/

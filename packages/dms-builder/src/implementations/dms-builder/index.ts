@@ -8,6 +8,7 @@ import type {
   CreateCategoryInput,
   CreatePageInput,
   CreateResourceInput,
+  DataSourceDescriptor,
   DeleteResourceOpts,
   EditableCategoryMeta,
   EditablePageMeta,
@@ -23,6 +24,8 @@ import type {
   PageRef,
   PageStructure,
   PageSummary,
+  QueryPreview,
+  QueryPreviewRequest,
   QueryRef,
   QueryTemplateDescriptor,
   RefreshScope,
@@ -31,7 +34,11 @@ import type {
   ResourceStructure,
   ResourceSummary,
 } from "@antelopejs/interface-dms-builder";
-import { buildCatalog, invalidateCatalog } from "./engine/catalog";
+import {
+  buildCatalog,
+  invalidateCatalog,
+  listDeclaredDataSources,
+} from "./engine/catalog";
 import { addBlock, configureBlock } from "./engine/ops";
 import {
   configureCategory,
@@ -48,8 +55,10 @@ import {
 import { setPageBlocks } from "./engine/page-draft";
 import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
+import { runQueryPreview } from "./engine/query-preview";
 import { addQuery, configureQuery, removeQuery } from "./engine/query-ops-emit";
 import { listQueryTemplates } from "./engine/query-template";
+import { registerBuiltinQueryTemplates } from "./engine/query-template-emit";
 import { listResourceSummaries } from "./engine/resource-index";
 import { createResource } from "./engine/resource-ops";
 import {
@@ -66,6 +75,10 @@ import {
   listPageSummaries,
 } from "./engine/source-index";
 
+// Every operation below reaches the template registry — compiling a query, or
+// recognizing one already written — so it is filled as this module loads.
+registerBuiltinQueryTemplates();
+
 export async function ListPages(): Promise<PageSummary[]> {
   return listPageSummaries();
 }
@@ -76,6 +89,12 @@ export async function ListCategories(): Promise<CategorySummary[]> {
 
 export async function GetCatalog(): Promise<BlockCatalog> {
   return buildCatalog();
+}
+
+export async function ListDataSources(
+  responseShape?: string,
+): Promise<DataSourceDescriptor[]> {
+  return listDeclaredDataSources(responseShape);
 }
 
 export async function GetPageStructure(
@@ -90,6 +109,12 @@ export async function SetPageBlocks(
   opts?: MutationOpts,
 ): Promise<OpResult<{ version: string }>> {
   return setPageBlocks(page, draft, opts);
+}
+
+export async function PreviewQuery(
+  request: QueryPreviewRequest,
+): Promise<OpResult<QueryPreview>> {
+  return runQueryPreview(request);
 }
 
 export async function PreviewLayout(

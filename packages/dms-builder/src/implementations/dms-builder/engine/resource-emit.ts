@@ -13,6 +13,8 @@ const DATATYPE_MODULE =
 const SEARCHABLE_MODULE = "@antelopejs/interface-dms/base/searchable";
 export const TABLE_VIEW_MODULE = "@antelopejs/interface-dms/base/table-view";
 const CONSTANTS_MODULE = "@antelopejs/interface-dms/constants";
+const GUARDS_MODULE = "@antelopejs/interface-dms/guards";
+const AUTH_DB_MODULE = "@antelopejs/interface-dms/auth/db";
 const TENANT_MODEL_MODULE = "@antelopejs/interface-dms/tenant-scoped-model";
 export const DATABASE_LOCAL = "./database";
 
@@ -124,6 +126,8 @@ export const DECORATOR_IMPORTS: Record<string, string> = {
   Get: API_MODULE,
   Parameter: API_MODULE,
   TenantScopedModel: TENANT_MODEL_MODULE,
+  AuthUserWithPermission: GUARDS_MODULE,
+  User: AUTH_DB_MODULE,
   Searchable: SEARCHABLE_MODULE,
   Column: TABLE_VIEW_MODULE,
   Select: TABLE_VIEW_MODULE,

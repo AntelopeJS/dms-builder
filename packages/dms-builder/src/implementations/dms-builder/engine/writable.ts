@@ -27,6 +27,16 @@ export function getWritableProject(): Project {
   return writable;
 }
 
+/**
+ * Drop the cached project so the next call builds one from the configured root
+ * again. The project is resolved once per process because an app's root does not
+ * move under a running server; a test suite pointing the engine at a fresh
+ * fixture is the case that does move it.
+ */
+export function resetWritableProject(): void {
+  writable = undefined;
+}
+
 export function refreshFromDisk(project: Project): void {
   for (const sourceFile of project.getSourceFiles()) {
     if (!sourceFile.isInNodeModules()) {

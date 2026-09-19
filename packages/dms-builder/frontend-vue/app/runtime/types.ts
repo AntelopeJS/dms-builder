@@ -18,6 +18,13 @@ export interface OptionUi {
 	// One option may need several: a Kanban groups by a field it both reads
 	// off the listed row and filters each column with.
 	fieldAspect?: FieldAspect | FieldAspect[]
+	/**
+	 * What the block does with what it fetches, for a `dataSource` option: one
+	 * number, one point per group, a ranked list, or a number and its series.
+	 */
+	responseShape?: string
+	/** The block's own period option, written alongside a bound source. */
+	periodOption?: string
 }
 
 export type FieldAspect = 'listable' | 'searchable' | 'sortable' | 'filterable'
@@ -133,7 +140,23 @@ export interface BlockDraft {
 export interface PageDraft {
 	page?: Record<string, unknown>
 	blocks: BlockDraft[]
+	/**
+	 * The queries the page should serve, saved with the blocks in one write.
+	 *
+	 * Omitted while the editor has not touched them, which leaves whatever the
+	 * page already serves alone.
+	 */
+	queries?: AddQueryInput[]
 }
+
+/** What a preview of an unsaved query answers. */
+export type QueryPreview =
+	| { output: string; value: number; truncated?: false }
+	| {
+			output: string
+			series: { x: number | string; y: number }[]
+			truncated: boolean
+	  }
 
 export interface ComponentPreviewChild {
 	id: string
@@ -304,4 +327,16 @@ export interface CreateResourceInput {
 	name: string
 	displayName?: string
 	fields: FieldSpec[]
+}
+
+/** A route a developer declared as something a block may be pointed at. */
+export interface DataSourceDescriptor {
+	id: string
+	title: string
+	description?: string
+	responseShape: string
+	path: string
+	method?: string
+	params?: Record<string, OptionSchema>
+	period?: { from: string; to: string }
 }

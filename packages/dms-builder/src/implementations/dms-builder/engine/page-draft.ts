@@ -1,4 +1,5 @@
 import type {
+  OpWarning,
   BlockDraft,
   MutationOpts,
   OpResult,
@@ -27,6 +28,7 @@ import {
   unsupported,
 } from "./ops";
 import { contentVersion } from "./page-structure";
+import { syncQueries } from "./query-sync";
 import { validateDraft } from "./page-draft-validation";
 import { resourceRefResolver } from "./resource-index";
 import { getExtendsCall } from "./scan";
@@ -364,10 +366,40 @@ export function setPageBlocks(
   for (const importRef of imports) {
     applyImportRef(context.sourceFile, importRef);
   }
+  // The queries go in before the commit, so a block and the data it reads are
+  // one write and one typecheck. An absent `queries` leaves them alone; an empty
+  // one says the page serves none.
+  let warnings: OpWarning[] = [];
+  if (draft.queries) {
+    // Re-resolved rather than reused: rewriting the statics replaces nodes, and
+    // the class captured before that is a node ts-morph has forgotten.
+    const written = findPageClass(context.sourceFile, context.page.id);
+    if (!written) {
+      transaction.rollback();
+      return notFound<{ version: string }>(ref);
+    }
+    const synced = syncQueries(
+      {
+        page: ref,
+        pageFile: context.sourceFile,
+        pageClass: written,
+        transaction,
+        blocks: draft.blocks,
+      },
+      draft.queries,
+    );
+    if ("ok" in synced) {
+      transaction.rollback();
+      return synced;
+    }
+    warnings = synced;
+  }
   pruneUnusedImports(context.sourceFile, referencedNames);
   // Read after every edit: the version has to describe the file the caller
   // will hold, or the next conditional write fails as stale against itself.
-  return commit(transaction, {
-    version: contentVersion(context.sourceFile.getFullText()),
-  });
+  return commit(
+    transaction,
+    { version: contentVersion(context.sourceFile.getFullText()) },
+    warnings,
+  );
 }

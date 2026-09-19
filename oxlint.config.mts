@@ -18,6 +18,20 @@ export default defineConfig({
     ...ANTELOPE_IGNORE_PATTERNS,
     "packages/dms-builder/frontend-vue/**",
   ],
+  overrides: [
+    {
+      files: ["packages/*/src/test/**/*.ts"],
+      rules: {
+        // A suite's body is a list of cases, not a function to be factored:
+        // splitting one to satisfy a length ceiling buys nothing and costs the
+        // shared fixture. The ceiling still applies to everything it tests.
+        "max-lines-per-function": "off",
+        // A stand-in for a database stream has to be thenable, because the
+        // stream it stands in for is: that is how a query is awaited.
+        "unicorn/no-thenable": "off",
+      },
+    },
+  ],
   options: {
     typeAware: true,
     // Ceiling on what oxlint still reports. Most of the drop came from the
