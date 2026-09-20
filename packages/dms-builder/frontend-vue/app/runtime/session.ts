@@ -127,6 +127,14 @@ export interface BuilderSession {
 	conflict: boolean
 	/** A page navigated to while the draft still holds unsaved changes. */
 	pendingRoute: string | null
+	/**
+	 * Whether someone asked to leave the editor with a draft nobody saved.
+	 *
+	 * The draft lives in this session and nowhere else, so closing on one is
+	 * throwing the work away — the one gesture the editor must not answer
+	 * silently.
+	 */
+	pendingClose: boolean
 	/** An open block menu, positioned where it was summoned. */
 	menu: { path: string; x: number; y: number } | null
 	/** Keys of the write-through operations in flight, e.g. `product#price`. */
@@ -182,6 +190,7 @@ function emptySession(): BuilderSession {
 		changes: [],
 		conflict: false,
 		pendingRoute: null,
+		pendingClose: false,
 		menu: null,
 		pending: [],
 		toast: null,
@@ -207,6 +216,9 @@ export interface BuilderController {
 	paletteTarget: ComputedRef<string | null>
 	open: (pageRef: string) => Promise<void>
 	close: () => void
+	leave: () => void
+	resolveClose: (keep: boolean) => Promise<void>
+	stayOpen: () => void
 	reload: () => Promise<void>
 	followRoute: (path: string) => void
 	resolvePending: (keep: boolean) => Promise<void>
@@ -504,6 +516,39 @@ export function useBuilder(): BuilderController {
 	function close(): void {
 		clearTimeout(previewTimer)
 		session.value = emptySession()
+	}
+
+	/**
+	 * Leave the editor, asking first when that would drop unsaved work.
+	 *
+	 * `close` is the teardown itself and stays unconditional; every way out an
+	 * author has goes through here, so none of them can lose a draft without
+	 * saying so.
+	 */
+	function leave(): void {
+		if (dirty.value) {
+			session.value.pendingClose = true
+			return
+		}
+		close()
+	}
+
+	/** Answer that question: `keep` saves the draft first, else it is dropped. */
+	async function resolveClose(keep: boolean): Promise<void> {
+		if (keep) {
+			await save()
+			// A save the module — or the panel — turned down leaves the editor
+			// open on the very thing it refused.
+			if (session.value.error) {
+				session.value.pendingClose = false
+				return
+			}
+		}
+		close()
+	}
+
+	function stayOpen(): void {
+		session.value.pendingClose = false
 	}
 
 	async function reload(): Promise<void> {
@@ -1526,6 +1571,9 @@ export function useBuilder(): BuilderController {
 		reload,
 		followRoute,
 		resolvePending,
+		leave,
+		resolveClose,
+		stayOpen,
 		select,
 		setView,
 		back,

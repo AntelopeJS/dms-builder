@@ -115,7 +115,7 @@ const canRedo = computed(() => session.value.future.length > 0)
 				color="neutral"
 				variant="ghost"
 				aria-label="Leave the builder"
-				@click="builder.close()"
+				@click="builder.leave()"
 			/>
 		</div>
 	</div>

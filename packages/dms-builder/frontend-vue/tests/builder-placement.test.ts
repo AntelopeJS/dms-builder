@@ -1,4 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
+import { useDmsState } from '#dms/frontend-module'
+import registerBuilder from '../app/plugins/builder.client'
+import { ACTION_ID, HEADER_ACTIONS_STATE_KEY } from '../app/runtime/constants'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import { findNode } from '../app/runtime/draft'
 import { describeError } from '../app/runtime/errors'
@@ -710,6 +713,83 @@ describe('a container that holds its children through its own slots', () => {
 
 		// A slot left over from the tab set would hide it inside the stack.
 		expect(slotOf('hStack/text')).toBe(undefined)
+	})
+})
+
+describe('leaving the editor', () => {
+	it('closes at once when there is nothing to lose', () => {
+		builder.leave()
+
+		expect(builder.session.value.active).toBe(false)
+	})
+
+	it('asks first when the draft holds changes nobody saved', () => {
+		builder.addBlock('Text')
+		builder.leave()
+
+		// The draft lives in this session and nowhere else: closing on one is
+		// throwing the work away.
+		expect(builder.session.value.pendingClose).toBe(true)
+		expect(builder.session.value.active, 'and nothing is closed yet').toBe(true)
+		expect(names()).toContain('text')
+	})
+
+	it('stays when that is the answer', () => {
+		builder.addBlock('Text')
+		builder.leave()
+		builder.stayOpen()
+
+		expect(builder.session.value.pendingClose).toBe(false)
+		expect(builder.session.value.active).toBe(true)
+	})
+
+	it('asks from the button that opened it, which is the same button', () => {
+		registerBuilder()
+		const actions = useDmsState<
+			Array<{ id: string; onSelect: () => void }>
+		>(HEADER_ACTIONS_STATE_KEY, () => [])
+		const toggle = actions.value.find((action) => action.id === ACTION_ID)
+		builder.addBlock('Text')
+
+		toggle?.onSelect()
+
+		expect(builder.session.value.pendingClose).toBe(true)
+		expect(builder.session.value.active).toBe(true)
+	})
+
+	it('drops the draft when that is the answer', async () => {
+		builder.addBlock('Text')
+		builder.leave()
+		await builder.resolveClose(false)
+
+		expect(builder.session.value.active).toBe(false)
+		expect(backend.calledPaths()).not.toContain(
+			'POST /api/builder/page/blocks',
+		)
+	})
+
+	it('saves first when that is the answer', async () => {
+		builder.addBlock('Text')
+		builder.leave()
+		await builder.resolveClose(true)
+
+		expect(backend.calledPaths()).toContain('POST /api/builder/page/blocks')
+		expect(builder.session.value.active).toBe(false)
+	})
+
+	it('stays open on a save the module turned down', async () => {
+		builder.addBlock('Text')
+		backend.save = {
+			ok: false,
+			error: { code: 'stale', ref: '/reports/sales', currentVersion: 'v9' },
+		}
+		builder.leave()
+		await builder.resolveClose(true)
+
+		// Closing here would drop the draft over a refusal the author has not
+		// even read yet.
+		expect(builder.session.value.active).toBe(true)
+		expect(builder.session.value.conflict).toBe(true)
 	})
 })
 

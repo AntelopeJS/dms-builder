@@ -141,16 +141,36 @@ export function mount(component: Component, options: MountOptions = {}): Mounted
 }
 
 /**
- * A `document` for the components that register a listener on mount — an open
- * menu closes on the next click anywhere. There is no DOM here, and nothing
- * fires those listeners; they only have to be registrable.
+ * A `document` and a `window` for the components that reach for one on mount:
+ * an open menu closes on the next click anywhere, and the overlay measures the
+ * region the host page occupies before it places itself.
+ *
+ * Nothing here has a layout, so the measurement finds no content element and
+ * falls back to the viewport — which is the same path a host that marks none
+ * takes. The listeners only have to be registrable; nothing fires them.
  */
 export function installDocumentStub(): void {
 	if ('document' in globalThis) {
 		return
 	}
 	Object.assign(globalThis, {
-		document: { addEventListener: () => {}, removeEventListener: () => {} },
+		document: {
+			addEventListener: () => {},
+			removeEventListener: () => {},
+			querySelector: () => null,
+			body: null,
+		},
+		window: {
+			addEventListener: () => {},
+			removeEventListener: () => {},
+		},
+		// The overlay follows the page it sits over: it listens for scroll and
+		// resize on the global object, which is `window` in a browser and this
+		// one here.
+		addEventListener: () => {},
+		removeEventListener: () => {},
+		innerWidth: 1280,
+		innerHeight: 800,
 	})
 }
 

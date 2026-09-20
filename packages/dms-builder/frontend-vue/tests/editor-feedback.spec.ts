@@ -5,6 +5,7 @@ import BlockMenu from '../app/components/BlockMenu.vue'
 import Children from '../app/components/Children.vue'
 import Config from '../app/components/Config.vue'
 import Node from '../app/components/Node.vue'
+import Overlay from '../app/components/Overlay.vue'
 import Option from '../app/components/Option.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
@@ -497,5 +498,47 @@ describe('a block that awaits before it can render', () => {
 		// so on every render — which is what a canvas full of them comes to.
 		expect(warnings.join(' ')).not.toContain('Suspense')
 		expect(findAll(root, (node) => node.tag === 'DmsForm')).toHaveLength(1)
+	})
+})
+
+describe('the way out of the editor', () => {
+	function buttons(root: TestNode): string[] {
+		return findAll(root, (node) => node.tag === 'UButton').map((node) =>
+			String(node.props.label ?? node.props['aria-label'] ?? ''),
+		)
+	}
+
+	it('asks before dropping a draft, and the bar offers no way past it', async () => {
+		await openWith([editable('title', 'Text')])
+		builder.addBlock('Text')
+		const bar = mount(Bar)
+		await nextTick()
+
+		// The × in the bar is one of the two ways out; both go through `leave`.
+		const close = findAll(
+			bar.root,
+			(node) => node.props['aria-label'] === 'Leave the builder',
+		)[0]
+		fire(close!, 'click')
+
+		const { root } = mount(Overlay, {
+			components: {
+				DmsBuilderBar: stub('DmsBuilderBar'),
+				DmsBuilderCanvas: stub('DmsBuilderCanvas'),
+				DmsBuilderRail: stub('DmsBuilderRail'),
+				DmsBuilderBlockMenu: stub('DmsBuilderBlockMenu'),
+			},
+		})
+		await nextTick()
+
+		expect(builder.session.value.active, 'nothing closed yet').toBe(true)
+		expect(textOf(root)).toContain('Leaving the editor drops them')
+		expect(buttons(root)).toEqual(
+			expect.arrayContaining([
+				'Save and leave',
+				'Leave without saving',
+				'Stay',
+			]),
+		)
 	})
 })

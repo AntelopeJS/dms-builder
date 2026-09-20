@@ -67,7 +67,7 @@ function onKeydown(event: KeyboardEvent): void {
 			builder.select(null)
 			return
 		}
-		builder.close()
+		builder.leave()
 		return
 	}
 	if (modifier && event.key.toLowerCase() === 'z') {
@@ -99,8 +99,26 @@ function onKeydown(event: KeyboardEvent): void {
 	}
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown))
-onUnmounted(() => document.removeEventListener('keydown', onKeydown))
+/**
+ * The draft lives in this page and nowhere else, so reloading or closing the
+ * tab drops it as surely as leaving the editor does. The browser asks its own
+ * question for that one; this only says there is something to lose.
+ */
+function onBeforeUnload(event: BeforeUnloadEvent): void {
+	if (!session.value.active || !builder.dirty.value) {
+		return
+	}
+	event.preventDefault()
+}
+
+onMounted(() => {
+	document.addEventListener('keydown', onKeydown)
+	window.addEventListener('beforeunload', onBeforeUnload)
+})
+onUnmounted(() => {
+	document.removeEventListener('keydown', onKeydown)
+	window.removeEventListener('beforeunload', onBeforeUnload)
+})
 </script>
 
 <template>
@@ -111,8 +129,43 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 	>
 		<DmsBuilderBar />
 
+		<!-- Leaving drops the draft, so it is asked before it happens rather than
+		reported after. -->
 		<div
-			v-if="session.pendingRoute"
+			v-if="session.pendingClose"
+			class="flex flex-wrap items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
+		>
+			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
+			<span class="flex-1">
+				{{ session.pageRef }} has changes nobody has saved. Leaving the editor
+				drops them.
+			</span>
+			<UButton
+				size="xs"
+				color="warning"
+				variant="soft"
+				label="Save and leave"
+				:loading="session.saving"
+				@click="builder.resolveClose(true)"
+			/>
+			<UButton
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				label="Leave without saving"
+				@click="builder.resolveClose(false)"
+			/>
+			<UButton
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				label="Stay"
+				@click="builder.stayOpen()"
+			/>
+		</div>
+
+		<div
+			v-else-if="session.pendingRoute"
 			class="flex items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
 		>
 			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
