@@ -10,11 +10,21 @@ import type {
   AddQueryInput,
   OpResult,
   QueryOutputKind,
+  QueryPoint,
   QueryPreview,
+  QueryResponseBody,
+  QueryResponseShape,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import { invalidConfig, notFound, unsupported } from "./ops";
-import { outputForTemplate } from "./query-emit";
+import {
+  outputForTemplate,
+  RESPONSE_HELPERS,
+  RESPONSE_KEYS,
+  RESPONSE_MODULE,
+  seriesNaming,
+  type SeriesNaming,
+} from "./query-emit";
 import {
   executePlan,
   type PlanArguments,
@@ -59,17 +69,100 @@ function openTable(
   return table as PlanStream;
 }
 
-function asPoints(rows: unknown, output: QueryOutputKind): QueryPreview {
+type ResponseArranger = (
+  points: QueryPoint[],
+  options: SeriesNaming,
+) => QueryResponseBody;
+
+/**
+ * The helper the generated route would call, from the DMS this app is running.
+ *
+ * Resolved at call time rather than imported: the arrangements are published by a
+ * DMS newer than this module's floor, and on an older one a preview has to refuse
+ * — saving the same query would fail its typecheck — rather than quietly answer a
+ * different envelope than the page would serve.
+ */
+function responseArranger(shape: string): ResponseArranger | undefined {
+  const name = RESPONSE_HELPERS[shape];
+  if (!name) {
+    return undefined;
+  }
+  try {
+    const published = require(RESPONSE_MODULE) as Record<string, unknown>;
+    const helper = published[name];
+    return typeof helper === "function"
+      ? (helper as ResponseArranger)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** What the table answered: a figure, or the points, capped where it stopped. */
+interface ReadRows {
+  points?: QueryPoint[];
+  value?: number;
+  truncated: boolean;
+}
+
+function readRows(rows: unknown): ReadRows {
   if (!Array.isArray(rows)) {
-    return { output, value: Number(rows) };
+    return { value: Number(rows), truncated: false };
   }
   return {
-    output,
-    series: rows
-      .map((row) => row as { x: number | string; y: number })
-      .slice(0, PREVIEW_LIMIT),
+    points: (rows as QueryPoint[]).slice(0, PREVIEW_LIMIT),
     truncated: rows.length > PREVIEW_LIMIT,
   };
+}
+
+/**
+ * The envelope the query's route would serve, built from what the table answered.
+ *
+ * Mirrors the emitter's own decision: a scalar calculation answers the figure
+ * itself whatever arrangement was asked for — there is nothing else in it to
+ * arrange — a grouped one defaults to its points, and the three arrangements are
+ * built by the helper the route would have called, so the preview and the page
+ * cannot diverge on a rounding, a label or a missing group.
+ */
+function arrange(
+  read: ReadRows,
+  output: QueryOutputKind,
+  requested: QueryResponseShape | undefined,
+  naming: SeriesNaming,
+): OpResult<QueryPreview> {
+  const points = read.points;
+  if (output === "scalar" || !points) {
+    return preview({
+      output,
+      body: { [RESPONSE_KEYS.scalar]: read.value },
+      truncated: false,
+    });
+  }
+  const shape = requested ?? "series";
+  if (shape === "series") {
+    return preview({
+      output,
+      body: { [RESPONSE_KEYS.series]: points },
+      truncated: read.truncated,
+    });
+  }
+  const arranger = responseArranger(shape);
+  if (!arranger) {
+    return unsupported<QueryPreview>(
+      `the installed DMS does not publish ${RESPONSE_HELPERS[shape]}, so a "${shape}" response cannot be built — the route saving it would not compile either`,
+    );
+  }
+  return preview({
+    output,
+    response: shape,
+    body: arranger(points, naming),
+    truncated: read.truncated,
+  });
+}
+
+/** A preview writes nothing, so there is nothing for a caller to diff. */
+function preview(data: QueryPreview): OpResult<QueryPreview> {
+  return { ok: true, data, changes: [] };
 }
 
 /**
@@ -103,16 +196,13 @@ export async function runPlanPreview(
       fields,
       request.args ?? {},
     );
-    return {
-      ok: true,
-      data: asPoints(
-        rows,
-        outputForTemplate(query.template) ??
-          (Array.isArray(rows) ? "series" : "scalar"),
-      ),
-      // A preview writes nothing, so there is nothing for a caller to diff.
-      changes: [],
-    };
+    return arrange(
+      readRows(rows),
+      outputForTemplate(query.template) ??
+        (Array.isArray(rows) ? "series" : "scalar"),
+      query.response,
+      seriesNaming(params, fields, query.resource),
+    );
   } catch (error) {
     return unsupported<QueryPreview>(
       error instanceof Error ? error.message : String(error),

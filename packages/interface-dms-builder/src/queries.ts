@@ -76,20 +76,45 @@ export interface QueryTemplateDescriptor {
   params: ConfigSchema;
 }
 
+/** One measured group, as a route answers it and a chart reads it. */
+export interface QueryPoint {
+  x: number | string;
+  y: number;
+}
+
+/**
+ * The body a query's route returns.
+ *
+ * `{ value }` for a scalar and `{ series }` for a plain grouped route; for an
+ * arranged one, whatever the DMS helper built — `ChartCardData`, `KpiCardData`,
+ * `TopListData`. Those types belong to `@antelopejs/interface-dms`, which this
+ * package deliberately does not depend on, so the body travels as the JSON the
+ * route serves it as.
+ */
+export type QueryResponseBody = Record<string, unknown>;
+
 /**
  * What a draft query answers when run without being written.
  *
- * The same shape its route would serve, so a block can be handed it directly —
- * plus `truncated`, because a preview stops reading at some point and a chart
- * that silently lost its tail is worse than one that says so.
+ * `body` is what the route would return, built by the same helper the route would
+ * call, so a block can be handed it directly; `output` and `response` report it
+ * the way {@link QueryStructure} reports the saved query, so a preview and the
+ * page it previews cannot disagree about what they show.
+ *
+ * `truncated` is the one thing the route has no equivalent of: a preview stops
+ * reading at some point, and a chart that silently lost its tail is worse than one
+ * that says so.
  */
-export type QueryPreview =
-  | { output: QueryOutputKind; value: number; truncated?: false }
-  | {
-      output: QueryOutputKind;
-      series: { x: number | string; y: number }[];
-      truncated: boolean;
-    };
+export interface QueryPreview {
+  output: QueryOutputKind;
+  /**
+   * How the body is arranged, set only when a helper arranged it — the same
+   * condition under which read-back reports it.
+   */
+  response?: QueryResponseShape;
+  body: QueryResponseBody;
+  truncated: boolean;
+}
 
 /** Input for `AddQuery`. */
 export interface AddQueryInput {

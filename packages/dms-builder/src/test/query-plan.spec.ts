@@ -31,7 +31,7 @@ const FIELDS = [
 describe("the query plan", () => {
   it("counts every row when nothing is filtered", () => {
     const chain = emitPlan({ filters: [], measure: { kind: "count" } }, FIELDS);
-    expect(chain.body).to.equal("{\n\treturn this.table.count();\n}");
+    expect(chain.body).to.equal("{\n  return this.table.count();\n}");
     expect(chain.parameters).to.deep.equal([]);
   });
 
@@ -43,7 +43,7 @@ describe("the query plan", () => {
       },
       FIELDS,
     );
-    expect(chain.body).to.equal('{\n\treturn this.table.sum("amount");\n}');
+    expect(chain.body).to.equal('{\n  return this.table.sum("amount");\n}');
   });
 
   it("chains one filter call per condition, in order", () => {
@@ -57,9 +57,11 @@ describe("the query plan", () => {
       },
       FIELDS,
     );
+    // Past the line a formatter would break, so the chain comes out one hop
+    // per line — the form a developer would have written it in.
     expect(chain.body).to.equal(
-      '{\n\treturn this.table.filter((row) => row.key("status").eq("paid"))' +
-        '.filter((row) => row.key("amount").gt(10)).count();\n}',
+      '{\n  return this.table\n    .filter((row) => row.key("status").eq("paid"))' +
+        '\n    .filter((row) => row.key("amount").gt(10))\n    .count();\n}',
     );
   });
 

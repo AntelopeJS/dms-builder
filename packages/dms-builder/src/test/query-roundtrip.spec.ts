@@ -102,7 +102,8 @@ describe("the query engine", () => {
       expect(added.query).to.equal(`${PAGE}@paidRevenue`);
       expect(added.route).to.equal(`${PAGE}/stats/paid-revenue`);
       expect(app.read(MODEL_FILE)).to.contain(
-        'return this.table.filter((row) => row.key("status").eq("paid")).sum("amount");',
+        'return this.table\n      .filter((row) => row.key("status").eq("paid"))' +
+          '\n      .sum("amount");',
       );
 
       const page = app.read(PAGE_FILE);

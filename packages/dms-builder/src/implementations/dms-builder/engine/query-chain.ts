@@ -255,9 +255,19 @@ export function bindName(value: unknown): string | undefined {
  * A name is only substituted where an identifier stands on its own: a parameter
  * named after a field that happens to read like an operator must not rewrite
  * `.min("x")` into `.$0("x")`.
+ *
+ * Whitespace around a member dot goes too, and so does a trailing comma before a
+ * closing bracket — both are what wrapping a chain costs. A chain the emitter
+ * wrote on one line and the project's formatter then broke onto its hops is the
+ * same chain; without this the next operation would read its own output as
+ * hand-owned and refuse to touch it.
  */
 export function canonicalBody(body: string, parameters: string[]): string {
-  let text = body.replace(/\s+/g, " ").trim();
+  let text = body
+    .replace(/\s+/g, " ")
+    .replace(/\s*\.\s*/g, ".")
+    .replace(/,(\s*)(?=[)\]}])/g, "$1")
+    .trim();
   parameters.forEach((name, index) => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     text = text.replace(

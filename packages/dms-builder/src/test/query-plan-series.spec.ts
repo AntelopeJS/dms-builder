@@ -31,7 +31,7 @@ describe("a grouped query plan", () => {
     expect(
       body({ filters: [], measure: COUNT, group: { field: "status" } }),
     ).to.equal(
-      '{\n\treturn this.table.group("status", (rows, group) => ' +
+      '{\n  return this.table\n    .group("status", (rows, group) => ' +
         "({ x: group, y: rows.count() }));\n}",
     );
   });
@@ -52,9 +52,12 @@ describe("a grouped query plan", () => {
     // `group` takes a field name, not an expression, so the period becomes a
     // field of its own first — and the measured field rides along, since the
     // projection replaces the row.
+    // Two members and a bucket expression do not fit one line, so they break
+    // out the way the project's formatter would break them.
     expect(text).to.contain(
-      '.map((row) => ({ bucket: row.key("createdAt").year().mul(100)' +
-        '.add(row.key("createdAt").month()), value: row.key("amount") }))',
+      '.map((row) => ({\n      bucket: row.key("createdAt").year().mul(100)' +
+        '.add(row.key("createdAt").month()),\n      value: row.key("amount"),' +
+        "\n    }))",
     );
     expect(text).to.contain(
       '.group("bucket", (rows, group) => ({ x: group, y: rows.sum("value") }))',
@@ -67,7 +70,7 @@ describe("a grouped query plan", () => {
       measure: COUNT,
       group: { field: "createdAt", bucket: "month" },
     });
-    expect(text).to.contain(".map((row) => ({ bucket: ");
+    expect(text).to.contain(".map((row) => ({\n      bucket: ");
     expect(text, "nothing to carry along").to.not.contain("value:");
   });
 
@@ -133,7 +136,7 @@ describe("a grouped query plan", () => {
       order: { by: "measure", direction: "desc" },
       limit: 5,
     });
-    expect(text).to.contain('.orderBy("y", "desc").slice(0, 5);');
+    expect(text).to.contain('.orderBy("y", "desc")\n    .slice(0, 5);');
   });
 
   it("filters the rows before it groups them", () => {

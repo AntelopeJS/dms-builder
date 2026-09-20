@@ -1,12 +1,14 @@
 import type {
   ImportRef,
   QueryOutputKind,
+  ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import {
   type CompiledChain,
   getQueryTemplate,
   type MethodParam,
 } from "./query-template";
+import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
 
 /**
@@ -34,7 +36,7 @@ interface ResponseEmission {
 }
 
 /** How the helpers are reached from a generated route. */
-const RESPONSE_HELPERS: Record<string, string> = {
+export const RESPONSE_HELPERS: Record<string, string> = {
   card: "chartCardData",
   value: "kpiCardData",
   items: "topListData",
@@ -46,16 +48,48 @@ const RESPONSE_TYPES: Record<string, string> = {
   items: "TopListData",
 };
 
-/** The options a helper is handed: what the measure was, and what came before. */
-function helperOptions(measure: string | undefined, previous?: string): string {
-  const parts: string[] = [];
-  if (measure) {
-    parts.push(`measure: ${JSON.stringify(measure)}`);
+/** What the series plan measures when no `op` was asked for. */
+const COUNT_MEASURE = "count";
+
+/** What a helper is told the series is: what was measured, and what to call it. */
+export interface SeriesNaming {
+  measure: string;
+  label: string;
+}
+
+/**
+ * How a series is named for whoever reads it, resolved once for both the route
+ * and the preview of it: they hand the same helper the same options, and a name
+ * each of them derived on its own would be two names to keep in step.
+ *
+ * A measure over a field takes that field's label, since what is being counted up
+ * is the field. A count has no field, so it takes the resource whose rows are
+ * being counted; the measure's own word names the arithmetic, not the data, and it
+ * is what a legend would show a reader who never asked for one.
+ */
+export function seriesNaming(
+  params: Record<string, unknown>,
+  fields: ResourceFieldStructure[],
+  resource: string,
+): SeriesNaming {
+  const measure = (params.op as string | undefined) ?? COUNT_MEASURE;
+  if (measure === COUNT_MEASURE) {
+    return { measure, label: resource };
   }
+  const field = fields.find((candidate) => candidate.name === params.field);
+  return { measure, label: field?.label ?? field?.name ?? resource };
+}
+
+/** The options a helper is handed: what the series is, and what came before. */
+function helperOptions(naming: SeriesNaming, previous?: string): string {
+  const parts = [
+    `measure: ${JSON.stringify(naming.measure)}`,
+    `label: ${JSON.stringify(naming.label)}`,
+  ];
   if (previous) {
     parts.push(`previous: await ${previous}`);
   }
-  return parts.length > 0 ? `, { ${parts.join(", ")} }` : "";
+  return `, { ${parts.join(", ")} }`;
 }
 
 function plainResponse(key: string, type: string): ResponseEmission {
@@ -66,7 +100,10 @@ function plainResponse(key: string, type: string): ResponseEmission {
   };
 }
 
-const SERIES_TYPE = "{ x: number | string; y: number }[]";
+// `y` is nullable because a group the calculation found nothing to measure in is
+// answered as such rather than as a zero; a route promising a number there would
+// be lying about the one case a reader most needs to see.
+const SERIES_TYPE = "{ x: number | string; y: number | null }[]";
 
 /**
  * The arrangement a query's route emits, from what it computes and what the
@@ -78,7 +115,7 @@ const SERIES_TYPE = "{ x: number | string; y: number }[]";
 function responseEmission(
   output: QueryOutputKind,
   response: string | undefined,
-  measure: string | undefined,
+  naming: SeriesNaming,
 ): ResponseEmission {
   if (output === "scalar") {
     return plainResponse("value", "number");
@@ -94,7 +131,7 @@ function responseEmission(
   return {
     returnType: `Promise<${RESPONSE_TYPES[shape]}>`,
     body: (current, previous) =>
-      `${helper}(await ${current}${helperOptions(measure, previous)})`,
+      `${helper}(await ${current}${helperOptions(naming, previous)})`,
     imports: [helper, RESPONSE_TYPES[shape]],
   };
 }
@@ -103,7 +140,7 @@ function responseEmission(
  * The property a plain response carries, for read-back. The arrangements built
  * by a helper are recognized by the helper's name instead.
  */
-const RESPONSE_KEYS: Record<QueryOutputKind, string> = {
+export const RESPONSE_KEYS: Record<QueryOutputKind, string> = {
   scalar: "value",
   series: "series",
 };
@@ -144,6 +181,8 @@ export interface CompiledQuery {
   template: string;
   params: Record<string, unknown>;
   chain: CompiledChain;
+  /** What an arrangement helper is told the series is. */
+  naming: SeriesNaming;
   /** How the answer is arranged for the block reading it. */
   response?: string;
   /** Whether the route also answers the preceding period. */
@@ -236,7 +275,7 @@ function routeArgument(param: MethodParam): string {
 export const COMPARISON_PARAMETERS = ["compareFrom", "compareTo"] as const;
 
 /** Where the response helpers are published. */
-const RESPONSE_MODULE = "@antelopejs/interface-dms/base";
+export const RESPONSE_MODULE = "@antelopejs/interface-dms/base";
 
 /**
  * The same model call over the preceding period, or nothing when the query does
@@ -276,6 +315,7 @@ export function queryRouteMethodText(
   pageClass: string,
 ): { text: string; symbols: ImportRef[] } {
   const modelDecorator = modelDecoratorFor(schema);
+  const indent = indentationText(resolveProjectRoot());
   const symbols = [
     decoratorImport("Get"),
     decoratorImport(modelDecorator),
@@ -287,20 +327,20 @@ export function queryRouteMethodText(
     // otherwise answer to anyone who can reach the server, while the layout it
     // feeds is gated; a parameter decorator keeps the gate off every other route
     // the page owns. The class names itself, which its own body can do.
-    `\t@AuthUserWithPermission(${pageClass}) _user: User,`,
-    `\t@${modelDecorator}(${modelName}) model: ${modelName},`,
+    `${indent}@AuthUserWithPermission(${pageClass}) _user: User,`,
+    `${indent}@${modelDecorator}(${modelName}) model: ${modelName},`,
   ];
   for (const param of spec.chain.parameters) {
     symbols.push(decoratorImport("Parameter"));
     parameters.push(
-      `\t@Parameter(${JSON.stringify(param.routeName)}, ${JSON.stringify(param.in)}) ${param.routeName}: string,`,
+      `${indent}@Parameter(${JSON.stringify(param.routeName)}, ${JSON.stringify(param.in)}) ${param.routeName}: string,`,
     );
   }
   const args = spec.chain.parameters.map(routeArgument).join(", ");
   const response = responseEmission(
     outputForTemplate(spec.template) ?? "scalar",
     spec.response,
-    spec.params.op as string | undefined,
+    spec.naming,
   );
   for (const name of response.imports) {
     symbols.push({ name, module: RESPONSE_MODULE });
@@ -313,7 +353,7 @@ export function queryRouteMethodText(
     for (const parameter of COMPARISON_PARAMETERS) {
       symbols.push(decoratorImport("Parameter"));
       parameters.push(
-        `\t@Parameter(${JSON.stringify(parameter)}, "query") ${parameter}: string,`,
+        `${indent}@Parameter(${JSON.stringify(parameter)}, "query") ${parameter}: string,`,
       );
     }
   }
@@ -322,7 +362,7 @@ export function queryRouteMethodText(
     `async ${spec.name}(`,
     ...parameters,
     `): ${response.returnType} {`,
-    `\treturn ${response.body(call, previous)};`,
+    `${indent}return ${response.body(call, previous)};`,
     "}",
   ].join("\n");
   return { text, symbols };

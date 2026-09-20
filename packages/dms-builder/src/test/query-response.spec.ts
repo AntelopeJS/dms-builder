@@ -132,13 +132,40 @@ describe("how a query's answer is arranged", () => {
     );
 
     const page = app.read(PAGE_FILE);
+    // The series is named after the field being summed, under the label the
+    // resource gives it: left to the helper's fallback, a legend would read
+    // "sum" to whoever configured the card.
     expect(page).to.contain(
-      'chartCardData(await model.revenueCard(), { measure: "sum" })',
+      'chartCardData(await model.revenueCard(), { measure: "sum", label: "Amount" })',
     );
+    // On one line because it fits on one: that is what the project's formatter
+    // makes of it, and generated code the next `format` would rewrite is code
+    // that arrives with a diff nobody asked for.
     expect(page, "the helper is imported, not reinvented").to.contain(
-      'import {\n  ChartCardData,\n  chartCardData,\n} from "@antelopejs/interface-dms/base";',
+      'import { ChartCardData, chartCardData } from "@antelopejs/interface-dms/base";',
     );
     expect(page).to.contain("): Promise<ChartCardData> {");
+  });
+
+  it("states the measure a card counts with, which the caller never asked for", async function () {
+    this.timeout(OP_TIMEOUT);
+    // No `op`: the template counts rows when none is named, and the helper takes
+    // the measure as required — so a route emitted with no options at all does
+    // not compile, and this save comes back `typecheck_failed`.
+    expectOk(
+      await AddQuery(PAGE, {
+        ...MONTHLY,
+        name: "ordersCard",
+        params: { groupBy: "createdAt", bucket: "month" },
+        response: "card",
+      }),
+      "AddQuery",
+    );
+    // A count has no field to name the series after, so it is named after the
+    // resource whose rows it counts.
+    expect(app.read(PAGE_FILE)).to.contain(
+      'chartCardData(await model.ordersCard(), { measure: "count", label: "order" })',
+    );
   });
 
   it("builds a ranked list from the same points", async function () {

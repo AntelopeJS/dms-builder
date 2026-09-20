@@ -31,6 +31,23 @@ describe("a chain's identity", () => {
     );
   });
 
+  it("ignores a chain broken onto its hops", () => {
+    // What the project's formatter does to generated code, trailing comma
+    // included. Reading that back as a different chain would make the builder
+    // refuse to edit its own output.
+    expect(
+      canonicalBody(
+        '{\n  return this.table\n    .map((row) => ({\n      bucket: row.key("a"),\n    }))\n    .count();\n}',
+        [],
+      ),
+    ).to.equal(
+      canonicalBody(
+        '{ return this.table.map((row) => ({ bucket: row.key("a") })).count(); }',
+        [],
+      ),
+    );
+  });
+
   it("separates chains that compute different things", () => {
     const of = (text: string) => canonicalBody(text, []);
     expect(of('{ return this.table.sum("amount"); }')).to.not.equal(

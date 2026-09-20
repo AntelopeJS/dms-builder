@@ -1,4 +1,5 @@
 import { expect } from "chai";
+import { canonicalBody } from "../implementations/dms-builder/engine/query-chain";
 import {
   emitPlan,
   type QueryPlan,
@@ -120,7 +121,7 @@ function row(name: string): PlanRow {
 /** What the executor would run, written as the emitter would have written it. */
 function ran(plan: QueryPlan, args: PlanArguments = {}): string {
   const result = executePlan(stream("this.table"), plan, FIELDS, args);
-  return `{\n\treturn ${textOf(result)};\n}`;
+  return `{ return ${textOf(result)}; }`;
 }
 
 const COUNT = { kind: "count" } as const;
@@ -132,9 +133,15 @@ const SUM_AMOUNT = { kind: "aggregate", op: "sum", field: "amount" } as const;
  * case asserts the two renderings agree.
  */
 describe("running a plan", () => {
+  // Compared on the calculation rather than on the layout: where the emitter
+  // breaks its chain across lines is its own business, and pinning it here would
+  // make every formatting change look like a divergence between the two
+  // backends, which is the one thing these cases exist to catch.
   const agrees = (label: string, plan: QueryPlan) => {
     it(label, () => {
-      expect(ran(plan)).to.equal(emitPlan(plan, FIELDS).body);
+      expect(canonicalBody(ran(plan), [])).to.equal(
+        canonicalBody(emitPlan(plan, FIELDS).body, []),
+      );
     });
   };
 

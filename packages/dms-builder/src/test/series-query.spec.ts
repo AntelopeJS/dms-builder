@@ -106,7 +106,7 @@ describe("a series query", () => {
     const model = app.read(MODEL_FILE);
     expect(model).to.contain('.filter((row) => row.key("status").eq("paid"))');
     expect(model).to.contain(
-      '.map((row) => ({ bucket: row.key("createdAt").year("Europe/Brussels")',
+      '.map((row) => ({\n        bucket: row.key("createdAt").year("Europe/Brussels")',
     );
     expect(model).to.contain('.group("bucket", (rows, group) =>');
     expect(model, "a timeline is ordered").to.contain('.orderBy("x", "asc")');
@@ -114,8 +114,10 @@ describe("a series query", () => {
 
   it("answers points rather than a number", async () => {
     const page = app.read(PAGE_FILE);
+    // Nullable on purpose: a group with nothing in it to measure is answered as
+    // such, and a route promising a number there would be lying.
     expect(page).to.contain(
-      "): Promise<{ series: { x: number | string; y: number }[] }> {",
+      "): Promise<{ series: { x: number | string; y: number | null }[] }> {",
     );
     expect(page).to.contain("return { series: await model.monthlyRevenue() };");
   });
@@ -141,7 +143,7 @@ describe("a series query", () => {
 
     const model = app.read(MODEL_FILE);
     expect(model).to.contain('.group("status", (rows, group) =>');
-    expect(model).to.contain('.orderBy("y", "desc").slice(0, 5);');
+    expect(model).to.contain('.orderBy("y", "desc")\n      .slice(0, 5);');
     expect(model, "grouping on a field needs no projection").to.not.contain(
       '.map((row) => ({ bucket: row.key("status")',
     );

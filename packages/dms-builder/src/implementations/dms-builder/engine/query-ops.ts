@@ -18,6 +18,7 @@ import {
   type CompiledQuery,
   defaultEndpoint,
   type ModelTarget,
+  seriesNaming,
 } from "./query-emit";
 import {
   findQueryRoutes,
@@ -324,6 +325,7 @@ export function compileQuery(
     template: input.template,
     params,
     chain,
+    naming: seriesNaming(params, fields, input.resource),
     response: input.response,
     compare: input.compare,
   };

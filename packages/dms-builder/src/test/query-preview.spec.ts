@@ -69,6 +69,22 @@ const MONTHLY = {
   params: { op: "sum", field: "amount", groupBy: "createdAt", bucket: "month" },
 };
 
+/** The same source, arranged for the card that reads it. */
+const MONTHLY_CARD = { ...MONTHLY, response: "card" as const };
+
+/** Whether the installed DMS publishes the arrangements a route calls. */
+function arrangementsAvailable(): boolean {
+  try {
+    const base = require("@antelopejs/interface-dms/base") as Record<
+      string,
+      unknown
+    >;
+    return typeof base.chartCardData === "function";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * What a block is shown for a source that has not been written. The calculation
  * itself is covered elsewhere; this is about what the preview says back — its
@@ -86,7 +102,10 @@ describe("previewing a query", () => {
 
     expect(result.ok).to.equal(true);
     if (result.ok) {
-      expect(result.data).to.include({ output: "scalar", value: 42 });
+      expect(result.data.output).to.equal("scalar");
+      expect(result.data.body, "the envelope the route serves").to.deep.equal({
+        value: 42,
+      });
       expect(result.changes, "a preview writes nothing").to.deep.equal([]);
     }
   });
@@ -103,10 +122,56 @@ describe("previewing a query", () => {
     );
 
     expect(result.ok).to.equal(true);
-    if (result.ok && "series" in result.data) {
+    if (result.ok) {
       expect(result.data.output).to.equal("series");
-      expect(result.data.series).to.deep.equal(rows);
+      expect(result.data.response, "nothing arranged them").to.equal(undefined);
+      expect(result.data.body).to.deep.equal({ series: rows });
       expect(result.data.truncated).to.equal(false);
+    }
+  });
+
+  it("arranges the points the way the route would, when asked for a card", async function () {
+    if (!arrangementsAvailable()) {
+      this.skip();
+    }
+    const rows = [
+      { x: 202601, y: 150 },
+      { x: 202602, y: 30 },
+    ];
+    const result = await runPlanPreview(
+      tableAnswering(rows),
+      { query: MONTHLY_CARD },
+      FIELDS,
+    );
+
+    expect(result.ok).to.equal(true);
+    if (result.ok) {
+      expect(
+        result.data.response,
+        "the same arrangement read-back reports",
+      ).to.equal("card");
+      // The card's own headline, taken by the helper the route calls — not the
+      // points a chart would have been handed.
+      expect(result.data.body.value).to.equal(180);
+      expect(result.data.body.series).to.not.deep.equal(rows);
+    }
+  });
+
+  it("refuses an arrangement the installed DMS cannot build", async function () {
+    if (arrangementsAvailable()) {
+      this.skip();
+    }
+    // Answering the bare points here would be the preview disagreeing with the
+    // page: saving this query fails its typecheck on the very same helper.
+    const result = await runPlanPreview(
+      tableAnswering([{ x: 202601, y: 150 }]),
+      { query: MONTHLY_CARD },
+      FIELDS,
+    );
+
+    expect(result.ok).to.equal(false);
+    if (!result.ok) {
+      expect(JSON.stringify(result.error)).to.contain("chartCardData");
     }
   });
 
@@ -122,8 +187,8 @@ describe("previewing a query", () => {
     );
 
     expect(result.ok).to.equal(true);
-    if (result.ok && "series" in result.data) {
-      expect(result.data.series).to.have.length(500);
+    if (result.ok) {
+      expect(result.data.body.series).to.have.length(500);
       // A chart that silently lost its tail is worse than one that reports it.
       expect(result.data.truncated).to.equal(true);
     }

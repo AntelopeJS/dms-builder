@@ -46,15 +46,25 @@ describe("the block catalog", () => {
     expect(blockNamed("ChartCard").componentName).to.equal("dms-chart-card");
   });
 
-  it("describes the data-source option of every card that fetches one", () => {
-    // Today these three point at a raw endpoint, which is exactly what the
-    // no-code work replaces: when the `dataSource` widget lands, this is the
-    // assertion that has to change, and nothing else in the engine should.
-    for (const type of ["KpiCard", "ChartCard", "TopListCard"]) {
+  it("describes the data-source option of every card that fetches one", function () {
+    const cards = ["KpiCard", "ChartCard", "TopListCard"];
+    for (const type of cards) {
       const option = blockNamed(type).config.fetchUrl;
       expect(option, `${type} exposes fetchUrl`).to.not.equal(undefined);
-      expect(option?.ui?.widget, `${type} fetchUrl widget`).to.equal("query");
       expect(option?.ui?.group).to.equal("data");
+    }
+    // The widget names which editor the option opens, and it is the source
+    // editor these cards are for. A DMS older than the rename still declares
+    // the raw-endpoint `query` widget, and pinning the new name against it
+    // would report the version gap as a defect in this engine.
+    if (blockNamed("ChartCard").config.fetchUrl?.ui?.widget === "query") {
+      this.skip();
+    }
+    for (const type of cards) {
+      expect(
+        blockNamed(type).config.fetchUrl?.ui?.widget,
+        `${type} fetchUrl widget`,
+      ).to.equal("dataSource");
     }
   });
 
@@ -78,6 +88,17 @@ describe("the block catalog", () => {
       row.childMeta?.colSpan,
       "a row's children carry their span as child metadata",
     ).to.not.equal(undefined);
+
+    // A builder palette leaves out the type a container names as its one
+    // allowed child: that child is structure the editor writes around what is
+    // dropped in, never something placed on its own. The reach of that rule is
+    // this list, so it is pinned here rather than guessed at from the layer.
+    expect(
+      catalog.blocks
+        .filter((block) => block.allowedChildren !== undefined)
+        .map((block) => block.type),
+      "the only container naming what it takes",
+    ).to.deep.equal(["Grid"]);
   });
 
   it("flags the blocks that need a resource before they can be added", () => {

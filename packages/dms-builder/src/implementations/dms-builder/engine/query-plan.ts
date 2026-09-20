@@ -13,6 +13,7 @@ import type {
   QueryParamBinding,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
+import { indentationText, resolveProjectRoot } from "./project";
 import {
   type CompiledChain,
   checkField,
@@ -159,7 +160,8 @@ function paramArgument({
 }
 
 interface EmittedFilters {
-  text: string;
+  /** One `.filter(...)` hop each, kept apart so the chain can be broken on them. */
+  hops: string[];
   parameters: MethodParam[];
   warnings: OpWarning[];
 }
@@ -171,7 +173,7 @@ function emitFilters(
   const parameters = new Map<string, MethodParam>();
   const taken = new Set<string>();
   const warnings: OpWarning[] = [];
-  const parts = filters.map((filter) => {
+  const hops = filters.map((filter) => {
     const resolved = checkField(fields, filter.field, "");
     const ts = "ts" in resolved ? resolved.ts : "string";
     if ("ts" in resolved) {
@@ -190,7 +192,7 @@ function emitFilters(
     return `.filter((row) => row.key(${JSON.stringify(filter.field)}).${filter.op}(${argument}))`;
   });
   return {
-    text: parts.join(""),
+    hops,
     parameters: [...parameters.values()],
     warnings,
   };
@@ -265,21 +267,60 @@ const VALUE_KEY = "value";
 /** The mapper's parameter: the group being folded, whatever it was grouped by. */
 const GROUP_PARAM = "group";
 
+/** Past this, a formatter breaks a line; so does the builder. */
+const INLINE_CHAIN_LIMIT = 80;
+
+/**
+ * The depths the parts of a model method's body read at, counting the class and
+ * the method itself.
+ */
+const RETURN_DEPTH = 2;
+const HOP_DEPTH = RETURN_DEPTH + 1;
+const MEMBER_DEPTH = HOP_DEPTH + 1;
+
+/**
+ * The prefix a line of the emitted body carries, one level short of the depth it
+ * will read at: the method is inserted into its class, and the insertion indents
+ * every line it was handed.
+ */
+function bodyIndent(indent: string, depth: number): string {
+  return indent.repeat(depth - 1);
+}
+
+/** Whether a line of that depth still fits, so it can stay on one. */
+function fitsOneLine(indent: string, depth: number, text: string): boolean {
+  return indent.length * depth + text.length <= INLINE_CHAIN_LIMIT;
+}
+
 /**
  * Projects what the grouping needs before grouping on it.
  *
  * Only a bucketed group needs this: `group` takes a field name, not an
  * expression, so the period has to become a field of its own first. The measured
  * field rides along, since the projection replaces the row.
+ *
+ * A bucket expression is long enough on its own that the mapped object rarely
+ * fits beside it, so the members break out the way a formatter would break them.
  */
-function bucketProjection(plan: QueryPlan, group: PlanGroup): string {
+function bucketProjection(
+  plan: QueryPlan,
+  group: PlanGroup,
+  indent: string,
+): string {
   const members = [`${GROUP_KEY}: ${bucketExpression(group, "row")}`];
   if (plan.measure.kind === "aggregate") {
     members.push(
       `${VALUE_KEY}: row.key(${JSON.stringify(plan.measure.field)})`,
     );
   }
-  return `.map((row) => ({ ${members.join(", ")} }))`;
+  const inline = `.map((row) => ({ ${members.join(", ")} }))`;
+  if (fitsOneLine(indent, HOP_DEPTH, inline)) {
+    return inline;
+  }
+  const lines = members
+    .map((member) => `${bodyIndent(indent, MEMBER_DEPTH)}${member},`)
+    .join("\n");
+  return `.map((row) => ({\n${lines}\n${bodyIndent(indent, HOP_DEPTH)}}))`;
 }
 
 function orderCall(order: PlanOrder | undefined): string {
@@ -304,10 +345,11 @@ function limitCall(limit: number | undefined): string {
 function emitGrouped(
   plan: QueryPlan,
   group: PlanGroup,
-  filterText: string,
-): string {
+  filterHops: string[],
+  indent: string,
+): string[] {
   const bucketed = group.bucket !== undefined;
-  const projection = bucketed ? bucketProjection(plan, group) : "";
+  const projection = bucketed ? bucketProjection(plan, group, indent) : "";
   const key = bucketed ? GROUP_KEY : group.field;
   const measuredField =
     bucketed && plan.measure.kind === "aggregate" ? VALUE_KEY : "";
@@ -316,11 +358,35 @@ function emitGrouped(
       ? measuredField || plan.measure.field
       : "";
   const mapper = `(rows, ${GROUP_PARAM}) => ({ x: ${GROUP_PARAM}, y: rows.${measureCall(plan.measure, over)} })`;
-  return (
-    `this.table${filterText}${projection}` +
-    `.group(${JSON.stringify(key)}, ${mapper})` +
-    `${orderCall(plan.order)}${limitCall(plan.limit)}`
-  );
+  return [
+    "this.table",
+    ...filterHops,
+    projection,
+    `.group(${JSON.stringify(key)}, ${mapper})`,
+    orderCall(plan.order),
+    limitCall(plan.limit),
+  ];
+}
+
+/**
+ * The chain as it reads in the method: on one line while it fits, one hop per
+ * line once it does not — which is what the project's formatter would do with
+ * it, and what stops a grouped calculation coming out as a 300-character line.
+ *
+ * The receiver stays on the `return` line either way: a chain whose first line
+ * is a bare `this.table` reads as if something were missing.
+ */
+function chainText(hops: string[], indent: string): string {
+  const [receiver, ...rest] = hops.filter((hop) => hop !== "");
+  const inline = `${receiver}${rest.join("")}`;
+  if (
+    !inline.includes("\n") &&
+    fitsOneLine(indent, RETURN_DEPTH, `return ${inline};`)
+  ) {
+    return inline;
+  }
+  const broken = bodyIndent(indent, HOP_DEPTH);
+  return `${receiver}${rest.map((hop) => `\n${broken}${hop}`).join("")}`;
 }
 
 /**
@@ -331,15 +397,20 @@ export function emitPlan(
   plan: QueryPlan,
   fields: ResourceFieldStructure[],
 ): CompiledChain {
+  const indent = indentationText(resolveProjectRoot());
   const filters = emitFilters(plan.filters, fields);
-  const chain = plan.group
-    ? emitGrouped(plan, plan.group, filters.text)
-    : `this.table${filters.text}.${measureCall(
-        plan.measure,
-        plan.measure.kind === "aggregate" ? plan.measure.field : "",
-      )}`;
+  const hops = plan.group
+    ? emitGrouped(plan, plan.group, filters.hops, indent)
+    : [
+        "this.table",
+        ...filters.hops,
+        `.${measureCall(
+          plan.measure,
+          plan.measure.kind === "aggregate" ? plan.measure.field : "",
+        )}`,
+      ];
   return {
-    body: `{\n\treturn ${chain};\n}`,
+    body: `{\n${bodyIndent(indent, RETURN_DEPTH)}return ${chainText(hops, indent)};\n}`,
     parameters: filters.parameters,
     warnings: filters.warnings,
   };
