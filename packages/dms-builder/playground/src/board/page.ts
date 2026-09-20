@@ -1,3 +1,4 @@
+import { DefaultDataTypes } from "@antelopejs/interface-dms/base/data-types/default-types";
 import {
   Category,
   PageController,
@@ -7,6 +8,7 @@ import {
 import {
   ChartArea,
   ChartCard,
+  Form,
   PeriodSelector,
   Placeholder,
   Tab,
@@ -51,7 +53,28 @@ export class PageShopBoard extends PageController("board", {
       { label: "Tab 2", slot: "tab2" },
       { label: "Tab 3", slot: "tab3" },
     ],
-  })).child("placeholder2", Placeholder())));
+  }).child("placeholder", Placeholder(), { slot: "tab1" }).child("form2", Form({
+    fields: [
+      {
+        id: "test",
+        fields: [
+          {
+            id: "test",
+            type: new DefaultDataTypes.NumberType(),
+            label: "aaaa",
+            description: "help",
+            defaultValue: 0,
+          },
+        ],
+        label: "coucou",
+        description: "nombre plz",
+        orientation: "vertical",
+      },
+    ],
+    successMessage: "a",
+    title: "aa",
+    description: "dsad",
+  }), { slot: "tab3" }).child("form", Form({ fields: [] }), { slot: "tab2" })).child("placeholder2", Placeholder())));
   // A row between the grid and the card because a Grid takes nothing else:
   // the layout renders either way, but a whole-tree save refuses a card placed
   // straight under the grid, which is every save the source editor makes.
