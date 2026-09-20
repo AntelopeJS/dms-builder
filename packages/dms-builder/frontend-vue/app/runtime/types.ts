@@ -135,6 +135,13 @@ export interface BlockDraft {
 	controller?: string
 	children?: BlockDraft[]
 	preserve?: boolean
+	/**
+	 * Why the engine reported the block as one it cannot rewrite, carried over
+	 * from the structure so the canvas can say so where the block is. Read only:
+	 * the module writes a preserved block back from its own source and ignores
+	 * this.
+	 */
+	opaqueReason?: string
 }
 
 export interface PageDraft {
@@ -149,14 +156,28 @@ export interface PageDraft {
 	queries?: AddQueryInput[]
 }
 
-/** What a preview of an unsaved query answers. */
-export type QueryPreview =
-	| { output: string; value: number; truncated?: false }
-	| {
-			output: string
-			series: { x: number | string; y: number }[]
-			truncated: boolean
-	  }
+/** How a query's answer is arranged for the block that reads it. */
+export type QueryResponseShape = 'series' | 'card' | 'value' | 'items'
+
+/** One measured group, as a route answers it and a chart reads it. */
+export interface QueryPoint {
+	x: number | string
+	y: number
+}
+
+/**
+ * What a preview of an unsaved query answers: the body its route would serve,
+ * arranged the same way, and how it was arranged.
+ *
+ * The arranged shapes belong to the DMS — `ChartCardData` and friends — so the
+ * body travels as the JSON the route serves it as.
+ */
+export interface QueryPreview {
+	output: string
+	response?: QueryResponseShape
+	body: Record<string, unknown>
+	truncated: boolean
+}
 
 export interface ComponentPreviewChild {
 	id: string
@@ -181,6 +202,13 @@ export interface PageLayoutPreview {
 	components: Record<string, ComponentPreview>
 	degraded: string[]
 }
+
+/**
+ * What the module last answered about the draft as it now stands: `pending`
+ * while an edit is waiting on the debounced preview, `refused` once the module
+ * has declined to build it.
+ */
+export type PreviewState = 'pending' | 'valid' | 'refused'
 
 export interface ValidationIssue {
 	pointer: string
@@ -320,6 +348,11 @@ export interface AddQueryInput {
 	resource: string
 	template: string
 	params?: Record<string, unknown>
+	/**
+	 * How the route arranges its answer. Left out, a grouped calculation answers
+	 * its bare points, which only a chart can read.
+	 */
+	response?: QueryResponseShape
 	endpoint?: string
 }
 

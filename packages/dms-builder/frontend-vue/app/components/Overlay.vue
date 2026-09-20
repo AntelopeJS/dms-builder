@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDmsRoute as useRoute } from '#dms/frontend-module'
 import { useContentAnchor } from '../runtime/anchor'
+import { describeError, errorDetail } from '../runtime/errors'
 import { useBuilder } from '../runtime/session'
-import type { BuilderError } from '../runtime/types'
 
 const builder = useBuilder()
 const session = builder.session
@@ -22,29 +22,22 @@ const style = computed(() => ({
 	height: `${anchor.value.height}px`,
 }))
 
-function describe(error: BuilderError): string {
-	const messages: Record<string, () => string> = {
-		not_found: () => 'This page is not one the builder can edit.',
-		stale: () =>
-			'The page changed on disk since it was opened. Reload it to keep going.',
-		invalid_config: () =>
-			'issues' in error
-				? error.issues.map((issue) => `${issue.pointer} ${issue.message}`).join(' · ')
-				: 'Invalid configuration.',
-		typecheck_failed: () =>
-			'diagnostics' in error
-				? error.diagnostics
-						.map((entry) => `${entry.line}: ${entry.message}`)
-						.join(' · ')
-				: 'The generated source does not compile.',
-		unsupported: () => ('detail' in error ? error.detail : 'Unsupported.'),
-		duplicate_name: () =>
-			'name' in error ? `The name "${error.name}" is already taken.` : 'Duplicate name.',
-		opaque_target: () => 'That block cannot be rewritten by the builder.',
-		referential_integrity: () => 'Something still depends on this.',
-	}
-	return (messages[error.code] ?? (() => 'The operation failed.'))()
-}
+const message = computed(() =>
+	session.value.error
+		? describeError(session.value.error, session.value.draft)
+		: '',
+)
+/** The module's own wording, folded away until someone asks for it. */
+const detail = computed(() =>
+	session.value.error ? errorDetail(session.value.error) : [],
+)
+const detailOpen = ref(false)
+watch(
+	() => session.value.error,
+	() => {
+		detailOpen.value = false
+	},
+)
 
 const isTyping = (target: EventTarget | null): boolean => {
 	const element = target as HTMLElement | null
@@ -166,7 +159,20 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 			class="flex items-start gap-3 border-b border-error bg-error/10 px-4 py-2 text-xs text-error"
 		>
 			<UIcon name="i-ph-x-circle" class="mt-0.5 size-4 shrink-0" />
-			<span class="flex-1">{{ describe(session.error) }}</span>
+			<div class="flex min-w-0 flex-1 flex-col gap-1">
+				<span>{{ message }}</span>
+				<button
+					v-if="detail.length"
+					type="button"
+					class="self-start underline decoration-dotted underline-offset-2 opacity-80 hover:opacity-100"
+					@click="detailOpen = !detailOpen"
+				>
+					{{ detailOpen ? 'Hide the details' : 'Details' }}
+				</button>
+				<ul v-if="detailOpen" class="flex flex-col gap-0.5 font-mono opacity-80">
+					<li v-for="line in detail" :key="line">{{ line }}</li>
+				</ul>
+			</div>
 			<UButton
 				icon="i-ph-x"
 				size="xs"

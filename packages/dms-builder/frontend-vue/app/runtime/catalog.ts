@@ -50,6 +50,43 @@ export function descriptorOf(
 	return catalog.blocks.find((block) => block.type === type)
 }
 
+/**
+ * The types the palette leaves out: structure, not components.
+ *
+ * A container naming exactly one `allowedChildren` is the one case where the
+ * editor writes that child itself, around whatever is dropped in — see
+ * `wrapperFor`. Nobody can place such a type usefully: the only spot that takes
+ * it is the container that already builds it, and a palette entry beside `Grid`
+ * reads as a grid cell, so it invites the one gesture the layout refuses. The
+ * rule is read off the catalog rather than listed here, so the next
+ * container/row pair declared is covered without touching this file.
+ *
+ * The same rule answers a second question: what the canvas must not name. A
+ * block of a type nobody can place is one the editor placed, and the user is
+ * owed the container they did place instead.
+ */
+export function structuralTypes(catalog: BlockCatalog): Set<string> {
+	const structural = new Set<string>()
+	for (const { allowedChildren } of catalog.blocks) {
+		const only = allowedChildren?.length === 1 ? allowedChildren[0] : undefined
+		if (only !== undefined) {
+			structural.add(only)
+		}
+	}
+	return structural
+}
+
+/** Whether a block of this type is scaffolding the editor wrote for itself. */
+export function isStructural(
+	catalog: BlockCatalog | null,
+	type: string | undefined,
+): boolean {
+	if (!catalog || type === undefined) {
+		return false
+	}
+	return structuralTypes(catalog).has(type)
+}
+
 export function paletteGroups(
 	catalog: BlockCatalog | null,
 	query: string,
@@ -58,8 +95,12 @@ export function paletteGroups(
 		return []
 	}
 	const needle = query.trim().toLowerCase()
+	const structural = structuralTypes(catalog)
 	const buckets = new Map<string, BlockTypeDescriptor[]>()
 	for (const block of catalog.blocks) {
+		if (structural.has(block.type)) {
+			continue
+		}
 		const label = (block.label ?? block.type).toLowerCase()
 		if (needle && !label.includes(needle) && !block.type.toLowerCase().includes(needle)) {
 			continue
@@ -93,7 +134,7 @@ export function optionGroups(
 	if (!descriptor) {
 		return []
 	}
-	const entries = Object.entries(descriptor.config)
+	const entries = Object.entries(panelConfig(descriptor))
 		.filter(([, schema]) => !schema.ui?.hidden)
 		.map(([key, schema]) => ({ key, schema }))
 	const buckets = new Map<string, OptionEntry[]>()
@@ -126,37 +167,200 @@ export function isRequired(schema: OptionSchema): boolean {
 }
 
 /**
- * What still has to be filled in before the block renders: its required
- * options, plus the resource a controller-leading block reads from.
+ * The options as the panel shows them.
+ *
+ * A container holding its children through its own options names each region
+ * twice: a title, for whoever reads the page, and an id for the children to
+ * attach to. The id is the editor's — it writes it and keeps it unique, see
+ * `nameSlots` — so the panel leaves it out rather than asking an author to
+ * invent one, and the block's own type stops being a form to fill in.
  */
-export function missingConfig(
+export function panelConfig(
+	descriptor: BlockTypeDescriptor,
+): Record<string, OptionSchema> {
+	const dynamic = descriptor.dynamicSlots
+	const option = dynamic ? descriptor.config[dynamic.optionPath] : undefined
+	const items = option?.items
+	const id = dynamic ? items?.properties?.[dynamic.idKey] : undefined
+	if (!dynamic || !option || !items || !id) {
+		return descriptor.config
+	}
+	return {
+		...descriptor.config,
+		[dynamic.optionPath]: {
+			...option,
+			items: {
+				...items,
+				properties: {
+					...items.properties,
+					[dynamic.idKey]: { ...id, ui: { ...id.ui, hidden: true } },
+				},
+			},
+		},
+	}
+}
+
+/** One setting still to fill in, addressed and named the way the panel is. */
+export interface MissingSetting {
+	/** The keys walked from the block's own options, array indices included. */
+	path: string[]
+	/** What the panel calls it: `Tabs #2 → Label` for a tab with no title. */
+	label: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Walk one option against the value it holds, down to the leaf that is empty.
+ *
+ * A required option nested in a list — the title of the third tab — is as
+ * unbuildable as a required option of the block itself, and the compiler is the
+ * one that says so today, in terms of the generated source. Reading the same
+ * gap off the schema is what lets the panel mark the field instead.
+ */
+function collectMissing(
+	schema: OptionSchema,
+	value: unknown,
+	path: string[],
+	labels: string[],
+	found: MissingSetting[],
+): void {
+	if (value === undefined || value === null || value === '') {
+		if (isRequired(schema)) {
+			found.push({ path, label: labels.join(' → ') })
+		}
+		return
+	}
+	if (schema.properties && isRecord(value)) {
+		for (const [key, nested] of Object.entries(schema.properties)) {
+			if (nested.ui?.hidden) {
+				continue
+			}
+			collectMissing(
+				nested,
+				value[key],
+				[...path, key],
+				[...labels, optionLabel(key, nested)],
+				found,
+			)
+		}
+		return
+	}
+	const items = schema.items
+	if (items && Array.isArray(value)) {
+		value.forEach((entry, index) => {
+			collectMissing(
+				items,
+				entry,
+				[...path, String(index)],
+				[`${labels.join(' → ')} #${index + 1}`],
+				found,
+			)
+		})
+	}
+}
+
+/**
+ * What still has to be filled in before the block renders: every required
+ * option left empty, however deep, plus the resource a controller-leading block
+ * reads from.
+ */
+export function missingSettings(
 	descriptor: BlockTypeDescriptor | undefined,
 	block: BlockDraft,
-): string[] {
+): MissingSetting[] {
 	if (!descriptor || block.preserve) {
 		return []
 	}
 	const config = block.config ?? {}
-	const missing = Object.entries(descriptor.config)
-		.filter(([key, schema]) => isRequired(schema) && config[key] === undefined)
-		.map(([key]) => key)
-	if (descriptor.controllerArg && !block.controller) {
-		missing.push('controller')
+	const found: MissingSetting[] = []
+	for (const [key, schema] of Object.entries(panelConfig(descriptor))) {
+		if (schema.ui?.hidden) {
+			continue
+		}
+		collectMissing(schema, config[key], [key], [optionLabel(key, schema)], found)
 	}
-	return missing
+	if (descriptor.controllerArg && !block.controller) {
+		found.push({ path: ['controller'], label: 'Database table' })
+	}
+	return found
+}
+
+/** The same gaps, named for a sentence. */
+export function missingConfig(
+	descriptor: BlockTypeDescriptor | undefined,
+	block: BlockDraft,
+): string[] {
+	return missingSettings(descriptor, block).map((entry) => entry.label)
 }
 
 export function suggestedName(type: string): string {
 	return type.charAt(0).toLowerCase() + type.slice(1)
 }
 
+/** The alignment that keeps a stack's children as wide as the stack itself. */
+const STRETCH = 'stretch'
+
+/**
+ * How a container the editor places lays its children out.
+ *
+ * A stack centres them by default, which is SwiftUI's reading of a stack and
+ * not a page's: enclosing a cell in a column — what dropping a block above one
+ * does — would shrink that cell, and everything else in the column with it, to
+ * its own width, for a gesture that only added a block. The option is written
+ * rather than assumed, so the panel shows it and an author can choose otherwise.
+ */
+function laidOutAcross(
+	descriptor: BlockTypeDescriptor,
+): Record<string, unknown> {
+	const alignment = descriptor.config.alignment
+	return descriptor.container && alignment?.enum?.includes(STRETCH)
+		? { alignment: STRETCH }
+		: {}
+}
+
 export function newBlockDraft(descriptor: BlockTypeDescriptor): BlockDraft {
 	return {
 		name: suggestedName(descriptor.type),
 		type: descriptor.type,
-		config: {},
+		config: laidOutAcross(descriptor),
 		...(descriptor.container ? { children: [] } : {}),
 	}
+}
+
+/**
+ * An id for a region titled `title`, and one no sibling holds yet.
+ *
+ * Derived from the title so the generated page reads as the author wrote it —
+ * a tab called “Orders” attaches its children to `orders` — and folded down to
+ * letters, digits and dashes, which is what both a slot name and a property of
+ * the emitted source can carry. An untitled region falls back on its rank.
+ */
+export function slotIdFor(
+	title: unknown,
+	fallback: string,
+	taken: Set<string>,
+): string {
+	const folded =
+		typeof title === 'string'
+			? title
+					.normalize('NFD')
+					.replace(/[\u0300-\u036f]/g, '')
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, '-')
+					.replace(/^-+|-+$/g, '')
+			: ''
+	const wanted = folded || fallback
+	if (!taken.has(wanted)) {
+		return wanted
+	}
+	let rank = 2
+	while (taken.has(`${wanted}-${rank}`)) {
+		rank += 1
+	}
+	return `${wanted}-${rank}`
 }
 
 /** The slots a container offers, fixed or read off its own options. */

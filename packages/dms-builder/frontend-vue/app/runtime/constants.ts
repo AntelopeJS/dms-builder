@@ -37,6 +37,32 @@ export const OPTION_GROUPS = [
 	'advanced',
 ] as const
 
+/**
+ * The containers that lay their children out side by side.
+ *
+ * The catalog states no axis, and everything about aiming at a block turns on
+ * it: which of its sides name its neighbours, which way the insertion line
+ * runs, and whether "below this one" is a place its container already has.
+ */
+export const ROW_CONTAINERS = new Set(['HStack', 'GridRow'])
+
+/**
+ * The blocks pinned across the whole width of their container.
+ *
+ * A `GridRow` sets `gridColumn: 1 / -1` on itself, so two of them can never end
+ * up side by side however a drop is aimed at them. The editor has to say so
+ * instead of accepting a gesture the layout will not honour.
+ */
+export const FULL_WIDTH_BLOCKS = new Set(['GridRow'])
+
+/**
+ * The container the editor builds to stack two blocks inside one column.
+ *
+ * A row lays its children out side by side and nothing else, so it is the only
+ * way "below this cell" can mean anything other than a new full-width row.
+ */
+export const COLUMN_CONTAINER = 'VStack'
+
 export const BLOCK_GROUP_LABELS: Record<string, string> = {
 	layout: 'Layout',
 	content: 'Content',

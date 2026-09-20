@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { namedHost } from '../runtime/dropping'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
@@ -15,12 +16,44 @@ const page = computed(() => {
 		icon: (patch.icon as string) ?? meta?.icon ?? 'i-ph-file',
 	}
 })
+
+/** Whether the drop would land in the page itself rather than in a container. */
+const receiving = computed(() => {
+	const target = session.value.dropTarget
+	if (target === null) {
+		return false
+	}
+	return (
+		namedHost(session.value.catalog, session.value.draft, target.parent) === null
+	)
+})
+/** The page holds nothing, so the line is drawn inside its empty frame. */
+const aimedInside = computed(() => {
+	const anchor = session.value.dropTarget?.anchor
+	return anchor?.path === null ? anchor : undefined
+})
+
+/**
+ * The page answers for whatever the blocks let through. Its `dropEffect` has to
+ * be set here too: left alone it falls back to "none", and the browser draws a
+ * no-entry cursor over the one area that accepts everything.
+ */
+function onDragOver(event: DragEvent): void {
+	builder.aimAtPage()
+	if (event.dataTransfer) {
+		event.dataTransfer.dropEffect = session.value.dropTarget?.refusal
+			? 'none'
+			: 'copy'
+	}
+}
 </script>
 
 <template>
 	<div
 		class="flex-1 overflow-auto bg-muted/40 p-8"
 		@click="builder.select(null)"
+		@dragover.prevent="onDragOver"
+		@drop.prevent="builder.drop()"
 	>
 		<div class="mx-auto">
 			<header class="mb-8 flex items-center gap-4">
@@ -48,10 +81,14 @@ const page = computed(() => {
 
 			<div
 				v-if="!blocks.length"
-				class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-default p-16 text-center"
-				@dragover.prevent
-				@drop.prevent="builder.dropAt(null, 0)"
+				class="relative flex flex-col items-center gap-3 rounded-xl border border-dashed p-16 text-center"
+				:class="receiving ? 'border-primary' : 'border-default'"
 			>
+				<DmsBuilderInsertion
+					v-if="receiving && aimedInside"
+					edge="inside"
+					:axis="aimedInside.axis"
+				/>
 				<UIcon name="i-ph-stack" class="size-8 text-dimmed" />
 				<p class="text-base font-medium text-default">This page is empty</p>
 				<p class="max-w-sm text-sm text-muted">
@@ -72,18 +109,28 @@ const page = computed(() => {
 				</div>
 			</div>
 
-			<div v-else class="flex flex-col gap-6">
-				<template v-for="(block, index) in blocks" :key="block.name">
-					<DmsBuilderDropZone :parent="null" :index="index" />
-					<DmsBuilderNode
-						:block="block"
-						:path="block.name"
-						:preview="session.preview[block.name]"
-					/>
-				</template>
-				<DmsBuilderDropZone :parent="null" :index="blocks.length" />
+			<div v-else class="relative flex flex-col gap-6">
+				<!-- The page is a container like any other: when it is the one
+				receiving, it says so around everything it holds. -->
+				<div
+					v-if="receiving"
+					class="pointer-events-none absolute -inset-3 rounded-xl outline outline-2 outline-primary"
+					data-drop-into="page"
+				>
+					<span
+						class="absolute -top-5 left-0 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-inverted"
+					>
+						{{ page.displayName || 'Page' }} · Page
+					</span>
+				</div>
+				<DmsBuilderNode
+					v-for="block in blocks"
+					:key="block.name"
+					:block="block"
+					:path="block.name"
+					:preview="session.preview[block.name]"
+				/>
 				<button
-					v-if="!session.dragging"
 					type="button"
 					class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-default p-4 text-sm text-dimmed hover:border-primary hover:text-primary"
 					@click.stop="builder.setView('library')"

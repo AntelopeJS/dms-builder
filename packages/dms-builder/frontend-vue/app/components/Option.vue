@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { descriptorOf, optionLabel } from '../runtime/catalog'
+import { descriptorOf, isRequired, optionLabel } from '../runtime/catalog'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
@@ -15,6 +15,12 @@ const props = defineProps<{
 	blockName?: string
 	/** Rule the row off from the switch above it, as a list of features reads. */
 	separated?: boolean
+	/**
+	 * Leave the label row out: an entry of a list is already headed by its rank,
+	 * and a second name for it — the option's own, with an index stuck to it —
+	 * reads as another setting.
+	 */
+	hideLabel?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +40,22 @@ const session = builder.session
 
 const label = computed(() => optionLabel(props.name, props.schema))
 const ui = computed(() => props.schema.ui ?? {})
+
+/**
+ * Whether the page needs this one filled in, and whether it still is not.
+ *
+ * Marked on the field itself, because the answer otherwise comes from the
+ * compiler: a required option left empty is a generated page that does not
+ * build, reported against a line of source the author never sees.
+ */
+const required = computed(() => isRequired(props.schema))
+const unfilled = computed(
+	() =>
+		required.value &&
+		(props.modelValue === undefined ||
+			props.modelValue === null ||
+			props.modelValue === ''),
+)
 
 const widget = computed(() => {
 	if (props.schema['x-dataType']) return 'dataType'
@@ -321,8 +343,11 @@ const nestedProperties = computed(() =>
 	</div>
 
 	<div v-else class="flex flex-col gap-1.5">
-		<div class="flex items-center gap-2">
-			<label class="text-sm font-medium text-default">{{ label }}</label>
+		<div v-if="!hideLabel" class="flex items-center gap-2">
+			<label class="text-sm font-medium text-default">
+				{{ label }}
+				<span v-if="required" class="text-warning" title="Required">*</span>
+			</label>
 			<UButton
 				v-if="clearable"
 				icon="i-ph-x"
@@ -569,6 +594,7 @@ const nestedProperties = computed(() =>
 					:schema="schema.items"
 					:model-value="item"
 					:resource="resource"
+					hide-label
 					@update:model-value="setItem(index, $event)"
 				/>
 			</div>
@@ -619,7 +645,10 @@ const nestedProperties = computed(() =>
 			@update:model-value="set($event === '' ? undefined : $event)"
 		/>
 
-		<p v-if="ineligible" class="text-xs text-warning">{{ ineligible }}</p>
+		<p v-if="unfilled" class="text-xs text-warning">
+			Required — the page cannot be built until this is filled in.
+		</p>
+		<p v-else-if="ineligible" class="text-xs text-warning">{{ ineligible }}</p>
 		<p v-else-if="schema.description" class="text-xs text-dimmed">
 			{{ schema.description }}
 		</p>

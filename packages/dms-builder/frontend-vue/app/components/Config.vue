@@ -226,9 +226,12 @@ async function setSearchField(name: string): Promise<void> {
 		<template v-else>
 			<div
 				v-if="missing.length"
-				class="rounded-md border border-warning bg-warning/10 p-3 text-xs text-warning"
+				class="flex flex-col gap-1 rounded-md border border-warning bg-warning/10 p-3 text-xs text-warning"
 			>
-				Still to fill in: {{ missing.join(', ') }}
+				<span class="font-medium">Still to fill in</span>
+				<ul class="flex flex-col gap-0.5">
+					<li v-for="entry in missing" :key="entry">{{ entry }}</li>
+				</ul>
 			</div>
 
 			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-1.5">

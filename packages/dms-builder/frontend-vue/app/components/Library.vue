@@ -11,15 +11,27 @@ const groups = computed(() =>
 	paletteGroups(builder.session.value.catalog, query.value),
 )
 
-/** Adding from the palette drops into the selected container when there is one. */
-const target = computed(() => {
-	const selection = builder.session.value.selection
-	const descriptor = builder.selectedDescriptor.value
-	return descriptor?.container ? selection : null
+/** Adding from the palette drops into the container being worked in. */
+const target = builder.paletteTarget
+
+/** Why that container would turn a component down, per component. */
+const refusals = computed(() => {
+	const answers = new Map<string, string | undefined>()
+	for (const group of groups.value) {
+		for (const block of group.blocks) {
+			answers.set(block.type, builder.refusalAt(target.value, block.type))
+		}
+	}
+	return answers
 })
 
 function onDragStart(event: DragEvent, block: BlockTypeDescriptor): void {
 	event.dataTransfer?.setData('text/plain', block.type)
+	// Left unset, `dropEffect` settles on "none" and the browser refuses every
+	// drop and draws the no-entry cursor, whatever the page decided.
+	if (event.dataTransfer) {
+		event.dataTransfer.effectAllowed = 'copyMove'
+	}
 	builder.beginDrag({ type: block.type })
 }
 </script>
@@ -38,13 +50,19 @@ function onDragStart(event: DragEvent, block: BlockTypeDescriptor): void {
 				{{ group.label }}
 			</p>
 			<div class="grid grid-cols-2 gap-2">
+				<!-- A component the container turns down stays draggable: the rule is
+				about where it would land, and elsewhere on the page it is welcome. -->
 				<button
 					v-for="block in group.blocks"
 					:key="block.type"
 					type="button"
 					draggable="true"
-					class="flex cursor-grab flex-col gap-1.5 rounded-lg border border-default bg-default p-2.5 text-left transition-colors hover:border-primary"
-					:title="block.description"
+					class="flex cursor-grab flex-col gap-1 rounded-lg border border-default bg-default p-2.5 text-left transition-colors"
+					:class="
+						refusals.get(block.type) ? 'opacity-50' : 'hover:border-primary'
+					"
+					:aria-disabled="refusals.get(block.type) !== undefined"
+					:title="refusals.get(block.type) ?? block.description"
 					@dragstart="onDragStart($event, block)"
 					@dragend="builder.endDrag()"
 					@click="builder.addBlock(block.type, target, null)"
@@ -55,6 +73,15 @@ function onDragStart(event: DragEvent, block: BlockTypeDescriptor): void {
 					/>
 					<span class="text-xs font-medium text-default">
 						{{ block.label ?? block.type }}
+					</span>
+					<span
+						v-if="block.description"
+						class="line-clamp-2 text-xs leading-snug text-dimmed"
+					>
+						{{ block.description }}
+					</span>
+					<span v-if="refusals.get(block.type)" class="text-xs text-warning">
+						{{ refusals.get(block.type) }}
 					</span>
 				</button>
 			</div>
@@ -67,7 +94,7 @@ function onDragStart(event: DragEvent, block: BlockTypeDescriptor): void {
 		<p class="rounded-md border border-default p-3 text-xs text-dimmed">
 			<b class="text-default">Drag</b> a component onto the page to place it, or
 			<b class="text-default">click</b> to append it
-			{{ target ? 'inside the selected container' : 'to the page' }}.
+			{{ target ? `inside ${target}` : 'to the page' }}.
 		</p>
 	</div>
 </template>

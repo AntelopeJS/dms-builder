@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useBuilder } from '../runtime/session'
-import type { AddQueryInput, QueryPreview } from '../runtime/types'
+import type {
+	AddQueryInput,
+	QueryPoint,
+	QueryPreview,
+	QueryResponseShape,
+} from '../runtime/types'
 
 const props = defineProps<{
 	/** The URL currently written on the block, if any. */
@@ -78,6 +83,27 @@ const previewing = ref(false)
 
 /** One number, or one point per group: what the block declared it reads. */
 const wantsSeries = computed(() => props.responseShape !== 'value')
+
+/** The arrangements the engine knows how to build a route for. */
+const RESPONSE_SHAPES: QueryResponseShape[] = [
+	'series',
+	'card',
+	'value',
+	'items',
+]
+
+/**
+ * The arrangement the query is created with, taken from the block's own
+ * declaration: the block knows one envelope and reads nothing else, so asking the
+ * engine for anything but that one leaves it fetching what it cannot display.
+ *
+ * Narrowed rather than forwarded as it arrives: the declaration crosses the wire
+ * as a string, and an arrangement this engine has no helper for would be written
+ * into the page and then quietly served as bare points.
+ */
+const responseShape = computed(() =>
+	RESPONSE_SHAPES.find((shape) => shape === props.responseShape),
+)
 
 /** A query named after the block that reads it, so the two stay recognizable. */
 const queryName = computed(() => props.blockName)
@@ -173,6 +199,7 @@ function queryInput(): AddQueryInput {
 				? 'count'
 				: 'aggregate',
 		params: queryParams(),
+		response: responseShape.value,
 	}
 }
 
@@ -237,9 +264,42 @@ function pickResource(value: string): void {
 	void builder.loadResource(value)
 }
 
-const previewPoints = computed(() =>
-	preview.value && 'series' in preview.value ? preview.value.series : [],
-)
+/** A point as either arrangement writes one; a card's `y` may be unmeasured. */
+function asPoint(entry: unknown): QueryPoint | undefined {
+	const point = entry as { x?: unknown; y?: unknown }
+	if (point === null || typeof point !== 'object' || !('x' in point)) {
+		return undefined
+	}
+	return {
+		x: point.x as number | string,
+		y: typeof point.y === 'number' ? point.y : 0,
+	}
+}
+
+/** The headline figure the body carries, for the arrangements that have one. */
+const previewValue = computed(() => {
+	const value = preview.value?.body.value
+	return typeof value === 'number' ? value : undefined
+})
+
+/**
+ * The points behind the body, wherever its arrangement put them: a plain route
+ * answers them directly, a card hands them over inside a chart series.
+ */
+const previewPoints = computed<QueryPoint[]>(() => {
+	const series = preview.value?.body.series
+	if (!Array.isArray(series)) {
+		return []
+	}
+	const direct = series.map(asPoint).filter((point) => point !== undefined)
+	if (direct.length === series.length) {
+		return direct as QueryPoint[]
+	}
+	const data = (series[0] as { data?: unknown })?.data
+	return Array.isArray(data)
+		? (data.map(asPoint).filter((point) => point !== undefined) as QueryPoint[])
+		: []
+})
 
 /**
  * Fill the editor from the source the block already reads, so reopening a page
@@ -397,28 +457,35 @@ watch(
 			<div class="rounded-md border border-default p-2.5">
 				<p class="text-xs font-semibold text-highlighted">Preview</p>
 				<p v-if="previewing" class="text-xs text-dimmed">Reading…</p>
-				<p
-					v-else-if="preview && 'value' in preview"
-					class="font-mono text-sm tabular-nums"
-				>
-					{{ preview.value }}
-				</p>
-				<div v-else-if="previewPoints.length" class="flex flex-col gap-0.5">
+				<template v-else>
+					<!-- A card answers a figure and its points; laid out the way the
+					     block lays them out, so this reads as what the page will show. -->
 					<p
-						v-for="point in previewPoints.slice(0, 5)"
-						:key="String(point.x)"
-						class="flex justify-between font-mono text-xs tabular-nums"
+						v-if="previewValue !== undefined"
+						class="font-mono text-sm tabular-nums"
 					>
-						<span class="text-dimmed">{{ point.x }}</span>
-						<span>{{ point.y }}</span>
+						{{ previewValue }}
 					</p>
-					<p v-if="previewPoints.length > 5" class="text-xs text-dimmed">
-						and {{ previewPoints.length - 5 }} more
+					<div v-if="previewPoints.length" class="flex flex-col gap-0.5">
+						<p
+							v-for="point in previewPoints.slice(0, 5)"
+							:key="String(point.x)"
+							class="flex justify-between font-mono text-xs tabular-nums"
+						>
+							<span class="text-dimmed">{{ point.x }}</span>
+							<span>{{ point.y }}</span>
+						</p>
+						<p v-if="previewPoints.length > 5" class="text-xs text-dimmed">
+							and {{ previewPoints.length - 5 }} more
+						</p>
+					</div>
+					<p
+						v-else-if="previewValue === undefined"
+						class="text-xs text-dimmed"
+					>
+						{{ ready ? 'No rows match.' : 'Choose what to measure.' }}
 					</p>
-				</div>
-				<p v-else class="text-xs text-dimmed">
-					{{ ready ? 'No rows match.' : 'Choose what to measure.' }}
-				</p>
+				</template>
 			</div>
 
 			<p class="truncate font-mono text-xs text-dimmed">{{ endpoint }}</p>

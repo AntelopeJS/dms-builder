@@ -37,16 +37,26 @@ const canRedo = computed(() => session.value.future.length > 0)
 			color="warning"
 			variant="soft"
 			class="cursor-pointer"
-			:label="`${problems.length} to configure`"
+			:label="`${problems.length} to fix`"
 			icon="i-ph-warning"
 			@click="builder.select(problems[0] ?? null)"
 		/>
 		<UBadge
-			v-else
+			v-else-if="session.previewState === 'valid'"
 			color="success"
 			variant="soft"
 			label="All blocks configured"
 			icon="i-ph-check"
+		/>
+		<!-- The green badge answers for the page the module last built; until it
+		has answered for the page as it now stands, this says so rather than
+		vouching for a draft nobody has checked. -->
+		<UBadge
+			v-else
+			color="neutral"
+			variant="soft"
+			label="Checking…"
+			icon="i-ph-circle-notch"
 		/>
 
 		<div class="ml-auto flex items-center gap-1">

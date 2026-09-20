@@ -1,13 +1,34 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import { useDmsState as useState } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
-import { descriptorOf, missingConfig, newBlockDraft } from './catalog'
+import {
+	descriptorOf,
+	missingSettings,
+	newBlockDraft,
+	slotIdFor,
+	slotsOf,
+	suggestedName,
+	type MissingSetting,
+} from './catalog'
 import {
 	HISTORY_LIMIT,
 	PREVIEW_DEBOUNCE_MS,
 	SESSION_STATE_KEY,
 	TOAST_MS,
 } from './constants'
+import {
+	draggedType,
+	refusalForDrop,
+	sameTarget,
+	targetAtBlock,
+	targetAtPage,
+	wrapperFor,
+	type DragPayload,
+	type DropPlacement,
+	type DropTarget,
+	type DropWrap,
+	type PointerBox,
+} from './dropping'
 import { mergePatch } from './object'
 import {
 	cloneDraft,
@@ -18,7 +39,9 @@ import {
 	joinPath,
 	leafName,
 	moveNode,
+	nameSlots,
 	parentPath,
+	pathForPointer,
 	removeNode,
 	renameNode,
 	siblingsAt,
@@ -37,13 +60,16 @@ import type {
 	CategorySummary,
 	CreateCategoryInput,
 	CreatePageInput,
+	DynamicSlots,
 	FieldSpec,
 	PageStructure,
 	PageSummary,
+	PreviewState,
 	QueryPreview,
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
+	ValidationIssue,
 } from './types'
 
 export type RailView =
@@ -55,10 +81,12 @@ export type RailView =
 	| 'resource'
 	| 'query'
 
-/** What a drag currently carries: a new block type, or a block being moved. */
-export interface DragPayload {
-	type?: string
-	path?: string
+export type { DragPayload, DropTarget, DropWrap }
+
+/** A place in the draft a block is inserted at; a null index means the end. */
+interface Placement {
+	parent: string | null
+	index: number | null
 }
 
 export interface BuilderSession {
@@ -84,6 +112,14 @@ export interface BuilderSession {
 	/** The page as the DMS serves it, for blocks the preview cannot build. */
 	served: Record<string, ComponentPreview>
 	degraded: string[]
+	/** Whether the module has built the draft as it now stands. */
+	previewState: PreviewState
+	/**
+	 * What the module refused about the draft's structure, kept until the next
+	 * preview answers. It is the only client-side knowledge of which blocks the
+	 * save would reject, so the badge and the banner both read from it.
+	 */
+	previewIssues: ValidationIssue[]
 	loading: boolean
 	saving: boolean
 	error: BuilderError | null
@@ -97,6 +133,13 @@ export interface BuilderSession {
 	pending: string[]
 	toast: string | null
 	dragging: DragPayload | null
+	/**
+	 * Where the drag would land, as the pointer's last position resolved it.
+	 *
+	 * The canvas draws itself from this and nothing else: one insertion line, and
+	 * a border around the container named in it. Null while nothing is aimed at.
+	 */
+	dropTarget: DropTarget | null
 	hovered: string | null
 }
 
@@ -123,6 +166,8 @@ function emptySession(): BuilderSession {
 		preview: {},
 		served: {},
 		degraded: [],
+		previewState: 'pending',
+		previewIssues: [],
 		loading: false,
 		saving: false,
 		error: null,
@@ -133,6 +178,7 @@ function emptySession(): BuilderSession {
 		pending: [],
 		toast: null,
 		dragging: null,
+		dropTarget: null,
 		hovered: null,
 	}
 }
@@ -148,6 +194,8 @@ export interface BuilderController {
 	problems: ComputedRef<string[]>
 	selected: ComputedRef<BlockDraft | undefined>
 	selectedDescriptor: ComputedRef<BlockTypeDescriptor | undefined>
+	/** The container a click in the palette adds to; `null` is the page. */
+	paletteTarget: ComputedRef<string | null>
 	open: (pageRef: string) => Promise<void>
 	close: () => void
 	reload: () => Promise<void>
@@ -158,12 +206,23 @@ export interface BuilderController {
 	openMenu: (path: string, x: number, y: number) => void
 	closeMenu: () => void
 	setView: (view: RailView) => void
-	mutate: (apply: (draft: PageDraft) => void) => void
-	addBlock: (type: string, parent?: string | null, index?: number | null) => void
+	/** Apply an edit to the draft; answers false when it changed nothing. */
+	mutate: (apply: (draft: PageDraft) => void) => boolean
+	addBlock: (
+		type: string,
+		parent?: string | null,
+		index?: number | null,
+		wrap?: DropWrap,
+	) => void
 	remove: (path: string) => void
 	duplicate: (path: string) => void
 	rename: (path: string, name: string) => void
-	move: (path: string, parent: string | null, index: number) => void
+	move: (
+		path: string,
+		parent: string | null,
+		index: number,
+		wrap?: DropWrap,
+	) => void
 	nudge: (path: string, delta: number) => void
 	patchConfig: (path: string, patch: Record<string, unknown>) => void
 	/**
@@ -215,8 +274,16 @@ export interface BuilderController {
 	removeQuery: (ref: string) => Promise<void>
 	beginDrag: (payload: DragPayload) => void
 	endDrag: () => void
-	dropAt: (parent: string | null, index: number) => void
+	/** Aim the drag at a block, `box` being the pointer inside it. */
+	aimAt: (path: string, box: PointerBox) => void
+	/** Aim it at the page's own surface: the end of the page. */
+	aimAtPage: () => void
+	/** Let the block go where it is aimed. */
+	drop: () => void
+	dropAt: (parent: string | null, index: number, wrap?: DropWrap) => void
 	hover: (path: string | null) => void
+	/** Why a container would refuse this type, if it would. */
+	refusalAt: (parent: string | null, type?: string) => string | undefined
 }
 
 export function useBuilder(): BuilderController {
@@ -231,19 +298,50 @@ export function useBuilder(): BuilderController {
 	const blockCount = computed(() =>
 		session.value.draft ? countBlocks(session.value.draft) : 0,
 	)
+	/**
+	 * Every required setting the draft still leaves empty, block by block.
+	 *
+	 * Read off the schema rather than waited for from the engine: the engine
+	 * answers a page that does not build with a compiler error about generated
+	 * source, which is no help to whoever left a field empty. Knowing the gaps
+	 * here is what lets the panel mark the field and Save say which one.
+	 */
+	const gaps = computed<Array<{ path: string; settings: MissingSetting[] }>>(() => {
+		const draft = session.value.draft
+		if (!draft) {
+			return []
+		}
+		const found: Array<{ path: string; settings: MissingSetting[] }> = []
+		walkDraft(draft.blocks, (block, path) => {
+			const descriptor = descriptorOf(session.value.catalog, block.type)
+			const settings = missingSettings(descriptor, block)
+			if (settings.length > 0) {
+				found.push({ path, settings })
+			}
+		})
+		return found
+	})
+	/**
+	 * The blocks standing between the draft and a page that saves: the ones with
+	 * a required option still empty, plus the ones the last preview refused.
+	 *
+	 * The structural half is the module's answer rather than a second
+	 * implementation of its rules here — an issue whose block is gone no longer
+	 * resolves, and drops out on its own.
+	 */
 	const problems = computed(() => {
 		const draft = session.value.draft
 		if (!draft) {
 			return []
 		}
-		const paths: string[] = []
-		walkDraft(draft.blocks, (block, path) => {
-			const descriptor = descriptorOf(session.value.catalog, block.type)
-			if (missingConfig(descriptor, block).length > 0) {
-				paths.push(path)
+		const paths = new Set<string>(gaps.value.map((gap) => gap.path))
+		for (const issue of session.value.previewIssues) {
+			const path = pathForPointer(draft, issue.pointer)
+			if (path) {
+				paths.add(path)
 			}
-		})
-		return paths
+		}
+		return [...paths]
 	})
 	const selected = computed(() =>
 		session.value.draft && session.value.selection
@@ -253,6 +351,28 @@ export function useBuilder(): BuilderController {
 	const selectedDescriptor = computed(() =>
 		descriptorOf(session.value.catalog, selected.value?.type),
 	)
+	/**
+	 * Adding from the palette lands in the container the user is working in.
+	 *
+	 * The selection is often a block inside one — they clicked the text they were
+	 * editing, then the palette — so the walk climbs to the nearest container
+	 * rather than sending the block to the bottom of the page.
+	 */
+	const paletteTarget = computed(() => {
+		const draft = session.value.draft
+		let path = session.value.selection
+		while (draft && path) {
+			const descriptor = descriptorOf(
+				session.value.catalog,
+				findNode(draft, path)?.type,
+			)
+			if (descriptor?.container) {
+				return path
+			}
+			path = parentPath(path)
+		}
+		return null
+	})
 
 	function notify(message: string): void {
 		session.value.toast = message
@@ -270,20 +390,38 @@ export function useBuilder(): BuilderController {
 		const token = ++previewToken
 		const result = await api.preview(pageRef, draft)
 		// A slower preview must not overwrite the answer to a later edit.
-		if (token !== previewToken || !result.ok) {
+		if (token !== previewToken) {
 			return
 		}
+		if (!result.ok) {
+			// The canvas keeps the page from before the edit, which on its own reads
+			// as an edit that landed; the refusal is what says otherwise, and it is
+			// the same one the save would answer with later.
+			session.value.previewState = 'refused'
+			session.value.previewIssues =
+				result.error.code === 'invalid_config' ? result.error.issues : []
+			session.value.error = result.error
+			return
+		}
+		// The page builds again, so whatever refusal was on screen is answered.
+		if (session.value.previewIssues.length > 0) {
+			session.value.error = null
+		}
+		session.value.previewState = 'valid'
+		session.value.previewIssues = []
 		session.value.preview = result.data.components
 		session.value.degraded = result.data.degraded
 	}
 
 	function schedulePreview(): void {
 		clearTimeout(previewTimer)
+		session.value.previewState = 'pending'
 		previewTimer = setTimeout(() => {
 			// Caught rather than left to become an unhandled rejection: one of
 			// those aborts Vue's update, and the panel that triggered the preview
 			// then shows stale values with no way to correct them.
 			refreshPreview().catch((error: unknown) => {
+				session.value.previewState = 'refused'
 				session.value.error = {
 					code: 'unsupported',
 					detail:
@@ -325,6 +463,8 @@ export function useBuilder(): BuilderController {
 		session.value.future = []
 		session.value.conflict = false
 		session.value.error = null
+		session.value.previewState = 'pending'
+		session.value.previewIssues = []
 		return true
 	}
 
@@ -410,15 +550,32 @@ export function useBuilder(): BuilderController {
 		session.value.future = []
 	}
 
-	function mutate(apply: (draft: PageDraft) => void): void {
-		if (!session.value.draft) {
-			return
+	/**
+	 * Apply an edit to the draft, and answer whether it changed anything.
+	 *
+	 * The draft refuses some edits of its own — a block moved into its own
+	 * subtree, a path that is no longer there — and history is pushed only once
+	 * one has landed: an entry for an edit that did not happen lights up Undo
+	 * with nothing to undo.
+	 */
+	function mutate(apply: (draft: PageDraft) => void): boolean {
+		const current = session.value.draft
+		if (!current) {
+			return false
+		}
+		const next = cloneDraft(current)
+		apply(next)
+		// Every edit goes through here, so this is the one place where a region
+		// the author added by hand can be given the id its children attach to
+		// before the draft is anything the engine is asked to build.
+		nameSlots(next, session.value.catalog)
+		if (JSON.stringify(next) === JSON.stringify(current)) {
+			return false
 		}
 		pushHistory()
-		const next = cloneDraft(session.value.draft)
-		apply(next)
 		session.value.draft = next
 		schedulePreview()
+		return true
 	}
 
 	function select(path: string | null, view: RailView = 'config'): void {
@@ -453,18 +610,197 @@ export function useBuilder(): BuilderController {
 		session.value.menu = null
 	}
 
+	function refusalAt(parent: string | null, type?: string): string | undefined {
+		return refusalTo({ parent }, type)
+	}
+
+	function refusalTo(
+		placement: DropPlacement,
+		type?: string,
+		moving?: string,
+	): string | undefined {
+		return refusalForDrop(
+			session.value.catalog,
+			session.value.draft,
+			placement,
+			type,
+			moving,
+		)
+	}
+
+	/**
+	 * Put a block in one of its container's slots when that is the only way it
+	 * renders.
+	 *
+	 * A tab set holds its children through the slots its own options declare, and
+	 * a child carrying none is laid out nowhere: dropped into it, a block would
+	 * simply disappear from the page until someone assigned it a tab by hand. It
+	 * takes the first slot instead, and the first slot is created for it when the
+	 * container has none yet.
+	 */
+	function adoptSlot(
+		draft: PageDraft,
+		parent: string | null,
+		node: BlockDraft,
+	): void {
+		const container = parent === null ? undefined : findNode(draft, parent)
+		const descriptor = descriptorOf(session.value.catalog, container?.type)
+		const slots = slotsOf(descriptor, container)
+		if (node.slot && slots.some((slot) => slot.id === node.slot)) {
+			return
+		}
+		const dynamic = descriptor?.dynamicSlots
+		if (!container || !dynamic) {
+			// Anywhere else the container renders its children itself, and a slot
+			// left over from where the block came from would hide it.
+			delete node.slot
+			return
+		}
+		const first = slots[0] ?? openSlot(container, dynamic)
+		node.slot = first.id
+	}
+
+	/**
+	 * Declare one slot on a container that offers none yet.
+	 *
+	 * Appended rather than written over: what is already in that option is the
+	 * user's, even when it is half filled in and names no slot of its own.
+	 */
+	function openSlot(
+		container: BlockDraft,
+		dynamic: DynamicSlots,
+	): { id: string } {
+		const option = (container.config ?? {})[dynamic.optionPath]
+		const existing = Array.isArray(option) ? option : []
+		const rank = existing.length + 1
+		const type = container.type ?? 'slot'
+		const title = `${type} ${rank}`
+		const taken = new Set(
+			existing
+				.map((entry) => (entry as Record<string, unknown>)?.[dynamic.idKey])
+				.filter((id): id is string => typeof id === 'string'),
+		)
+		const entry: Record<string, unknown> = {
+			[dynamic.idKey]: slotIdFor(
+				undefined,
+				`${suggestedName(type)}${rank}`,
+				taken,
+			),
+		}
+		if (dynamic.labelKey) {
+			entry[dynamic.labelKey] = title
+		}
+		container.config = {
+			...(container.config ?? {}),
+			[dynamic.optionPath]: [...existing, entry],
+		}
+		return { id: entry[dynamic.idKey] as string }
+	}
+
+	/**
+	 * The container a block really lands in: the one aimed at, or the child that
+	 * container builds around it when it holds nothing else.
+	 *
+	 * A Grid holds rows and the user aims a card at it; creating the row as part
+	 * of the same gesture is the whole difference between a grid and a stack. The
+	 * row is inserted through `insertNode`, so its name is free of the ones its
+	 * siblings already took.
+	 */
+	function hostFor(
+		draft: PageDraft,
+		placement: Placement,
+		type: string | undefined,
+		wrap?: DropWrap,
+	): Placement {
+		const stacked = wrap ? stackAround(draft, wrap) : undefined
+		if (stacked) {
+			return stacked
+		}
+		const parent = placement.parent
+		const container = parent === null ? undefined : findNode(draft, parent)
+		const wrapper = wrapperFor(session.value.catalog, container?.type, type)
+		if (!wrapper) {
+			return placement
+		}
+		const created = insertNode(
+			draft,
+			parent,
+			placement.index,
+			newBlockDraft(wrapper),
+		)
+		return created ? { parent: created, index: null } : placement
+	}
+
+	/**
+	 * Enclose a block that is already on the page, so the drop can stack with it.
+	 *
+	 * Pointing above or below one cell of a row asks for something the row cannot
+	 * lay out: it puts its children side by side and nothing else. The cell moves
+	 * into a column of its own instead, and the two blocks share it. The column
+	 * inherits the span the cell claimed, or the row would re-measure itself and
+	 * the layout would shift under a gesture that only added a block.
+	 */
+	function stackAround(draft: PageDraft, wrap: DropWrap): Placement | undefined {
+		const descriptor = descriptorOf(session.value.catalog, wrap.type)
+		const parent = parentPath(wrap.around)
+		const siblings = siblingsAt(draft, parent)
+		const at = siblings?.findIndex(
+			(block) => block.name === leafName(wrap.around),
+		)
+		const enclosed = at === undefined || at === -1 ? undefined : siblings?.[at]
+		if (!descriptor || !siblings || !enclosed || at === undefined) {
+			return undefined
+		}
+		siblings.splice(at, 1)
+		const column = newBlockDraft(descriptor)
+		handOverSpan(enclosed, column)
+		const created = insertNode(draft, parent, at, column)
+		if (!created) {
+			siblings.splice(at, 0, enclosed)
+			return undefined
+		}
+		column.children = [enclosed]
+		return { parent: created, index: wrap.index }
+	}
+
+	/** The columns a cell claimed are the column container's to claim now. */
+	function handOverSpan(enclosed: BlockDraft, column: BlockDraft): void {
+		const { colSpan, ...rest } = enclosed.meta ?? {}
+		if (colSpan === undefined) {
+			return
+		}
+		column.meta = { colSpan }
+		if (Object.keys(rest).length > 0) {
+			enclosed.meta = rest
+			return
+		}
+		delete enclosed.meta
+	}
+
 	function addBlock(
 		type: string,
 		parent: string | null = null,
 		index: number | null = null,
+		wrap?: DropWrap,
 	): void {
 		const descriptor = descriptorOf(session.value.catalog, type)
 		if (!descriptor) {
 			return
 		}
+		// The rule is the catalog's own, and the module enforces it again on save:
+		// applying the insertion and reporting it as added would be a lie the user
+		// only hears about one round trip later.
+		const refusal = refusalTo({ parent, wrap }, type)
+		if (refusal) {
+			notify(refusal)
+			return
+		}
 		let created: string | undefined
 		mutate((draft) => {
-			created = insertNode(draft, parent, index, newBlockDraft(descriptor))
+			const host = hostFor(draft, { parent, index }, type, wrap)
+			const node = newBlockDraft(descriptor)
+			adoptSlot(draft, host.parent, node)
+			created = insertNode(draft, host.parent, host.index, node)
 		})
 		if (created) {
 			select(created)
@@ -473,9 +809,13 @@ export function useBuilder(): BuilderController {
 	}
 
 	function remove(path: string): void {
+		let removed = false
 		mutate((draft) => {
-			removeNode(draft, path)
+			removed = removeNode(draft, path)
 		})
+		if (!removed) {
+			return
+		}
 		if (session.value.selection === path) {
 			select(null)
 		}
@@ -503,14 +843,39 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
-	function move(path: string, parent: string | null, index: number): void {
-		let moved: string | undefined
-		mutate((draft) => {
-			moved = moveNode(draft, path, parent, index)
-		})
-		if (moved) {
-			select(moved)
+	/**
+	 * Tried on a copy first, and written back only once it worked.
+	 *
+	 * A move can need a container built for it — a row, or a column around the
+	 * cell it lands under — and the draft can still turn the move itself down.
+	 * Building on a copy is the only way that scaffolding leaves no trace when
+	 * it does: the page must not read as edited by a gesture that changed
+	 * nothing.
+	 */
+	function move(
+		path: string,
+		parent: string | null,
+		index: number,
+		wrap?: DropWrap,
+	): void {
+		const current = session.value.draft
+		if (!current) {
+			return
 		}
+		const trial = cloneDraft(current)
+		const host = hostFor(trial, { parent, index }, findNode(trial, path)?.type, wrap)
+		const moved = moveNode(trial, path, host.parent, host.index ?? 0)
+		if (!moved) {
+			return
+		}
+		const node = findNode(trial, moved)
+		if (node) {
+			adoptSlot(trial, host.parent, node)
+		}
+		mutate((draft) => {
+			draft.blocks = trial.blocks
+		})
+		select(moved)
 	}
 
 	function nudge(path: string, delta: number): void {
@@ -634,6 +999,24 @@ export function useBuilder(): BuilderController {
 		})
 	}
 
+	/**
+	 * Drop a selection the draft no longer holds.
+	 *
+	 * Stepping through history moves blocks in and out of existence under a
+	 * selection that was made before the step; left pointing at a block that is
+	 * gone, the rail shows an empty configuration panel for it.
+	 */
+	function reselect(): void {
+		const { draft, selection } = session.value
+		if (!selection || (draft && findNode(draft, selection))) {
+			return
+		}
+		session.value.selection = null
+		if (session.value.view === 'config') {
+			session.value.view = 'library'
+		}
+	}
+
 	function undo(): void {
 		const previous = session.value.history.at(-1)
 		if (!previous || !session.value.draft) {
@@ -642,6 +1025,7 @@ export function useBuilder(): BuilderController {
 		session.value.future = [cloneDraft(session.value.draft), ...session.value.future]
 		session.value.history = session.value.history.slice(0, -1)
 		session.value.draft = previous
+		reselect()
 		schedulePreview()
 	}
 
@@ -653,6 +1037,7 @@ export function useBuilder(): BuilderController {
 		session.value.history = [...session.value.history, cloneDraft(session.value.draft)]
 		session.value.future = session.value.future.slice(1)
 		session.value.draft = next
+		reselect()
 		schedulePreview()
 	}
 
@@ -672,6 +1057,18 @@ export function useBuilder(): BuilderController {
 	async function save(): Promise<void> {
 		const { pageRef, draft, version } = session.value
 		if (!pageRef || !draft) {
+			return
+		}
+		const gap = gaps.value[0]
+		if (gap) {
+			// The block is selected so the panel opens on the very field this
+			// names, marked. `unsupported` is the code the session already carries
+			// its own refusals under; nothing of this one comes from the module.
+			select(gap.path)
+			session.value.error = {
+				code: 'unsupported',
+				detail: `${gap.settings[0]?.label ?? 'A setting'} is still empty. Fill in the settings marked in the panel, then save.`,
+			}
 			return
 		}
 		session.value.saving = true
@@ -1003,29 +1400,89 @@ export function useBuilder(): BuilderController {
 
 	function beginDrag(payload: DragPayload): void {
 		session.value.dragging = payload
+		session.value.dropTarget = null
 	}
 
 	function endDrag(): void {
 		session.value.dragging = null
+		session.value.dropTarget = null
 	}
 
 	function hover(path: string | null): void {
 		session.value.hovered = path
 	}
 
-	/** Resolve a drop: a palette drag inserts, a block drag moves. */
-	function dropAt(parent: string | null, index: number): void {
+	/**
+	 * Take note of where the pointer is aiming.
+	 *
+	 * `dragover` fires throughout the gesture, and the canvas draws itself from
+	 * this answer: an unchanged one is not written back, so the page is not
+	 * re-rendered dozens of times while the pointer sits still.
+	 */
+	function aim(target: DropTarget | null): void {
+		if (!sameTarget(session.value.dropTarget, target)) {
+			session.value.dropTarget = target
+		}
+	}
+
+	function aimAt(path: string, box: PointerBox): void {
 		const payload = session.value.dragging
-		session.value.dragging = null
 		if (!payload) {
 			return
 		}
+		aim(
+			targetAtBlock(
+				session.value.catalog,
+				session.value.draft,
+				payload,
+				path,
+				box,
+			),
+		)
+	}
+
+	function aimAtPage(): void {
+		if (session.value.dragging) {
+			aim(targetAtPage(session.value.draft))
+		}
+	}
+
+	function drop(): void {
+		const target = session.value.dropTarget
+		if (!target) {
+			endDrag()
+			return
+		}
+		dropAt(target.parent, target.index, target.wrap)
+	}
+
+	/** Resolve a drop: a palette drag inserts, a block drag moves. */
+	function dropAt(
+		parent: string | null,
+		index: number,
+		wrap?: DropWrap,
+	): void {
+		const payload = session.value.dragging
+		session.value.dragging = null
+		session.value.dropTarget = null
+		if (!payload) {
+			return
+		}
+		const refusal = refusalTo(
+			{ parent, wrap },
+			draggedType(session.value.draft, payload),
+			payload.path,
+		)
+		if (refusal) {
+			notify(refusal)
+			return
+		}
 		if (payload.path) {
-			move(payload.path, parent, index)
+			move(payload.path, parent, index, wrap)
 			return
 		}
 		if (payload.type) {
-			addBlock(payload.type, parent, index)
+			addBlock(payload.type, parent, index, wrap)
 		}
 	}
 
@@ -1036,6 +1493,7 @@ export function useBuilder(): BuilderController {
 		problems,
 		selected,
 		selectedDescriptor,
+		paletteTarget,
 		open,
 		close,
 		reload,
@@ -1089,8 +1547,12 @@ export function useBuilder(): BuilderController {
 		removeQuery,
 		beginDrag,
 		endDrag,
+		aimAt,
+		aimAtPage,
+		drop,
 		dropAt,
 		hover,
+		refusalAt,
 	}
 }
 
