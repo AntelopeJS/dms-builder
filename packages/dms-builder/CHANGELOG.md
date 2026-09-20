@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.3
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.1.2...v0.1.3)
+
+### 🏡 Chore
+
+- Migrate frontend CLI and core version ([#13](https://github.com/AntelopeJS/dms-builder/pull/13))
+- Remove obsolete playground script ([#14](https://github.com/AntelopeJS/dms-builder/pull/14))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.2
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.1.1...v0.1.2)
