@@ -15,7 +15,12 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { Node, type SourceFile } from "ts-morph";
 import { resolveBlockTarget } from "./block-target";
-import { applyImportRef, pascalCase, relativeModule } from "./emit";
+import {
+  applyImportRef,
+  importStatement,
+  pascalCase,
+  relativeModule,
+} from "./emit";
 import { stringLiteralValue } from "./literals";
 import { parseBlockPath, valueToText } from "./paths";
 import { indentationText, resolveProjectRoot } from "./project";
@@ -301,29 +306,6 @@ function resolvePagePlacement(
     barrel: root,
     wire: () => root.addImportDeclaration({ moduleSpecifier: `./${name}` }),
   };
-}
-
-/** Past this, a formatter breaks an import across lines; so does the builder. */
-const IMPORT_LINE_LIMIT = 80;
-
-/**
- * An import statement written the way the project's formatter would write it:
- * on one line while it fits, one name per line once it does not.
- */
-export function importStatement(
-  names: string[],
-  specifier: string,
-  indent: string,
-): string {
-  const inline = `import { ${names.join(", ")} } from ${JSON.stringify(specifier)};`;
-  // A single name is never broken out, however long the line: there is nothing
-  // to gain by it, and formatters leave it alone — so breaking it would be a
-  // change the next `format` undoes.
-  if (names.length < 2 || inline.length <= IMPORT_LINE_LIMIT) {
-    return inline;
-  }
-  const lines = names.map((name) => `${indent}${name},`).join("\n");
-  return `import {\n${lines}\n} from ${JSON.stringify(specifier)};`;
 }
 
 /**

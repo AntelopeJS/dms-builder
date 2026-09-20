@@ -2,7 +2,61 @@ import path from "node:path";
 import type { ImportRef } from "@antelopejs/interface-dms-builder";
 import type { ImportDeclaration, SourceFile } from "ts-morph";
 import { propertyKey } from "./paths";
+import { indentationText, resolveProjectRoot } from "./project";
 import { type EmitContext, inlineOrBlock, serializeValue } from "./value";
+
+/** Past this, a formatter breaks an import across lines; so does the builder. */
+const IMPORT_LINE_LIMIT = 80;
+
+/**
+ * An import statement written the way the project's formatter would write it:
+ * on one line while it fits, one name per line once it does not.
+ */
+export function importStatement(
+  names: string[],
+  specifier: string,
+  indent: string,
+  typeOnly = false,
+): string {
+  const keyword = typeOnly ? "import type" : "import";
+  const from = `from ${JSON.stringify(specifier)};`;
+  const inline = `${keyword} { ${names.join(", ")} } ${from}`;
+  // A single name is never broken out, however long the line: there is nothing
+  // to gain by it, and formatters leave it alone — so breaking it would be a
+  // change the next `format` undoes.
+  if (names.length < 2 || inline.length <= IMPORT_LINE_LIMIT) {
+    return inline;
+  }
+  const lines = names.map((name) => `${indent}${name},`).join("\n");
+  return `${keyword} {\n${lines}\n} ${from}`;
+}
+
+/**
+ * Rewrite a declaration a name was just inserted into, the way the project's
+ * formatter would.
+ *
+ * ts-morph splices the new name into the line its neighbour sits on, which on a
+ * declaration already broken across lines leaves the tail of the list and the
+ * `from` clause hanging off the last name. A declaration that grew has to be
+ * laid out again rather than extended in place.
+ *
+ * A default or namespace binding is left alone: it is not a list, and this only
+ * knows how to write one.
+ */
+function reflowNamedImports(declaration: ImportDeclaration): void {
+  if (declaration.getDefaultImport() || declaration.getNamespaceImport()) {
+    return;
+  }
+  const names = declaration.getNamedImports().map((entry) => entry.getText());
+  declaration.replaceWithText(
+    importStatement(
+      names,
+      declaration.getModuleSpecifierValue(),
+      indentationText(resolveProjectRoot()),
+      declaration.isTypeOnly(),
+    ),
+  );
+}
 
 function importedNames(sourceFile: SourceFile): Set<string> {
   const names = new Set<string>();
@@ -44,19 +98,26 @@ export function ensureNamedImport(
   insertSortedNamedImport(decl, rootName);
 }
 
-/** Add a name to an existing import, alphabetically among its siblings. */
+/**
+ * Add a name to an existing import, alphabetically among its siblings.
+ *
+ * Positioned by its place among the named imports, not by the specifier's child
+ * index: the latter counts the separating commas too, so it overruns as soon as
+ * the import binds more than one name.
+ */
 function insertSortedNamedImport(
   declaration: ImportDeclaration,
   name: string,
 ): void {
-  const after = declaration
+  const at = declaration
     .getNamedImports()
-    .find((entry) => name < entry.getName());
-  if (!after) {
+    .findIndex((entry) => name < entry.getName());
+  if (at === -1) {
     declaration.addNamedImport(name);
-    return;
+  } else {
+    declaration.insertNamedImport(at, name);
   }
-  declaration.insertNamedImport(after.getChildIndex(), name);
+  reflowNamedImports(declaration);
 }
 
 /**

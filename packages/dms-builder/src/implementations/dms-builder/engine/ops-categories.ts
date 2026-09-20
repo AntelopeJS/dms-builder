@@ -12,8 +12,8 @@ import type {
   OpResult,
 } from "@antelopejs/interface-dms-builder";
 import { Node, type SourceFile } from "ts-morph";
-import { applyImportRef, relativeModule } from "./emit";
-import { importStatement, slugError } from "./ops-blocks";
+import { applyImportRef, importStatement, relativeModule } from "./emit";
+import { slugError } from "./ops-blocks";
 import { indentationText, resolveProjectRoot } from "./project";
 import { resourceRefResolver } from "./resource-index";
 import { type CategoryRecord, DMS_PAGE_MODULE } from "./scan";
