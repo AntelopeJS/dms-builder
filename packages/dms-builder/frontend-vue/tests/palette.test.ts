@@ -81,8 +81,10 @@ describe('the components the palette lists', () => {
 			'VStack',
 			'Grid',
 			'Tab',
+			'PeriodSelector',
 			'Text',
 			'TableView',
+			'ChartCard',
 		])
 		expect(offered(catalog)).toHaveLength(catalog.blocks.length - 1)
 	})

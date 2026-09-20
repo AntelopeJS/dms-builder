@@ -516,6 +516,42 @@ describe('a two-by-two layout, gesture by gesture', () => {
 	})
 })
 
+describe('a block placed before it is configured', () => {
+	function configOf(name: string): Record<string, unknown> | undefined {
+		return findNode(builder.session.value.draft!, name)?.config
+	}
+
+	// The page is typechecked on every edit, so a block whose own type demands
+	// an option cannot be dropped and then filled in: it would answer a gesture
+	// with a compiler error about the block that gesture just placed.
+	it('carries the options its own type demands', () => {
+		builder.addBlock('ChartCard')
+
+		expect(configOf('chartCard')).toEqual({
+			title: 'Chart card',
+			chart: { $block: { type: 'ChartLine', config: {} } },
+		})
+	})
+
+	it('names an id after the block, since other blocks read it back', () => {
+		builder.addBlock('PeriodSelector')
+
+		expect(configOf('periodSelector')).toEqual({ id: 'periodSelector' })
+	})
+
+	it('opens a list the block cannot do without as an empty one', () => {
+		builder.addBlock('Tab')
+
+		expect(configOf('tab')).toEqual({ items: [] })
+	})
+
+	it('writes nothing on a block that demands nothing', () => {
+		builder.addBlock('Text')
+
+		expect(configOf('text')).toEqual({})
+	})
+})
+
 describe('a container that holds its children through its own slots', () => {
 	/** The tabs a Tab block declares, as its options carry them. */
 	function tabs(path: string): Array<Record<string, unknown>> {
@@ -625,6 +661,45 @@ describe('a container that holds its children through its own slots', () => {
 
 		expect(slotOf('tab/text')).toBe('orders')
 		expect(tabs('tab'), 'and no second tab beside it').toHaveLength(1)
+	})
+
+	it('drops into the tab that is open, not into the first one', () => {
+		builder.addBlock('Tab')
+		builder.patchConfig('tab', {
+			items: [
+				{ slot: 'orders', label: 'Orders' },
+				{ slot: 'sends', label: 'Sends' },
+			],
+		})
+		// What the rendered tab set reports as it switches: the author is looking
+		// at the second tab, so that is the one being dropped into.
+		builder.openRegion('tab', 'sends')
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt('tab', 0)
+
+		expect(slotOf('tab/text')).toBe('sends')
+	})
+
+	it('falls back to the first tab while none has been opened', () => {
+		builder.addBlock('Tab')
+		builder.patchConfig('tab', {
+			items: [
+				{ slot: 'orders', label: 'Orders' },
+				{ slot: 'sends', label: 'Sends' },
+			],
+		})
+		builder.addBlock('Text', 'tab', null)
+
+		expect(slotOf('tab/text')).toBe('orders')
+	})
+
+	it('ignores a tab that is no longer there', () => {
+		builder.addBlock('Tab')
+		builder.patchConfig('tab', { items: [{ slot: 'orders', label: 'Orders' }] })
+		builder.openRegion('tab', 'sends')
+		builder.addBlock('Text', 'tab', null)
+
+		expect(slotOf('tab/text')).toBe('orders')
 	})
 
 	it('lets go of the tab when the block is moved somewhere that has none', () => {

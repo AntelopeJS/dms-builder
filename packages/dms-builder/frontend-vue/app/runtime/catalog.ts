@@ -321,11 +321,65 @@ function laidOutAcross(
 		: {}
 }
 
+/**
+ * Something readable to stand in for a required option, by what the option is.
+ *
+ * Never a value pretending to be data: a title the author renames, an empty
+ * list to add to, the first of a fixed set. An option this cannot answer for is
+ * left out and reported by the panel instead.
+ */
+function seedFor(
+	descriptor: BlockTypeDescriptor,
+	key: string,
+	schema: OptionSchema,
+): unknown {
+	if (schema.type === 'array') {
+		return []
+	}
+	if (schema.enum?.length) {
+		return schema.enum[0]
+	}
+	if (schema['x-component']) {
+		const type = schema.ui?.blockTypes?.[0]
+		return type === undefined ? undefined : { $block: { type, config: {} } }
+	}
+	if (schema.type === 'string') {
+		// An id is read back by other blocks, so it reads as a name, not a title.
+		return key === 'id'
+			? suggestedName(descriptor.type)
+			: (descriptor.label ?? descriptor.type)
+	}
+	return undefined
+}
+
+/**
+ * What a block is placed with.
+ *
+ * A block is placed before it is configured, and the page it lands in is
+ * typechecked on every edit: an option its own type demands, left out, is a
+ * page that does not compile — and the author is answered with a compiler error
+ * about the block they just dropped, before they have touched anything. What is
+ * seeded is what the panel then shows, ready to be changed.
+ */
+function placedConfig(descriptor: BlockTypeDescriptor): Record<string, unknown> {
+	const config = laidOutAcross(descriptor)
+	for (const [key, schema] of Object.entries(descriptor.config)) {
+		if (!isRequired(schema) || config[key] !== undefined) {
+			continue
+		}
+		const seed = seedFor(descriptor, key, schema)
+		if (seed !== undefined) {
+			config[key] = seed
+		}
+	}
+	return config
+}
+
 export function newBlockDraft(descriptor: BlockTypeDescriptor): BlockDraft {
 	return {
 		name: suggestedName(descriptor.type),
 		type: descriptor.type,
-		config: laidOutAcross(descriptor),
+		config: placedConfig(descriptor),
 		...(descriptor.container ? { children: [] } : {}),
 	}
 }

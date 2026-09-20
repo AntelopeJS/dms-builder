@@ -141,6 +141,14 @@ export interface BuilderSession {
 	 */
 	dropTarget: DropTarget | null
 	hovered: string | null
+	/**
+	 * The region each container that shows one at a time is showing, by path.
+	 *
+	 * A tab set hides everything but the open tab, so where a drop into it lands
+	 * is not something the pointer can say: the tab on screen is the answer, and
+	 * only the rendered block knows which that is. It reports it here.
+	 */
+	openRegions: Record<string, string>
 }
 
 function emptySession(): BuilderSession {
@@ -180,6 +188,7 @@ function emptySession(): BuilderSession {
 		dragging: null,
 		dropTarget: null,
 		hovered: null,
+		openRegions: {},
 	}
 }
 
@@ -203,6 +212,7 @@ export interface BuilderController {
 	resolvePending: (keep: boolean) => Promise<void>
 	select: (path: string | null, view?: RailView) => void
 	back: () => void
+	openRegion: (path: string, slot: string) => void
 	openMenu: (path: string, x: number, y: number) => void
 	closeMenu: () => void
 	setView: (view: RailView) => void
@@ -601,6 +611,20 @@ export function useBuilder(): BuilderController {
 		setView(session.value.selection ? 'config' : 'library')
 	}
 
+	/**
+	 * Record which of a container's own regions is on screen.
+	 *
+	 * Reported by the block itself as it renders — a tab set is the only
+	 * container that hides part of what it holds, and it is the one that knows
+	 * which part — so that a drop into it lands where the author is looking.
+	 */
+	function openRegion(path: string, slot: string): void {
+		if (session.value.openRegions[path] === slot) {
+			return
+		}
+		session.value.openRegions = { ...session.value.openRegions, [path]: slot }
+	}
+
 	function openMenu(path: string, x: number, y: number): void {
 		select(path)
 		session.value.menu = { path, x, y }
@@ -656,8 +680,11 @@ export function useBuilder(): BuilderController {
 			delete node.slot
 			return
 		}
-		const first = slots[0] ?? openSlot(container, dynamic)
-		node.slot = first.id
+		// The tab on screen is the one the author is dropping into; the first is
+		// only the answer when nothing has been opened yet.
+		const open = session.value.openRegions[parent ?? '']
+		const shown = slots.find((slot) => slot.id === open)
+		node.slot = (shown ?? slots[0] ?? openSlot(container, dynamic)).id
 	}
 
 	/**
@@ -1502,6 +1529,7 @@ export function useBuilder(): BuilderController {
 		select,
 		setView,
 		back,
+		openRegion,
 		openMenu,
 		closeMenu,
 		mutate,

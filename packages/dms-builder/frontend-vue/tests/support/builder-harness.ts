@@ -142,6 +142,26 @@ export function testCatalog(): BlockCatalog {
 				group: 'data',
 				controllerArg: true,
 			}),
+			// Two blocks whose own type demands an option, as `ChartCard` and
+			// `PeriodSelector` do: one a title and a chart to draw with, one an id
+			// other blocks follow.
+			block('ChartCard', {
+				label: 'Chart card',
+				group: 'data',
+				config: {
+					title: { type: 'string' },
+					chart: {
+						type: 'unknown',
+						'x-component': true,
+						ui: { blockTypes: ['ChartLine', 'ChartArea'] },
+					},
+					description: { type: 'string', optional: true },
+				},
+			}),
+			block('PeriodSelector', {
+				label: 'Period selector',
+				config: { id: { type: 'string' } },
+			}),
 		],
 		dataTypes: [],
 		reservedFieldNames: ['_id'],

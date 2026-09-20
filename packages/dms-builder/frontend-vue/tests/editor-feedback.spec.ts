@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, type Component } from 'vue'
+import { h, nextTick, type Component } from 'vue'
 import Bar from '../app/components/Bar.vue'
 import BlockMenu from '../app/components/BlockMenu.vue'
 import Children from '../app/components/Children.vue'
@@ -374,5 +374,128 @@ describe('an option that takes one of several kinds', () => {
 		await nextTick()
 		const items = builder.session.value.draft?.blocks[0]?.config?.items
 		expect(items).toEqual([{ slot: 'orders', label: 'Orders' }])
+	})
+})
+
+describe('a tab set on the canvas', () => {
+	/** What the DMS's tab set exposes: the tab it has open, by index. */
+	function tabComponent(open: string): Component {
+		return {
+			name: 'DmsTab',
+			setup(_props, { expose, slots }) {
+				expose({ activeTab: open })
+				return () => h('DmsTab', null, slots.default?.() ?? [])
+			},
+		}
+	}
+
+	function twoTabs(): BlockNode {
+		return {
+			path: 'tab',
+			name: 'tab',
+			type: 'Tab',
+			editable: true,
+			config: {
+				items: [
+					{ slot: 'orders', label: 'Orders' },
+					{ slot: 'sends', label: 'Sends' },
+				],
+			},
+		}
+	}
+
+	afterEach(() => {
+		Object.assign(globalThis, { resolveDmsComponent: () => undefined })
+	})
+
+	it('says which tab it is showing, so a drop lands there', async () => {
+		// The author switched to the second tab. Nothing about the pointer says
+		// so — the tab set hides every other tab — and the editor would go on
+		// dropping into the first.
+		Object.assign(globalThis, { resolveDmsComponent: () => tabComponent('1') })
+		await openWith([twoTabs()])
+		const block = builder.session.value.draft?.blocks[0]
+		const { unmount } = mount(Node, {
+			props: { block, path: 'tab', preview: { componentName: 'DmsTab' } },
+			components: {
+				DmsBuilderNode: Node as Component,
+				DmsBuilderChildren: Children as Component,
+				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
+			},
+		})
+		await nextTick()
+
+		expect(builder.session.value.openRegions).toEqual({ tab: 'sends' })
+
+		builder.addBlock('Text', 'tab', null)
+		expect(
+			builder.session.value.draft?.blocks[0]?.children?.[0]?.slot,
+			'and the block lands in the tab that is open',
+		).toBe('sends')
+		// It answers for as long as it is on the canvas, and no longer.
+		unmount()
+	})
+
+	it('reports nothing for a block that hides none of itself', async () => {
+		Object.assign(globalThis, {
+			resolveDmsComponent: () => stub('DmsText') as Component,
+		})
+		await openWith([editable('title', 'Text')])
+		const block = builder.session.value.draft?.blocks[0]
+		mount(Node, {
+			props: { block, path: 'title', preview: { componentName: 'DmsText' } },
+			components: {
+				DmsBuilderNode: Node as Component,
+				DmsBuilderChildren: Children as Component,
+				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
+			},
+		})
+		await nextTick()
+
+		expect(builder.session.value.openRegions.title).toBe(undefined)
+	})
+})
+
+describe('a block that awaits before it can render', () => {
+	/** What a form does: it asks for its values before it draws a field. */
+	function awaitingComponent(): Component {
+		return {
+			name: 'DmsForm',
+			async setup(_props, { slots }) {
+				await Promise.resolve()
+				return () => h('DmsForm', null, slots.default?.() ?? [])
+			},
+		}
+	}
+
+	afterEach(() => {
+		Object.assign(globalThis, { resolveDmsComponent: () => undefined })
+	})
+
+	it('renders it, rather than warning once per render and mounting nothing', async () => {
+		Object.assign(globalThis, {
+			resolveDmsComponent: () => awaitingComponent(),
+		})
+		await openWith([editable('form', 'Form')])
+		const block = builder.session.value.draft?.blocks[0]
+		const { root, warnings } = mount(Node, {
+			props: { block, path: 'form', preview: { componentName: 'dms-form' } },
+			components: {
+				DmsBuilderNode: Node as Component,
+				DmsBuilderChildren: Children as Component,
+				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
+			},
+		})
+		// What the component awaits, then the render Suspense lets through.
+		await vi.advanceTimersByTimeAsync(1)
+		await nextTick()
+
+		// Vue refuses to mount an async setup with no Suspense above it, and says
+		// so on every render — which is what a canvas full of them comes to.
+		expect(warnings.join(' ')).not.toContain('Suspense')
+		expect(findAll(root, (node) => node.tag === 'DmsForm')).toHaveLength(1)
 	})
 })

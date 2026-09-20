@@ -67,6 +67,11 @@ const missing = computed(() =>
 )
 const childMeta = computed(() => parentDescriptor.value?.childMeta ?? {})
 const slots = computed(() => slotsOf(parentDescriptor.value, parentBlock.value))
+const regionLabel = computed(() =>
+	parentDescriptor.value?.label
+		? `Inside ${parentDescriptor.value.label}`
+		: 'Where it shows',
+)
 
 function config(): Record<string, unknown> {
 	return block.value?.config ?? {}
@@ -339,13 +344,18 @@ async function setSearchField(name: string): Promise<void> {
 				</div>
 			</div>
 
+			<!-- A block dropped in lands in the region on screen; this is how it is
+			moved to another one afterwards. Named after the container rather than
+			called a slot, which is a word the gesture exists to spare anyone. -->
 			<div v-if="slots.length" class="flex flex-col gap-1.5">
-				<label class="text-sm font-medium text-default">Slot</label>
+				<label class="text-sm font-medium text-default">
+					{{ regionLabel }}
+				</label>
 				<USelectMenu
 					:model-value="block.slot"
 					:items="slots.map((slot) => ({ label: slot.label, value: slot.id }))"
 					value-key="value"
-					placeholder="Choose a region…"
+					placeholder="Choose where it shows…"
 					@update:model-value="builder.setSlot(path, $event)"
 				/>
 			</div>

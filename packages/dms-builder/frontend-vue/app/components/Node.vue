@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import {
 	descriptorOf,
 	isStructural,
@@ -63,6 +63,26 @@ const children = computed(() =>
 )
 const slotted = computed(() => children.value.filter((child) => child.block.slot))
 const plain = computed(() => children.value.filter((child) => !child.block.slot))
+/**
+ * The region the rendered block is showing, reported as it changes.
+ *
+ * A tab set is the one container that hides part of what it holds, and it is
+ * the only thing that knows which part: it exposes the tab it has open, as an
+ * index into the regions its own options declare. Without this the editor would
+ * go on dropping into the first tab while the author is looking at another.
+ */
+const instance = ref<{ activeTab?: string } | null>(null)
+watchEffect(() => {
+	const open = instance.value?.activeTab
+	if (open === undefined) {
+		return
+	}
+	const region = slotsOf(descriptor.value, props.block)[Number(open)]
+	if (region) {
+		builder.openRegion(props.path, region.id)
+	}
+})
+
 /**
  * The regions the block declares, each with what is attached to it.
  *
@@ -359,32 +379,41 @@ function onDragOver(event: DragEvent): void {
 		</div>
 
 		<DmsBuilderBoundary v-else :label="label" :reset-key="rendered?.options">
-			<component
-				:is="resolved"
-				v-bind="rendered?.options"
-				:page-id="pageId"
-				:component-id="path"
-				:child-count="childCount"
-			>
-				<template
-					v-for="child in slotted"
-					:key="child.path"
-					#[child.block.slot!]
+			<!-- A DMS component may await in its own setup — a form asks for its
+			values before it can render a field, a table for its rows — and Vue
+			refuses to mount an async setup that has no Suspense above it: it warns
+			once per render and mounts nothing, which takes the editor down with
+			it. A page is rendered inside one; the canvas renders the same
+			components itself, so it carries its own. -->
+			<Suspense>
+				<component
+					:is="resolved"
+					ref="instance"
+					v-bind="rendered?.options"
+					:page-id="pageId"
+					:component-id="path"
+					:child-count="childCount"
 				>
-					<DmsBuilderNode
-						:block="child.block"
-						:path="child.path"
-						:preview="child.preview"
-					/>
-				</template>
-				<template #default>
-					<DmsBuilderChildren
-						:path="path"
-						:children="plain"
-						:empty="descriptor?.container === true && !children.length"
-					/>
-				</template>
-			</component>
+					<template
+						v-for="child in slotted"
+						:key="child.path"
+						#[child.block.slot!]
+					>
+						<DmsBuilderNode
+							:block="child.block"
+							:path="child.path"
+							:preview="child.preview"
+						/>
+					</template>
+					<template #default>
+						<DmsBuilderChildren
+							:path="path"
+							:children="plain"
+							:empty="descriptor?.container === true && !children.length"
+						/>
+					</template>
+				</component>
+			</Suspense>
 		</DmsBuilderBoundary>
 	</div>
 </template>
