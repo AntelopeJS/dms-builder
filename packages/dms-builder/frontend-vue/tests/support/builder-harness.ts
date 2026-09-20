@@ -111,6 +111,27 @@ export function testCatalog(): BlockCatalog {
 									optional: true,
 									ui: { label: 'Icon', widget: 'icon' },
 								},
+								// A tab's badge is a count, a word, or a badge of its
+								// own: a union of kinds, with no tag to tell them apart.
+								badge: {
+									type: 'union',
+									optional: true,
+									oneOf: [
+										{ type: 'string' },
+										{ type: 'number' },
+										{
+											type: 'object',
+											properties: {
+												label: { type: 'string', optional: true },
+												color: {
+													type: 'string',
+													optional: true,
+													ui: { widget: 'color' },
+												},
+											},
+										},
+									],
+								},
 							},
 						},
 					},

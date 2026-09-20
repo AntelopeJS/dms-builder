@@ -296,3 +296,83 @@ describe('a tab set the preview cannot build', () => {
 		).toHaveLength(1)
 	})
 })
+
+describe('an option that takes one of several kinds', () => {
+	/** What the Nuxt build auto-imports around the config panel. */
+	const panel = (): Record<string, Component> => ({
+		DmsBuilderOption: Option as Component,
+		DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+		DmsBuilderDataSource: stub('DmsBuilderDataSource'),
+		USelectMenu: stub('USelectMenu'),
+		USwitch: stub('USwitch'),
+		UTextarea: stub('UTextarea'),
+	})
+
+	const KINDS = ['Text', 'Number', 'Details']
+
+	/** A tab set with one tab, whose badge is a union of three kinds. */
+	async function tabWithABadge(): Promise<TestNode> {
+		await openWith([editable('tab', 'Tab')])
+		builder.patchConfig('tab', { items: [{ slot: 'orders', label: 'Orders' }] })
+		builder.select('tab')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Config, { components: panel() })
+		await nextTick()
+		return root
+	}
+
+	function kindButtons(root: TestNode): TestNode[] {
+		return findAll(
+			root,
+			(node) =>
+				node.tag === 'UButton' && KINDS.includes(String(node.props.label ?? '')),
+		)
+	}
+
+	/** Fire a control's own `update:modelValue`, the way a user's input does. */
+	function write(node: TestNode, value: unknown): void {
+		const handler = node.props['onUpdate:modelValue']
+		if (typeof handler !== 'function') {
+			throw new Error(`<${node.tag}> writes nothing`)
+		}
+		;(handler as (value: unknown) => void)(value)
+	}
+
+	it('names the kinds it offers rather than ranking them', async () => {
+		const root = await tabWithABadge()
+
+		// `Option 1, Option 2, Option 3` says nothing about what picking one does.
+		expect(kindButtons(root).map((node) => node.props.label)).toEqual(KINDS)
+	})
+
+	it('picks the kind that was clicked, and writes the value in it', async () => {
+		const root = await tabWithABadge()
+		const [, number] = kindButtons(root)
+		fire(number!, 'click')
+		await nextTick()
+
+		const input = findAll(
+			root,
+			(node) => node.tag === 'UInput' && node.props.type === 'number',
+		)
+		expect(input, 'the kind picked is the one edited').toHaveLength(1)
+
+		write(input[0]!, '7')
+		await nextTick()
+		const items = builder.session.value.draft?.blocks[0]?.config?.items
+		expect(items).toEqual([{ slot: 'orders', label: 'Orders', badge: 7 }])
+	})
+
+	it('lets go of a value the kind now picked cannot carry', async () => {
+		const root = await tabWithABadge()
+		builder.patchConfig('tab', {
+			items: [{ slot: 'orders', label: 'Orders', badge: 'New' }],
+		})
+		await nextTick()
+
+		fire(kindButtons(root)[1]!, 'click')
+		await nextTick()
+		const items = builder.session.value.draft?.blocks[0]?.config?.items
+		expect(items).toEqual([{ slot: 'orders', label: 'Orders' }])
+	})
+})

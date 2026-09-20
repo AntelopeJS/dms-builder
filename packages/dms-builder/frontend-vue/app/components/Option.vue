@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { descriptorOf, isRequired, optionLabel } from '../runtime/catalog'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
@@ -275,15 +275,57 @@ function setBlockConfig(key: string, value: unknown): void {
 
 /* ---- unions and raw JSON ------------------------------------------------ */
 
-function branchLabel(branch: OptionSchema, index: number): string {
-	const tag = props.schema.discriminator
-	const value = branch.properties?.[tag ?? '']?.enum?.[0]
-	return value === undefined ? `Option ${index + 1}` : String(value)
+/** What a kind is called to someone who does not write the type down. */
+const BRANCH_NAMES: Record<string, string> = {
+	string: 'Text',
+	number: 'Number',
+	integer: 'Number',
+	boolean: 'Yes or no',
+	array: 'List',
+	object: 'Details',
 }
 
+/**
+ * What a branch of a union is called in the panel.
+ *
+ * A discriminated union names its own: the literal its tag carries is the word
+ * the author knows it by. A union of plain kinds has no such word, so the kind
+ * itself is the only honest name — “Text”, “Number” — rather than a rank that
+ * says nothing about what picking it would do.
+ */
+function branchLabel(branch: OptionSchema, index: number): string {
+	const tag = props.schema.discriminator
+	const tagged = tag ? branch.properties?.[tag]?.enum?.[0] : undefined
+	if (tagged !== undefined) {
+		return String(tagged)
+	}
+	return (
+		branch.ui?.label ?? BRANCH_NAMES[String(branch.type)] ?? `Option ${index + 1}`
+	)
+}
+
+/** The branch a value belongs to, read off the value's own kind. */
+function branchOf(value: unknown): number {
+	const kind = Array.isArray(value) ? 'array' : typeof value
+	return (props.schema.oneOf ?? []).findIndex(
+		(branch) => (branch.type === 'integer' ? 'number' : branch.type) === kind,
+	)
+}
+
+/**
+ * Which branch the panel is on.
+ *
+ * A tag answers it outright. Without one, the value's own kind does — and while
+ * there is no value yet, the branch the author last asked for, which is the
+ * only record of a choice a union of plain kinds leaves behind.
+ */
+const picked = ref<number | null>(null)
 const branchIndex = computed(() => {
 	const tag = props.schema.discriminator
-	if (!tag) return 0
+	if (!tag) {
+		const found = branchOf(props.modelValue)
+		return found === -1 ? (picked.value ?? 0) : found
+	}
 	const current = objectValue.value[tag]
 	const found = props.schema.oneOf?.findIndex(
 		(branch) => branch.properties?.[tag]?.enum?.[0] === current,
@@ -291,11 +333,41 @@ const branchIndex = computed(() => {
 	return found === undefined || found < 0 ? 0 : found
 })
 
+const branchSchema = computed(() => (props.schema.oneOf ?? [])[branchIndex.value])
+const branchProperties = computed(() =>
+	Object.entries(branchSchema.value?.properties ?? {}).filter(
+		([key, nested]) =>
+			key !== props.schema.discriminator && !nested.ui?.hidden,
+	),
+)
+/**
+ * A branch that is a plain kind is edited as the option itself, so it inherits
+ * whether the option had to be filled in at all: the branch says nothing about
+ * that, and marking it required would contradict the union above it.
+ */
+const branchValueSchema = computed(() =>
+	branchSchema.value
+		? { ...branchSchema.value, optional: props.schema.optional }
+		: undefined,
+)
+
 function selectBranch(index: unknown): void {
+	const at = Number(index)
+	const branch = props.schema.oneOf?.[at]
+	if (!branch) {
+		return
+	}
 	const tag = props.schema.discriminator
-	const branch = props.schema.oneOf?.[Number(index)]
-	if (!tag || !branch) return
-	set({ [tag]: branch.properties?.[tag]?.enum?.[0] })
+	if (tag) {
+		set({ [tag]: branch.properties?.[tag]?.enum?.[0] })
+		return
+	}
+	picked.value = at
+	// A value of another kind is not one this branch can carry, and leaving it
+	// would show an editor for one thing while the page holds another.
+	if (branchOf(props.modelValue) !== at) {
+		set(undefined)
+	}
 }
 
 const jsonText = computed(() =>
@@ -538,17 +610,29 @@ const nestedProperties = computed(() =>
 					@click="selectBranch(index)"
 				/>
 			</div>
-			<div class="flex flex-col gap-3 border-l border-default pl-3">
+			<div
+				v-if="branchProperties.length || branchValueSchema"
+				class="flex flex-col gap-3 border-l border-default pl-3"
+			>
 				<DmsBuilderOption
-					v-for="[key, nested] in Object.entries(
-						(schema.oneOf ?? [])[branchIndex]?.properties ?? {},
-					).filter(([entryKey]) => entryKey !== schema.discriminator)"
+					v-for="[key, nested] in branchProperties"
 					:key="key"
 					:name="key"
 					:schema="nested"
 					:model-value="objectValue[key]"
 					:resource="resource"
 					@update:model-value="setProperty(key, $event)"
+				/>
+				<!-- A branch of a plain kind holds the whole value, so it is edited
+				as this option rather than property by property. -->
+				<DmsBuilderOption
+					v-if="!branchProperties.length && branchValueSchema"
+					:name="name"
+					:schema="branchValueSchema"
+					:model-value="modelValue"
+					:resource="resource"
+					hide-label
+					@update:model-value="set($event)"
 				/>
 			</div>
 		</div>
