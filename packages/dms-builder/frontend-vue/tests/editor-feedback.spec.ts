@@ -462,19 +462,23 @@ describe('an option whose branches are all of one kind', () => {
 		expect(fields()).toEqual([{ id: 'address' }])
 	})
 
-	it('seeds a fresh entry as an object, which is what every branch takes', async () => {
+	it('seeds a fresh entry as an object, named after the list it joins', async () => {
 		const root = await formWithFields([])
 
-		const add = findAll(
-			root,
-			(node) => node.tag === 'UButton' && node.props.label === 'Add',
-		)
-		fire(add[0]!, 'click')
+		const add = () =>
+			findAll(
+				root,
+				(node) => node.tag === 'UButton' && node.props.label === 'Add',
+			)[0]!
+		fire(add(), 'click')
+		await nextTick()
+		fire(add(), 'click')
 		await nextTick()
 
-		// Seeded as `''`, the entry was of a kind no branch could carry.
-		expect(fields()).toEqual([{}])
-		expect(branchButtons(root)).toHaveLength(2)
+		// Seeded as `''`, the entry was of a kind no branch could carry; seeded
+		// nameless, it rendered as a blank label in a column of them.
+		expect(fields()).toEqual([{ label: 'Field 1' }, { label: 'Field 2' }])
+		expect(branchButtons(root)).toHaveLength(4)
 	})
 
 	it('opens a blank entry on the branch that nests nothing', async () => {

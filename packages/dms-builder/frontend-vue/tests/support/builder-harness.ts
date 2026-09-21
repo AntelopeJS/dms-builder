@@ -151,6 +151,12 @@ export function testCatalog(): BlockCatalog {
 				label: 'Form',
 				group: 'data',
 				config: {
+					title: { type: 'string', optional: true, ui: { label: 'Title' } },
+					submitLabel: {
+						type: 'string',
+						optional: true,
+						ui: { label: 'Submit button label' },
+					},
 					fields: {
 						type: 'array',
 						ui: { label: 'Fields' },

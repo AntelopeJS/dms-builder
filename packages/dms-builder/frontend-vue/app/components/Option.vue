@@ -4,10 +4,12 @@ import {
 	branchKind,
 	branchOf,
 	descriptorOf,
+	entryName,
 	fitsAsWell,
 	isRequired,
 	optionLabel,
 	valueKind,
+	visibleNameKey,
 } from '../runtime/catalog'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
@@ -217,16 +219,26 @@ function setItem(index: number, value: unknown): void {
  * declared as one was seeded with a string, which no branch could carry: the
  * panel fell back to its first branch and the entry was edited as whatever
  * that branch happened to be.
+ *
+ * An entry the page renders is seeded with a name taken from the list itself,
+ * so a form's third field arrives as “Field 3” rather than as a blank label
+ * the author has to notice is there at all.
  */
 function blankItem(): unknown {
 	const items = props.schema.items
 	if (!items) {
 		return ''
 	}
-	const kinds = items.oneOf?.length
-		? items.oneOf.map((branch) => branch.type)
-		: [items.type]
-	return kinds.every((kind) => kind === 'object') ? {} : ''
+	const branches = items.oneOf ?? []
+	const kinds = branches.length ? branches.map((branch) => branch.type) : [items.type]
+	if (!kinds.every((kind) => kind === 'object')) {
+		return ''
+	}
+	const entry = branches.length ? branches[branchOf(branches, {})] : items
+	const named = entry && visibleNameKey(entry)
+	return named
+		? { [named]: entryName(label.value, arrayValue.value.length + 1) }
+		: {}
 }
 
 function addItem(): void {

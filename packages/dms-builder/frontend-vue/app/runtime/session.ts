@@ -870,7 +870,7 @@ export function useBuilder(): BuilderController {
 		let created: string | undefined
 		mutate((draft) => {
 			const host = hostFor(draft, { parent, index }, type, wrap)
-			const node = newBlockDraft(descriptor)
+			const node = newBlockDraft(descriptor, rankOf(draft, type))
 			adoptSlot(draft, host.parent, node)
 			created = insertNode(draft, host.parent, host.index, node)
 		})
@@ -878,6 +878,21 @@ export function useBuilder(): BuilderController {
 			select(created)
 			notify(`${descriptor.label ?? descriptor.type} added`)
 		}
+	}
+
+	/**
+	 * Which one of its type a block about to be placed is, counting the page and
+	 * not its siblings: “Form 2” answers a reader looking at the whole page, and
+	 * two forms in different columns are still two forms to them.
+	 */
+	function rankOf(draft: PageDraft, type: string): number {
+		let seen = 0
+		walkDraft(draft.blocks, (block) => {
+			if (block.type === type) {
+				seen += 1
+			}
+		})
+		return seen + 1
 	}
 
 	function remove(path: string): void {

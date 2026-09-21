@@ -531,15 +531,53 @@ describe('a block placed before it is configured', () => {
 		builder.addBlock('ChartCard')
 
 		expect(configOf('chartCard')).toEqual({
-			title: 'Chart card',
+			title: 'Chart card 1',
 			chart: { $block: { type: 'ChartLine', config: {} } },
 		})
+	})
+
+	it('numbers a title against the page, so two of a type read apart', () => {
+		builder.addBlock('ChartCard')
+		builder.addBlock('ChartCard')
+
+		expect(
+			[configOf('chartCard'), configOf('chartCard2')].map(
+				(config) => config?.title,
+			),
+		).toEqual(['Chart card 1', 'Chart card 2'])
 	})
 
 	it('names an id after the block, since other blocks read it back', () => {
 		builder.addBlock('PeriodSelector')
 
 		expect(configOf('periodSelector')).toEqual({ id: 'periodSelector' })
+	})
+
+	it('seeds a title the type leaves optional, which renders as nothing', () => {
+		builder.addBlock('Form')
+
+		expect(configOf('form')).toEqual({
+			title: 'Form 1',
+			submitLabel: 'Submit',
+			fields: [],
+		})
+	})
+
+	it('words a button the page shows rather than naming it after the block', () => {
+		builder.addBlock('Form')
+		builder.addBlock('Form')
+
+		// A second form is "Form 2", but both submit with the same word: the
+		// button closes a form, it does not name one.
+		expect(
+			[configOf('form'), configOf('form2')].map((config) => [
+				config?.title,
+				config?.submitLabel,
+			]),
+		).toEqual([
+			['Form 1', 'Submit'],
+			['Form 2', 'Submit'],
+		])
 	})
 
 	it('opens a list the block cannot do without as an empty one', () => {

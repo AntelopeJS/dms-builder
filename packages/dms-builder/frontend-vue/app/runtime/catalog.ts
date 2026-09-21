@@ -398,6 +398,64 @@ export function suggestedName(type: string): string {
 	return type.charAt(0).toLowerCase() + type.slice(1)
 }
 
+/* ---- names the page shows --------------------------------------------- */
+
+/**
+ * The options that name a block, or an entry of a list, where it is rendered.
+ *
+ * Distinct from the name the editor gives a block: that one is the property of
+ * the generated source and is never read by anyone looking at the page.
+ */
+const VISIBLE_NAME_KEYS = ['title', 'label']
+
+/**
+ * Wording the page renders that has one obvious default, by the option that
+ * carries it.
+ *
+ * Not a name: a submit button is not called after the block it closes. The
+ * runtime has a fallback of its own for these, but it is a string the panel
+ * never shows, so what an author reads there is a blank they cannot tell from
+ * an option nobody implemented.
+ */
+const VISIBLE_TEXT_DEFAULTS: Record<string, string> = {
+	submitLabel: 'Submit',
+}
+
+/** Whether an option carries text the page renders, demanded or not. */
+function showsText(key: string, schema: OptionSchema): boolean {
+	return (
+		schema.type === 'string' &&
+		(VISIBLE_NAME_KEYS.includes(key) || key in VISIBLE_TEXT_DEFAULTS)
+	)
+}
+
+/** The property a list entry is named by where the page shows it. */
+export function visibleNameKey(schema: OptionSchema): string | undefined {
+	const properties = schema.properties ?? {}
+	return VISIBLE_NAME_KEYS.find((key) => properties[key]?.type === 'string')
+}
+
+/** Enough of a singular for a list's own label: “Fields” → “Field”. */
+function singular(label: string): string {
+	if (/ies$/i.test(label)) {
+		return `${label.slice(0, -3)}y`
+	}
+	return /(?<!s)s$/i.test(label) ? label.slice(0, -1) : label
+}
+
+/**
+ * One entry of a list, named after the list itself: “Fields” holds “Field 1”.
+ *
+ * `rank` is the entry's place in the list, the number the panel already heads
+ * it with. It is a name to rename and not a value pretending to be data, which
+ * is the same bargain the rest of the seeding strikes — but a blank is worse
+ * than a placeholder here, because this one is rendered: a form whose fields
+ * are all unnamed is a column of empty labels.
+ */
+export function entryName(listLabel: string, rank: number): string {
+	return `${singular(listLabel)} ${rank}`
+}
+
 /** The alignment that keeps a stack's children as wide as the stack itself. */
 const STRETCH = 'stretch'
 
@@ -430,7 +488,12 @@ function seedFor(
 	descriptor: BlockTypeDescriptor,
 	key: string,
 	schema: OptionSchema,
+	rank: number,
 ): unknown {
+	const worded = VISIBLE_TEXT_DEFAULTS[key]
+	if (worded !== undefined && schema.type === 'string') {
+		return worded
+	}
 	if (schema.type === 'array') {
 		return []
 	}
@@ -443,9 +506,11 @@ function seedFor(
 	}
 	if (schema.type === 'string') {
 		// An id is read back by other blocks, so it reads as a name, not a title.
+		// A title is numbered, or a page with two of a type says the same word
+		// twice and neither the canvas nor the panel tells them apart.
 		return key === 'id'
 			? suggestedName(descriptor.type)
-			: (descriptor.label ?? descriptor.type)
+			: `${descriptor.label ?? descriptor.type} ${rank}`
 	}
 	return undefined
 }
@@ -459,13 +524,22 @@ function seedFor(
  * about the block they just dropped, before they have touched anything. What is
  * seeded is what the panel then shows, ready to be changed.
  */
-function placedConfig(descriptor: BlockTypeDescriptor): Record<string, unknown> {
+function placedConfig(
+	descriptor: BlockTypeDescriptor,
+	rank: number,
+): Record<string, unknown> {
 	const config = laidOutAcross(descriptor)
 	for (const [key, schema] of Object.entries(descriptor.config)) {
-		if (!isRequired(schema) || config[key] !== undefined) {
+		if (config[key] !== undefined) {
 			continue
 		}
-		const seed = seedFor(descriptor, key, schema)
+		// Text the page shows is seeded whether or not the type demands it. Most
+		// titles are optional, so what the author got for placing a block was a
+		// heading rendered as nothing at all.
+		if (!showsText(key, schema) && !isRequired(schema)) {
+			continue
+		}
+		const seed = seedFor(descriptor, key, schema, rank)
 		if (seed !== undefined) {
 			config[key] = seed
 		}
@@ -473,11 +547,15 @@ function placedConfig(descriptor: BlockTypeDescriptor): Record<string, unknown> 
 	return config
 }
 
-export function newBlockDraft(descriptor: BlockTypeDescriptor): BlockDraft {
+/** `rank` is which one of its type this is on the page, counting from 1. */
+export function newBlockDraft(
+	descriptor: BlockTypeDescriptor,
+	rank = 1,
+): BlockDraft {
 	return {
 		name: suggestedName(descriptor.type),
 		type: descriptor.type,
-		config: placedConfig(descriptor),
+		config: placedConfig(descriptor, rank),
 		...(descriptor.container ? { children: [] } : {}),
 	}
 }
