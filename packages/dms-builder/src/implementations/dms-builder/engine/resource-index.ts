@@ -11,7 +11,12 @@ import {
   type SourceFile,
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
-import { createProject, resolveProjectRoot } from "./project";
+import {
+  createProject,
+  resolveProjectRoot,
+  sourcesChanged,
+  stampSources,
+} from "./project";
 import { CORE_SCHEMA_NAME_VALUE, routesFromRouteMap } from "./resource-emit";
 import { getCalleeName, getExtendsCall } from "./scan";
 import { type EmitContext, UnknownReferenceError } from "./value";
@@ -209,16 +214,26 @@ export class ResourceScanner {
 }
 
 let cached: Map<string, ResourceRecord> | undefined;
+let stamps: Map<string, number> | undefined;
 
+/**
+ * The app's resources, as its files are right now. Rescanned when one of them
+ * has been written by someone other than the engine, for the reason the page
+ * scan is — see `getSourceIndex`.
+ */
 function getResourceIndex(): Map<string, ResourceRecord> {
-  if (!cached) {
-    cached = new ResourceScanner(createProject(resolveProjectRoot())).scan();
+  if (cached && stamps && !sourcesChanged(stamps)) {
+    return cached;
   }
+  const project = createProject(resolveProjectRoot());
+  cached = new ResourceScanner(project).scan();
+  stamps = stampSources(project);
   return cached;
 }
 
 export function invalidateResourceIndex(): void {
   cached = undefined;
+  stamps = undefined;
 }
 
 export function findResourceRecord(ref: string): ResourceRecord | undefined {

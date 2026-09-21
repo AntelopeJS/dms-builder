@@ -202,6 +202,42 @@ describe("the page draft", () => {
       ).to.equal(2);
     });
 
+    it("reads the page as the disk has it, not as it was last scanned", async function () {
+      this.timeout(OP_TIMEOUT);
+      // An editor, a formatter, a `git checkout`: the file moves under the
+      // builder with no write of its own to say so. A read that answered from
+      // the last scan would hand back a version no write could ever match —
+      // every save refused as `stale`, and the reload offered as the way out
+      // serving the same stale version again.
+      app.write(PAGE_FILE, `${app.read(PAGE_FILE)}\n// edited by hand\n`);
+
+      const current = await structure();
+      expectOk(
+        await SetPageBlocks(
+          PAGE,
+          {
+            blocks: [
+              {
+                name: "ordersKpi",
+                type: "KpiCard",
+                config: { title: "Orders" },
+              },
+              {
+                name: "revenueKpi",
+                type: "KpiCard",
+                config: { title: "Revenue" },
+              },
+            ],
+          },
+          { expectedVersion: current.version },
+        ),
+        "SetPageBlocks",
+      );
+      expect(app.read(PAGE_FILE), "and the edit is still there").to.contain(
+        "// edited by hand",
+      );
+    });
+
     it("removes a block and leaves its siblings alone", async function () {
       this.timeout(OP_TIMEOUT);
       expectOk(await RemoveBlock(`${PAGE}#ordersKpi`), "RemoveBlock");
