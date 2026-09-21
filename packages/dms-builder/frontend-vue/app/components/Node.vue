@@ -7,7 +7,12 @@ import {
 	servedNodeAt,
 	slotsOf,
 } from '../runtime/catalog'
-import { isRowContainer, namedHost, spansFullWidth } from '../runtime/dropping'
+import {
+	effectOfDrag,
+	isRowContainer,
+	namedHost,
+	spansFullWidth,
+} from '../runtime/dropping'
 import { joinPath, useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
@@ -211,9 +216,10 @@ const opaqueReason = computed(() => {
 function onDragStart(event: DragEvent): void {
 	event.dataTransfer?.setData('text/plain', props.path)
 	// See Library.vue: without an allowed effect the browser turns every drop
-	// down before the page is asked.
+	// down before the page is asked. This one is a move, and saying `copyMove`
+	// while the target answered `copy` had it drawing a copy that never happens.
 	if (event.dataTransfer) {
-		event.dataTransfer.effectAllowed = 'copyMove'
+		event.dataTransfer.effectAllowed = 'move'
 	}
 	builder.beginDrag({ path: props.path })
 }
@@ -233,10 +239,20 @@ function onDragOver(event: DragEvent): void {
 		x: { start: box.left, size: box.width, at: event.clientX },
 		y: { start: box.top, size: box.height, at: event.clientY },
 	})
-	// The cursor is the only refusal an author sees before letting go, so it
-	// has to say what the aim just decided rather than the browser's default.
+	answerCursor(event)
+}
+
+/**
+ * The cursor is the only refusal an author sees before letting go, so it has to
+ * say what the aim just decided rather than the browser's default — and it has
+ * to say it on `dragenter` too, which is where the browser first decides what
+ * to draw over an element it has just moved onto.
+ */
+function answerCursor(event: DragEvent): void {
 	if (event.dataTransfer) {
-		event.dataTransfer.dropEffect = refused.value ? 'none' : 'copy'
+		event.dataTransfer.dropEffect = refused.value
+			? 'none'
+			: effectOfDrag(session.value.dragging)
 	}
 }
 </script>
@@ -264,6 +280,7 @@ function onDragOver(event: DragEvent): void {
 		@mouseleave="builder.hover(null)"
 		@dragstart.stop="onDragStart"
 		@dragend="builder.endDrag()"
+		@dragenter.prevent.stop="answerCursor"
 		@dragover.prevent.stop="onDragOver"
 		@drop.prevent.stop="builder.drop()"
 	>

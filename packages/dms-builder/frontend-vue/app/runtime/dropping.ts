@@ -394,6 +394,19 @@ export function targetAtBlock(
 	return refusal ? { ...target, refusal } : target
 }
 
+/**
+ * What a drag actually does, named the way the drag-and-drop API names it.
+ *
+ * A block taken from the palette is copied into the page; a block already on
+ * it is moved. Declaring the same effect at both ends is what lets the browser
+ * draw the cursor for the gesture: a source offering one effect and a target
+ * answering with another leaves it reconciling two gestures, and what it draws
+ * then is its no-drop cursor, over a surface that does accept the drop.
+ */
+export function effectOfDrag(payload: DragPayload | null | undefined): 'copy' | 'move' {
+	return payload?.path ? 'move' : 'copy'
+}
+
 /** Whether two answers say the same thing, so a hover can be left alone. */
 export function sameTarget(
 	left: DropTarget | null,

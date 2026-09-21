@@ -28,9 +28,11 @@ const refusals = computed(() => {
 function onDragStart(event: DragEvent, block: BlockTypeDescriptor): void {
 	event.dataTransfer?.setData('text/plain', block.type)
 	// Left unset, `dropEffect` settles on "none" and the browser refuses every
-	// drop and draws the no-entry cursor, whatever the page decided.
+	// drop and draws the no-entry cursor, whatever the page decided. Offering
+	// only what this drag does — the palette copies a block in — is what lets
+	// the target answer with the same effect.
 	if (event.dataTransfer) {
-		event.dataTransfer.effectAllowed = 'copyMove'
+		event.dataTransfer.effectAllowed = 'copy'
 	}
 	builder.beginDrag({ type: block.type })
 }

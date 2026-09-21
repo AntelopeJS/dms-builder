@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { namedHost } from '../runtime/dropping'
+import { effectOfDrag, namedHost } from '../runtime/dropping'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
@@ -40,10 +40,15 @@ const aimedInside = computed(() => {
  */
 function onDragOver(event: DragEvent): void {
 	builder.aimAtPage()
+	answerCursor(event)
+}
+
+/** As on a block: the effect has to be the gesture's, and said on entry too. */
+function answerCursor(event: DragEvent): void {
 	if (event.dataTransfer) {
 		event.dataTransfer.dropEffect = session.value.dropTarget?.refusal
 			? 'none'
-			: 'copy'
+			: effectOfDrag(session.value.dragging)
 	}
 }
 </script>
@@ -52,6 +57,7 @@ function onDragOver(event: DragEvent): void {
 	<div
 		class="flex-1 overflow-auto bg-muted/40 p-8"
 		@click="builder.select(null)"
+		@dragenter.prevent="answerCursor"
 		@dragover.prevent="onDragOver"
 		@drop.prevent="builder.drop()"
 	>

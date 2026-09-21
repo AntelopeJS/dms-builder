@@ -174,6 +174,74 @@ afterEach(() => {
 	vi.useRealTimers()
 })
 
+describe('the surfaces a drop is allowed on', () => {
+	/**
+	 * A drop target is declared by cancelling `dragenter` as well as `dragover`.
+	 * Cancelling `dragover` alone is enough for the `drop` event to fire, so the
+	 * gesture works — but the cursor is drawn from the target determination the
+	 * browser makes on `dragenter`, and an uncancelled one leaves the no-drop
+	 * cursor on screen for the whole drag, over a surface that accepts it.
+	 */
+	it('cancels dragenter as well as dragover, on the page and on a block', async () => {
+		await openWith([block('title', 'Text')], { title: { componentName: 'DmsText' } })
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+
+		const page = root.children[0]!
+		expect(fire(page, 'dragenter').prevented, 'the page').toBe(true)
+		expect(fire(nodeAt(root, 'title'), 'dragenter').prevented, 'a block').toBe(true)
+	})
+
+	/** What a surface answered the browser with, on either drag event. */
+	function cursor(target: TestNode, event: 'dragenter' | 'dragover'): unknown {
+		const fired = fire(
+			target,
+			event,
+			pointerOver({ top: 0, height: 100, left: 0, width: 100 }, { x: 50, y: 5 }),
+		)
+		return (fired.dataTransfer as unknown as { dropEffect?: string }).dropEffect
+	}
+
+	it('answers with the effect the gesture carries, on entry and over', async () => {
+		await openWith([block('title', 'Text')], { title: { componentName: 'DmsText' } })
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+		const page = root.children[0]!
+
+		// The palette copies a block in; a block already on the page moves. Said
+		// otherwise than the source declared, the browser reconciles two gestures
+		// and draws its no-drop cursor over a surface that accepts the drop.
+		builder.beginDrag({ type: 'Text' })
+		expect(cursor(nodeAt(root, 'title'), 'dragover')).toBe('copy')
+		expect(cursor(nodeAt(root, 'title'), 'dragenter')).toBe('copy')
+		expect(cursor(page, 'dragover')).toBe('copy')
+
+		builder.beginDrag({ path: 'title' })
+		expect(cursor(nodeAt(root, 'title'), 'dragover')).toBe('move')
+		expect(cursor(nodeAt(root, 'title'), 'dragenter')).toBe('move')
+		expect(cursor(page, 'dragover')).toBe('move')
+	})
+
+	it('turns the cursor down where the aim is refused', async () => {
+		await openWith(
+			[block('stack', 'HStack', [block('a', 'Text')])],
+			{ stack: { componentName: 'DmsHStack' } },
+		)
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+
+		// A row cannot be a column inside a stack; the middle band is where the
+		// drop would land inside it.
+		builder.beginDrag({ type: 'GridRow' })
+		fire(
+			nodeAt(root, 'stack'),
+			'dragover',
+			pointerOver({ top: 0, height: 100, left: 0, width: 100 }, { x: 50, y: 50 }),
+		)
+		expect(cursor(nodeAt(root, 'stack'), 'dragenter')).toBe('none')
+	})
+})
+
 describe('the canvas at rest', () => {
 	it('shows the page and nothing else: no target, no line, no frame', async () => {
 		await openWith([block('title', 'Text'), block('intro', 'Text')], {
