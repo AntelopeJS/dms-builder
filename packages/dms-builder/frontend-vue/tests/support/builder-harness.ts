@@ -24,6 +24,8 @@ export interface FakeBackend {
 	calls: RecordedCall[]
 	catalog: BlockCatalog
 	structure: PageStructure
+	/** What `GET /dms/pagelayout` answers: the layout the DMS is serving. */
+	layout: { components: Record<string, ComponentPreview> }
 	/** What `POST /page/preview` answers. */
 	preview: OpResult<{
 		components: Record<string, ComponentPreview>
@@ -257,6 +259,7 @@ export function installFakeHost(): FakeBackend {
 		calls: [],
 		catalog: testCatalog(),
 		structure: testStructure(),
+		layout: { components: {} },
 		preview: { ok: true, data: { components: {}, degraded: [] }, changes: [] },
 		save: { ok: true, data: { version: 'v2' }, changes: [] },
 		calledPaths: () => backend.calls.map((call) => `${call.method} ${call.path}`),
@@ -279,7 +282,7 @@ export function installFakeHost(): FakeBackend {
 			return []
 		}
 		if (method === 'GET' && path === '/dms/pagelayout') {
-			return { components: {} }
+			return backend.layout
 		}
 		if (method === 'POST' && path === '/api/builder/page/preview') {
 			return backend.preview

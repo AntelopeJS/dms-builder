@@ -506,6 +506,61 @@ describe('an option whose branches are all of one kind', () => {
 	})
 })
 
+describe('a block the preview could not build', () => {
+	/**
+	 * The canvas renders such a block from what the DMS is serving, so a table
+	 * keeps its real columns while its options are edited. What the served node
+	 * is found by is the path — and a path says nothing about whether the block
+	 * saved there is the block now being built at it.
+	 */
+	async function formOnTheCanvas(
+		config: Record<string, unknown>,
+	): Promise<TestNode> {
+		backend.layout = {
+			components: { form: { componentName: 'DmsForm', options: { title: 'form' } } },
+		}
+		backend.preview = {
+			ok: true,
+			data: { components: {}, degraded: ['/reports/sales#form'] },
+			changes: [],
+		}
+		await openWith([
+			{ path: 'form', name: 'form', type: 'Form', editable: true, config },
+		])
+		builder.select('form')
+		await nextTick()
+		const { root } = mount(Node, {
+			props: { block: builder.session.value.draft?.blocks[0], path: 'form' },
+			components: {
+				DmsBuilderNode: Node as Component,
+				DmsBuilderChildren: Children as Component,
+				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
+			},
+		})
+		await nextTick()
+		return root
+	}
+
+	it('renders what the DMS serves, and says the render is the saved one', async () => {
+		const root = await formOnTheCanvas({
+			fields: [{ id: 'amount', label: 'Amount', type: { $dataType: 'number' } }],
+		})
+
+		expect(textOf(root)).toContain('· as saved')
+	})
+
+	it('drops that render once the block still needs a setting filled in', async () => {
+		// A page never compiled with a required setting empty, so what is served
+		// at this path was saved by some other block — the one this replaced,
+		// under the name it was given back. Rendering it shows the author content
+		// their draft does not hold.
+		const root = await formOnTheCanvas({ fields: [{}] })
+
+		expect(textOf(root)).not.toContain('· as saved')
+	})
+})
+
 describe('a tab set on the canvas', () => {
 	/** What the DMS's tab set exposes: the tab it has open, by index. */
 	function tabComponent(open: string): Component {

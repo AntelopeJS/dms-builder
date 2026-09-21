@@ -34,11 +34,22 @@ const degraded = computed(() => {
 	)
 })
 
-// A block the preview stood in for renders from what the DMS served, so a table
-// shows its real columns instead of a placeholder. Anything the server does not
-// know — a block just added — keeps the stand-in.
+/**
+ * A block the preview stood in for renders from what the DMS served, so a table
+ * shows its real columns instead of a placeholder.
+ *
+ * Only while the served node is this block, though. A page never compiled with
+ * a required setting left empty, so a block that still has one was never the
+ * one the server is serving — it is a block being built at a path something
+ * else was saved at, and rendering what was saved there shows an author
+ * content their draft no longer holds. Looking the path up is what could not
+ * tell the two apart: re-adding a block under the name of the one it replaced
+ * finds the old one every time.
+ */
 const served = computed(() =>
-	degraded.value ? servedNodeAt(session.value.served, props.path) : undefined,
+	degraded.value && !missing.value.length
+		? servedNodeAt(session.value.served, props.path)
+		: undefined,
 )
 const rendered = computed(() => served.value ?? props.preview)
 const resolved = computed(() =>
