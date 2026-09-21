@@ -139,18 +139,24 @@ const receiving = computed(() => {
 })
 const refused = computed(() => target.value?.refusal !== undefined)
 /**
- * Which of its own edges carries the insertion line, and the way it runs.
+ * Where the room opens when the drop is what builds the column holding it.
  *
- * A refused target draws no line: the border and its reason are the whole
- * answer, and a line would say the drop is going to happen.
+ * A cell of a row has no place above or below it to open — that is what the
+ * column is for — so the block shows the two of them inside itself, and the
+ * column the drop writes is the one the user is already looking at.
+ *
+ * A refused target opens nothing: the border and its reason are the whole
+ * answer, and room made for a block would say the drop is going to happen.
  */
-const edgeLine = computed(() => {
-	const anchor = refused.value ? undefined : target.value?.anchor
-	if (!anchor || anchor.path !== props.path || anchor.edge === 'inside') {
+const wrapGap = computed(() => {
+	const wrap = refused.value ? undefined : target.value?.wrap
+	if (wrap?.around !== props.path) {
 		return undefined
 	}
-	return anchor
+	return wrap.index === 0 ? 'before' : 'after'
 })
+/** Whether this block is the one being carried, and so no longer quite here. */
+const lifted = computed(() => session.value.dragging?.path === props.path)
 
 /**
  * What the block's own border says, in the order the states matter: where a drop
@@ -182,13 +188,26 @@ const frame = computed(() => {
 })
 
 // The renderer sizes a grid from the spans its children declare, the same way
-// the host's recursive renderer does.
-const childCount = computed(() =>
-	children.value.reduce(
-		(total, child) => total + (Number(child.block.meta?.colSpan) || 1),
-		0,
-	),
+// the host's recursive renderer does — and room opened among them is one more
+// column it has to divide its width by, or the block would land in a row that
+// has no column for it and the others would not give any width up.
+const childCount = computed(
+	() =>
+		children.value.reduce(
+			(total, child) => total + (Number(child.block.meta?.colSpan) || 1),
+			0,
+		) + (gapInside.value ? 1 : 0),
 )
+/** Whether the room for the drop opens among this block's own children. */
+const gapInside = computed(() => {
+	const aimed = target.value
+	return (
+		aimed !== null &&
+		!aimed.refusal &&
+		!aimed.wrap &&
+		aimed.parent === props.path
+	)
+})
 /**
  * Placement the wrapper has to carry itself. The canvas wraps every block in a
  * div of its own for selection and outlines, so that div — not the block — is
@@ -221,7 +240,10 @@ function onDragStart(event: DragEvent): void {
 	if (event.dataTransfer) {
 		event.dataTransfer.effectAllowed = 'move'
 	}
-	builder.beginDrag({ path: props.path })
+	// Measured now, while the block is still standing where it was: the room
+	// opened for it wherever it is aimed is the room it actually takes up.
+	const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+	builder.beginDrag({ path: props.path, height: box.height })
 }
 
 /**
@@ -270,6 +292,12 @@ function answerCursor(event: DragEvent): void {
 			// neither be configured nor removed. Give it something to aim at
 			// until it has content of its own.
 			'min-h-6',
+			// Room opened above or below it is a second row of this grid, and
+			// the two want telling apart.
+			wrapGap ? 'gap-2' : '',
+			// The block is on the pointer; what is left here is the hole it
+			// came out of, which the drop is about to fill from somewhere else.
+			lifted ? 'opacity-40' : '',
 			frame,
 		]"
 		:style="spanStyle"
@@ -284,12 +312,6 @@ function answerCursor(event: DragEvent): void {
 		@dragover.prevent.stop="onDragOver"
 		@drop.prevent.stop="builder.drop()"
 	>
-		<DmsBuilderInsertion
-			v-if="edgeLine"
-			:edge="edgeLine.edge"
-			:axis="edgeLine.axis"
-		/>
-
 		<!-- What is being aimed at, named: which container receives, and why it
 		would not. -->
 		<div
@@ -335,6 +357,8 @@ function answerCursor(event: DragEvent): void {
 				<UIcon name="i-ph-dots-three" class="size-3.5" />
 			</button>
 		</div>
+
+		<DmsBuilderPlaceholder v-if="wrapGap === 'before'" axis="horizontal" />
 
 		<div
 			v-if="block.preserve"
@@ -388,12 +412,17 @@ function answerCursor(event: DragEvent): void {
 					:data-region="region.id"
 				>
 					<span class="text-xs font-medium text-dimmed">{{ region.label }}</span>
-					<DmsBuilderChildren :path="path" :children="region.children" />
+					<DmsBuilderChildren
+						:path="path"
+						:children="region.children"
+						:empty="!region.children.length"
+						:region="region.id"
+					/>
 				</div>
 				<DmsBuilderChildren
 					:path="path"
 					:children="plain"
-					:empty="!children.length"
+					:empty="!children.length && !regions.length"
 				/>
 			</div>
 		</div>
@@ -422,26 +451,29 @@ function answerCursor(event: DragEvent): void {
 					:component-id="path"
 					:child-count="childCount"
 				>
-					<template
-						v-for="child in slotted"
-						:key="child.path"
-						#[child.block.slot!]
-					>
-						<DmsBuilderNode
-							:block="child.block"
-							:path="child.path"
-							:preview="child.preview"
+					<template v-for="region in regions" :key="region.id" #[region.id]>
+						<DmsBuilderChildren
+							:path="path"
+							:children="region.children"
+							:empty="!region.children.length"
+							:region="region.id"
 						/>
 					</template>
 					<template #default>
 						<DmsBuilderChildren
 							:path="path"
 							:children="plain"
-							:empty="descriptor?.container === true && !children.length"
+							:empty="
+								descriptor?.container === true &&
+								!children.length &&
+								!regions.length
+							"
 						/>
 					</template>
 				</component>
 			</Suspense>
 		</DmsBuilderBoundary>
+
+		<DmsBuilderPlaceholder v-if="wrapGap === 'after'" axis="horizontal" />
 	</div>
 </template>

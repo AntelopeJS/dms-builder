@@ -154,6 +154,23 @@ describe('the four sides of a block, and its middle', () => {
 		expect(zoneAt(at(50, 95), CELL_CONTAINER)).toBe('bottom')
 	})
 
+	/**
+	 * Where the two meet, and why it sits where it does.
+	 *
+	 * A fifth of the way into a tab set is somebody aiming at the tab set: the
+	 * column they would get instead is one the block beside it names just as
+	 * well, and the tab set narrows to make room for it while they are still
+	 * reaching for its middle.
+	 */
+	it('leaves a container only a narrow band that aims beside it', () => {
+		expect(zoneAt(at(20, 50), CELL_CONTAINER)).toBe('inside')
+		expect(zoneAt(at(80, 50), CELL_CONTAINER)).toBe('inside')
+		expect(zoneAt(at(50, 20), STACKED_CONTAINER)).toBe('inside')
+		// Narrow, not gone: the band is still there to be aimed at.
+		expect(zoneAt(at(10, 50), CELL_CONTAINER)).toBe('left')
+		expect(zoneAt(at(50, 90), STACKED_CONTAINER)).toBe('bottom')
+	})
+
 	it('says nothing sideways where nothing lays the block out in columns', () => {
 		expect(zoneAt(at(5, 40), STACKED)).toBe('top')
 		expect(zoneAt(at(95, 60), STACKED)).toBe('bottom')
@@ -161,6 +178,25 @@ describe('the four sides of a block, and its middle', () => {
 		expect(zoneAt(at(50, 49), STACKED)).toBe('top')
 		expect(zoneAt(at(50, 51), STACKED)).toBe('bottom')
 		expect(zoneAt(at(50, 40), STACKED_CONTAINER)).toBe('inside')
+		expect(zoneAt(at(50, 10), STACKED_CONTAINER)).toBe('top')
+	})
+
+	/**
+	 * The band that aims beside a container is a handle, not a proportion.
+	 *
+	 * A share alone meant the bigger a container grew, the wider the moat
+	 * around the one place only that container can name: a tab set the height
+	 * of the page answered "below the tab set" for the first ninety pixels of
+	 * itself, which is where its first tab is.
+	 */
+	it('stops the band growing with the container past a handle', () => {
+		const deep = (at: number): PointerBox => ({
+			x: span(200, 400),
+			y: span(at, 600),
+		})
+		expect(zoneAt(deep(40), STACKED_CONTAINER)).toBe('inside')
+		expect(zoneAt(deep(20), STACKED_CONTAINER)).toBe('top')
+		// A small container keeps the share: a band in pixels would be most of it.
 		expect(zoneAt(at(50, 10), STACKED_CONTAINER)).toBe('top')
 	})
 
@@ -281,7 +317,7 @@ describe('aiming at a block nothing lays out sideways', () => {
 		expect(aim('title', at(10))).toEqual({
 			parent: null,
 			index: 0,
-			anchor: { path: 'title', edge: 'before', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
@@ -289,7 +325,7 @@ describe('aiming at a block nothing lays out sideways', () => {
 		expect(aim('title', at(90))).toEqual({
 			parent: null,
 			index: 1,
-			anchor: { path: 'title', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
@@ -308,20 +344,20 @@ describe('aiming at a container', () => {
 		expect(aim('row', at(50, 5))).toEqual({
 			parent: null,
 			index: 1,
-			anchor: { path: 'row', edge: 'before', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 		expect(aim('row', at(50, 95))).toEqual({
 			parent: null,
 			index: 2,
-			anchor: { path: 'row', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
-	it('draws the line inside itself when it holds nothing', () => {
+	it('aims inside itself when it holds nothing', () => {
 		expect(aim('grid', at(50), { type: 'GridRow' })).toEqual({
 			parent: 'grid',
 			index: 0,
-			anchor: { path: 'grid', edge: 'inside', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
@@ -331,11 +367,11 @@ describe('aiming at a container', () => {
 		expect(aim('board', at(50), { type: 'GridRow' })).toEqual({
 			parent: 'board',
 			index: 1,
-			anchor: { path: 'board/band', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
-	it('draws the line inside a row that holds nothing yet, down its flank', () => {
+	it('fills a row that holds nothing yet along its own flank', () => {
 		const page = draft()
 		const band = page.blocks[3]?.children?.[0]
 		if (band) {
@@ -344,7 +380,7 @@ describe('aiming at a container', () => {
 		expect(aim('board/band', at(5, 50), { type: 'Text' }, page)).toEqual({
 			parent: 'board/band',
 			index: 0,
-			anchor: { path: 'board/band', edge: 'inside', axis: 'vertical' },
+			axis: 'vertical',
 		})
 	})
 })
@@ -354,11 +390,7 @@ describe('the four directions on a cell of a row', () => {
 		expect(aim('board/band/card', at(5, 50))).toEqual({
 			parent: 'board/band',
 			index: 0,
-			anchor: {
-				path: 'board/band/card',
-				edge: 'before',
-				axis: 'vertical',
-			},
+			axis: 'vertical',
 		})
 	})
 
@@ -366,7 +398,7 @@ describe('the four directions on a cell of a row', () => {
 		expect(aim('board/band/card', at(95, 50))).toEqual({
 			parent: 'board/band',
 			index: 1,
-			anchor: { path: 'board/band/card', edge: 'after', axis: 'vertical' },
+			axis: 'vertical',
 		})
 	})
 
@@ -375,11 +407,7 @@ describe('the four directions on a cell of a row', () => {
 			parent: 'board/band',
 			index: 0,
 			wrap: { around: 'board/band/card', type: 'VStack', index: 0 },
-			anchor: {
-				path: 'board/band/card',
-				edge: 'before',
-				axis: 'horizontal',
-			},
+			axis: 'horizontal',
 		})
 	})
 
@@ -388,26 +416,22 @@ describe('the four directions on a cell of a row', () => {
 			parent: 'board/band',
 			index: 0,
 			wrap: { around: 'board/band/card', type: 'VStack', index: 1 },
-			anchor: { path: 'board/band/card', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
-	it('draws the line across the cell one way and down it the other', () => {
-		// What the eye has to tell apart: the same cell answers with a rule over
-		// its top and a bar at its flank, and each one says what it will do.
-		expect(aim('board/band/card', at(50, 5))?.anchor.axis).toBe('horizontal')
-		expect(aim('board/band/card', at(5, 50))?.anchor.axis).toBe('vertical')
+	it('opens a band across the cell one way and a column down it the other', () => {
+		// What the eye has to tell apart: the same cell answers with room above
+		// it and room beside it, and each one shows what it will do.
+		expect(aim('board/band/card', at(50, 5))?.axis).toBe('horizontal')
+		expect(aim('board/band/card', at(5, 50))?.axis).toBe('vertical')
 	})
 
 	it('aims into the cell itself when the cell is a container', () => {
 		expect(aim('panelled/strip/column', at(50, 50))).toEqual({
 			parent: 'panelled/strip/column',
 			index: 1,
-			anchor: {
-				path: 'panelled/strip/column/head',
-				edge: 'after',
-				axis: 'horizontal',
-			},
+			axis: 'horizontal',
 		})
 	})
 
@@ -429,12 +453,12 @@ describe('above and below a cell, which is two different things', () => {
 		expect(aim('sheet/only/cell', at(50, 5))).toEqual({
 			parent: 'sheet',
 			index: 0,
-			anchor: { path: 'sheet/only', edge: 'before', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 		expect(aim('sheet/only/cell', at(50, 95))).toEqual({
 			parent: 'sheet',
 			index: 1,
-			anchor: { path: 'sheet/only', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
@@ -443,7 +467,7 @@ describe('above and below a cell, which is two different things', () => {
 			parent: 'board/band',
 			index: 1,
 			wrap: { around: 'board/band/note', type: 'VStack', index: 1 },
-			anchor: { path: 'board/band/note', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
@@ -453,11 +477,7 @@ describe('above and below a cell, which is two different things', () => {
 		expect(aim('panelled/strip/column/head', at(50, 95))).toEqual({
 			parent: 'panelled/strip/column',
 			index: 1,
-			anchor: {
-				path: 'panelled/strip/column/head',
-				edge: 'after',
-				axis: 'horizontal',
-			},
+			axis: 'horizontal',
 		})
 		expect(aim('panelled/strip/column/foot', at(50, 5))?.wrap).toBe(undefined)
 	})
@@ -466,11 +486,7 @@ describe('above and below a cell, which is two different things', () => {
 		expect(aim('panelled/strip/column/head', at(5, 50))).toEqual({
 			parent: 'panelled/strip',
 			index: 0,
-			anchor: {
-				path: 'panelled/strip/column',
-				edge: 'before',
-				axis: 'vertical',
-			},
+			axis: 'vertical',
 		})
 	})
 })
@@ -480,7 +496,7 @@ describe('a container that builds its own child around the block', () => {
 		expect(aim('grid', at(50))).toEqual({
 			parent: 'grid',
 			index: 0,
-			anchor: { path: 'grid', edge: 'inside', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 		expect(aim('board/band', at(50, 5))?.refusal).toBe(undefined)
 		expect(aim('sheet/only/cell', at(50, 5))?.refusal).toBe(undefined)
@@ -635,15 +651,15 @@ describe('the page itself', () => {
 		expect(targetAtPage(draft())).toEqual({
 			parent: null,
 			index: 6,
-			anchor: { path: 'panelled', edge: 'after', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 
-	it('draws the line in its own empty frame when it holds nothing', () => {
+	it('takes the first block when it holds nothing at all', () => {
 		expect(targetAtPage({ blocks: [] })).toEqual({
 			parent: null,
 			index: 0,
-			anchor: { path: null, edge: 'inside', axis: 'horizontal' },
+			axis: 'horizontal',
 		})
 	})
 })

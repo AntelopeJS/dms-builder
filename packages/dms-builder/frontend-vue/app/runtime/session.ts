@@ -5,6 +5,7 @@ import {
 	descriptorOf,
 	missingSettings,
 	newBlockDraft,
+	shownRegion,
 	slotIdFor,
 	slotsOf,
 	suggestedName,
@@ -22,6 +23,7 @@ import {
 	sameTarget,
 	targetAtBlock,
 	targetAtPage,
+	targetInside,
 	wrapperFor,
 	type DragPayload,
 	type DropPlacement,
@@ -300,6 +302,10 @@ export interface BuilderController {
 	aimAt: (path: string, box: PointerBox) => void
 	/** Aim it at the page's own surface: the end of the page. */
 	aimAtPage: () => void
+	/** Aim it at a container's own way in, and at the region offering it. */
+	aimInto: (path: string, region?: string) => void
+	/** The region of a container a drop into it would land in, if it has any. */
+	regionOf: (path: string) => string | undefined
 	/** Let the block go where it is aimed. */
 	drop: () => void
 	dropAt: (parent: string | null, index: number, wrap?: DropWrap) => void
@@ -725,11 +731,12 @@ export function useBuilder(): BuilderController {
 			delete node.slot
 			return
 		}
-		// The tab on screen is the one the author is dropping into; the first is
-		// only the answer when nothing has been opened yet.
-		const open = session.value.openRegions[parent ?? '']
-		const shown = slots.find((slot) => slot.id === open)
-		node.slot = (shown ?? slots[0] ?? openSlot(container, dynamic)).id
+		const shown = shownRegion(
+			descriptor,
+			container,
+			session.value.openRegions[parent ?? ''],
+		)
+		node.slot = (shown ?? openSlot(container, dynamic)).id
 	}
 
 	/**
@@ -1534,6 +1541,43 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
+	/**
+	 * Aim at a container's own way in, and at the region offering it.
+	 *
+	 * Naming the region is what lets a tab set the preview has not built yet
+	 * take a drop into the tab it is aimed at rather than into the first one:
+	 * every region of such a set is on screen at once, so the pointer is the
+	 * only thing that says which. A set the preview has built shows one region
+	 * at a time and reports it itself, so this names the one already open.
+	 */
+	function aimInto(path: string, region?: string): void {
+		if (!session.value.dragging) {
+			return
+		}
+		if (region !== undefined) {
+			openRegion(path, region)
+		}
+		aim(
+			targetInside(
+				session.value.catalog,
+				session.value.draft,
+				session.value.dragging,
+				path,
+			),
+		)
+	}
+
+	/** The region of a container a drop into it would land in, if it has any. */
+	function regionOf(path: string): string | undefined {
+		const draft = session.value.draft
+		const block = draft ? findNode(draft, path) : undefined
+		return shownRegion(
+			descriptorOf(session.value.catalog, block?.type),
+			block,
+			session.value.openRegions[path],
+		)?.id
+	}
+
 	function drop(): void {
 		const target = session.value.dropTarget
 		if (!target) {
@@ -1640,6 +1684,8 @@ export function useBuilder(): BuilderController {
 		endDrag,
 		aimAt,
 		aimAtPage,
+		aimInto,
+		regionOf,
 		drop,
 		dropAt,
 		hover,

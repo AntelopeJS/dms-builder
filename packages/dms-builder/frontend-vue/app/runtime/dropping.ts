@@ -20,7 +20,7 @@ import {
 	FULL_WIDTH_BLOCKS,
 	ROW_CONTAINERS,
 } from './constants'
-import { findNode, joinPath, leafName, parentPath } from './draft'
+import { findNode, leafName, parentPath } from './draft'
 import type {
 	BlockCatalog,
 	BlockDraft,
@@ -32,23 +32,25 @@ import type {
 export interface DragPayload {
 	type?: string
 	path?: string
+	/**
+	 * How tall the block being moved is on the page, in pixels.
+	 *
+	 * The room opened for it is that tall, so what the page shows during the
+	 * drag is the page the drop will leave behind rather than an approximation
+	 * of it. A block coming from the palette has no height yet, and the room
+	 * made for it falls back to a size of its own.
+	 */
+	height?: number
 }
 
 /** Which side of a block an insertion sits on, whatever way it is laid out. */
-export type DropEdge = 'before' | 'after' | 'inside'
+type DropEdge = 'before' | 'after' | 'inside'
 
-/** How the insertion line runs: across a block, or down its flank. */
+/** How a container fills, and so how the room made for a drop runs in it. */
 export type DropAxis = 'horizontal' | 'vertical'
 
 /** The five places a pointer inside a block can name. */
 export type DropZone = 'left' | 'right' | 'top' | 'bottom' | 'inside'
-
-export interface DropAnchor {
-	/** The block the insertion line is drawn against; `null` is the page. */
-	path: string | null
-	edge: DropEdge
-	axis: DropAxis
-}
 
 /**
  * A container the editor builds around a block, to hold it and the drop.
@@ -76,7 +78,11 @@ export interface DropPlacement {
 export interface DropTarget extends DropPlacement {
 	/** Where it would sit among that container's children. */
 	index: number
-	anchor: DropAnchor
+	/**
+	 * The way that container fills, which is the way the room opened for the
+	 * block runs in it: a band across a stack, a column down a row.
+	 */
+	axis: DropAxis
 	/** Why it would be refused, in a few words; absent when it is allowed. */
 	refusal?: string
 }
@@ -115,14 +121,34 @@ interface ZoneEdge {
 	zone: DropZone
 	/** The distance to that edge, as a share of the box along its own axis. */
 	distance: number
+	/** The share of that axis, at this end, that still aims beside the block. */
+	band: number
 }
 
 /**
  * The share of a container, at each end, that still aims beside it rather than
  * into it. A block that holds nothing has no inside, so the nearest edge wins
  * wherever the pointer is.
+ *
+ * A narrow band, because the two answers are not worth the same. Beside a
+ * container is a place the neighbouring blocks also name — the same column
+ * opens from the flank of whatever sits next to it — while inside it is named
+ * by that container alone, and by nothing else on the page. And a container
+ * aimed beside now gives a column up to the opening and narrows as it does,
+ * so a middle kept to half the box shrinks while the user is reaching for it.
  */
-const CONTAINER_EDGE = 0.25
+const CONTAINER_EDGE = 0.15
+/**
+ * …and never more than this many pixels of it.
+ *
+ * The band is a handle, not a proportion: left to a share alone, the bigger a
+ * container grew the wider the moat around its own inside became, which is
+ * backwards. A tab set the height of the page had a band sixty pixels deep on
+ * every side, and an author reaching for the tab pushed the set out of the way
+ * instead — twice over, now that the room opened beside it moves what it
+ * opens next to.
+ */
+const CONTAINER_EDGE_PX = 32
 /** The columns a child takes up when its metadata claims none. */
 const ONE_COLUMN = 1
 /** A row holding no more than this is the same surface as the cell in it. */
@@ -170,7 +196,7 @@ export function zoneAt(box: PointerBox, options: ZoneOptions): DropZone {
 	const nearest = edgesOf(box, options.columns).reduce((closest, edge) =>
 		edge.distance < closest.distance ? edge : closest,
 	)
-	if (options.inside && nearest.distance >= CONTAINER_EDGE) {
+	if (options.inside && nearest.distance >= nearest.band) {
 		return 'inside'
 	}
 	return nearest.zone
@@ -355,11 +381,10 @@ export function refusalForDrop(
 
 /** The end of the page: whatever is already there, then the new block. */
 export function targetAtPage(draft: PageDraft | null): DropTarget {
-	const blocks = draft?.blocks ?? []
 	return {
 		parent: null,
-		index: blocks.length,
-		anchor: endOf(null, blocks, 'horizontal'),
+		index: (draft?.blocks ?? []).length,
+		axis: 'horizontal',
 	}
 }
 
@@ -395,6 +420,36 @@ export function targetAtBlock(
 }
 
 /**
+ * The end of what a container holds, named by the container itself.
+ *
+ * A region holding nothing renders no block for a pointer to be read against,
+ * and the box of the container around it is mostly the bands that aim beside
+ * it: an author aiming at an empty tab was aiming at the bottom of the tab
+ * set. The way in that stands for the region answers on its own behalf
+ * instead, and what it answers is the one thing it means.
+ */
+export function targetInside(
+	catalog: BlockCatalog | null,
+	draft: PageDraft | null,
+	payload: DragPayload,
+	path: string,
+): DropTarget | null {
+	const block = draft ? findNode(draft, path) : undefined
+	if (!draft || !block) {
+		return null
+	}
+	const target = inside(path, block, undefined)
+	const refusal = refusalForDrop(
+		catalog,
+		draft,
+		target,
+		draggedType(draft, payload),
+		payload.path,
+	)
+	return refusal ? { ...target, refusal } : target
+}
+
+/**
  * What a drag actually does, named the way the drag-and-drop API names it.
  *
  * A block taken from the palette is copied into the page; a block already on
@@ -418,9 +473,7 @@ export function sameTarget(
 	return (
 		left.parent === right.parent &&
 		left.index === right.index &&
-		left.anchor.path === right.anchor.path &&
-		left.anchor.edge === right.anchor.edge &&
-		left.anchor.axis === right.anchor.axis &&
+		left.axis === right.axis &&
 		left.wrap?.around === right.wrap?.around &&
 		left.wrap?.index === right.wrap?.index &&
 		left.refusal === right.refusal
@@ -458,19 +511,28 @@ function targetInZone(
  */
 function edgesOf(box: PointerBox, columns: boolean): ZoneEdge[] {
 	const down = fractionOf(box.y)
+	const downwards = bandOf(box.y)
 	const stacked: ZoneEdge[] = [
-		{ zone: 'top', distance: down },
-		{ zone: 'bottom', distance: 1 - down },
+		{ zone: 'top', distance: down, band: downwards },
+		{ zone: 'bottom', distance: 1 - down, band: downwards },
 	]
 	if (!columns) {
 		return stacked
 	}
 	const across = fractionOf(box.x)
+	const sideways = bandOf(box.x)
 	return [
-		{ zone: 'left', distance: across },
-		{ zone: 'right', distance: 1 - across },
+		{ zone: 'left', distance: across, band: sideways },
+		{ zone: 'right', distance: 1 - across, band: sideways },
 		...stacked,
 	]
+}
+
+/** How much of one axis, at each end, still aims beside rather than into. */
+function bandOf(span: Span): number {
+	return span.size > 0
+		? Math.min(CONTAINER_EDGE, CONTAINER_EDGE_PX / span.size)
+		: CONTAINER_EDGE
 }
 
 /** Where the pointer sits on a span, from 0 at its start to 1 at its end. */
@@ -497,8 +559,8 @@ function parentTypeOf(draft: PageDraft, path: string): string | undefined {
 	return parent === null ? undefined : findNode(draft, parent)?.type
 }
 
-/** How a line between a container's children runs, given the way it lays them out. */
-function lineAxis(type: string | undefined): DropAxis {
+/** The way a container fills, given how it lays its children out. */
+function fillAxis(type: string | undefined): DropAxis {
 	return isRowContainer(type) ? 'vertical' : 'horizontal'
 }
 
@@ -539,61 +601,21 @@ function siblingIndex(draft: PageDraft, path: string): number {
 	)
 }
 
-/** The line at the end of a list of children, drawn under the last of them. */
-function endOf(
-	parent: string | null,
-	children: BlockDraft[],
-	axis: DropAxis,
-): DropAnchor {
-	const last = children.at(-1)
-	return last
-		? { path: joinPath(parent, last.name), edge: 'after', axis }
-		: { path: parent, edge: 'inside', axis }
-}
-
 function inside(
 	path: string,
 	block: BlockDraft,
 	fill: Span | undefined,
 ): DropTarget {
 	const children = block.children ?? []
-	const axis = lineAxis(block.type)
+	const axis = fillAxis(block.type)
 	if (!fill || children.length === 0) {
-		return {
-			parent: path,
-			index: children.length,
-			anchor: endOf(path, children, axis),
-		}
+		return { parent: path, index: children.length, axis }
 	}
-	const index = columnAt(fill, children.map(columnsOf))
-	return {
-		parent: path,
-		index,
-		anchor: columnAnchor(path, children, index, axis),
-	}
+	return { parent: path, index: columnAt(fill, children.map(columnsOf)), axis }
 }
 
 function columnsOf(child: BlockDraft): number {
 	return Number(child.meta?.colSpan) || ONE_COLUMN
-}
-
-/** The column edge the line is drawn on, so it says which two it falls between. */
-function columnAnchor(
-	path: string,
-	children: BlockDraft[],
-	index: number,
-	axis: DropAxis,
-): DropAnchor {
-	const leading = index === 0
-	const child = children[leading ? 0 : index - 1]
-	if (!child) {
-		return { path, edge: 'inside', axis }
-	}
-	return {
-		path: joinPath(path, child.name),
-		edge: leading ? 'before' : 'after',
-		axis,
-	}
 }
 
 function beside(
@@ -609,7 +631,7 @@ function beside(
 	return {
 		parent: parentPath(path),
 		index: edge === 'before' ? index : index + 1,
-		anchor: { path, edge, axis },
+		axis,
 	}
 }
 
@@ -648,6 +670,6 @@ function stackedAt(
 			type: COLUMN_CONTAINER,
 			index: edge === 'before' ? 0 : 1,
 		},
-		anchor: { path, edge, axis: 'horizontal' },
+		axis: 'horizontal',
 	}
 }

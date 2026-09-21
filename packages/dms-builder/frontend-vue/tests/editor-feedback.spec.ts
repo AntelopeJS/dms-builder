@@ -274,7 +274,7 @@ describe('a tab set the preview cannot build', () => {
 			components: {
 				DmsBuilderNode: Node as Component,
 				DmsBuilderChildren: Children as Component,
-				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderPlaceholder: stub('DmsBuilderPlaceholder'),
 				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
 			},
 		})
@@ -288,8 +288,12 @@ describe('a tab set the preview cannot build', () => {
 			'orders',
 			'sends',
 		])
-		// `v-if` is what the renderer here writes a comment placeholder as.
-		expect(textOf(named[0]!), 'an empty tab is still named').toBe('Ordersv-if')
+		// A tab holding nothing is still named, and now carries the way in that
+		// says so: without a surface of its own, the only box under the pointer
+		// was the tab set's, whose ends aim beside it rather than into the tab.
+		expect(textOf(named[0]!), 'an empty tab is still named').toBe(
+			'Orders Empty container — add a block',
+		)
 		expect(textOf(named[1]!)).toContain('Sends')
 		expect(
 			findAll(named[1]!, (node) => node.props['data-path'] === 'tab/text'),
@@ -538,7 +542,7 @@ describe('a block the preview could not build', () => {
 			components: {
 				DmsBuilderNode: Node as Component,
 				DmsBuilderChildren: Children as Component,
-				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderPlaceholder: stub('DmsBuilderPlaceholder'),
 				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
 			},
 		})
@@ -608,7 +612,7 @@ describe('a tab set on the canvas', () => {
 			components: {
 				DmsBuilderNode: Node as Component,
 				DmsBuilderChildren: Children as Component,
-				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderPlaceholder: stub('DmsBuilderPlaceholder'),
 				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
 			},
 		})
@@ -636,7 +640,7 @@ describe('a tab set on the canvas', () => {
 			components: {
 				DmsBuilderNode: Node as Component,
 				DmsBuilderChildren: Children as Component,
-				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderPlaceholder: stub('DmsBuilderPlaceholder'),
 				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
 			},
 		})
@@ -673,7 +677,7 @@ describe('a block that awaits before it can render', () => {
 			components: {
 				DmsBuilderNode: Node as Component,
 				DmsBuilderChildren: Children as Component,
-				DmsBuilderInsertion: stub('DmsBuilderInsertion'),
+				DmsBuilderPlaceholder: stub('DmsBuilderPlaceholder'),
 				DmsBuilderBoundary: stub('DmsBuilderBoundary'),
 			},
 		})

@@ -191,9 +191,17 @@ export function byClass(target: TestNode, fragment: string): TestNode[] {
 	)
 }
 
-/** Everything the node renders as text, children included. */
+/**
+ * Everything the node renders as text, children included.
+ *
+ * Comments are left out: a `v-if` that did not take writes one as its anchor,
+ * and the source's own commentary is compiled into others. Neither is on
+ * screen, and counting them makes an assertion about what a block says depend
+ * on how many branches the template happens to carry.
+ */
 export function textOf(target: TestNode): string {
 	return walk(target)
+		.filter((candidate) => candidate.kind !== 'comment')
 		.map((candidate) => candidate.text)
 		.join('')
 		.replace(/\s+/g, ' ')

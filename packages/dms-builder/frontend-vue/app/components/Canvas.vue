@@ -27,10 +27,19 @@ const receiving = computed(() => {
 		namedHost(session.value.catalog, session.value.draft, target.parent) === null
 	)
 })
-/** The page holds nothing, so the line is drawn inside its empty frame. */
-const aimedInside = computed(() => {
-	const anchor = session.value.dropTarget?.anchor
-	return anchor?.path === null ? anchor : undefined
+/**
+ * Where among the blocks the room for the drop opens.
+ *
+ * The page is a container like any other and it fills downwards, so the room
+ * is a band across it: what is under it moves down by exactly what the block
+ * will take, and the page mid-drag is the page after the drop.
+ */
+const gapAt = computed(() => {
+	const target = session.value.dropTarget
+	if (!target || target.refusal || target.wrap || target.parent !== null) {
+		return undefined
+	}
+	return target.index
 })
 
 /**
@@ -40,6 +49,19 @@ const aimedInside = computed(() => {
  */
 function onDragOver(event: DragEvent): void {
 	builder.aimAtPage()
+	answerCursor(event)
+}
+
+/**
+ * The seams between the page's own blocks answer for nothing.
+ *
+ * They are a gap the page draws, not a place it is offering, and they are
+ * wide enough to cross: left to the surface below, every one of them took the
+ * aim off the block the user was reaching for and threw it to the end of the
+ * page and back, which is the blink and not a move. What is aimed at stands
+ * until something that means a place says otherwise.
+ */
+function onDragOverSeam(event: DragEvent): void {
 	answerCursor(event)
 }
 
@@ -90,11 +112,7 @@ function answerCursor(event: DragEvent): void {
 				class="relative flex flex-col items-center gap-3 rounded-xl border border-dashed p-16 text-center"
 				:class="receiving ? 'border-primary' : 'border-default'"
 			>
-				<DmsBuilderInsertion
-					v-if="receiving && aimedInside"
-					edge="inside"
-					:axis="aimedInside.axis"
-				/>
+				<DmsBuilderPlaceholder v-if="gapAt !== undefined" axis="horizontal" />
 				<UIcon name="i-ph-stack" class="size-8 text-dimmed" />
 				<p class="text-base font-medium text-default">This page is empty</p>
 				<p class="max-w-sm text-sm text-muted">
@@ -115,7 +133,12 @@ function answerCursor(event: DragEvent): void {
 				</div>
 			</div>
 
-			<div v-else class="relative flex flex-col gap-6">
+			<div
+				v-else
+				class="relative flex flex-col gap-6"
+				@dragenter.prevent.stop="answerCursor"
+				@dragover.prevent.stop="onDragOverSeam"
+			>
 				<!-- The page is a container like any other: when it is the one
 				receiving, it says so around everything it holds. -->
 				<div
@@ -129,17 +152,28 @@ function answerCursor(event: DragEvent): void {
 						{{ page.displayName || 'Page' }} · Page
 					</span>
 				</div>
-				<DmsBuilderNode
-					v-for="block in blocks"
-					:key="block.name"
-					:block="block"
-					:path="block.name"
-					:preview="session.preview[block.name]"
+				<template v-for="(block, at) in blocks" :key="block.name">
+					<DmsBuilderPlaceholder v-if="gapAt === at" axis="horizontal" />
+					<DmsBuilderNode
+						:block="block"
+						:path="block.name"
+						:preview="session.preview[block.name]"
+					/>
+				</template>
+				<DmsBuilderPlaceholder
+					v-if="gapAt === blocks.length"
+					axis="horizontal"
 				/>
+				<!-- The way in at the end of the page means the end of the page,
+				the way a container's own does for the container. -->
 				<button
 					type="button"
 					class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-default p-4 text-sm text-dimmed hover:border-primary hover:text-primary"
+					data-way-in="page"
 					@click.stop="builder.setView('library')"
+					@dragenter.prevent.stop="answerCursor"
+					@dragover.prevent.stop="onDragOver"
+					@drop.prevent.stop="builder.drop()"
 				>
 					<UIcon name="i-ph-plus" class="size-4" />
 					Add a block

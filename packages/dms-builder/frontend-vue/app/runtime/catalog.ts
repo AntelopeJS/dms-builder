@@ -594,6 +594,26 @@ export function slotIdFor(
 }
 
 /** The slots a container offers, fixed or read off its own options. */
+/**
+ * The region of a container a child of it attaches to, given what is on screen.
+ *
+ * Only a container whose regions are its own to fill: one laying its children
+ * out itself renders them wherever it renders them, and a region named on a
+ * child would hide it. The one on screen is the author's answer; the first is
+ * only what it falls back to before anything has been opened.
+ */
+export function shownRegion(
+	descriptor: BlockTypeDescriptor | undefined,
+	block: BlockDraft | undefined,
+	open: string | undefined,
+): { id: string; label: string } | undefined {
+	if (!block || !descriptor?.dynamicSlots) {
+		return undefined
+	}
+	const slots = slotsOf(descriptor, block)
+	return slots.find((slot) => slot.id === open) ?? slots[0]
+}
+
 export function slotsOf(
 	descriptor: BlockTypeDescriptor | undefined,
 	block: BlockDraft | undefined,

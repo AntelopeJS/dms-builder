@@ -7,7 +7,10 @@ import { defineConfig, transformWithOxc, type Plugin } from 'vite'
  *
  * The package declares no SFC plugin, so one is assembled here from
  * `@vue/compiler-sfc`, which vue already brings. It only has to handle these
- * components: `<script setup lang="ts">` plus a template, no `<style>`.
+ * components: `<script setup lang="ts">` plus a template. A `<style>` block is
+ * simply left where it is — nothing here has a layout for it to describe, and
+ * the one component carrying one says in CSS what it would otherwise have
+ * needed a transition, and a real DOM, to say.
  *
  * Run with `npx vitest run --config tests/components.config.ts`. The suite
  * matches `*.spec.ts`, so the package's own `vitest.config.ts` — which matches

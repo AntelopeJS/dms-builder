@@ -3,12 +3,13 @@ import { nextTick, type Component } from 'vue'
 import Boundary from '../app/components/Boundary.vue'
 import Canvas from '../app/components/Canvas.vue'
 import Children from '../app/components/Children.vue'
-import Insertion from '../app/components/Insertion.vue'
 import Library from '../app/components/Library.vue'
 import Node from '../app/components/Node.vue'
+import Placeholder from '../app/components/Placeholder.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	byClass,
+	fakeEvent,
 	fire,
 	findAll,
 	mount,
@@ -26,10 +27,11 @@ import type { BlockNode, ComponentPreview } from '../app/runtime/types'
  * The canvas, driven the way a pointer drives it.
  *
  * The gesture is aimed at the blocks that are on the page: a `dragover` inside
- * one of them, at a height these tests choose, and the canvas answers with one
- * insertion line and a border around the container that would receive. Every
- * assertion below is about what the mounted components render and what firing
- * their own handlers puts in the draft.
+ * one of them, at a height these tests choose, and the canvas answers by
+ * opening room for the block where it would land, inside a border around the
+ * container that would receive. Every assertion below is about what the
+ * mounted components render and what firing their own handlers puts in the
+ * draft.
  */
 
 let backend: FakeBackend
@@ -45,7 +47,7 @@ Object.assign(globalThis, {
 const globals = (): Record<string, Component> => ({
 	DmsBuilderNode: Node as Component,
 	DmsBuilderChildren: Children as Component,
-	DmsBuilderInsertion: Insertion as Component,
+	DmsBuilderPlaceholder: Placeholder as Component,
 	DmsBuilderBoundary: Boundary as Component,
 })
 
@@ -83,29 +85,76 @@ function nodeAt(root: TestNode, path: string): TestNode {
 	return match[0]
 }
 
-/** The block an insertion line is drawn against. */
-function anchorOf(line: TestNode): string {
-	let owner = line.parent
-	while (owner && owner.props['data-path'] === undefined) {
-		owner = owner.parent
+/**
+ * Every opening on the canvas, said the way the page reads it.
+ *
+ * An opening is a child of the container that would receive, so what it means
+ * is read off where it sits among that container's own children: before the
+ * one that follows it, at the end of the container when none does — and above
+ * or below a block when the opening is the room made inside it for the column
+ * a drop would build.
+ */
+function gaps(root: TestNode): string[] {
+	return findAll(root, (node) => node.props['data-drop-gap'] !== undefined).map(
+		(gap) => {
+			const siblings = (gap.parent?.children ?? []).filter(
+				(node) => node.kind === 'element',
+			)
+			const inside = gap.parent?.props['data-path']
+			if (inside !== undefined) {
+				return `${siblings[0] === gap ? 'above' : 'below'} ${String(inside)}`
+			}
+			const next = siblings
+				.slice(siblings.indexOf(gap) + 1)
+				.map((node) => node.props['data-path'])
+				.find((path) => path !== undefined)
+			return next === undefined
+				? `end of ${holder(gap)}`
+				: `before ${String(next)}`
+		},
+	)
+}
+
+/** The container an opening sits in, by its draft path; the page carries none. */
+function holder(gap: TestNode): string {
+	let node = gap.parent
+	while (node) {
+		if (node.props['data-path'] !== undefined) {
+			return String(node.props['data-path'])
+		}
+		node = node.parent
 	}
-	return String(owner?.props['data-path'] ?? 'page')
+	return 'page'
 }
 
-/** Every insertion line on the canvas, as `<block>:<edge>`. */
-function lines(root: TestNode): string[] {
-	return findAll(
-		root,
-		(node) => node.props['data-drop-line'] !== undefined,
-	).map((line) => `${anchorOf(line)}:${String(line.props['data-drop-line'])}`)
+/** The way each opening runs: a band across the flow, or a column down it. */
+function gapAxes(root: TestNode): string[] {
+	return findAll(root, (node) => node.props['data-drop-gap'] !== undefined).map(
+		(gap) => String(gap.props['data-drop-gap']),
+	)
 }
 
-/** The way each of those lines runs: across a block, or down its flank. */
-function lineAxes(root: TestNode): string[] {
-	return findAll(
+/** The one opening on the canvas, to read its size and its handlers off. */
+function gap(root: TestNode): TestNode {
+	const match = findAll(
 		root,
-		(node) => node.props['data-drop-axis'] !== undefined,
-	).map((line) => String(line.props['data-drop-axis']))
+		(node) => node.props['data-drop-gap'] !== undefined,
+	)[0]
+	if (!match) {
+		throw new Error('the canvas opened no room')
+	}
+	return match
+}
+
+/** Pick a block up, the browser reporting the box it is being taken out of. */
+function lift(root: TestNode, path: string, height: number): void {
+	fire(
+		nodeAt(root, path),
+		'dragstart',
+		fakeEvent('dragstart', {
+			currentTarget: { getBoundingClientRect: () => ({ height }) },
+		}),
+	)
 }
 
 /** The container that would really receive, whatever the canvas names. */
@@ -243,7 +292,7 @@ describe('the surfaces a drop is allowed on', () => {
 })
 
 describe('the canvas at rest', () => {
-	it('shows the page and nothing else: no target, no line, no frame', async () => {
+	it('shows the page and nothing else: no target, no room, no frame', async () => {
 		await openWith([block('title', 'Text'), block('intro', 'Text')], {
 			title: { componentName: 'DmsText' },
 			intro: { componentName: 'DmsText' },
@@ -251,7 +300,7 @@ describe('the canvas at rest', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		await nextTick()
 
-		expect(lines(root)).toEqual([])
+		expect(gaps(root)).toEqual([])
 		expect(into(root)).toBe(null)
 		expect(textOf(root)).toContain('Add a block')
 	})
@@ -302,13 +351,14 @@ describe('the moment the drag starts', () => {
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
-		// Nothing is inserted and nothing is pushed aside: the page the user is
-		// aiming at is the page that was there a moment ago.
+		// Nothing is inserted and nothing is pushed aside until the drag is
+		// aimed somewhere: the page the user starts from is the page that was
+		// there a moment ago.
 		expect(elements(root)).toBe(before)
 		expect(textOf(root)).toBe(said)
-		expect(lines(root)).toEqual([])
+		expect(gaps(root)).toEqual([])
 		expect(into(root)).toBe(null)
-		// The way in stays where it is, rather than being swapped for a drop bar.
+		// The way in stays where it is, rather than being swapped for a landing.
 		expect(textOf(root)).toContain('Add a block')
 	})
 })
@@ -321,7 +371,7 @@ describe('aiming at a block', () => {
 		})
 	})
 
-	it('draws one line above it from its top half, and names the page', async () => {
+	it('opens room above it from its top half, and names the page', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
@@ -329,7 +379,7 @@ describe('aiming at a block', () => {
 		aim(root, 'intro', 20)
 		await nextTick()
 
-		expect(lines(root)).toEqual(['intro:before'])
+		expect(gaps(root)).toEqual(['before intro'])
 		expect(into(root)?.path).toBe('page')
 		expect(into(root)?.says).toContain('Page')
 	})
@@ -341,26 +391,26 @@ describe('aiming at a block', () => {
 
 		aim(root, 'title', 80)
 		await nextTick()
-		expect(lines(root)).toEqual(['title:after'])
+		expect(gaps(root)).toEqual(['before intro'])
 
 		letGo(root, 'title')
 		await nextTick()
 		expect(names()).toEqual(['title', 'text', 'intro'])
-		expect(lines(root), 'and the line is gone with the drag').toEqual([])
+		expect(gaps(root), 'and the room closes with the drag').toEqual([])
 	})
 
-	it('follows the pointer without ever drawing two lines at once', async () => {
+	it('follows the pointer without ever opening two places at once', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
 		aim(root, 'title', 20)
 		await nextTick()
-		expect(lines(root)).toEqual(['title:before'])
+		expect(gaps(root)).toEqual(['before title'])
 
 		aim(root, 'intro', 90)
 		await nextTick()
-		expect(lines(root)).toEqual(['intro:after'])
+		expect(gaps(root)).toEqual(['end of page'])
 	})
 
 	it('answers for the whole surface of a block, which used to refuse the drop', async () => {
@@ -389,7 +439,7 @@ describe('aiming into a container', () => {
 		})
 	})
 
-	it('frames the container, names it, and draws the line inside it', async () => {
+	it('frames the container, names it, and opens the room inside it', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
@@ -401,7 +451,7 @@ describe('aiming into a container', () => {
 		expect(into(root)?.says).toContain('row')
 		expect(into(root)?.says).toContain('Horizontal stack')
 		expect(frameOf(root, 'row')).toContain('outline-primary')
-		expect(lines(root)).toEqual(['row/left:after'])
+		expect(gaps(root)).toEqual(['end of row'])
 
 		letGo(root, 'row')
 		expect(names('row')).toEqual(['left', 'text'])
@@ -415,7 +465,7 @@ describe('aiming into a container', () => {
 		aim(root, 'row', 5)
 		await nextTick()
 		expect(into(root)?.path, 'the page receives, not the stack').toBe('page')
-		expect(lines(root)).toEqual(['row:before'])
+		expect(gaps(root)).toEqual(['before row'])
 
 		letGo(root, 'row')
 		expect(names()).toEqual(['text', 'row'])
@@ -430,7 +480,7 @@ describe('aiming into a container', () => {
 		aim(root, 'row/left', 20)
 		await nextTick()
 		expect(into(root)?.path).toBe('row')
-		expect(lines(root)).toEqual(['row/left:before'])
+		expect(gaps(root)).toEqual(['before row/left'])
 
 		letGo(root, 'row/left')
 		expect(names('row')).toEqual(['text', 'left'])
@@ -450,7 +500,7 @@ describe('aiming into a container', () => {
 		expect(names('row')).toEqual(['left', 'text', 'text2'])
 	})
 
-	it('lands at the joint the line was drawn on, not at the end of the stack', async () => {
+	it('lands at the joint the room opened on, not at the end of the stack', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
@@ -463,7 +513,7 @@ describe('aiming into a container', () => {
 		await nextTick()
 		aim(root, 'row', 50, 50)
 		await nextTick()
-		expect(lines(root)).toEqual(['row/left:after'])
+		expect(gaps(root)).toEqual(['before row/text'])
 
 		letGo(root, 'row')
 		await nextTick()
@@ -486,7 +536,7 @@ describe('a Grid, which holds nothing but rows', () => {
 		aim(root, 'grid', 50)
 		await nextTick()
 
-		expect(lines(root)).toEqual(['grid:inside'])
+		expect(gaps(root)).toEqual(['end of grid'])
 		expect(into(root)?.path).toBe('grid')
 		expect(into(root)?.refused).toBe(false)
 		expect(into(root)?.says).not.toContain('only accepts')
@@ -517,7 +567,7 @@ describe('a Grid, which holds nothing but rows', () => {
 		aim(root, 'grid', 50)
 		await nextTick()
 		expect(into(root)?.refused).toBe(false)
-		expect(lines(root)).toEqual(['grid:inside'])
+		expect(gaps(root)).toEqual(['end of grid'])
 
 		letGo(root, 'grid')
 		expect(names('grid')).toEqual(['gridRow'])
@@ -564,7 +614,7 @@ describe('the two axes of a row', () => {
 		// The canvas names the grid: the row is the grid's own writing, and a
 		// name for it would be a word the user never had to learn.
 		expect(into(root)?.path).toBe('grid')
-		expect(lines(root)).toEqual(['grid/band/card:before'])
+		expect(gaps(root)).toEqual(['before grid/band/card'])
 
 		letGo(root, 'grid/band')
 		expect(names('grid/band')).toEqual(['text', 'card', 'note'])
@@ -578,7 +628,7 @@ describe('the two axes of a row', () => {
 
 		aim(root, 'grid/band', 95, 50)
 		await nextTick()
-		expect(lines(root)).toEqual(['grid/band/note:after'])
+		expect(gaps(root)).toEqual(['end of grid/band'])
 
 		letGo(root, 'grid/band')
 		expect(names('grid/band')).toEqual(['card', 'note', 'text'])
@@ -592,7 +642,7 @@ describe('the two axes of a row', () => {
 		aim(root, 'grid/band', 50, 5)
 		await nextTick()
 		expect(into(root)?.path).toBe('grid')
-		expect(lines(root)).toEqual(['grid/band:before'])
+		expect(gaps(root)).toEqual(['before grid/band'])
 
 		letGo(root, 'grid/band')
 		expect(names('grid')).toEqual(['gridRow', 'band'])
@@ -605,7 +655,7 @@ describe('the two axes of a row', () => {
 
 		aim(root, 'grid/band/note', 20, 50)
 		await nextTick()
-		expect(lines(root)).toEqual(['grid/band/note:before'])
+		expect(gaps(root)).toEqual(['before grid/band/note'])
 
 		letGo(root, 'grid/band/note')
 		expect(names('grid/band')).toEqual(['card', 'text', 'note'])
@@ -621,7 +671,7 @@ describe('the two axes of a row', () => {
 
 		aim(root, 'grid/band', 5, 50)
 		await nextTick()
-		expect(lines(root), 'nothing promises a landing').toEqual([])
+		expect(gaps(root), 'nothing promises a landing').toEqual([])
 		expect(receiver()).toBe('grid/band')
 		expect(into(root)?.path).toBe('grid')
 		expect(into(root)?.refused).toBe(true)
@@ -671,7 +721,7 @@ describe('the column someone reaches for beside a block in a row', () => {
 		expect(receiver(), 'the row receives, not the grid').toBe('grid/band')
 		expect(into(root)?.path, 'and the grid is what is named').toBe('grid')
 		expect(into(root)?.refused, 'and nothing is refused').toBe(false)
-		expect(lines(root)).toEqual(['grid/band/card:after'])
+		expect(gaps(root)).toEqual(['end of grid/band'])
 
 		letGo(root, 'grid/band/card')
 		expect(names('grid/band')).toEqual(['card', 'vStack'])
@@ -730,8 +780,8 @@ describe('the four directions on a cell', () => {
 
 	it('puts the block in the column before the cell, from its left quarter', async () => {
 		const root = await dropOn(5, 50)
-		expect(lines(root)).toEqual(['grid/band/card:before'])
-		expect(lineAxes(root), 'a bar down its flank').toEqual(['vertical'])
+		expect(gaps(root)).toEqual(['before grid/band/card'])
+		expect(gapAxes(root), 'a column down its flank').toEqual(['vertical'])
 
 		letGo(root, 'grid/band/card')
 		expect(names('grid/band')).toEqual(['text', 'card', 'note'])
@@ -739,8 +789,8 @@ describe('the four directions on a cell', () => {
 
 	it('puts it in the column after the cell, from its right quarter', async () => {
 		const root = await dropOn(95, 50)
-		expect(lines(root)).toEqual(['grid/band/card:after'])
-		expect(lineAxes(root)).toEqual(['vertical'])
+		expect(gaps(root)).toEqual(['before grid/band/note'])
+		expect(gapAxes(root)).toEqual(['vertical'])
 
 		letGo(root, 'grid/band/card')
 		expect(names('grid/band')).toEqual(['card', 'text', 'note'])
@@ -748,8 +798,10 @@ describe('the four directions on a cell', () => {
 
 	it('puts it above the cell, from the band across its top', async () => {
 		const root = await dropOn(50, 5)
-		expect(lines(root)).toEqual(['grid/band/card:before'])
-		expect(lineAxes(root), 'a rule across it, not a bar').toEqual(['horizontal'])
+		expect(gaps(root)).toEqual(['above grid/band/card'])
+		expect(gapAxes(root), 'a band across it, not a column').toEqual([
+			'horizontal',
+		])
 
 		letGo(root, 'grid/band/card')
 		// The row keeps its two columns; the first of them now holds both blocks.
@@ -759,8 +811,8 @@ describe('the four directions on a cell', () => {
 
 	it('puts it below the cell, from the band across its bottom', async () => {
 		const root = await dropOn(50, 95)
-		expect(lines(root)).toEqual(['grid/band/card:after'])
-		expect(lineAxes(root)).toEqual(['horizontal'])
+		expect(gaps(root)).toEqual(['below grid/band/card'])
+		expect(gapAxes(root)).toEqual(['horizontal'])
 
 		letGo(root, 'grid/band/card')
 		expect(names('grid/band/vStack')).toEqual(['card', 'text'])
@@ -775,20 +827,20 @@ describe('the four directions on a cell', () => {
 		await nextTick()
 		aim(root, 'grid/band/vStack/card', 50, 95)
 		await nextTick()
-		expect(lines(root)).toEqual(['grid/band/vStack/card:after'])
+		expect(gaps(root)).toEqual(['before grid/band/vStack/text'])
 
 		letGo(root, 'grid/band/vStack/card')
 		expect(names('grid/band/vStack')).toEqual(['card', 'text2', 'text'])
 		expect(names('grid/band'), 'still two columns').toEqual(['vStack', 'note'])
 	})
 
-	it('draws one line and only one, whichever side is aimed at', async () => {
+	it('opens one place and only one, whichever side is aimed at', async () => {
 		const root = await dropOn(50, 5)
-		expect(lines(root)).toHaveLength(1)
+		expect(gaps(root)).toHaveLength(1)
 		aim(root, 'grid/band/card', 5, 50)
 		await nextTick()
-		expect(lines(root)).toEqual(['grid/band/card:before'])
-		expect(lineAxes(root)).toEqual(['vertical'])
+		expect(gaps(root)).toEqual(['before grid/band/card'])
+		expect(gapAxes(root)).toEqual(['vertical'])
 	})
 })
 
@@ -826,7 +878,7 @@ describe('two blocks side by side, from an empty page', () => {
 		await nextTick()
 		aim(root, 'grid/gridRow/text', 90, 50)
 		await nextTick()
-		expect(lines(root)).toEqual(['grid/gridRow/text:after'])
+		expect(gaps(root)).toEqual(['end of grid/gridRow'])
 		letGo(root, 'grid/gridRow/text')
 		await nextTick()
 
@@ -904,7 +956,7 @@ describe('a two-by-two layout, built with the pointer', () => {
 		aim(root, 'grid/gridRow/text', 50, 95)
 		await nextTick()
 		expect(into(root)?.path, 'the grid is what is named').toBe('grid')
-		expect(lineAxes(root), 'a rule across the block, not a bar').toEqual([
+		expect(gapAxes(root), 'a band across the block, not a column').toEqual([
 			'horizontal',
 		])
 		saysNothingStructural(root)
@@ -918,7 +970,7 @@ describe('a two-by-two layout, built with the pointer', () => {
 			await nextTick()
 			aim(root, cell, 95, 50)
 			await nextTick()
-			expect(lineAxes(root), 'a bar down the flank of the cell').toEqual([
+			expect(gapAxes(root), 'a column at the flank of the cell').toEqual([
 				'vertical',
 			])
 			saysNothingStructural(root)
@@ -950,7 +1002,7 @@ describe('a container the preview has not answered for yet', () => {
 		aim(root, 'row', 50)
 		await nextTick()
 		expect(into(root)?.path).toBe('row')
-		expect(lines(root)).toEqual(['row:inside'])
+		expect(gaps(root)).toEqual(['end of row'])
 
 		letGo(root, 'row')
 		await nextTick()
@@ -958,6 +1010,344 @@ describe('a container the preview has not answered for yet', () => {
 		// And what it holds is rendered, rather than hidden behind a placeholder.
 		expect(findAll(root, (node) => node.props['data-path'] === 'row/text'))
 			.toHaveLength(1)
+	})
+})
+
+/**
+ * What the room actually is, once it is open.
+ *
+ * Everything above is about where it opens; these are about the page making
+ * it — the block below it moving down by what the drop will take, the row
+ * giving up a column, and the opening holding the aim rather than trading
+ * places with the block it was read off.
+ */
+describe('the room the page makes for the block', () => {
+	beforeEach(async () => {
+		await openWith([block('title', 'Text'), block('intro', 'Text')], {
+			title: { componentName: 'DmsText' },
+			intro: { componentName: 'DmsText' },
+		})
+	})
+
+	it('is as tall as the block being carried', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+
+		lift(root, 'intro', 120)
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+
+		// What the page shows mid-drag is the page the drop leaves behind: the
+		// block below the opening has moved down by exactly what will fill it.
+		expect(gap(root).props.style).toEqual({ height: '120px' })
+	})
+
+	it('falls back to a size of its own for a block off the palette', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+
+		// Nothing has rendered it yet, so there is no height to be as tall as —
+		// and a height it still is, rather than a floor, because the room grows
+		// to it from nothing and `auto` is not a height to grow to.
+		expect(gap(root).props.style).toEqual({ height: '48px' })
+	})
+
+	it('grows into place instead of appearing where the last one was', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+		expect(String(gap(root).props.class)).toContain('dms-builder-room-down')
+
+		// A column is as wide as the row gives it, which is not a width to grow
+		// from: that one scales into place instead.
+		await openWith([block('row', 'HStack', [block('left', 'Text')])], {
+			row: {
+				componentName: 'DmsHStack',
+				children: [{ id: 'left', component: { componentName: 'DmsText' } }],
+			},
+		})
+		const sideways = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(sideways.root, 'row/left', 20)
+		await nextTick()
+		expect(String(gap(sideways.root).props.class)).toContain(
+			'dms-builder-room-across',
+		)
+	})
+
+	it('names what is going to fill it', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+
+		expect(textOf(gap(root))).toBe('Text')
+	})
+
+	it('stands the carried block back from the page it is leaving', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+
+		lift(root, 'intro', 120)
+		await nextTick()
+
+		expect(frameOf(root, 'intro')).toContain('opacity-40')
+		expect(frameOf(root, 'title')).not.toContain('opacity-40')
+	})
+
+	/**
+	 * The opening is under the pointer the moment it appears — the block it was
+	 * read off has just moved aside to make it. Letting the event fall through
+	 * would have the page answer instead, the opening would close, the block
+	 * would come back under the pointer, and the two would trade places for as
+	 * long as the user held still.
+	 */
+	it('holds the aim while the pointer is over it', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+
+		const event = fire(gap(root), 'dragover', pointerOver({}))
+		await nextTick()
+
+		expect(event.stopped, 'the page is not asked').toBe(true)
+		expect(event.prevented, 'and the drop stays allowed').toBe(true)
+		expect(gaps(root)).toEqual(['before title'])
+	})
+
+	it('takes the drop itself, the pointer never having to leave it', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+
+		fire(gap(root), 'drop')
+		await nextTick()
+		expect(names()).toEqual(['text', 'title', 'intro'])
+	})
+})
+
+/**
+ * The space the page draws between its own blocks, crossed mid-drag.
+ *
+ * It is a gap, not a place on offer, and it is wide enough to be crossed
+ * every time the pointer travels from one block to the next.
+ */
+describe('the seams between the blocks on a page', () => {
+	beforeEach(async () => {
+		await openWith([block('title', 'Text'), block('intro', 'Text')], {
+			title: { componentName: 'DmsText' },
+			intro: { componentName: 'DmsText' },
+		})
+	})
+
+	/** The column the page lays its blocks out in, seams and all. */
+	function column(root: TestNode): TestNode {
+		const match = byClass(root, 'gap-6')[0]
+		if (!match) {
+			throw new Error('the canvas laid out no column')
+		}
+		return match
+	}
+
+	/** The way in at the end of the page. */
+	function wayIn(root: TestNode): TestNode {
+		const match = findAll(
+			root,
+			(node) => node.props['data-way-in'] === 'page',
+		)[0]
+		if (!match) {
+			throw new Error('the page offers no way in')
+		}
+		return match
+	}
+
+	it('leaves the aim where it is rather than answering for itself', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+		expect(gaps(root)).toEqual(['before title'])
+
+		// Answered by the surface below, every seam took the aim off the block
+		// the user was reaching for and threw it to the end of the page, then
+		// back the moment the next block was reached: the blink, not a move.
+		const event = fire(column(root), 'dragover', pointerOver({}))
+		await nextTick()
+		expect(event.stopped, 'the page is not asked').toBe(true)
+		expect(gaps(root)).toEqual(['before title'])
+	})
+
+	it('still answers with the effect the gesture carries', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+
+		const event = fire(column(root), 'dragover', pointerOver({}))
+		expect(
+			(event.dataTransfer as unknown as { dropEffect?: string }).dropEffect,
+		).toBe('copy')
+	})
+
+	it('gives the end of the page to the way in that says so', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'title', 10)
+		await nextTick()
+
+		fire(wayIn(root), 'dragover', pointerOver({}))
+		await nextTick()
+		expect(gaps(root)).toEqual(['end of page'])
+
+		fire(wayIn(root), 'drop')
+		await nextTick()
+		expect(names()).toEqual(['title', 'intro', 'text'])
+	})
+})
+
+describe('the column a row gives up for the block', () => {
+	/** What the row was told to divide its width by. */
+	function columns(root: TestNode): unknown {
+		return findAll(root, (node) => node.tag === 'DmsHStack')[0]?.props[
+			'child-count'
+		]
+	}
+
+	it('counts the opening among what it has to lay out', async () => {
+		await openWith([block('row', 'HStack', [block('left', 'Text')])], {
+			row: {
+				componentName: 'DmsHStack',
+				children: [{ id: 'left', component: { componentName: 'DmsText' } }],
+			},
+		})
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+		expect(columns(root), 'the one block it holds').toBe(1)
+
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'row', 50)
+		await nextTick()
+
+		// Left at one, the row divides its width among the blocks it already
+		// holds and the opening lands on top of them: no width is given up, and
+		// the page shows a drop that will not look like that.
+		expect(columns(root)).toBe(2)
+	})
+})
+
+/**
+ * A tab set, whose regions are the only place a child of it renders.
+ *
+ * A region holding nothing renders no block for a pointer to be read against,
+ * so the only box under it was the tab set's own — and an empty tab sits at
+ * the bottom of that box, which is where the band that aims below it is. The
+ * way in the region offers is the surface that means the region.
+ */
+describe('an empty tab, which is a region and not a block', () => {
+	function tabs(): BlockNode {
+		return {
+			path: 'tabs',
+			name: 'tabs',
+			type: 'Tab',
+			editable: true,
+			config: {
+				items: [
+					{ slot: 'orders', label: 'Orders' },
+					{ slot: 'sends', label: 'Sends' },
+				],
+			},
+			children: [
+				{
+					path: 'tabs/text',
+					name: 'text',
+					type: 'Text',
+					editable: true,
+					slot: 'sends',
+					config: {},
+				},
+			],
+		}
+	}
+
+	beforeEach(async () => {
+		await openWith([tabs()], {
+			tabs: {
+				componentName: 'DmsTab',
+				children: [{ id: 'text', component: { componentName: 'DmsText' } }],
+			},
+		})
+	})
+
+	/** The way in a region offers when it holds nothing. */
+	function wayIn(root: TestNode, region: string): TestNode {
+		const list = findAll(
+			root,
+			(node) => node.props['data-way-in'] === region,
+		)[0]
+		if (!list) {
+			throw new Error(`no way into ${region}`)
+		}
+		return list
+	}
+
+	it('offers a way in of its own, which the tab that holds something does not', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+
+		expect(() => wayIn(root, 'orders')).not.toThrow()
+		expect(() => wayIn(root, 'sends')).toThrow(/no way into/)
+	})
+
+	it('takes the aim for itself rather than leaving it to the tab set', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+
+		// Aimed at the bottom of the tab set, which is where the empty tab is,
+		// the box alone says below the whole set.
+		aim(root, 'tabs', 50, 95)
+		await nextTick()
+		expect(receiver(), 'the page, not the tab set').toBe(null)
+
+		fire(wayIn(root, 'orders'), 'dragover', pointerOver({}))
+		await nextTick()
+		expect(receiver()).toBe('tabs')
+	})
+
+	it('lands the block in that tab, not in the one already filled', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+
+		fire(wayIn(root, 'orders'), 'dragover', pointerOver({}))
+		await nextTick()
+		// The way in and the room are the same surface saying the other of the
+		// two things it can say, so the room is what the drop lands on.
+		expect(() => wayIn(root, 'orders')).toThrow(/no way into/)
+		expect(gaps(root)).toEqual(['end of tabs'])
+
+		fire(gap(root), 'drop')
+		await nextTick()
+
+		const held = findNode(builder.session.value.draft!, 'tabs')?.children ?? []
+		expect(held.map((child) => `${child.name}:${String(child.slot)}`)).toEqual([
+			'text:sends',
+			'text2:orders',
+		])
 	})
 })
 
@@ -1138,13 +1528,13 @@ describe('the palette', () => {
 
 		fire(paletteButton(palette.root, 'Text'), 'dragstart')
 		await nextTick()
-		expect(lines(canvas.root), 'nothing to aim at yet').toEqual([])
+		expect(gaps(canvas.root), 'nothing to aim at yet').toEqual([])
 		expect(into(canvas.root)).toBe(null)
 	})
 })
 
 describe('a block already on the page', () => {
-	it('drags itself and lands where the line was', async () => {
+	it('drags itself and lands where the room opened', async () => {
 		await openWith([block('title', 'Text'), block('intro', 'Text')], {
 			title: { componentName: 'DmsText' },
 			intro: { componentName: 'DmsText' },
@@ -1158,7 +1548,7 @@ describe('a block already on the page', () => {
 		await nextTick()
 		aim(root, 'title', 10)
 		await nextTick()
-		expect(lines(root)).toEqual(['title:before'])
+		expect(gaps(root)).toEqual(['before title'])
 
 		letGo(root, 'title')
 		expect(names()).toEqual(['intro', 'title'])
@@ -1179,7 +1569,7 @@ describe('a block already on the page', () => {
 		aim(root, 'row', 50)
 		await nextTick()
 
-		expect(lines(root)).toEqual([])
+		expect(gaps(root)).toEqual([])
 		expect(into(root)?.refused).toBe(true)
 		expect(into(root)?.says).toContain('A block cannot go inside itself')
 
