@@ -59,22 +59,19 @@ export class PageShopBoard extends PageController("board", {
   }).child("placeholder", Placeholder(), { slot: "tab2" }).child("form", Form({
     fields: [
       {
-        label: "aa",
         id: "test",
-        fields: [
-          {
-            id: "test",
-            label: "aaa",
-            type: new DefaultDataTypes.NumberType(),
-            required: false,
-            defaultValue: 66465,
-          },
-        ],
+        label: "aaa",
+        type: new DefaultDataTypes.NumberType(),
+        required: false,
+        defaultValue: 66465,
       },
     ],
     title: "form",
     description: "la desc",
-  }), { slot: "tab3" })).child("placeholder", Placeholder())).child("placeholder", Placeholder())))).child("row", GridRow().child("revenueChart", ChartCard({
+    submitLabel: "finir",
+    submitUrl: "/test",
+    submitUrlMethod: "POST",
+  }), { slot: "tab3" })).child("placeholder", Placeholder()))))).child("row", GridRow().child("revenueChart", ChartCard({
     title: "Revenue",
     description: "Sum of paid orders, by month",
     icon: "i-ph-currency-eur",
