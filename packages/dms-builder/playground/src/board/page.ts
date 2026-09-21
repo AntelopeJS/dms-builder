@@ -47,38 +47,34 @@ export class PageShopBoard extends PageController("board", {
     defaultPreset: "last-30-days",
     defaultComparison: "previous-period",
   });
-  static grid2 = Grid().child("gridRow", GridRow().child("placeholder", Placeholder()).child("vStack", VStack({ alignment: "stretch" }).child("tab", Tab({
+  // A row between the grid and the card because a Grid takes nothing else:
+  // the layout renders either way, but a whole-tree save refuses a card placed
+  // straight under the grid, which is every save the source editor makes.
+  static grid = Grid({ gap: "1rem" }).child("gridRow", GridRow().child("grid", Grid().child("gridRow", GridRow().child("vStack", VStack({ alignment: "stretch" }).child("tab", Tab({
     items: [
-      { label: "Tab 1", slot: "tab1", disabled: false },
-      { label: "Tab 2", slot: "tab2" },
+      { label: "Tab 1", slot: "tab1" },
+      { label: "Tab 2", slot: "tab2", badge: { label: "aaa" } },
       { label: "Tab 3", slot: "tab3" },
     ],
-  }).child("placeholder", Placeholder(), { slot: "tab1" }).child("form2", Form({
+  }).child("placeholder", Placeholder(), { slot: "tab2" }).child("form", Form({
     fields: [
       {
+        label: "aa",
         id: "test",
         fields: [
           {
             id: "test",
+            label: "aaa",
             type: new DefaultDataTypes.NumberType(),
-            label: "aaaa",
-            description: "help",
-            defaultValue: 0,
+            required: false,
+            defaultValue: 66465,
           },
         ],
-        label: "coucou",
-        description: "nombre plz",
-        orientation: "vertical",
       },
     ],
-    successMessage: "a",
-    title: "aa",
-    description: "dsad",
-  }), { slot: "tab3" }).child("form", Form({ fields: [] }), { slot: "tab2" })).child("placeholder2", Placeholder())));
-  // A row between the grid and the card because a Grid takes nothing else:
-  // the layout renders either way, but a whole-tree save refuses a card placed
-  // straight under the grid, which is every save the source editor makes.
-  static grid = Grid({ gap: "1rem" }).child("row", GridRow().child("revenueChart", ChartCard({
+    title: "form",
+    description: "la desc",
+  }), { slot: "tab3" })).child("placeholder", Placeholder())).child("placeholder", Placeholder())))).child("row", GridRow().child("revenueChart", ChartCard({
     title: "Revenue",
     description: "Sum of paid orders, by month",
     icon: "i-ph-currency-eur",
