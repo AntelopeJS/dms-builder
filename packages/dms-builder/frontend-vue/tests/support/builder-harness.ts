@@ -142,6 +142,58 @@ export function testCatalog(): BlockCatalog {
 				group: 'data',
 				controllerArg: true,
 			}),
+			// What `FormSchema` declares its fields as: an entry is a field or a
+			// group of them — two branches of one kind, with no tag to tell them
+			// apart, so only what the entry holds says which it is.
+			block('Form', {
+				label: 'Form',
+				group: 'data',
+				config: {
+					fields: {
+						type: 'array',
+						ui: { label: 'Fields' },
+						items: {
+							type: 'union',
+							oneOf: [
+								{
+									type: 'object',
+									properties: {
+										id: { type: 'string', ui: { label: 'Key' } },
+										label: {
+											type: 'string',
+											optional: true,
+											ui: { label: 'Label' },
+										},
+										fields: {
+											type: 'array',
+											ui: { label: 'Fields' },
+											items: { type: 'object', properties: {} },
+										},
+										order: { type: 'number', optional: true },
+									},
+								},
+								{
+									type: 'object',
+									properties: {
+										id: { type: 'string', ui: { label: 'Key' } },
+										label: {
+											type: 'string',
+											optional: true,
+											ui: { label: 'Label' },
+										},
+										type: { type: 'string', ui: { label: 'Type' } },
+										required: {
+											type: 'boolean',
+											optional: true,
+											ui: { label: 'Required', widget: 'switch' },
+										},
+									},
+								},
+							],
+						},
+					},
+				},
+			}),
 			// Two blocks whose own type demands an option, as `ChartCard` and
 			// `PeriodSelector` do: one a title and a chart to draw with, one an id
 			// other blocks follow.

@@ -87,6 +87,37 @@ describe('what the catalog says is still empty', () => {
 
 		expect(gaps.map((gap) => gap.label)).toEqual(['Database table'])
 	})
+
+	it('reads a gap inside a list entry that takes one of several shapes', () => {
+		// A form field carries a key and a type, both required, and its entry in
+		// the list is one branch of a union. A walk that stopped at the union saw
+		// an entry holding something and reported nothing.
+		const form = descriptorOf(testCatalog(), 'Form')
+		const gaps = missingSettings(form, {
+			name: 'form',
+			type: 'Form',
+			config: { fields: [{}] },
+		})
+
+		expect(gaps.map((gap) => gap.label)).toEqual([
+			'Fields #1 → Key',
+			'Fields #1 → Type',
+		])
+		expect(gaps[0]?.path).toEqual(['fields', '0', 'id'])
+	})
+
+	it('reads it off the branch the entry belongs to, not the first declared', () => {
+		// The same entry as a group: a group needs a key and fields of its own,
+		// and says nothing about a type.
+		const form = descriptorOf(testCatalog(), 'Form')
+		const gaps = missingSettings(form, {
+			name: 'form',
+			type: 'Form',
+			config: { fields: [{ id: 'address', fields: [] }] },
+		})
+
+		expect(gaps).toEqual([])
+	})
 })
 
 describe('Save on a page with a setting left empty', () => {

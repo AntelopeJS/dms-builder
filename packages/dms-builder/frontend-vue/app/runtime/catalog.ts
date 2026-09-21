@@ -166,6 +166,94 @@ export function isRequired(schema: OptionSchema): boolean {
 	return !schema.optional && schema.default === undefined
 }
 
+/* ---- unions ------------------------------------------------------------- */
+
+/** The kind a branch carries, named the way `typeof` names a value's. */
+export function branchKind(branch: OptionSchema): string {
+	return branch.type === 'integer' ? 'number' : branch.type
+}
+
+export function valueKind(value: unknown): string {
+	return Array.isArray(value) ? 'array' : typeof value
+}
+
+/**
+ * How well a value fits a branch: nothing at all when the branch cannot carry
+ * its kind, otherwise the properties the branch knows and the value holds,
+ * docked one for each the branch requires and the value is missing.
+ *
+ * Kind alone settles a union of plain kinds. It settles nothing between two
+ * branches that are both objects — a form field and a group of them, say —
+ * where what the value holds is the only evidence of which one it is.
+ */
+export function branchFit(branch: OptionSchema, value: unknown): number {
+	if (branchKind(branch) !== valueKind(value)) {
+		return Number.NEGATIVE_INFINITY
+	}
+	const held = value as Record<string, unknown>
+	let fit = 0
+	for (const [key, nested] of Object.entries(branch.properties ?? {})) {
+		if (held[key] !== undefined) {
+			fit += 1
+		} else if (!nested.optional) {
+			fit -= 1
+		}
+	}
+	return fit
+}
+
+/**
+ * How much structure a branch adds of its own: the properties that are lists
+ * or objects rather than plain values.
+ *
+ * It settles a tie and nothing else. An entry nobody has filled in fits every
+ * branch of its kind alike, and of those, the one that nests a list of its own
+ * is not what adding a single entry asked for: a form's field list offers a
+ * field or a group of fields, and one field is not a group.
+ */
+function branchNesting(branch: OptionSchema): number {
+	return Object.values(branch.properties ?? {}).filter(
+		(nested) => nested.type === 'array' || nested.type === 'object',
+	).length
+}
+
+/** The branch a value belongs to, or -1 while no branch can carry it. */
+export function branchOf(branches: OptionSchema[], value: unknown): number {
+	let best = -1
+	let bestFit = Number.NEGATIVE_INFINITY
+	let bestNesting = Number.POSITIVE_INFINITY
+	branches.forEach((branch, index) => {
+		const fit = branchFit(branch, value)
+		if (fit === Number.NEGATIVE_INFINITY) {
+			return
+		}
+		const nesting = branchNesting(branch)
+		if (fit > bestFit || (fit === bestFit && nesting < bestNesting)) {
+			best = index
+			bestFit = fit
+			bestNesting = nesting
+		}
+	})
+	return best
+}
+
+/** Whether no other branch fits the value better than this one does. */
+export function fitsAsWell(
+	branches: OptionSchema[],
+	index: number,
+	value: unknown,
+): boolean {
+	const branch = branches[index]
+	if (!branch) {
+		return false
+	}
+	const fit = branchFit(branch, value)
+	return (
+		fit !== Number.NEGATIVE_INFINITY &&
+		branches.every((other) => branchFit(other, value) <= fit)
+	)
+}
+
 /**
  * The options as the panel shows them.
  *
@@ -230,6 +318,16 @@ function collectMissing(
 	if (value === undefined || value === null || value === '') {
 		if (isRequired(schema)) {
 			found.push({ path, label: labels.join(' → ') })
+		}
+		return
+	}
+	// A union carries no properties of its own; the branch the value belongs to
+	// does, and it is the branch the panel edits the value as. Reading gaps off
+	// any other branch would mark settings the author is not being shown.
+	if (schema.oneOf?.length) {
+		const at = branchOf(schema.oneOf, value)
+		if (at !== -1) {
+			collectMissing(schema.oneOf[at]!, value, path, labels, found)
 		}
 		return
 	}

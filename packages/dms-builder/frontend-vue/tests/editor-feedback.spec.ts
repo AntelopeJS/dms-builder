@@ -298,17 +298,26 @@ describe('a tab set the preview cannot build', () => {
 	})
 })
 
-describe('an option that takes one of several kinds', () => {
-	/** What the Nuxt build auto-imports around the config panel. */
-	const panel = (): Record<string, Component> => ({
-		DmsBuilderOption: Option as Component,
-		DmsBuilderIconInput: stub('DmsBuilderIconInput'),
-		DmsBuilderDataSource: stub('DmsBuilderDataSource'),
-		USelectMenu: stub('USelectMenu'),
-		USwitch: stub('USwitch'),
-		UTextarea: stub('UTextarea'),
-	})
+/** What the Nuxt build auto-imports around the config panel. */
+const panel = (): Record<string, Component> => ({
+	DmsBuilderOption: Option as Component,
+	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
+	USelectMenu: stub('USelectMenu'),
+	USwitch: stub('USwitch'),
+	UTextarea: stub('UTextarea'),
+})
 
+/** Fire a control's own `update:modelValue`, the way a user's input does. */
+function write(node: TestNode, value: unknown): void {
+	const handler = node.props['onUpdate:modelValue']
+	if (typeof handler !== 'function') {
+		throw new Error(`<${node.tag}> writes nothing`)
+	}
+	;(handler as (value: unknown) => void)(value)
+}
+
+describe('an option that takes one of several kinds', () => {
 	const KINDS = ['Text', 'Number', 'Details']
 
 	/** A tab set with one tab, whose badge is a union of three kinds. */
@@ -328,15 +337,6 @@ describe('an option that takes one of several kinds', () => {
 			(node) =>
 				node.tag === 'UButton' && KINDS.includes(String(node.props.label ?? '')),
 		)
-	}
-
-	/** Fire a control's own `update:modelValue`, the way a user's input does. */
-	function write(node: TestNode, value: unknown): void {
-		const handler = node.props['onUpdate:modelValue']
-		if (typeof handler !== 'function') {
-			throw new Error(`<${node.tag}> writes nothing`)
-		}
-		;(handler as (value: unknown) => void)(value)
 	}
 
 	it('names the kinds it offers rather than ranking them', async () => {
@@ -375,6 +375,134 @@ describe('an option that takes one of several kinds', () => {
 		await nextTick()
 		const items = builder.session.value.draft?.blocks[0]?.config?.items
 		expect(items).toEqual([{ slot: 'orders', label: 'Orders' }])
+	})
+})
+
+describe('an option whose branches are all of one kind', () => {
+	/**
+	 * A form's field list: an entry is a field or a group of fields, and the two
+	 * are both objects. Kind cannot tell them apart, so a panel that went by kind
+	 * alone read every entry as the first of the two — a group — and a form built
+	 * in the editor came out as a group holding the one field that was asked for.
+	 */
+	async function formWithFields(fields: unknown[]): Promise<TestNode> {
+		await openWith([editable('form', 'Form')])
+		builder.patchConfig('form', { fields })
+		builder.select('form')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Config, { components: panel() })
+		await nextTick()
+		return root
+	}
+
+	/** The two branch buttons of the list's one entry, in declared order. */
+	function branchButtons(root: TestNode): TestNode[] {
+		return findAll(
+			root,
+			(node) => node.tag === 'UButton' && node.props.label === 'Details',
+		)
+	}
+
+	/** The text box of the option a label names, reached through that label. */
+	function box(root: TestNode, name: string): TestNode {
+		const label = findAll(
+			root,
+			(node) => node.tag === 'label' && textOf(node).startsWith(name),
+		)[0]
+		const option = label?.parent?.parent
+		const input = option
+			? findAll(option, (node) => node.tag === 'UInput')[0]
+			: undefined
+		if (!input) {
+			throw new Error(`no box labelled ${name}`)
+		}
+		return input
+	}
+
+	function fields(): unknown {
+		return builder.session.value.draft?.blocks[0]?.config?.fields
+	}
+
+	it('reads an entry as the branch its own properties fit', async () => {
+		// A plain field carries a type and no list of fields: nothing about it
+		// says group, however the branches happen to be ordered.
+		const root = await formWithFields([
+			{ id: 'amount', label: 'Amount', type: 'number' },
+		])
+
+		const [group, field] = branchButtons(root)
+		expect(field!.props.color, 'the field branch is the one shown').toBe(
+			'primary',
+		)
+		expect(group!.props.color).toBe('neutral')
+	})
+
+	it('reads an entry that does hold fields as the group it is', async () => {
+		const root = await formWithFields([
+			{ id: 'address', label: 'Address', fields: [] },
+		])
+
+		const [group] = branchButtons(root)
+		expect(group!.props.color).toBe('primary')
+	})
+
+	it('keeps the branch that was picked while the entry is filled in', async () => {
+		const root = await formWithFields([{}])
+
+		// The group: the branch a blank entry is not opened on, so this is a
+		// choice and not the default holding by itself.
+		fire(branchButtons(root)[0]!, 'click')
+		await nextTick()
+		// A key alone fits both branches; the choice is all there is to go on, and
+		// moving off it would undo the choice at the first keystroke.
+		write(box(root, 'Key'), 'address')
+		await nextTick()
+
+		expect(branchButtons(root)[0]!.props.color).toBe('primary')
+		expect(fields()).toEqual([{ id: 'address' }])
+	})
+
+	it('seeds a fresh entry as an object, which is what every branch takes', async () => {
+		const root = await formWithFields([])
+
+		const add = findAll(
+			root,
+			(node) => node.tag === 'UButton' && node.props.label === 'Add',
+		)
+		fire(add[0]!, 'click')
+		await nextTick()
+
+		// Seeded as `''`, the entry was of a kind no branch could carry.
+		expect(fields()).toEqual([{}])
+		expect(branchButtons(root)).toHaveLength(2)
+	})
+
+	it('opens a blank entry on the branch that nests nothing', async () => {
+		const root = await formWithFields([{}])
+
+		// Blank, the entry fits both branches alike, and the group is the one
+		// declared first. Adding one field is not asking for a group of fields,
+		// so the list the group nests is what rules it out.
+		const [group, field] = branchButtons(root)
+		expect(field!.props.color).toBe('primary')
+		expect(group!.props.color).toBe('neutral')
+		expect(
+			findAll(root, (node) => node.tag === 'label' && textOf(node) === 'Fields'),
+			'no second field list under the entry',
+		).toHaveLength(0)
+	})
+
+	it('drops what only the branch left behind knew', async () => {
+		const root = await formWithFields([
+			{ id: 'address', label: 'Address', fields: [] },
+		])
+
+		fire(branchButtons(root)[1]!, 'click')
+		await nextTick()
+
+		// `fields` left on the entry is what would read as a group again.
+		expect(fields()).toEqual([{ id: 'address', label: 'Address' }])
+		expect(branchButtons(root)[1]!.props.color).toBe('primary')
 	})
 })
 

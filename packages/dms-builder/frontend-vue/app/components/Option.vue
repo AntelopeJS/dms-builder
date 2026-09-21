@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { descriptorOf, isRequired, optionLabel } from '../runtime/catalog'
+import {
+	branchKind,
+	branchOf,
+	descriptorOf,
+	fitsAsWell,
+	isRequired,
+	optionLabel,
+	valueKind,
+} from '../runtime/catalog'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
@@ -202,8 +210,27 @@ function setItem(index: number, value: unknown): void {
 	set(next)
 }
 
+/**
+ * What a fresh entry of this list starts as.
+ *
+ * A union names no kind of its own — its branches do — so a list of objects
+ * declared as one was seeded with a string, which no branch could carry: the
+ * panel fell back to its first branch and the entry was edited as whatever
+ * that branch happened to be.
+ */
+function blankItem(): unknown {
+	const items = props.schema.items
+	if (!items) {
+		return ''
+	}
+	const kinds = items.oneOf?.length
+		? items.oneOf.map((branch) => branch.type)
+		: [items.type]
+	return kinds.every((kind) => kind === 'object') ? {} : ''
+}
+
 function addItem(): void {
-	set([...arrayValue.value, props.schema.items?.type === 'object' ? {} : ''])
+	set([...arrayValue.value, blankItem()])
 }
 
 function removeItem(index: number): void {
@@ -304,26 +331,29 @@ function branchLabel(branch: OptionSchema, index: number): string {
 	)
 }
 
-/** The branch a value belongs to, read off the value's own kind. */
-function branchOf(value: unknown): number {
-	const kind = Array.isArray(value) ? 'array' : typeof value
-	return (props.schema.oneOf ?? []).findIndex(
-		(branch) => (branch.type === 'integer' ? 'number' : branch.type) === kind,
-	)
-}
-
 /**
  * Which branch the panel is on.
  *
- * A tag answers it outright. Without one, the value's own kind does — and while
- * there is no value yet, the branch the author last asked for, which is the
- * only record of a choice a union of plain kinds leaves behind.
+ * A tag answers it outright. Without one, the value itself does — its kind,
+ * then how much of a branch it fills in — and the branch the author last asked
+ * for settles what the value leaves open, which is the only record of a choice
+ * an untagged union leaves behind.
  */
 const picked = ref<number | null>(null)
+const branches = computed(() => props.schema.oneOf ?? [])
 const branchIndex = computed(() => {
 	const tag = props.schema.discriminator
 	if (!tag) {
-		const found = branchOf(props.modelValue)
+		// The branch that was asked for holds as long as nothing fits better: an
+		// object half filled in fits every object branch alike, and snapping to the
+		// first of them would undo the choice at the first keystroke.
+		if (
+			picked.value !== null &&
+			fitsAsWell(branches.value, picked.value, props.modelValue)
+		) {
+			return picked.value
+		}
+		const found = branchOf(branches.value, props.modelValue)
 		return found === -1 ? (picked.value ?? 0) : found
 	}
 	const current = objectValue.value[tag]
@@ -365,8 +395,22 @@ function selectBranch(index: unknown): void {
 	picked.value = at
 	// A value of another kind is not one this branch can carry, and leaving it
 	// would show an editor for one thing while the page holds another.
-	if (branchOf(props.modelValue) !== at) {
+	if (branchKind(branch) !== valueKind(props.modelValue)) {
 		set(undefined)
+		return
+	}
+	if (!branch.properties) {
+		return
+	}
+	// Between branches of the same kind, what they share is worth keeping and
+	// what only the branch left behind knows is not: a property of its own left
+	// on the value is exactly what would pull the panel back to it.
+	const known = new Set(Object.keys(branch.properties))
+	const kept = Object.fromEntries(
+		Object.entries(objectValue.value).filter(([key]) => known.has(key)),
+	)
+	if (Object.keys(kept).length !== Object.keys(objectValue.value).length) {
+		set(kept)
 	}
 }
 

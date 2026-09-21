@@ -84,6 +84,7 @@ describe('the components the palette lists', () => {
 			'PeriodSelector',
 			'Text',
 			'TableView',
+			'Form',
 			'ChartCard',
 		])
 		expect(offered(catalog)).toHaveLength(catalog.blocks.length - 1)
