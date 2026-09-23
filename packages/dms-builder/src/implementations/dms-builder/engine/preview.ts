@@ -1,3 +1,9 @@
+import path from "node:path";
+import {
+  type ControllerClass,
+  ControllerMeta,
+} from "@antelopejs/interface-api";
+import { GetMetadata } from "@antelopejs/interface-core";
 import type {
   BlockDraft,
   BlockPath,
@@ -8,11 +14,21 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { blockDescriptor, buildCatalog } from "./catalog";
 import { notFound } from "./ops";
+import { resolveProjectRoot } from "./project";
+import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
 const PLACEHOLDER_TYPE = "Placeholder";
 const PLACEHOLDER_HEIGHT = "96px";
+
+/**
+ * The blocks over a table whose factory only reads the controller, so building
+ * one for the preview leaves the running app as it found it. A TableView is not
+ * one: it writes its options, guards and gate flag onto the controller's own
+ * metadata, which every page mounting that table shares.
+ */
+const READ_ONLY_CONTROLLER_BLOCKS = new Set(["ResourceForm"]);
 
 /** The subset of `ComponentBuilder` the preview drives. */
 interface PreviewBuilder {
@@ -42,6 +58,40 @@ function factoryFor(type: string): BlockFactory {
     throw new DegradedBlockError(`no runtime factory for block type "${type}"`);
   }
   return factory as BlockFactory;
+}
+
+/**
+ * A resource's DataAPI class as the running app loaded it, or `undefined`.
+ *
+ * Read off the require cache, never required: loading the file from here would
+ * run its decorators a second time. The core drops a module's files from that
+ * cache when it reloads the module, so what is found is the live class — and a
+ * table created a moment ago, which the app has not reloaded under yet, is
+ * simply not there.
+ */
+function loadedController(ref: string | undefined): unknown {
+  const record = ref ? findResourceRecord(ref) : undefined;
+  if (!record) {
+    return undefined;
+  }
+  const root = `${resolveProjectRoot()}${path.sep}`;
+  const dependencies = `${path.sep}node_modules${path.sep}`;
+  for (const [file, entry] of Object.entries(require.cache)) {
+    if (!file.startsWith(root) || file.includes(dependencies)) {
+      continue;
+    }
+    const exported = (entry?.exports as Record<string, unknown> | undefined)?.[
+      record.apiName
+    ];
+    if (
+      typeof exported === "function" &&
+      GetMetadata(exported as ControllerClass, ControllerMeta).location ===
+        record.route
+    ) {
+      return exported;
+    }
+  }
+  return undefined;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -152,13 +202,22 @@ function buildBlock(block: BlockDraft): unknown {
   if (!descriptor) {
     throw new DegradedBlockError(`unknown block type "${block.type}"`);
   }
-  if (descriptor.controllerArg) {
-    throw new DegradedBlockError(
-      `${descriptor.label ?? descriptor.type} — needs the running page`,
-    );
+  const label = descriptor.label ?? descriptor.type;
+  if (descriptor.controllerArg && !block.controller) {
+    throw new DegradedBlockError(`${label} — choose its table`);
+  }
+  const controller =
+    descriptor.controllerArg && READ_ONLY_CONTROLLER_BLOCKS.has(descriptor.type)
+      ? loadedController(block.controller)
+      : undefined;
+  if (descriptor.controllerArg && !controller) {
+    throw new DegradedBlockError(`${label} — needs the running page`);
   }
   const config = materialize(block.config ?? {}) as Record<string, unknown>;
-  return factoryFor(descriptor.type)({ ...descriptor.defaults, ...config });
+  const options = { ...descriptor.defaults, ...config };
+  return controller
+    ? factoryFor(descriptor.type)(controller, options)
+    : factoryFor(descriptor.type)(options);
 }
 
 function instantiateBlock(
