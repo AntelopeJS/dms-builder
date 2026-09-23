@@ -186,6 +186,26 @@ const clearable = computed(
 		!SELF_CLEARING.has(String(widget.value)),
 )
 
+/**
+ * The colours every theme defines, offered as swatches: a name follows the
+ * theme where a hex code stays put. Anything else — a shade, a hex code, a CSS
+ * variable — is still typed in beside them.
+ */
+const THEME_COLORS = [
+	'primary',
+	'secondary',
+	'success',
+	'info',
+	'warning',
+	'error',
+	'neutral',
+] as const
+
+/** A palette of several colours is written as a list; the text box shows one. */
+const colorText = computed(() =>
+	typeof props.modelValue === 'string' ? props.modelValue : '',
+)
+
 const isSwitch = computed(
 	() => widget.value === 'switch' || widget.value === 'boolean',
 )
@@ -766,6 +786,26 @@ const nestedProperties = computed(() =>
 			class="font-mono text-xs"
 			@update:model-value="setJson(String($event))"
 		/>
+
+		<div v-else-if="widget === 'color'" class="flex flex-col gap-1.5">
+			<div class="flex flex-wrap gap-1">
+				<UButton
+					v-for="color in THEME_COLORS"
+					:key="color"
+					:label="color"
+					:color="color"
+					size="xs"
+					:variant="modelValue === color ? 'solid' : 'soft'"
+					@click="set(modelValue === color ? undefined : color)"
+				/>
+			</div>
+			<UInput
+				:model-value="colorText"
+				size="sm"
+				:placeholder="ui.placeholder ?? 'or primary-600, #1f7aec…'"
+				@update:model-value="set($event === '' ? undefined : $event)"
+			/>
+		</div>
 
 		<DmsBuilderIconInput
 			v-else-if="widget === 'icon'"
