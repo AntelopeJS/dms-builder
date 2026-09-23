@@ -2,7 +2,6 @@ import type {
   BlockCatalog,
   BlockTypeDescriptor,
   ConfigSchema,
-  DataTypeDescriptor,
   DynamicSlots,
   OptionSchema,
   SlotDescriptor,
@@ -149,4 +148,3 @@ export function invalidateCatalog(): void {
   invalidateInference();
 }
 
-export type { DataTypeDescriptor };

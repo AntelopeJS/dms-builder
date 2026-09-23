@@ -13,7 +13,7 @@ export function resolveProjectRoot(): string {
   return process.cwd();
 }
 
-export function findTsConfig(rootDir: string): string | undefined {
+function findTsConfig(rootDir: string): string | undefined {
   let current = rootDir;
   while (true) {
     const candidate = path.join(current, "tsconfig.json");

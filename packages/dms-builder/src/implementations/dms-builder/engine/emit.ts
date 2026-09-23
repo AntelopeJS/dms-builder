@@ -93,7 +93,7 @@ function insertSortedImport(
   sourceFile.insertImportDeclaration(after.getChildIndex(), structure);
 }
 
-export function importSpecifier(
+function importSpecifier(
   sourceFile: SourceFile,
   ref: ImportRef,
 ): string | undefined {
@@ -122,7 +122,7 @@ export function relativeModule(fromFile: string, toFile: string): string {
   return rel.startsWith(".") ? rel : `./${rel}`;
 }
 
-export function objectText(
+function objectText(
   config: Record<string, unknown>,
   ctx: EmitContext,
 ): string {
