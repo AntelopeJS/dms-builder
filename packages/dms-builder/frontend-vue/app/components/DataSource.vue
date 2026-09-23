@@ -43,6 +43,21 @@ const BUCKETS = [
 	{ label: 'Year', value: 'year' },
 ]
 
+/** How the groups are ranked: along their own axis, or by what was measured. */
+const DIRECTIONS = [
+	{ label: 'Ascending', value: 'asc' },
+	{ label: 'Descending', value: 'desc' },
+]
+
+/** The most groups a series keeps, as the engine bounds it. */
+const MAX_LIMIT = 1000
+
+/**
+ * The scope a card bound to a period follows: the one a period selector drives
+ * when nobody named another, so a page with one selector needs no wiring.
+ */
+const PAGE_PERIOD_SCOPE = 'page'
+
 const FILTER_OPS = [
 	{ label: 'is', value: 'eq' },
 	{ label: 'is not', value: 'ne' },
@@ -77,6 +92,9 @@ const measureField = ref<string | undefined>(undefined)
 const groupBy = ref<string | undefined>(undefined)
 const bucket = ref<string | undefined>('month')
 const filters = ref<DraftFilter[]>([])
+const orderBy = ref<'group' | 'measure'>('group')
+const direction = ref<'asc' | 'desc'>('asc')
+const limit = ref<number | undefined>(undefined)
 const followPeriod = ref(false)
 const preview = ref<QueryPreview | null>(null)
 const previewing = ref(false)
@@ -133,6 +151,21 @@ const filterableFields = computed(() =>
 	})),
 )
 
+/** A timeline reads along its dates; a ranking reads by what was measured. */
+const orderItems = computed(() => [
+	{ label: groupsByDate.value ? 'Sorted by date' : 'Sorted by group', value: 'group' },
+	{ label: 'Sorted by value', value: 'measure' },
+])
+
+/** A whole number of groups the engine accepts, or none: keep every group. */
+function setLimit(value: string | number): void {
+	const count = Math.round(Number(value))
+	limit.value =
+		value === '' || !Number.isFinite(count) || count < 1
+			? undefined
+			: Math.min(count, MAX_LIMIT)
+}
+
 /** Whether the chosen grouping is a date, which is what a period bucket needs. */
 const groupsByDate = computed(() =>
 	dateFields.value.some((field) => field.value === groupBy.value),
@@ -186,6 +219,13 @@ function queryParams(): Record<string, unknown> {
 	if (measure.value === 'count') {
 		params.op = 'count'
 	}
+	// Written even when they are the defaults, the way the engine reads a series
+	// back: sent again, the same parameters have to build the same chain.
+	params.orderBy = orderBy.value
+	params.direction = direction.value
+	if (limit.value !== undefined) {
+		params.limit = limit.value
+	}
 	return params
 }
 
@@ -222,7 +262,7 @@ async function apply(): Promise<void> {
 		// Binding a period means two options: the source, and the scope the block
 		// follows. Writing one without the other leaves a chart asking for bounds
 		// nobody sends.
-		patch[props.periodOption] = followPeriod.value ? 'page' : undefined
+		patch[props.periodOption] = followPeriod.value ? PAGE_PERIOD_SCOPE : undefined
 	}
 	emit('patch', patch)
 	previewing.value = true
@@ -324,6 +364,9 @@ function hydrate(): void {
 	measureField.value = params.field as string | undefined
 	groupBy.value = params.groupBy as string | undefined
 	bucket.value = (params.bucket as string | undefined) ?? bucket.value
+	orderBy.value = params.orderBy === 'measure' ? 'measure' : 'group'
+	direction.value = params.direction === 'desc' ? 'desc' : 'asc'
+	limit.value = typeof params.limit === 'number' ? params.limit : undefined
 	const where = Array.isArray(params.where) ? params.where : []
 	filters.value = where
 		.filter(
@@ -349,7 +392,18 @@ hydrate()
 // Re-read whenever the choices settle, so the numbers on screen are the ones the
 // saved page would show rather than the ones a previous choice produced.
 watch(
-	[resource, measure, measureField, groupBy, bucket, followPeriod, filters],
+	[
+		resource,
+		measure,
+		measureField,
+		groupBy,
+		bucket,
+		orderBy,
+		direction,
+		limit,
+		followPeriod,
+		filters,
+	],
 	() => {
 		void apply()
 	},
@@ -408,6 +462,39 @@ watch(
 					class="w-32"
 				/>
 			</div>
+
+			<!-- What makes a top N: the groups ranked by what was measured, and only
+			the first few of them kept. -->
+			<template v-if="wantsSeries && groupBy">
+				<div class="flex items-center gap-2">
+					<USelectMenu
+						v-model="orderBy"
+						:items="orderItems"
+						value-key="value"
+						class="flex-1"
+					/>
+					<USelectMenu
+						v-model="direction"
+						:items="DIRECTIONS"
+						value-key="value"
+						class="w-32"
+					/>
+				</div>
+				<div class="flex items-center gap-2 text-xs text-dimmed">
+					<span>Keep the first</span>
+					<UInput
+						type="number"
+						size="sm"
+						class="w-20"
+						:min="1"
+						:max="MAX_LIMIT"
+						placeholder="all"
+						:model-value="limit"
+						@update:model-value="setLimit($event)"
+					/>
+					<span>{{ groupsByDate ? 'periods' : 'groups' }}</span>
+				</div>
+			</template>
 
 			<div class="flex flex-col gap-2">
 				<div
