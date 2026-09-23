@@ -21,10 +21,7 @@ const dmsSource = DMS_MODULE_PATH
       // the core loads that interface from the very `dist` being erased — the
       // module then fails to construct on a missing file. Compile in place, and
       // build the interface once beforehand.
-      installCommand: [
-        "pnpm exec tsc -p tsconfig.build.json",
-        "pnpm exec tsc-alias -p tsconfig.build.json",
-      ],
+      installCommand: ["pnpm exec tsc", "pnpm exec tsc-alias"],
     }
   : {
       type: "package" as const,
@@ -77,7 +74,7 @@ export default defineConfig({
         installCommand: ["pnpm build"],
         // Not `pnpm build`: that starts with `rimraf dist`, and the running
         // module is loaded from dist.
-        reloadCommand: ["pnpm exec tsc -p tsconfig.build.json"],
+        reloadCommand: ["pnpm exec tsc"],
       },
       config: {
         projectRoot: __dirname,

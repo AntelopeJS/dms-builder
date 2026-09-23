@@ -8,10 +8,11 @@
     // tsgolint resolves node: builtins to an error type acting as `any`
     // without this, which makes every type-aware rule blind to them.
     "types": ["node"],
-    "noEmit": true,
+    // `commonjs` keeps every `import()` compiled to `require()`, which the
+    // AntelopeJS loader needs; tsgolint cannot read the legacy `node` resolution.
     "moduleResolution": "bundler",
     "target": "esnext",
-    "module": "preserve",
+    "module": "commonjs",
     "strict": true,
     "noImplicitAny": true,
     "esModuleInterop": true,

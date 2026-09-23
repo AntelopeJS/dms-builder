@@ -185,6 +185,9 @@ function compileConsumer(resolution) {
       skipLibCheck: false,
       esModuleInterop: true,
       types: [],
+      // TypeScript 6 deprecates `node10` resolution, which existing consumers
+      // still use; the deprecation is not what this contract checks.
+      ignoreDeprecations: "6.0",
     });
     return ts.getPreEmitDiagnostics(program).map((diagnostic) =>
       ts

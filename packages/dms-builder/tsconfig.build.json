@@ -1,8 +1,0 @@
-{
-  "extends": ["./tsconfig.json", "../../tsconfig.build.json"],
-  "compilerOptions": {
-    // Restated here because the shared build config comes last in `extends` and
-    // would otherwise reset `types` to node alone, leaving the specs uncompiled.
-    "types": ["node", "mocha"]
-  }
-}

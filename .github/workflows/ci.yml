@@ -54,9 +54,7 @@ jobs:
 
       # Lint and format are shared configs owned by the workspace root.
       - run: pnpm lint
-      # tsconfig.json is the config the editors and oxlint's type-aware pass
-      # read; tsconfig.build.json is the one the build uses. Without this the
-      # first is never exercised, and a resolution failure there degrades every
-      # type-aware rule to `any` without failing anything.
+      # oxlint's type-aware pass degrades to `any` on a broken tsconfig
+      # without failing, so the typecheck is what catches it.
       - run: pnpm --filter @antelopejs/dms-builder typecheck
       - run: pnpm --filter @antelopejs/dms-builder knip
