@@ -64,6 +64,8 @@ import type {
 	CreatePageInput,
 	DynamicSlots,
 	FieldSpec,
+	OpResult,
+	OpWarning,
 	PageStructure,
 	PageSummary,
 	PreviewState,
@@ -142,6 +144,8 @@ export interface BuilderSession {
 	/** Keys of the write-through operations in flight, e.g. `product#price`. */
 	pending: string[]
 	toast: string | null
+	/** What the module warned about on writes that went through, until dismissed. */
+	warnings: OpWarning[]
 	dragging: DragPayload | null
 	/**
 	 * Where the drag would land, as the pointer's last position resolved it.
@@ -196,6 +200,7 @@ function emptySession(): BuilderSession {
 		menu: null,
 		pending: [],
 		toast: null,
+		warnings: [],
 		dragging: null,
 		dropTarget: null,
 		hovered: null,
@@ -276,8 +281,11 @@ export interface BuilderController {
 	loadResourceFields: (ref: string) => Promise<void>
 	loadResource: (ref: string, force?: boolean) => Promise<void>
 	loadQueryTemplates: () => Promise<void>
-	createResource: (name: string, fields: FieldSpec[]) => Promise<void>
-	deleteResource: (ref: string) => Promise<void>
+	createResource: (
+		name: string,
+		fields: FieldSpec[],
+	) => Promise<string | undefined>
+	deleteResource: (ref: string) => Promise<boolean>
 	addField: (resource: string, field: FieldSpec) => Promise<void>
 	configureCategory: (
 		category: string,
@@ -1183,7 +1191,7 @@ export function useBuilder(): BuilderController {
 			session.value.baseline = cloneDraft(draft)
 			session.value.history = []
 			session.value.future = []
-			notify('Page saved')
+			report(result, 'Page saved')
 		} finally {
 			session.value.saving = false
 		}
@@ -1230,10 +1238,25 @@ export function useBuilder(): BuilderController {
 		session.value.queryTemplates = await api.queryTemplates()
 	}
 
-	function report(error: BuilderError | null, message: string): boolean {
-		if (error) {
-			session.value.error = error
+	/**
+	 * Say how a write went: its error, or its message and whatever the module
+	 * warned about on the way. Every write-through operation answers here, so a
+	 * warning any of them returns reaches the author instead of the wire alone.
+	 *
+	 * Warnings pile up until dismissed: the next write succeeding says nothing
+	 * about the column the previous one had to store as a string.
+	 */
+	function report(result: OpResult<unknown>, message: string): boolean {
+		if (!result.ok) {
+			session.value.error = result.error
 			return false
+		}
+		const known = new Set(session.value.warnings.map((entry) => entry.message))
+		const fresh = (result.warnings ?? []).filter(
+			(entry) => !known.has(entry.message),
+		)
+		if (fresh.length) {
+			session.value.warnings = [...session.value.warnings, ...fresh]
 		}
 		notify(message)
 		return true
@@ -1260,7 +1283,7 @@ export function useBuilder(): BuilderController {
 	 */
 	async function createPage(input: CreatePageInput): Promise<string | undefined> {
 		const result = await api.createPage(input)
-		if (!report(result.ok ? null : result.error, `Page ${input.name} created`)) {
+		if (!report(result, `Page ${input.name} created`)) {
 			return undefined
 		}
 		await loadSiteTree()
@@ -1269,9 +1292,7 @@ export function useBuilder(): BuilderController {
 
 	async function createCategory(input: CreateCategoryInput): Promise<void> {
 		const result = await api.createCategory(input)
-		if (
-			!report(result.ok ? null : result.error, `Category ${input.name} created`)
-		) {
+		if (!report(result, `Category ${input.name} created`)) {
 			return
 		}
 		await loadSiteTree()
@@ -1279,7 +1300,7 @@ export function useBuilder(): BuilderController {
 
 	async function deletePage(ref: string): Promise<void> {
 		const result = await api.deletePage(ref)
-		if (!report(result.ok ? null : result.error, 'Page deleted')) {
+		if (!report(result, 'Page deleted')) {
 			return
 		}
 		await loadSiteTree()
@@ -1287,38 +1308,42 @@ export function useBuilder(): BuilderController {
 
 	async function deleteCategory(ref: string): Promise<void> {
 		const result = await api.deleteCategory(ref)
-		if (!report(result.ok ? null : result.error, 'Category deleted')) {
+		if (!report(result, 'Category deleted')) {
 			return
 		}
 		await loadSiteTree()
 	}
 
+	/** Create a resource, and answer the ref the engine gave it. */
 	async function createResource(
 		name: string,
 		fields: FieldSpec[],
-	): Promise<void> {
+	): Promise<string | undefined> {
 		const result = await api.createResource({ name, fields })
-		if (!report(result.ok ? null : result.error, `Resource ${name} created`)) {
-			return
+		if (!report(result, `Resource ${name} created`) || !result.ok) {
+			return undefined
 		}
 		session.value.resources = await api.resources()
 		// The engine derives the ref from the name; reloading under what the
 		// user typed misses whenever the two differ, and the panel then shows an
 		// empty resource after a create that worked.
-		await loadResource(result.ok ? result.data.ref : name, true)
+		await loadResource(result.data.ref, true)
+		return result.data.ref
 	}
 
-	async function deleteResource(ref: string): Promise<void> {
+	/** Delete a resource and every row it holds; answer whether it went. */
+	async function deleteResource(ref: string): Promise<boolean> {
 		const result = await api.deleteResource(ref)
-		if (!report(result.ok ? null : result.error, 'Resource deleted')) {
-			return
+		if (!report(result, 'Resource deleted')) {
+			return false
 		}
 		session.value.resources = await api.resources()
+		return true
 	}
 
 	async function addField(resource: string, field: FieldSpec): Promise<void> {
 		const result = await api.addField(resource, field)
-		if (!report(result.ok ? null : result.error, `Field ${field.name} added`)) {
+		if (!report(result, `Field ${field.name} added`)) {
 			return
 		}
 		await loadResource(resource, true)
@@ -1329,7 +1354,7 @@ export function useBuilder(): BuilderController {
 		patch: Record<string, unknown>,
 	): Promise<void> {
 		const result = await api.configureCategory(category, patch)
-		if (!report(result.ok ? null : result.error, 'Category updated')) {
+		if (!report(result, 'Category updated')) {
 			return
 		}
 		await loadSiteTree()
@@ -1340,7 +1365,7 @@ export function useBuilder(): BuilderController {
 		patch: Record<string, unknown>,
 	): Promise<void> {
 		const result = await api.configureQuery(query, patch)
-		if (!report(result.ok ? null : result.error, 'Query updated')) {
+		if (!report(result, 'Query updated')) {
 			return
 		}
 		await reload()
@@ -1356,7 +1381,7 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		const result = await api.configurePage(pageRef, patch)
-		if (!report(result.ok ? null : result.error, 'Page updated')) {
+		if (!report(result, 'Page updated')) {
 			return
 		}
 		await reload()
@@ -1378,7 +1403,7 @@ export function useBuilder(): BuilderController {
 		startPending(pageRef)
 		try {
 			const result = await api.configurePage(pageRef, { category })
-			if (!report(result.ok ? null : result.error, 'Page moved')) {
+			if (!report(result, 'Page moved')) {
 				return undefined
 			}
 			await loadSiteTree()
@@ -1399,7 +1424,7 @@ export function useBuilder(): BuilderController {
 		startPending(resource)
 		try {
 			const result = await api.configureResource(resource, { routes })
-			report(result.ok ? null : result.error, 'Resource updated')
+			report(result, 'Resource updated')
 			await loadResource(resource, true)
 		} finally {
 			endPending(resource)
@@ -1453,7 +1478,7 @@ export function useBuilder(): BuilderController {
 		applyLocally(resource ?? '', field ?? '', patch)
 		try {
 			const result = await api.configureField(path, patch)
-			if (!report(result.ok ? null : result.error, 'Field updated')) {
+			if (!report(result, 'Field updated')) {
 				// The optimistic value was a guess; the resource says otherwise.
 				await loadResource(resource ?? '', true)
 				return
@@ -1466,7 +1491,7 @@ export function useBuilder(): BuilderController {
 
 	async function removeField(path: string): Promise<void> {
 		const result = await api.removeField(path)
-		if (!report(result.ok ? null : result.error, 'Field removed')) {
+		if (!report(result, 'Field removed')) {
 			return
 		}
 		await loadResource(path.split('#')[0] ?? '', true)
@@ -1478,7 +1503,7 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		const result = await api.addQuery(pageRef, input)
-		if (!report(result.ok ? null : result.error, `Query ${input.name} added`)) {
+		if (!report(result, `Query ${input.name} added`)) {
 			return
 		}
 		await reload()
@@ -1486,7 +1511,7 @@ export function useBuilder(): BuilderController {
 
 	async function removeQuery(ref: string): Promise<void> {
 		const result = await api.removeQuery(ref)
-		if (!report(result.ok ? null : result.error, 'Query removed')) {
+		if (!report(result, 'Query removed')) {
 			return
 		}
 		await reload()

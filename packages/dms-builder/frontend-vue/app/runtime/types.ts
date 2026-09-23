@@ -237,8 +237,17 @@ export interface FileChange {
 	diff: string
 }
 
+/**
+ * Something an operation that went through still wants said: a column stored
+ * as a string, a query kept because a block reads it, a route that moved.
+ */
+export interface OpWarning {
+	code: string
+	message: string
+}
+
 export type OpResult<T> =
-	| { ok: true; data: T; changes: FileChange[]; warnings?: unknown[] }
+	| { ok: true; data: T; changes: FileChange[]; warnings?: OpWarning[] }
 	| { ok: false; error: BuilderError }
 
 export interface PageSummary {

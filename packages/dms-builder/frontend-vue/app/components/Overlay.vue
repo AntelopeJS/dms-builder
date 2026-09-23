@@ -236,6 +236,29 @@ onUnmounted(() => {
 			/>
 		</div>
 
+		<!-- A write that went through can still have had to settle for less —
+		a column stored as a string, a query kept alive. Outside the chain above:
+		it stays true whatever else is being asked. -->
+		<div
+			v-if="session.warnings.length"
+			class="flex items-start gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
+		>
+			<UIcon name="i-ph-info" class="mt-0.5 size-4 shrink-0" />
+			<ul class="flex min-w-0 flex-1 flex-col gap-0.5">
+				<li v-for="entry in session.warnings" :key="entry.message">
+					{{ entry.message }}
+				</li>
+			</ul>
+			<UButton
+				icon="i-ph-x"
+				size="xs"
+				color="warning"
+				variant="ghost"
+				aria-label="Dismiss the warnings"
+				@click="session.warnings = []"
+			/>
+		</div>
+
 		<div v-if="session.loading" class="flex flex-1 items-center justify-center">
 			<UIcon name="i-ph-circle-notch" class="size-6 animate-spin text-dimmed" />
 		</div>
