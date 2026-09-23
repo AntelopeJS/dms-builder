@@ -1,4 +1,7 @@
-import type { ResourceRoute } from "@antelopejs/interface-dms-builder";
+import type {
+  DataTypeValue,
+  ResourceRoute,
+} from "@antelopejs/interface-dms-builder";
 import { pascalCase } from "./emit";
 
 export const CORE_SCHEMA_NAME_VALUE = "dms-core";
@@ -238,7 +241,16 @@ export interface DbType {
   fallback: boolean;
 }
 
-export const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
+/** A column the database stores as it is, for a value that is not a scalar. */
+const ANY_FIELD = "any";
+
+/**
+ * The column each built-in DataType is stored in, read off what the DataType
+ * validates: a status is a checkbox and a time of day a number of seconds, so
+ * neither is a string, whatever their names say. Only a DataType missing from
+ * here — one a project registered itself — falls back to a string column.
+ */
+const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
   string: { field: "string", ts: "string" },
   email: { field: "string", ts: "string" },
   url: { field: "string", ts: "string" },
@@ -250,6 +262,39 @@ export const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
   number: { field: "number", ts: "number" },
   price: { field: "number", ts: "number" },
   percentage: { field: "number", ts: "number" },
+  string_time: { field: "number", ts: "number" },
   date: { field: "date", ts: "Date" },
   boolean: { field: "boolean", ts: "boolean" },
+  status: { field: "boolean", ts: "boolean" },
+  // A relation holds the id of the row it points at.
+  relation: { field: "string", ts: "string" },
+  cascader_relation: { field: "string", ts: "string" },
+  tree: { field: "string", ts: "string" },
+  permissions: { field: ANY_FIELD, ts: "string[]" },
+  address: { field: ANY_FIELD, ts: "Record<string, string>" },
+  file: { field: ANY_FIELD, ts: "Record<string, unknown>" },
+  image: { field: ANY_FIELD, ts: "Record<string, unknown>" },
 };
+
+/** The DataTypes that hold a list of values once configured `multiple`. */
+const MULTIPLE_TYPES = new Set([
+  "relation",
+  "cascader_relation",
+  "tree",
+  "file",
+  "image",
+]);
+
+/** The column a DataType is stored in, as configured; `undefined` if unmapped. */
+export function mappedDbType(
+  dataType: DataTypeValue,
+): { field: string; ts: string } | undefined {
+  const known = DB_TYPE_MAP[dataType.$dataType];
+  if (!known) {
+    return undefined;
+  }
+  if (MULTIPLE_TYPES.has(dataType.$dataType) && dataType.config?.multiple) {
+    return { field: ANY_FIELD, ts: `${known.ts}[]` };
+  }
+  return known;
+}

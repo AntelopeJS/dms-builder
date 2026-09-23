@@ -162,12 +162,16 @@ export interface FieldTypes {
 }
 
 function fieldTypes(field: ResourceFieldStructure): FieldTypes | undefined {
-  const id = field.dataType?.$dataType;
-  if (!id) {
+  const dataType = field.dataType;
+  if (!dataType?.$dataType) {
     return undefined;
   }
-  const dbType = dbTypeFor(id);
-  return { ts: dbType.ts, dataType: id, fallback: dbType.fallback };
+  const dbType = dbTypeFor(dataType);
+  return {
+    ts: dbType.ts,
+    dataType: dataType.$dataType,
+    fallback: dbType.fallback,
+  };
 }
 
 export function fallbackTypeWarning(
