@@ -71,7 +71,7 @@ export class PageShopBoard extends PageController("board", {
     submitLabel: "finir",
     submitUrl: "/test",
     submitUrlMethod: "POST",
-  }), { slot: "tab3" })).child("placeholder", Placeholder()))))).child("row", GridRow().child("revenueChart", ChartCard({
+  }), { slot: "tab3" }).child("placeholder2", Placeholder(), { slot: "tab1" })))))).child("gridRow2", GridRow()).child("row", GridRow().child("revenueChart", ChartCard({
     title: "Revenue",
     description: "Sum of paid orders, by month",
     icon: "i-ph-currency-eur",
