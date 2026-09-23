@@ -547,10 +547,12 @@ describe('a block placed before it is configured', () => {
 		).toEqual(['Chart card 1', 'Chart card 2'])
 	})
 
-	it('names an id after the block, since other blocks read it back', () => {
+	it('leaves a period selector on the scope the cards follow', () => {
 		builder.addBlock('PeriodSelector')
 
-		expect(configOf('periodSelector')).toEqual({ id: 'periodSelector' })
+		// An id seeded after the block drove no card at all: a card bound to a
+		// period follows the page's scope, which is the selector's own default.
+		expect(configOf('periodSelector')).toEqual({})
 	})
 
 	it('seeds a title the type leaves optional, which renders as nothing', () => {

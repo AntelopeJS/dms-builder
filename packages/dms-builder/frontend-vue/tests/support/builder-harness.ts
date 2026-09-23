@@ -207,9 +207,9 @@ export function testCatalog(): BlockCatalog {
 					},
 				},
 			}),
-			// Two blocks whose own type demands an option, as `ChartCard` and
-			// `PeriodSelector` do: one a title and a chart to draw with, one an id
-			// other blocks follow.
+			// A block whose own type demands options, as `ChartCard` does — a
+			// title and a chart to draw with — and one whose only id has a default,
+			// as `PeriodSelector`'s: the scope the cards bound to a period follow.
 			block('ChartCard', {
 				label: 'Chart card',
 				group: 'data',
@@ -225,7 +225,8 @@ export function testCatalog(): BlockCatalog {
 			}),
 			block('PeriodSelector', {
 				label: 'Period selector',
-				config: { id: { type: 'string' } },
+				config: { id: { type: 'string', default: 'page' } },
+				defaults: { id: 'page' },
 			}),
 		],
 		dataTypes: [],
