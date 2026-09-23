@@ -30,11 +30,20 @@ export const RESOURCE_ROUTES: readonly ResourceRoute[] = [
 ];
 
 const EXPORT_ROUTES_SPREAD = "...TableViewRoutes.ExportRoutes";
+const ALL_ROUTES_EXPR = "TableViewRoutes.All";
 
+/**
+ * The members of `TableViewRoutes` each route writes. Every key of
+ * `TableViewRoutes.All` has to be named here or under `KEY_TO_ROUTE`: a key the
+ * builder cannot name is dropped the first time it rewrites the map, and the
+ * route it served is gone from the resource for good.
+ */
 const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
   list: [
     ["list", "List"],
     ["count", "Count"],
+    // The tab counters of a table: served beside the list, never alone.
+    ["countBatch", "CountBatch"],
   ],
   get: [["get", "Get"]],
   create: [["new", "New"]],
@@ -50,6 +59,8 @@ const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
 
 const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
   list: "list",
+  count: "list",
+  countBatch: "list",
   get: "get",
   new: "create",
   edit: "edit",
@@ -57,19 +68,31 @@ const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
   select: "select",
   archive: "archive",
   restore: "archive",
+  // Written as the `ExportRoutes` spread, but a map that names them one by one
+  // serves the same export.
+  exportStart: "export",
+  exportStatus: "export",
+  exportDownload: "export",
 };
 
 export function isResourceRoute(value: string): value is ResourceRoute {
   return (RESOURCE_ROUTES as readonly string[]).includes(value);
 }
 
+/**
+ * The route map for a selection: `TableViewRoutes.All` for every route — so the
+ * next route the DMS adds to `All` is served without the builder knowing its
+ * name — and a literal naming each member otherwise.
+ */
 export function routeMapExpr(
   routes: readonly ResourceRoute[] | undefined,
 ): string {
-  if (!routes) {
-    return "TableViewRoutes.All";
+  const selected = RESOURCE_ROUTES.filter(
+    (route) => !routes || routes.includes(route),
+  );
+  if (selected.length === RESOURCE_ROUTES.length) {
+    return ALL_ROUTES_EXPR;
   }
-  const selected = RESOURCE_ROUTES.filter((route) => routes.includes(route));
   const parts: string[] = [];
   for (const route of selected) {
     if (route === "export") {
