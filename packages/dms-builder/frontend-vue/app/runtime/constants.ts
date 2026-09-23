@@ -70,3 +70,33 @@ export const BLOCK_GROUP_LABELS: Record<string, string> = {
 	visualization: 'Visualization',
 	other: 'Other',
 }
+
+/**
+ * What each built-in DataType is called in a Type menu. The id is how the
+ * source spells it — `cascader_relation`, `string_time` — which says little to
+ * someone choosing what a column holds.
+ */
+export const DATA_TYPE_LABELS: Record<string, string> = {
+	string: 'Text',
+	rich_text: 'Rich text',
+	number: 'Number',
+	price: 'Price',
+	percentage: 'Percentage',
+	date: 'Date',
+	string_time: 'Time of day',
+	boolean: 'Yes / no',
+	status: 'Status',
+	select: 'Choice list',
+	email: 'Email',
+	phone: 'Phone number',
+	url: 'Link',
+	color: 'Colour',
+	password: 'Password',
+	relation: 'Row of another table',
+	cascader_relation: 'Row of a nested table',
+	tree: 'Tree',
+	address: 'Postal address',
+	permissions: 'Permissions',
+	file: 'File',
+	image: 'Image',
+}

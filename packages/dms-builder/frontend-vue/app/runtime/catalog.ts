@@ -1,4 +1,4 @@
-import { BLOCK_GROUP_LABELS, OPTION_GROUPS } from './constants'
+import { BLOCK_GROUP_LABELS, DATA_TYPE_LABELS, OPTION_GROUPS } from './constants'
 import type {
 	BlockCatalog,
 	ComponentPreview,
@@ -396,6 +396,33 @@ export function missingConfig(
 
 export function suggestedName(type: string): string {
 	return type.charAt(0).toLowerCase() + type.slice(1)
+}
+
+export interface DataTypeItem {
+	label: string
+	value: string
+}
+
+/** `made_up` → `Made up`, for a DataType a project registered itself. */
+function spelledOut(id: string): string {
+	const words = id.replace(/_/g, ' ')
+	return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/**
+ * The DataTypes a Type menu offers, named for whoever picks one, in the order
+ * the names are listed in — the ones a project registered itself follow.
+ */
+export function dataTypeItems(catalog: BlockCatalog | null): DataTypeItem[] {
+	const known = Object.keys(DATA_TYPE_LABELS)
+	const rank = (id: string): number => {
+		const at = known.indexOf(id)
+		return at === -1 ? known.length : at
+	}
+	return (catalog?.dataTypes ?? [])
+		.map((entry) => entry.id)
+		.sort((a, b) => rank(a) - rank(b))
+		.map((id) => ({ label: DATA_TYPE_LABELS[id] ?? spelledOut(id), value: id }))
 }
 
 /* ---- names the page shows --------------------------------------------- */

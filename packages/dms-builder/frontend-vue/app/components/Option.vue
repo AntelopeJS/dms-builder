@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import {
 	branchKind,
 	branchOf,
+	dataTypeItems,
 	descriptorOf,
 	entryName,
 	fitsAsWell,
@@ -89,12 +90,7 @@ const resourceItems = computed(() =>
 	})),
 )
 
-const dataTypeItems = computed(() =>
-	(session.value.catalog?.dataTypes ?? []).map((entry) => ({
-		label: entry.id,
-		value: entry.id,
-	})),
-)
+const dataTypeChoices = computed(() => dataTypeItems(session.value.catalog))
 
 const blockTypeItems = computed(() =>
 	(ui.value.blockTypes ?? []).map((type) => ({ label: type, value: type })),
@@ -607,7 +603,7 @@ const nestedProperties = computed(() =>
 		<div v-else-if="widget === 'dataType'" class="flex flex-col gap-2">
 			<USelectMenu
 				:model-value="dataTypeValue.$dataType"
-				:items="dataTypeItems"
+				:items="dataTypeChoices"
 				value-key="value"
 				placeholder="Choose a data type…"
 				@update:model-value="setDataType($event)"

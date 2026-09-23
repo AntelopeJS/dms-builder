@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { dataTypeItems } from '../runtime/catalog'
 import { useBuilder } from '../runtime/session'
 import type { FieldSpec } from '../runtime/types'
 
@@ -29,12 +30,7 @@ const aspects = ref<Record<string, boolean>>({
 const target = ref<string | undefined>(undefined)
 const labelKey = ref('')
 
-const dataTypes = computed(() =>
-	(session.value.catalog?.dataTypes ?? []).map((entry) => ({
-		label: entry.id,
-		value: entry.id,
-	})),
-)
+const dataTypes = computed(() => dataTypeItems(session.value.catalog))
 const reserved = computed(
 	() => session.value.catalog?.reservedFieldNames ?? [],
 )

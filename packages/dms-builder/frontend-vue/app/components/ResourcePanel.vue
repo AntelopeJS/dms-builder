@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { dataTypeItems } from '../runtime/catalog'
 import { useBuilder } from '../runtime/session'
 import type { ResourceFieldStructure } from '../runtime/types'
 
@@ -74,12 +75,7 @@ const structure = computed(() =>
 	current.value ? session.value.resourceStructures[current.value] : undefined,
 )
 const fields = computed(() => structure.value?.fields ?? [])
-const dataTypes = computed(() =>
-	(session.value.catalog?.dataTypes ?? []).map((entry) => ({
-		label: entry.id,
-		value: entry.id,
-	})),
-)
+const dataTypes = computed(() => dataTypeItems(session.value.catalog))
 
 const usedBy = computed(() => {
 	const ref_ = current.value
