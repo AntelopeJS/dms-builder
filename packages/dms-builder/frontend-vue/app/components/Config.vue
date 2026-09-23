@@ -27,7 +27,12 @@ interface RenderedGroup {
 }
 
 const ADVANCED_GROUP = 'advanced'
-const EXPORT_ROUTE = 'export'
+/**
+ * The block that has a search bar. Every block reading a table shares its
+ * fields, but a form over one has nothing to search, and a picker there would
+ * rewrite the table's search for a setting that block never reads.
+ */
+const SEARCH_BAR_BLOCK = 'TableView'
 
 const builder = useBuilder()
 const session = builder.session
@@ -160,9 +165,6 @@ const resource = computed(() =>
 		: undefined,
 )
 const fieldCount = computed(() => resource.value?.fields.length ?? 0)
-const exported = computed(
-	() => !resource.value?.routes || resource.value.routes.includes(EXPORT_ROUTE),
-)
 const searchField = computed(
 	() => resource.value?.fields.find((field) => field.searchable)?.name,
 )
@@ -174,27 +176,6 @@ watch(
 	},
 	{ immediate: true },
 )
-
-function toggleExport(on: boolean): void {
-	const current = resource.value
-	if (!current || !block.value?.controller) {
-		return
-	}
-	const all = current.routes ?? [
-		'list',
-		'get',
-		'create',
-		'edit',
-		'delete',
-		'select',
-		'archive',
-		EXPORT_ROUTE,
-	]
-	const routes = on
-		? [...new Set([...all, EXPORT_ROUTE])]
-		: all.filter((route) => route !== EXPORT_ROUTE)
-	void builder.configureResource(block.value.controller, routes)
-}
 
 /** One searchable field at a time here; the DMS itself allows several. */
 async function setSearchField(name: string): Promise<void> {
@@ -280,24 +261,6 @@ async function setSearchField(name: string): Promise<void> {
 					@update:model-value="option.update($event)"
 					@patch="builder.patchConfig(path, $event)"
 				/>
-
-				<div
-					v-if="group.id === 'features' && descriptor?.controllerArg"
-					class="flex items-start gap-3 border-t border-default py-2.5"
-				>
-					<USwitch
-						:model-value="exported"
-						:disabled="!resource"
-						class="mt-0.5 shrink-0"
-						@update:model-value="toggleExport($event)"
-					/>
-					<div class="min-w-0 flex-1">
-						<p class="text-sm text-default">Data export</p>
-						<p class="mt-0.5 text-xs text-dimmed">
-							Serves the resource's export endpoints.
-						</p>
-					</div>
-				</div>
 			</div>
 
 			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-3">
@@ -322,7 +285,10 @@ async function setSearchField(name: string): Promise<void> {
 					belong to this page and wait for Save.
 				</p>
 
-				<div class="flex flex-col gap-1.5">
+				<div
+					v-if="block.type === SEARCH_BAR_BLOCK"
+					class="flex flex-col gap-1.5"
+				>
 					<label class="text-sm font-medium text-default">Search field</label>
 					<USelectMenu
 						:model-value="searchField"
