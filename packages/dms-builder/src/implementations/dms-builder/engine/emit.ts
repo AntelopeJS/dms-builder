@@ -122,10 +122,7 @@ export function relativeModule(fromFile: string, toFile: string): string {
   return rel.startsWith(".") ? rel : `./${rel}`;
 }
 
-function objectText(
-  config: Record<string, unknown>,
-  ctx: EmitContext,
-): string {
+function objectText(config: Record<string, unknown>, ctx: EmitContext): string {
   const entries = Object.entries(config).filter(
     ([, value]) => value !== undefined,
   );

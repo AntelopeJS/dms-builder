@@ -181,9 +181,7 @@ function modelParameter(
 }
 
 /** Hop 2 — the model class a route injects, as a bare identifier. */
-function routeModelClassName(
-  method: MethodDeclaration,
-): string | undefined {
+function routeModelClassName(method: MethodDeclaration): string | undefined {
   const parameter = modelParameter(method);
   if (!parameter) {
     return undefined;

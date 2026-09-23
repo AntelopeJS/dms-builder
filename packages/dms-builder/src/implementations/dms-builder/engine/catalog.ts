@@ -147,4 +147,3 @@ export function invalidateCatalog(): void {
   cached = undefined;
   invalidateInference();
 }
-
