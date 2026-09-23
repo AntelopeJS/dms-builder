@@ -23,6 +23,17 @@ const canRedo = computed(() => session.value.future.length > 0)
 			title="Pages and categories of the project"
 			@click="builder.setView('pages')"
 		/>
+		<!-- The tables a page reads live beside its pages, not under a block: a
+		project with none yet has no block to reach them through. -->
+		<UButton
+			icon="i-ph-database"
+			size="xs"
+			:color="session.view === 'resource' ? 'primary' : 'neutral'"
+			variant="ghost"
+			label="Tables"
+			title="Tables of the project, their fields and their API"
+			@click="builder.setView('resource')"
+		/>
 
 		<span class="vsep h-4 w-px bg-default" />
 

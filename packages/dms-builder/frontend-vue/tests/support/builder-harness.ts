@@ -33,6 +33,11 @@ export interface FakeBackend {
 	}>
 	/** What `POST /page/blocks` answers. */
 	save: OpResult<{ version: string }>
+	/**
+	 * Answers for any other route, keyed `METHOD /path`, taking precedence over
+	 * the defaults: the resource routes answer whatever a suite needs them to.
+	 */
+	answers: Record<string, unknown>
 	calledPaths: () => string[]
 }
 
@@ -268,10 +273,15 @@ export function installFakeHost(): FakeBackend {
 		layout: { components: {} },
 		preview: { ok: true, data: { components: {}, degraded: [] }, changes: [] },
 		save: { ok: true, data: { version: 'v2' }, changes: [] },
+		answers: {},
 		calledPaths: () => backend.calls.map((call) => `${call.method} ${call.path}`),
 	}
 
 	function answer(method: string, path: string): unknown {
+		const key = `${method} ${path}`
+		if (key in backend.answers) {
+			return backend.answers[key]
+		}
 		if (method === 'GET' && path === '/api/builder/catalog') {
 			return backend.catalog
 		}

@@ -56,6 +56,12 @@ const picked = ref<string | undefined>(undefined)
 const open = ref<string | null>(null)
 const newName = ref('')
 const adding = ref(false)
+/**
+ * The deletion waiting on a second click, as `field:<name>` or `resource`.
+ * Either one drops data for good — a field its column, a resource its table
+ * and every row in it — so neither goes on the first click.
+ */
+const confirming = ref<string | null>(null)
 
 const ROUTES = [
 	{ key: 'list', label: 'List' },
@@ -97,6 +103,7 @@ const usedBy = computed(() => {
 watch(
 	current,
 	(ref_) => {
+		confirming.value = null
 		if (ref_) void builder.loadResource(ref_)
 	},
 	{ immediate: true },
@@ -130,7 +137,7 @@ function toggleMandatory(
 async function create(): Promise<void> {
 	const name = newName.value.trim()
 	if (!name) return
-	await builder.createResource(name, [
+	const created = await builder.createResource(name, [
 		{
 			name: 'title',
 			dataType: { $dataType: 'string' },
@@ -140,9 +147,23 @@ async function create(): Promise<void> {
 			searchable: true,
 		},
 	])
-	picked.value = name
+	if (!created) return
+	picked.value = created
 	newName.value = ''
 	adding.value = true
+}
+
+function removeField(name: string): void {
+	confirming.value = null
+	void builder.removeField(`${current.value}#${name}`)
+}
+
+async function removeResource(): Promise<void> {
+	const ref_ = current.value
+	confirming.value = null
+	if (ref_ && (await builder.deleteResource(ref_))) {
+		picked.value = undefined
+	}
 }
 
 function served(route: string): boolean {
@@ -166,8 +187,8 @@ function toggleRoute(route: string): void {
 
 <template>
 	<div class="flex flex-col gap-4">
-		<div v-if="!current" class="flex flex-col gap-1.5">
-			<label class="text-sm font-medium text-default">Resource</label>
+		<div class="flex flex-col gap-1.5">
+			<label class="text-sm font-medium text-default">Table</label>
 			<USelectMenu
 				:model-value="current"
 				:items="
@@ -177,9 +198,13 @@ function toggleRoute(route: string): void {
 					}))
 				"
 				value-key="value"
-				placeholder="Choose a resource…"
+				placeholder="Choose a table…"
+				:disabled="!session.resources.length"
 				@update:model-value="picked = $event"
 			/>
+			<p v-if="!session.resources.length" class="text-xs text-dimmed">
+				No table yet — create the first one below.
+			</p>
 		</div>
 
 		<div
@@ -361,14 +386,40 @@ function toggleRoute(route: string): void {
 							</p>
 						</div>
 
+						<div
+							v-if="confirming === `field:${field.name}`"
+							class="flex flex-col gap-2 rounded-md border border-error/40 bg-error/5 p-2.5"
+						>
+							<p class="text-xs text-toned">
+								Removing <b>{{ field.label || field.name }}</b> drops its column
+								and <b>the value every row holds in it</b>. This is written
+								straight away, not on Save.
+							</p>
+							<div class="flex gap-2">
+								<UButton
+									size="xs"
+									color="error"
+									label="Remove the field and its data"
+									@click="removeField(field.name)"
+								/>
+								<UButton
+									size="xs"
+									color="neutral"
+									variant="ghost"
+									label="Keep it"
+									@click="confirming = null"
+								/>
+							</div>
+						</div>
 						<UButton
+							v-else
 							icon="i-ph-trash"
 							size="xs"
 							color="error"
 							variant="soft"
 							label="Remove this field"
 							class="self-start"
-							@click="builder.removeField(`${current}#${field.name}`)"
+							@click="confirming = `field:${field.name}`"
 						/>
 					</div>
 				</div>
@@ -420,17 +471,47 @@ function toggleRoute(route: string): void {
 			</div>
 
 			<div class="border-t border-default pt-4">
-				<UButton
-					icon="i-ph-trash"
-					size="xs"
-					color="error"
-					variant="soft"
-					label="Delete this resource"
-					@click="builder.deleteResource(current!)"
-				/>
-				<p class="mt-1.5 text-xs text-dimmed">
-					Removes the table, its API and every row it holds.
-				</p>
+				<div
+					v-if="confirming === 'resource'"
+					class="flex flex-col gap-2 rounded-md border border-error/40 bg-error/5 p-2.5"
+				>
+					<p class="text-xs text-toned">
+						Deleting <b>{{ current }}</b> removes the table, its API and
+						<b>every row it holds</b>. There is no undo.
+						<template v-if="usedBy">
+							{{ usedBy }} block{{ usedBy === 1 ? '' : 's' }} on this page
+							read{{ usedBy === 1 ? 's' : '' }} it.
+						</template>
+					</p>
+					<div class="flex gap-2">
+						<UButton
+							size="xs"
+							color="error"
+							label="Delete the table and its rows"
+							@click="removeResource"
+						/>
+						<UButton
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							label="Keep it"
+							@click="confirming = null"
+						/>
+					</div>
+				</div>
+				<template v-else>
+					<UButton
+						icon="i-ph-trash"
+						size="xs"
+						color="error"
+						variant="soft"
+						label="Delete this resource"
+						@click="confirming = 'resource'"
+					/>
+					<p class="mt-1.5 text-xs text-dimmed">
+						Removes the table, its API and every row it holds.
+					</p>
+				</template>
 			</div>
 		</template>
 

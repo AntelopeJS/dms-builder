@@ -30,10 +30,8 @@ const heading = computed(() => {
 		page: { title: 'Page', subtitle: 'Title, description and icon' },
 		pages: { title: 'Pages', subtitle: 'Pages and categories of the project' },
 		resource: {
-			title: 'Displayed fields',
-			subtitle: builder.selected.value?.controller
-				? `Table · ${builder.selected.value.controller}`
-				: 'Fields and API of the resource',
+			title: 'Tables',
+			subtitle: 'Fields and API of each table',
 		},
 		query: { title: 'Queries', subtitle: session.value.pageRef ?? '' },
 		json: { title: 'Configuration', subtitle: 'Export and import the page' },
