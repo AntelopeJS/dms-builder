@@ -7,6 +7,16 @@ import {
 	slotsOf,
 } from '../runtime/catalog'
 import { findNode } from '../runtime/draft'
+import {
+	askedColumns,
+	boundTo,
+	fillableColumns,
+	formTableOf,
+	takesRows,
+	withColumn,
+	withoutColumn,
+} from '../runtime/form-table'
+import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
 import { parentPath, useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
@@ -18,6 +28,13 @@ interface RenderedOption {
 	value: unknown
 	update: (value: unknown) => void
 	separated?: boolean
+}
+
+/** Options offered together behind one switch, by the switch's label. */
+interface RenderedOptIn {
+	id: string
+	optIn: string
+	options: RenderedOption[]
 }
 
 interface RenderedGroup {
@@ -33,6 +50,13 @@ const ADVANCED_GROUP = 'advanced'
  * rewrite the table's search for a setting that block never reads.
  */
 const SEARCH_BAR_BLOCK = 'TableView'
+/**
+ * The block the simple mode binds to a table: a form someone builds a page with
+ * saves into a table they pick, not into an endpoint they type.
+ */
+const TABLE_BOUND_BLOCK = 'Form'
+/** The option of that block its table's columns fill. */
+const TABLE_FILLED_OPTION = 'fields'
 
 const builder = useBuilder()
 const session = builder.session
@@ -41,6 +65,16 @@ const path = computed(() => session.value.selection)
 const block = builder.selected
 const descriptor = builder.selectedDescriptor
 const showAdvanced = ref(false)
+// The simple mode leaves out what only a developer reads: the settings a
+// block files under "Advanced", and why a block is locked, and where.
+const { advanced: advancedMode } = useBuilderMode()
+// The engine words a reason as a lower-case fragment; here it opens a sentence.
+const opaqueReason = computed(() => {
+	const reason = block.value?.opaqueReason
+	return reason
+		? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`
+		: undefined
+})
 
 function parentType(parent: string): string | undefined {
 	const draft = session.value.draft
@@ -142,20 +176,184 @@ function withSeparators(options: RenderedOption[]): RenderedOption[] {
 }
 
 const groups = computed<RenderedGroup[]>(() =>
-	optionGroups(descriptor.value).map((group) => ({
-		id: group.id,
-		label: group.label,
-		options: withSeparators(
-			group.options.flatMap((option) => expand(option.key, option.schema)),
-		),
-	})),
+	optionGroups(descriptor.value)
+		.map((group) => ({
+			id: group.id,
+			label: group.label,
+			options: withSeparators(
+				group.options
+					.flatMap((option) => expand(option.key, option.schema))
+					// What the simple mode writes itself — a key from the label it
+					// follows, an address from the table picked — or leaves to code.
+					.filter(
+						(option) =>
+							advancedMode.value ||
+							(!option.schema.ui?.derivedFrom && !option.schema.ui?.advanced),
+					),
+			),
+		}))
+		.filter((group) => group.options.length > 0),
 )
+/**
+ * A group's options, those behind a switch gathered where the first of them
+ * stood, so the switch sits where the options did.
+ */
+function entriesOf(
+	options: RenderedOption[],
+): Array<RenderedOption | RenderedOptIn> {
+	const entries: Array<RenderedOption | RenderedOptIn> = []
+	const behind = new Map<string, RenderedOptIn>()
+	for (const option of options) {
+		const label = option.schema.ui?.optIn
+		// Only an option of the block's own: one flattened out of another is
+		// written through that other, not on its own.
+		if (!label || option.id !== option.name) {
+			entries.push(option)
+			continue
+		}
+		let entry = behind.get(label)
+		if (!entry) {
+			entry = { id: `optIn:${label}`, optIn: label, options: [] }
+			behind.set(label, entry)
+			entries.push(entry)
+		}
+		entry.options.push(option)
+	}
+	return entries
+}
+
+function isOptIn(entry: RenderedOption | RenderedOptIn): entry is RenderedOptIn {
+	return 'optIn' in entry
+}
+
+/**
+ * The switches turned on and not yet filled in, by block and label: an author
+ * who turns one on and clears what it seeded is still looking at the options.
+ */
+const openedOptIns = ref(new Set<string>())
+
+function optInKey(entry: RenderedOptIn): string {
+	return `${path.value ?? ''}\u0000${entry.optIn}`
+}
+
+/** On while any option behind it is set, or while the author has it open. */
+function optInOn(entry: RenderedOptIn): boolean {
+	return (
+		openedOptIns.value.has(optInKey(entry)) ||
+		entry.options.some((option) => option.value !== undefined)
+	)
+}
+
+/**
+ * Turned on, the options start from what they suggest — the block's own
+ * wording — rather than from nothing. Turned off, they are dropped, and the
+ * block falls back on what it says by itself. One edit either way.
+ */
+function setOptIn(entry: RenderedOptIn, on: boolean): void {
+	const opened = new Set(openedOptIns.value)
+	if (on) {
+		opened.add(optInKey(entry))
+	} else {
+		opened.delete(optInKey(entry))
+	}
+	openedOptIns.value = opened
+	if (!path.value) {
+		return
+	}
+	const values: Record<string, unknown> = {}
+	for (const option of entry.options) {
+		values[option.id] = on
+			? (option.value ?? option.schema.ui?.placeholder)
+			: undefined
+	}
+	builder.patchConfig(path.value, values)
+}
+
 const plainGroups = computed(() =>
 	groups.value.filter((group) => group.id !== ADVANCED_GROUP),
 )
 const advanced = computed(() =>
-	groups.value.find((group) => group.id === ADVANCED_GROUP),
+	advancedMode.value
+		? groups.value.find((group) => group.id === ADVANCED_GROUP)
+		: undefined,
 )
+
+/* ---- a form saving into a table ----------------------------------------- */
+
+const bindsTable = computed(
+	() => !advancedMode.value && block.value?.type === TABLE_BOUND_BLOCK,
+)
+const formTable = computed(() =>
+	formTableOf(block.value?.config, session.value.resources),
+)
+const formTableStructure = computed(() =>
+	formTable.value
+		? session.value.resourceStructures[formTable.value.ref]
+		: undefined,
+)
+const formColumns = computed(() => fillableColumns(formTableStructure.value))
+const askedFormColumns = computed(() => askedColumns(block.value?.config?.fields))
+/**
+ * The columns a row cannot be written without that the form no longer asks
+ * for: unticking one is the author's call, and saving will say it failed.
+ */
+const unaskedRequired = computed(() =>
+	formColumns.value
+		.filter((column) => column.required && !askedFormColumns.value.has(column.name))
+		.map((column) => column.label ?? column.name),
+)
+const tableItems = computed(() =>
+	session.value.resources.map((entry) => ({ label: entry.ref, value: entry.ref })),
+)
+
+watch(
+	formTable,
+	(table) => {
+		if (table) void builder.loadResource(table.ref)
+	},
+	{ immediate: true },
+)
+
+/**
+ * Save the form into a table: every column a row is written with becomes a
+ * field of it, ready to be unticked, and it submits to the table's create
+ * route. The fields a form had for another table are not this one's.
+ */
+async function chooseFormTable(ref: string): Promise<void> {
+	const table = session.value.resources.find((entry) => entry.ref === ref)
+	const at = path.value
+	if (!table || !at) {
+		return
+	}
+	await builder.loadResource(ref)
+	builder.patchConfig(
+		at,
+		boundTo(table, fillableColumns(session.value.resourceStructures[ref])),
+	)
+}
+
+/** What the field list says in place of its buttons, once a table fills it. */
+function addedElsewhere(name: string): string | undefined {
+	if (!bindsTable.value || name !== TABLE_FILLED_OPTION) {
+		return undefined
+	}
+	return formTable.value
+		? 'Its fields are the columns ticked above.'
+		: 'Choose a table above: its columns are the fields.'
+}
+
+function askColumn(
+	column: (typeof formColumns.value)[number],
+	asked: boolean,
+): void {
+	if (!path.value) {
+		return
+	}
+	const fields = block.value?.config?.fields
+	builder.patchConfig(path.value, {
+		fields: asked ? withColumn(fields, column) : withoutColumn(fields, column.name),
+	})
+}
 
 /* ---- what lives on the resource rather than on the block ---------------- */
 
@@ -203,10 +401,18 @@ async function setSearchField(name: string): Promise<void> {
 	<div v-else class="flex flex-col gap-5">
 		<div
 			v-if="block.preserve"
-			class="rounded-md border border-default bg-elevated p-3 text-sm text-dimmed"
+			class="flex flex-col gap-2 rounded-md border border-default bg-elevated p-3 text-sm text-dimmed"
 		>
-			This block is written by hand and kept exactly as it is. Edit it in
-			<code class="text-xs">{{ session.structure?.page.filepath }}</code>.
+			<p>
+				This block is set up in code, so its settings can't be changed here.
+			</p>
+			<!-- Said in the advanced view only: someone building the page has no
+			use for a file path, and a developer wants to know what to change. -->
+			<p v-if="advancedMode" class="text-xs">
+				<span v-if="opaqueReason">{{ opaqueReason }} </span>
+				Edit it in
+				<code class="text-xs">{{ session.structure?.page.filepath }}</code>.
+			</p>
 		</div>
 
 		<template v-else>
@@ -241,6 +447,54 @@ async function setSearchField(name: string): Promise<void> {
 				</p>
 			</div>
 
+			<!-- Where the form's values go, in the simple mode: a table and the
+			columns it asks for, rather than an address. -->
+			<div v-if="bindsTable" class="flex flex-col gap-3">
+				<p class="text-sm font-semibold text-highlighted">Table</p>
+				<USelectMenu
+					:model-value="formTable?.ref"
+					:items="tableItems"
+					value-key="value"
+					placeholder="Choose the table it saves into…"
+					@update:model-value="chooseFormTable($event)"
+				/>
+				<p v-if="!formTable" class="text-xs text-warning">
+					Choose a table: what is filled in is saved as a new row of it.
+				</p>
+				<p
+					v-else-if="formTableStructure && !takesRows(formTableStructure)"
+					class="text-xs text-warning"
+				>
+					This table takes no new rows.
+				</p>
+				<div
+					v-if="formTable && formColumns.length"
+					class="flex flex-col gap-1.5"
+					data-form-columns
+				>
+					<p class="text-xs text-dimmed">What the form asks for</p>
+					<label
+						v-for="column in formColumns"
+						:key="column.name"
+						class="flex items-center gap-2 text-sm text-default"
+					>
+						<UCheckbox
+							:model-value="askedFormColumns.has(column.name)"
+							:aria-label="column.label ?? column.name"
+							@update:model-value="askColumn(column, $event === true)"
+						/>
+						<span>{{ column.label ?? column.name }}</span>
+						<span v-if="column.required" class="text-xs text-dimmed">
+							required
+						</span>
+					</label>
+					<p v-if="unaskedRequired.length" class="text-xs text-warning">
+						The table needs {{ unaskedRequired.join(', ') }}: a new row cannot
+						be saved without {{ unaskedRequired.length === 1 ? 'it' : 'them' }}.
+					</p>
+				</div>
+			</div>
+
 			<div
 				v-for="group in plainGroups"
 				:key="group.id"
@@ -249,18 +503,46 @@ async function setSearchField(name: string): Promise<void> {
 				<p class="text-sm font-semibold text-highlighted">
 					{{ group.label }}
 				</p>
-				<DmsBuilderOption
-					v-for="option in group.options"
-					:key="option.id"
-					:name="option.name"
-					:schema="option.schema"
-					:model-value="option.value"
-					:resource="block.controller"
-					:block-name="block.name"
-					:separated="option.separated"
-					@update:model-value="option.update($event)"
-					@patch="builder.patchConfig(path, $event)"
-				/>
+				<template v-for="entry in entriesOf(group.options)" :key="entry.id">
+					<div v-if="isOptIn(entry)" class="flex flex-col gap-3">
+						<div class="flex items-center gap-3">
+							<USwitch
+								:model-value="optInOn(entry)"
+								:aria-label="entry.optIn"
+								@update:model-value="setOptIn(entry, $event === true)"
+							/>
+							<span class="text-sm text-default">{{ entry.optIn }}</span>
+						</div>
+						<div
+							v-if="optInOn(entry)"
+							class="flex flex-col gap-3 border-l border-default pl-3"
+						>
+							<DmsBuilderOption
+								v-for="option in entry.options"
+								:key="option.id"
+								:name="option.name"
+								:schema="option.schema"
+								:model-value="option.value"
+								:resource="block.controller"
+								:block-name="block.name"
+								@update:model-value="option.update($event)"
+								@patch="builder.patchConfig(path, $event)"
+							/>
+						</div>
+					</div>
+					<DmsBuilderOption
+						v-else
+						:name="entry.name"
+						:schema="entry.schema"
+						:model-value="entry.value"
+						:resource="block.controller"
+						:block-name="block.name"
+						:separated="entry.separated"
+						:added-elsewhere="addedElsewhere(entry.name)"
+						@update:model-value="entry.update($event)"
+						@patch="builder.patchConfig(path, $event)"
+					/>
+				</template>
 			</div>
 
 			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-3">

@@ -28,6 +28,16 @@ const receiving = computed(() => {
 	)
 })
 /**
+ * Why the drop the page would receive is turned down, if it is.
+ *
+ * The page is what is named whenever the container really receiving is layout
+ * the editor wrote, and that is most of the page: a refusal inside a row has
+ * nowhere else to be said.
+ */
+const refusal = computed(() =>
+	receiving.value ? session.value.dropTarget?.refusal : undefined,
+)
+/**
  * Where among the blocks the room for the drop opens.
  *
  * The page is a container like any other and it fills downwards, so the room
@@ -143,13 +153,16 @@ function answerCursor(event: DragEvent): void {
 				receiving, it says so around everything it holds. -->
 				<div
 					v-if="receiving"
-					class="pointer-events-none absolute -inset-3 rounded-xl outline outline-2 outline-primary"
-					data-drop-into="page"
+					class="pointer-events-none absolute -inset-3 rounded-xl outline outline-2"
+					:class="refusal ? 'outline-dashed outline-error' : 'outline-primary'"
 				>
 					<span
-						class="absolute -top-5 left-0 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-inverted"
+						class="absolute -top-5 left-0 rounded-md px-2 py-0.5 text-xs font-medium text-inverted"
+						:class="refusal ? 'bg-error' : 'bg-primary'"
+						data-drop-into="page"
 					>
 						{{ page.displayName || 'Page' }} · Page
+						<span v-if="refusal" class="font-normal">· {{ refusal }}</span>
 					</span>
 				</div>
 				<template v-for="(block, at) in blocks" :key="block.name">

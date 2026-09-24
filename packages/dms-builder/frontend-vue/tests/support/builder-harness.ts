@@ -97,6 +97,10 @@ export function testCatalog(): BlockCatalog {
 				container: true,
 				childMeta: { colSpan: { type: 'number', optional: true } },
 			}),
+			// A container an author places, and nothing but that: the layout
+			// blocks above are the editor's to write, and a tab set holds its
+			// children in regions of its own.
+			block('Section', { label: 'Section', container: true }),
 			// The one container that holds its children through its own slots. Its
 			// options mirror what `TabSchema` declares: a tab is a title, an id the
 			// children attach to, and whatever else it may carry.
@@ -162,6 +166,47 @@ export function testCatalog(): BlockCatalog {
 						optional: true,
 						ui: { label: 'Submit button label' },
 					},
+					// Mirrors the DMS: addresses are the advanced view's, and a form
+					// is placed showing its buttons.
+					submitUrl: {
+						type: 'string',
+						optional: true,
+						ui: { label: 'Submit to', group: 'data', widget: 'url', advanced: true },
+					},
+					fetchUrl: {
+						type: 'string',
+						optional: true,
+						ui: { label: 'Load from', group: 'data', widget: 'url', advanced: true },
+					},
+					showActions: {
+						type: 'boolean',
+						optional: true,
+						ui: {
+							label: 'Show the buttons',
+							widget: 'switch',
+							initial: true,
+							advanced: true,
+						},
+					},
+					// Mirrors `SubmitMessageOptions`: both behind one switch.
+					successMessage: {
+						type: 'string',
+						optional: true,
+						ui: {
+							label: 'Success message',
+							placeholder: 'Data has been successfully saved',
+							optIn: 'Custom submit messages',
+						},
+					},
+					errorMessage: {
+						type: 'string',
+						optional: true,
+						ui: {
+							label: 'Error message',
+							placeholder: 'An unknown error occurred',
+							optIn: 'Custom submit messages',
+						},
+					},
 					fields: {
 						type: 'array',
 						ui: { label: 'Fields' },
@@ -171,7 +216,7 @@ export function testCatalog(): BlockCatalog {
 								{
 									type: 'object',
 									properties: {
-										id: { type: 'string', ui: { label: 'Key' } },
+										id: { type: 'string', ui: { label: 'Key', derivedFrom: 'label' } },
 										label: {
 											type: 'string',
 											optional: true,
@@ -180,15 +225,26 @@ export function testCatalog(): BlockCatalog {
 										fields: {
 											type: 'array',
 											ui: { label: 'Fields' },
-											items: { type: 'object', properties: {} },
+											items: {
+												type: 'object',
+												properties: {
+													id: {
+														type: 'string',
+														ui: { label: 'Key', derivedFrom: 'label' },
+													},
+													label: { type: 'string', optional: true },
+												},
+											},
 										},
 										order: { type: 'number', optional: true },
 									},
+									ui: { label: 'Group' },
 								},
 								{
 									type: 'object',
+									ui: { label: 'Field' },
 									properties: {
-										id: { type: 'string', ui: { label: 'Key' } },
+										id: { type: 'string', ui: { label: 'Key', derivedFrom: 'label' } },
 										label: {
 											type: 'string',
 											optional: true,
@@ -203,6 +259,11 @@ export function testCatalog(): BlockCatalog {
 											type: 'boolean',
 											optional: true,
 											ui: { label: 'Required', widget: 'switch' },
+										},
+										defaultValue: {
+											type: 'unknown',
+											optional: true,
+											ui: { label: 'Default value', widget: 'json', typedBy: 'type' },
 										},
 									},
 								},

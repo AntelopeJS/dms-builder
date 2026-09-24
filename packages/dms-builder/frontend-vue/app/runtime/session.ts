@@ -14,6 +14,7 @@ import {
 import {
 	HISTORY_LIMIT,
 	PREVIEW_DEBOUNCE_MS,
+	ROW_WRAPPER,
 	SESSION_STATE_KEY,
 	TOAST_MS,
 } from './constants'
@@ -31,6 +32,10 @@ import {
 	type DropWrap,
 	type PointerBox,
 } from './dropping'
+import { formTableOf } from './form-table'
+import { deriveKeys } from './keys'
+import { pathOfNode, tidyLayout } from './layout'
+import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
 import {
 	cloneDraft,
@@ -48,6 +53,7 @@ import {
 	renameNode,
 	siblingsAt,
 	structureToDraft,
+	uniqueName,
 	walkDraft,
 } from './draft'
 import type {
@@ -332,7 +338,9 @@ export function useBuilder(): BuilderController {
 			JSON.stringify(session.value.draft) !== JSON.stringify(session.value.baseline),
 	)
 	const blockCount = computed(() =>
-		session.value.draft ? countBlocks(session.value.draft) : 0,
+		session.value.draft
+			? countBlocks(session.value.draft, session.value.catalog)
+			: 0,
 	)
 	/**
 	 * Every required setting the draft still leaves empty, block by block.
@@ -641,10 +649,62 @@ export function useBuilder(): BuilderController {
 		if (JSON.stringify(next) === JSON.stringify(current)) {
 			return false
 		}
+		// The keys the simple mode hides are the builder's to write, from the
+		// labels they follow.
+		if (!useBuilderMode().advanced.value) {
+			deriveKeys(
+				next,
+				current,
+				session.value.catalog,
+				(block) => formTableOf(block.config, session.value.resources) !== undefined,
+			)
+		}
+		// And the one place the layout the editor wrote is taken back to what
+		// the page still needs. That can move a block up a level, so whatever
+		// the editor holds by path follows the block rather than the path.
+		const followed = followedBlocks(next)
+		tidyLayout(next, session.value.catalog)
 		pushHistory()
 		session.value.draft = next
+		refollow(next, followed)
 		schedulePreview()
 		return true
+	}
+
+	interface FollowedBlocks {
+		selection?: BlockDraft
+		regions: Array<[BlockDraft, string]>
+	}
+
+	/** The blocks the editor holds by path: the one selected, the tabs left open. */
+	function followedBlocks(draft: PageDraft): FollowedBlocks {
+		const selection = session.value.selection
+		const regions: Array<[BlockDraft, string]> = []
+		for (const [path, region] of Object.entries(session.value.openRegions)) {
+			const block = findNode(draft, path)
+			if (block) {
+				regions.push([block, region])
+			}
+		}
+		return {
+			selection: selection ? findNode(draft, selection) : undefined,
+			regions,
+		}
+	}
+
+	function refollow(draft: PageDraft, followed: FollowedBlocks): void {
+		if (followed.selection) {
+			session.value.selection =
+				pathOfNode(draft, followed.selection) ?? session.value.selection
+		}
+		const regions: Record<string, string> = {}
+		for (const [block, region] of followed.regions) {
+			const path = pathOfNode(draft, block)
+			if (path) {
+				regions[path] = region
+			}
+		}
+		session.value.openRegions = regions
 	}
 
 	function select(path: string | null, view: RailView = 'config'): void {
@@ -799,9 +859,13 @@ export function useBuilder(): BuilderController {
 		type: string | undefined,
 		wrap?: DropWrap,
 	): Placement {
-		const stacked = wrap ? stackAround(draft, wrap) : undefined
-		if (stacked) {
-			return stacked
+		const enclosed = wrap
+			? wrap.type === ROW_WRAPPER
+				? rowAround(draft, wrap)
+				: stackAround(draft, wrap)
+			: undefined
+		if (enclosed) {
+			return enclosed
 		}
 		const parent = placement.parent
 		const container = parent === null ? undefined : findNode(draft, parent)
@@ -850,6 +914,52 @@ export function useBuilder(): BuilderController {
 		return { parent: created, index: wrap.index }
 	}
 
+	/**
+	 * Build a row around a block that sits on its own, so the drop can go beside it.
+	 *
+	 * The block moves into the row where it stood, and the grid holding the row
+	 * takes over what placed the block there — the region of a tab, the columns
+	 * it spanned — or the layout around it would shift under a gesture that only
+	 * added a block.
+	 */
+	function rowAround(draft: PageDraft, wrap: DropWrap): Placement | undefined {
+		const grid = descriptorOf(session.value.catalog, wrap.type)
+		const row = descriptorOf(session.value.catalog, grid?.allowedChildren?.[0])
+		const parent = parentPath(wrap.around)
+		const siblings = siblingsAt(draft, parent)
+		const at = siblings?.findIndex(
+			(block) => block.name === leafName(wrap.around),
+		)
+		const enclosed = at === undefined || at === -1 ? undefined : siblings?.[at]
+		if (!grid || !row || !siblings || !enclosed || at === undefined) {
+			return undefined
+		}
+		siblings.splice(at, 1)
+		const gridDraft = newBlockDraft(grid)
+		handOverPlacement(enclosed, gridDraft)
+		const created = insertNode(draft, parent, at, gridDraft)
+		if (!created) {
+			siblings.splice(at, 0, enclosed)
+			return undefined
+		}
+		const rowDraft = newBlockDraft(row)
+		rowDraft.children = [enclosed]
+		gridDraft.children = [rowDraft]
+		return { parent: joinPath(created, rowDraft.name), index: wrap.index }
+	}
+
+	/** Where a block was placed is the container's to hold, once it holds the block. */
+	function handOverPlacement(enclosed: BlockDraft, container: BlockDraft): void {
+		if (enclosed.slot !== undefined) {
+			container.slot = enclosed.slot
+			delete enclosed.slot
+		}
+		if (enclosed.meta) {
+			container.meta = enclosed.meta
+			delete enclosed.meta
+		}
+	}
+
 	/** The columns a cell claimed are the column container's to claim now. */
 	function handOverSpan(enclosed: BlockDraft, column: BlockDraft): void {
 		const { colSpan, ...rest } = enclosed.meta ?? {}
@@ -882,17 +992,42 @@ export function useBuilder(): BuilderController {
 			notify(refusal)
 			return
 		}
-		let created: string | undefined
+		let node: BlockDraft | undefined
 		mutate((draft) => {
 			const host = hostFor(draft, { parent, index }, type, wrap)
-			const node = newBlockDraft(descriptor, rankOf(draft, type))
-			adoptSlot(draft, host.parent, node)
-			created = insertNode(draft, host.parent, host.index, node)
+			const placed = newBlockDraft(descriptor, rankOf(draft, type))
+			placed.name = nameOnPage(draft, placed.name)
+			adoptSlot(draft, host.parent, placed)
+			if (insertNode(draft, host.parent, host.index, placed)) {
+				node = placed
+			}
 		})
+		const created = node && placedAt(node)
 		if (created) {
 			select(created)
 			notify(`${descriptor.label ?? descriptor.type} added`)
 		}
+	}
+
+	/**
+	 * A name no block on the page holds yet, not only none beside it.
+	 *
+	 * A block's own data is written under its name, and rows put blocks in lists
+	 * of their own all over the page: two charts both called `chartCard2`, one in
+	 * each of two rows, would write one query over the other.
+	 */
+	function nameOnPage(draft: PageDraft, base: string): string {
+		const everywhere: BlockDraft[] = []
+		walkDraft(draft.blocks, (block) => {
+			everywhere.push(block)
+		})
+		return uniqueName(everywhere, base)
+	}
+
+	/** Where a block just placed ended up, once the layout around it is tidied. */
+	function placedAt(node: BlockDraft): string | undefined {
+		const draft = session.value.draft
+		return draft ? pathOfNode(draft, node) : undefined
 	}
 
 	/**
@@ -925,10 +1060,12 @@ export function useBuilder(): BuilderController {
 	}
 
 	function duplicate(path: string): void {
-		let created: string | undefined
+		let node: BlockDraft | undefined
 		mutate((draft) => {
-			created = duplicateNode(draft, path)
+			const created = duplicateNode(draft, path)
+			node = created ? findNode(draft, created) : undefined
 		})
+		const created = node && placedAt(node)
 		if (created) {
 			select(created)
 			notify('Block duplicated')
@@ -936,10 +1073,12 @@ export function useBuilder(): BuilderController {
 	}
 
 	function rename(path: string, name: string): void {
-		let renamed: string | undefined
+		let node: BlockDraft | undefined
 		mutate((draft) => {
-			renamed = renameNode(draft, path, name)
+			const renamed = renameNode(draft, path, name)
+			node = renamed ? findNode(draft, renamed) : undefined
 		})
+		const renamed = node && placedAt(node)
 		if (renamed) {
 			select(renamed)
 		}
@@ -977,7 +1116,8 @@ export function useBuilder(): BuilderController {
 		mutate((draft) => {
 			draft.blocks = trial.blocks
 		})
-		select(moved)
+		const landed = node ? placedAt(node) : undefined
+		select(landed ?? moved)
 	}
 
 	function nudge(path: string, delta: number): void {
@@ -1218,7 +1358,9 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		const result = await api.resource(ref)
-		if (!result.ok) {
+		// A structure with no fields to read is none the panels can use, and
+		// caching it would stand in for the real one until the next write.
+		if (!result.ok || !Array.isArray(result.data?.fields)) {
 			return
 		}
 		session.value.resourceStructures = {

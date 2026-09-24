@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { dataTypeItems } from '../runtime/catalog'
+import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 import type { ResourceFieldStructure } from '../runtime/types'
 
@@ -50,6 +51,7 @@ const ASPECTS: Aspect[] = [
 ]
 
 const builder = useBuilder()
+const { advanced: advancedMode } = useBuilderMode()
 const session = builder.session
 
 const picked = ref<string | undefined>(undefined)
@@ -278,10 +280,13 @@ function toggleRoute(route: string): void {
 					v-if="open === field.name"
 					class="border-t border-default bg-elevated p-3"
 				>
-					<p v-if="field.opaque" class="text-xs text-dimmed">
-						Written by hand — {{ field.opaqueReason }}. The builder can read
-						this field but not rewrite it.
-					</p>
+					<div v-if="field.opaque" class="flex flex-col gap-1.5 text-xs text-dimmed">
+						<p>This field is set up in code, so it can't be changed here.</p>
+						<p v-if="advancedMode">
+							The builder can read this field but not rewrite it:
+							{{ field.opaqueReason }}.
+						</p>
+					</div>
 
 					<div v-else class="flex flex-col gap-3">
 						<div class="grid grid-cols-2 gap-3">

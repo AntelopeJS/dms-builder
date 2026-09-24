@@ -2,6 +2,7 @@ import {
 	BLOCK_GROUP_LABELS,
 	DATA_TYPE_LABELS,
 	DEFAULT_DATA_TYPE,
+	LAYOUT_BLOCKS,
 	OPTION_GROUPS,
 } from './constants'
 import type {
@@ -66,19 +67,38 @@ export function descriptorOf(
  * rule is read off the catalog rather than listed here, so the next
  * container/row pair declared is covered without touching this file.
  *
+ * The layout blocks join them: the page is a grid the author never sees, and
+ * the editor writes the rows and columns a placement takes — see
+ * `LAYOUT_BLOCKS`.
+ *
  * The same rule answers a second question: what the canvas must not name. A
  * block of a type nobody can place is one the editor placed, and the user is
- * owed the container they did place instead.
+ * owed the blocks they did place instead.
  */
 export function structuralTypes(catalog: BlockCatalog): Set<string> {
 	const structural = new Set<string>()
-	for (const { allowedChildren } of catalog.blocks) {
+	for (const { type, allowedChildren } of catalog.blocks) {
 		const only = allowedChildren?.length === 1 ? allowedChildren[0] : undefined
 		if (only !== undefined) {
 			structural.add(only)
 		}
+		if (LAYOUT_BLOCKS.has(type)) {
+			structural.add(type)
+		}
 	}
 	return structural
+}
+
+/** Whether a block of this type only lays other blocks out. */
+export function isLayout(
+	catalog: BlockCatalog | null,
+	type: string | undefined,
+): boolean {
+	return (
+		type !== undefined &&
+		LAYOUT_BLOCKS.has(type) &&
+		descriptorOf(catalog, type) !== undefined
+	)
 }
 
 /** Whether a block of this type is scaffolding the editor wrote for itself. */
@@ -592,6 +612,12 @@ function placedConfig(
 	const config = laidOutAcross(descriptor)
 	for (const [key, schema] of Object.entries(descriptor.config)) {
 		if (config[key] !== undefined) {
+			continue
+		}
+		// What the block itself asks to be placed with: a form shows its buttons
+		// from the moment it is dropped.
+		if (schema.ui?.initial !== undefined) {
+			config[key] = schema.ui.initial
 			continue
 		}
 		// Text the page shows is seeded whether or not the type demands it. Most

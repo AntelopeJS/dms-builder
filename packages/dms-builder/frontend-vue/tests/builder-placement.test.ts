@@ -6,6 +6,7 @@ import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import { findNode } from '../app/runtime/draft'
 import { describeError } from '../app/runtime/errors'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
+import type { BlockDraft } from '../app/runtime/types'
 
 /**
  * What placing a block actually does to the draft.
@@ -44,6 +45,35 @@ function names(path?: string): string[] {
 	return (list ?? []).map((block) => block.name)
 }
 
+/** A row of text blocks, as the editor writes one: a grid holding that one row. */
+function row(...cells: string[]): BlockDraft {
+	return {
+		name: 'grid',
+		type: 'Grid',
+		config: {},
+		children: [
+			{
+				name: 'gridRow',
+				type: 'GridRow',
+				config: {},
+				children: cells.map((name) => ({ name, type: 'Text', config: {} })),
+			},
+		],
+	}
+}
+
+/** The page as it is, and these blocks after it. */
+function withBlocks(...blocks: BlockDraft[]): void {
+	builder.setDraft({
+		blocks: [...(builder.session.value.draft?.blocks ?? []), ...blocks],
+	})
+}
+
+/** The placement `dropping.ts` answers with for the flank of a block on its own. */
+function beside(path: string, index = 1) {
+	return { around: path, type: 'Grid', index }
+}
+
 beforeEach(async () => {
 	vi.useFakeTimers()
 	backend = installFakeHost()
@@ -66,35 +96,33 @@ describe('the palette says "click to append"', () => {
 	})
 
 	it('appends inside the selection when the selection is a container', () => {
-		builder.addBlock('HStack')
-		expect(builder.session.value.selection).toBe('hStack')
+		builder.addBlock('Section')
+		expect(builder.session.value.selection).toBe('section')
 		paletteClick('Text')
-		expect(names('hStack')).toEqual(['text'])
+		expect(names('section')).toEqual(['text'])
 	})
 
 	it('appends beside the selected block when that block is inside a container', () => {
-		builder.addBlock('HStack')
-		builder.addBlock('Text', 'hStack', null)
-		// The user has just clicked the Text inside the stack and clicks the
+		builder.addBlock('Section')
+		builder.addBlock('Text', 'section', null)
+		// The user has just clicked the Text inside the section and clicks the
 		// palette again, expecting a second block next to it.
-		builder.select('hStack/text')
-		expect(paletteTarget(), 'the container holding the selection').toBe('hStack')
+		builder.select('section/text')
+		expect(paletteTarget(), 'the container holding the selection').toBe('section')
 		paletteClick('Text')
 
-		expect(names('hStack')).toEqual(['text', 'text2'])
+		expect(names('section')).toEqual(['text', 'text2'])
 		expect(names(), 'and nothing lands at the bottom of the page').toEqual([
 			'title',
 			'intro',
-			'hStack',
+			'section',
 		])
 	})
 
 	it('climbs past every block that cannot hold anything', () => {
-		builder.addBlock('Grid')
-		builder.addBlock('GridRow', 'grid', null)
-		builder.addBlock('Text', 'grid/gridRow', null)
+		withBlocks(row('text', 'text2'))
 		builder.select('grid/gridRow/text')
-		expect(paletteTarget()).toBe('grid/gridRow')
+		expect(paletteTarget(), 'a column beside it, in its row').toBe('grid/gridRow')
 
 		builder.select('title')
 		expect(paletteTarget(), 'a root block outside any container').toBe(null)
@@ -132,44 +160,35 @@ describe('dropAt — the whole drag cycle, as the drop zones call it', () => {
 })
 
 describe('containers', () => {
-	it('takes two blocks in an HStack', () => {
-		builder.addBlock('HStack')
+	it('takes two blocks in a container the author placed', () => {
+		builder.addBlock('Section')
 		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('hStack', 0)
+		builder.dropAt('section', 0)
 		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('hStack', 1)
-		expect(names('hStack')).toEqual(['text', 'text2'])
+		builder.dropAt('section', 1)
+		expect(names('section')).toEqual(['text', 'text2'])
 	})
 
-	it('lays a stack out across the page rather than down its middle', () => {
-		builder.addBlock('VStack')
-		builder.addBlock('HStack')
-		builder.addBlock('Grid')
-
-		const config = (name: string) =>
-			findNode(builder.session.value.draft!, name)?.config
-		expect(config('vStack')).toEqual({ alignment: 'stretch' })
-		expect(config('hStack')).toEqual({ alignment: 'stretch' })
-		// Nothing is written on a container that lays its children out itself.
-		expect(config('grid')).toEqual({})
-	})
-
-	it('takes two blocks in a VStack, which stacks them one above the other', () => {
-		builder.addBlock('VStack')
-		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('vStack', 0)
+	it('keeps a stack written by hand, set up to lay its blocks out its own way', () => {
+		builder.setDraft({
+			blocks: [
+				{
+					name: 'vStack',
+					type: 'VStack',
+					config: { alignment: 'center' },
+					children: [{ name: 'text', type: 'Text', config: {} }],
+				},
+			],
+		})
 		builder.beginDrag({ type: 'Text' })
 		builder.dropAt('vStack', 1)
 		expect(names('vStack')).toEqual(['text', 'text2'])
-		// Nothing in the draft distinguishes this from an HStack: the direction
-		// is the block type, and the editor offers no way to change it.
-		expect(builder.selectedDescriptor.value?.type).toBe('Text')
 	})
 
-	it('builds the row a Grid needs around the block it is handed', () => {
-		builder.addBlock('Grid')
+	it('takes a block handed to a grid in as a row of its own', () => {
+		withBlocks(row('card', 'note'))
 		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid', 0)
+		builder.dropAt('grid', 1)
 
 		const grid = builder.session.value.catalog?.blocks.find(
 			(block) => block.type === 'Grid',
@@ -178,50 +197,20 @@ describe('containers', () => {
 			'GridRow',
 		])
 		// The rule is honoured instead of being reported: the row is the editor's
-		// to build, and what comes back names the block the user dropped.
+		// to build. A row of one block under a row of two is that block, on its
+		// own line, and what comes back names the block the user dropped.
+		expect(names()).toEqual(['title', 'intro', 'grid', 'text'])
 		expect(names('grid')).toEqual(['gridRow'])
-		expect(names('grid/gridRow')).toEqual(['text'])
 		expect(builder.session.value.toast).toBe('Text added')
-		expect(builder.session.value.selection).toBe('grid/gridRow/text')
+		expect(builder.session.value.selection).toBe('text')
 		expect(builder.session.value.dragging).toBe(null)
 	})
 
-	it('names every row it builds free of the ones already in the grid', () => {
-		builder.addBlock('Grid')
-		builder.addBlock('Text', 'grid', null)
-		builder.addBlock('Text', 'grid', null)
-		expect(names('grid')).toEqual(['gridRow', 'gridRow2'])
-		expect(names('grid/gridRow2')).toEqual(['text'])
-	})
-
-	it('builds one for a block already on the page, moved into the grid', () => {
-		builder.addBlock('Grid')
+	it('takes a block already on the page in the same way', () => {
+		withBlocks(row('card', 'note'))
 		builder.beginDrag({ path: 'title' })
-		builder.dropAt('grid', 0)
-		expect(names()).toEqual(['intro', 'grid'])
-		expect(names('grid/gridRow')).toEqual(['title'])
-	})
-
-	it('turns down a row pushed among the columns of another', () => {
-		builder.addBlock('Grid')
-		builder.addBlock('GridRow', 'grid', null)
-		const before = JSON.stringify(builder.session.value.draft)
-
-		builder.beginDrag({ type: 'GridRow' })
-		builder.dropAt('grid/gridRow', 0)
-
-		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
-		expect(builder.session.value.toast).toBe(
-			'A row always spans the full width; drop inside it for a column',
-		)
-	})
-
-	it('takes the row that same Grid does accept, without wrapping it', () => {
-		builder.addBlock('Grid')
-		builder.beginDrag({ type: 'GridRow' })
-		builder.dropAt('grid', 0)
-		expect(names('grid')).toEqual(['gridRow'])
-		expect(names('grid/gridRow')).toEqual([])
+		builder.dropAt('grid', 1)
+		expect(names()).toEqual(['intro', 'grid', 'title'])
 	})
 
 	it('turns down a child on a block that takes none', () => {
@@ -235,84 +224,195 @@ describe('containers', () => {
 })
 
 /**
- * The palette no longer lists a row, and none of this changed: what is on the
- * page is a block like any other. Only the way to obtain one is now the grid's.
+ * The page is a grid its author never sees: putting a block beside another is
+ * all it takes for the editor to write the row that holds the two.
  */
-describe('a row the grid built for itself', () => {
-	/** A grid holding one row with one card in it: what one drop leaves behind. */
-	function gridWithACard(): void {
-		builder.addBlock('Grid')
-		builder.addBlock('Text', 'grid', null)
-	}
+describe('a row the editor builds beside a block', () => {
+	it('encloses the block aimed at, the drop on the side aimed at', () => {
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 0, beside('title'))
 
-	it('is selected, and opens the panel that configures it', () => {
-		gridWithACard()
-		builder.select('grid/gridRow')
-		expect(builder.selectedDescriptor.value?.type).toBe('GridRow')
-		expect(builder.session.value.view).toBe('config')
+		expect(names()).toEqual(['grid', 'intro'])
+		expect(names('grid/gridRow')).toEqual(['title', 'text'])
+		// What the user dropped is what is reported and what is selected: the
+		// scaffolding it needed is not the subject of the gesture.
+		expect(builder.session.value.toast).toBe('Text added')
+		expect(builder.session.value.selection).toBe('grid/gridRow/text')
 	})
 
-	it('is renamed, and keeps its columns', () => {
-		gridWithACard()
-		builder.rename('grid/gridRow', 'band')
-		expect(names('grid')).toEqual(['band'])
-		expect(names('grid/band')).toEqual(['text'])
-		expect(builder.session.value.selection).toBe('grid/band')
+	it('puts the drop first when the left flank is the one aimed at', () => {
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 0, beside('title', 0))
+		expect(names('grid/gridRow')).toEqual(['text', 'title'])
 	})
 
-	it('is reordered among the rows of its grid', () => {
-		gridWithACard()
-		builder.addBlock('Text', 'grid', null)
-		expect(names('grid')).toEqual(['gridRow', 'gridRow2'])
-
-		builder.nudge('grid/gridRow', 1)
-		expect(names('grid')).toEqual(['gridRow2', 'gridRow'])
+	it('writes the grid the editor always writes, with nothing set on it', () => {
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 0, beside('title'))
+		expect(findNode(builder.session.value.draft!, 'grid')?.config).toEqual({})
 	})
 
-	it('is moved into another grid, carrying what it holds', () => {
-		gridWithACard()
-		builder.addBlock('Grid')
-		builder.move('grid/gridRow', 'grid2', 0)
-		expect(names('grid')).toEqual([])
-		expect(names('grid2')).toEqual(['gridRow'])
-		expect(names('grid2/gridRow')).toEqual(['text'])
+	it('takes a block already on the page in beside it', () => {
+		builder.beginDrag({ path: 'intro' })
+		builder.dropAt(null, 0, beside('title'))
+
+		expect(names()).toEqual(['grid'])
+		expect(names('grid/gridRow')).toEqual(['title', 'intro'])
+		expect(builder.session.value.selection).toBe('grid/gridRow/intro')
 	})
 
-	it('is deleted, columns and all', () => {
-		gridWithACard()
-		builder.remove('grid/gridRow')
-		expect(names('grid')).toEqual([])
+	it('builds it inside the tab the block was in, and the row takes that tab', () => {
+		builder.addBlock('Tab')
+		builder.addBlock('Text', 'tab', null)
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt('tab', 0, beside('tab/text'))
+
+		const grid = findNode(builder.session.value.draft!, 'tab/grid')
+		expect(grid?.slot, 'the row is what sits in the tab now').toBe('tab1')
+		expect(names('tab/grid/gridRow')).toEqual(['text', 'text2'])
+		expect(
+			findNode(builder.session.value.draft!, 'tab/grid/gridRow/text')?.slot,
+		).toBe(undefined)
+	})
+
+	it('leaves nothing built when a block is moved beside itself', () => {
+		const before = JSON.stringify(builder.session.value.draft)
+		const historyBefore = builder.session.value.history.length
+
+		builder.move('title', null, 0, beside('title'))
+
+		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
+		expect(builder.session.value.history.length).toBe(historyBefore)
+	})
+})
+
+/**
+ * Taking a block back out undoes the layout its placement took: nobody can see
+ * a row, so nobody could ever remove one left behind.
+ */
+describe('the layout the editor takes back', () => {
+	it('gives a row back as its block once that block is all it holds', () => {
+		withBlocks(row('card', 'note'))
+		builder.remove('grid/gridRow/note')
+
+		expect(names()).toEqual(['title', 'intro', 'card'])
 		expect(builder.session.value.toast).toBe('Block removed')
 	})
 
-	it('still refuses another row against its flank, and says why', () => {
-		gridWithACard()
-		builder.addBlock('Text', 'grid', null)
-		const before = JSON.stringify(builder.session.value.draft)
+	it('follows the block it gives back when that block is the one selected', () => {
+		withBlocks(row('card', 'note'))
+		builder.select('grid/gridRow/card')
+		builder.remove('grid/gridRow/note')
+		expect(builder.session.value.selection).toBe('card')
+	})
 
-		// The gesture the palette can no longer start, and a move still can.
-		builder.beginDrag({ path: 'grid/gridRow2' })
-		builder.dropAt('grid/gridRow', 1)
+	it('dissolves the row a block is moved out of', () => {
+		withBlocks(row('card', 'note'))
+		builder.move('grid/gridRow/note', null, 0)
 
-		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
-		expect(builder.session.value.toast).toBe(
-			'A row always spans the full width; drop inside it for a column',
+		expect(names()).toEqual(['note', 'title', 'intro', 'card'])
+		expect(builder.session.value.selection).toBe('note')
+	})
+
+	it('gives a column back as its block, with the columns it spanned', () => {
+		withBlocks(row('card', 'note'))
+		builder.patchMeta('grid/gridRow/card', { colSpan: 2 })
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt('grid/gridRow', 0, {
+			around: 'grid/gridRow/card',
+			type: 'VStack',
+			index: 1,
+		})
+		expect(names('grid/gridRow')).toEqual(['vStack', 'note'])
+
+		builder.remove('grid/gridRow/vStack/text')
+		expect(names('grid/gridRow')).toEqual(['card', 'note'])
+		expect(findNode(builder.session.value.draft!, 'grid/gridRow/card')?.meta).toEqual(
+			{ colSpan: 2 },
 		)
 	})
 
-	it('takes a Vertical stack beside its card, as a second column', () => {
-		gridWithACard()
-		builder.beginDrag({ type: 'VStack' })
-		builder.dropAt('grid/gridRow', 1)
-		expect(names('grid/gridRow')).toEqual(['text', 'vStack'])
+	it('lays the blocks of a grid of single rows out one under the other', () => {
+		builder.setDraft({
+			blocks: [
+				{
+					name: 'grid',
+					type: 'Grid',
+					config: {},
+					children: ['one', 'two'].map((name) => ({
+						name: `${name}Row`,
+						type: 'GridRow',
+						config: {},
+						children: [{ name, type: 'Text', config: {} }],
+					})),
+				},
+			],
+		})
+		expect(names()).toEqual(['one', 'two'])
+	})
 
-		// What the row itself cannot do, and the reason someone reaches for a
-		// column: several blocks, one above the other.
-		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid/gridRow/vStack', 0)
-		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid/gridRow/vStack', 1)
-		expect(names('grid/gridRow/vStack')).toEqual(['text', 'text2'])
+	it('removes structure that holds nothing at all', () => {
+		builder.setDraft({
+			blocks: [
+				...builder.session.value.draft!.blocks,
+				{ name: 'grid', type: 'Grid', config: {}, children: [] },
+				{ name: 'hStack', type: 'HStack', config: { wrap: true }, children: [] },
+			],
+		})
+		expect(names()).toEqual(['title', 'intro'])
+	})
+
+	it('names a block it lifts out free of the ones already beside it', () => {
+		builder.setDraft({
+			blocks: [
+				row('title', 'note'),
+				{ name: 'title', type: 'Text', config: {} },
+			],
+		})
+		builder.remove('grid/gridRow/note')
+		expect(names(), 'the block that was already here keeps its name').toEqual([
+			'title2',
+			'title',
+		])
+	})
+
+	it('keeps a stack set up to lay its blocks out its own way', () => {
+		builder.setDraft({
+			blocks: [
+				{
+					name: 'vStack',
+					type: 'VStack',
+					config: { alignment: 'center' },
+					children: [{ name: 'card', type: 'Text', config: {} }],
+				},
+			],
+		})
+		expect(names('vStack')).toEqual(['card'])
+	})
+
+	it('keeps the row around a block kept as written, which is found by its path', () => {
+		builder.setDraft({
+			blocks: [
+				{
+					...row('note'),
+					children: [
+						{
+							name: 'gridRow',
+							type: 'GridRow',
+							config: {},
+							children: [{ name: 'legacy', preserve: true }],
+						},
+					],
+				},
+			],
+		})
+		expect(names('grid/gridRow')).toEqual(['legacy'])
+	})
+
+	it('takes nothing apart on an edit that changes nothing', () => {
+		const before = JSON.stringify(builder.session.value.draft)
+		builder.patchConfig('title', { content: 'Sales' })
+		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
 	})
 })
 
@@ -324,11 +424,9 @@ describe('a row the grid built for itself', () => {
  * placements it asks for and check what the draft holds afterwards.
  */
 describe('a column the editor builds around a cell', () => {
-	/** A grid whose one row holds two cells: what two drops leave behind. */
+	/** A row of two cells: what two blocks put side by side leave behind. */
 	function gridWithTwoCards(): void {
-		builder.addBlock('Grid')
-		builder.addBlock('Text', 'grid', null)
-		builder.addBlock('Text', 'grid/gridRow', null)
+		withBlocks(row('text', 'text2'))
 	}
 
 	/** The placement `dropping.ts` answers with for a band across a cell. */
@@ -347,14 +445,14 @@ describe('a column the editor builds around a cell', () => {
 
 		// The row still carries two columns; the first of them is now a stack.
 		expect(names('grid/gridRow')).toEqual(['vStack', 'text2'])
-		expect(names('grid/gridRow/vStack')).toEqual(['text', 'text2'])
+		expect(names('grid/gridRow/vStack')).toEqual(['text', 'text3'])
 	})
 
 	it('puts the block above the cell when that is the band aimed at', () => {
 		gridWithTwoCards()
 		builder.beginDrag({ type: 'Text' })
 		builder.dropAt('grid/gridRow', 0, above('grid/gridRow/text'))
-		expect(names('grid/gridRow/vStack')).toEqual(['text2', 'text'])
+		expect(names('grid/gridRow/vStack')).toEqual(['text3', 'text'])
 	})
 
 	it('names the block that was dropped, never the column built for it', () => {
@@ -363,7 +461,7 @@ describe('a column the editor builds around a cell', () => {
 		builder.dropAt('grid/gridRow', 0, below('grid/gridRow/text'))
 
 		expect(builder.session.value.toast).toBe('Text added')
-		expect(builder.session.value.selection).toBe('grid/gridRow/vStack/text2')
+		expect(builder.session.value.selection).toBe('grid/gridRow/vStack/text3')
 	})
 
 	it('names every column it builds free of the ones already in the row', () => {
@@ -412,20 +510,6 @@ describe('a column the editor builds around a cell', () => {
 		expect(builder.session.value.selection).toBe('grid/gridRow/vStack/title')
 	})
 
-	it('turns down a row as a column, and leaves the draft alone', () => {
-		gridWithTwoCards()
-		builder.addBlock('GridRow', 'grid', null)
-		const before = JSON.stringify(builder.session.value.draft)
-
-		builder.beginDrag({ path: 'grid/gridRow2' })
-		builder.dropAt('grid/gridRow', 0, below('grid/gridRow/text'))
-
-		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
-		expect(builder.session.value.toast).toBe(
-			'A row always spans the full width; drop inside it for a column',
-		)
-	})
-
 	it('turns down the row that would be moved inside its own cell', () => {
 		gridWithTwoCards()
 		const before = JSON.stringify(builder.session.value.draft)
@@ -461,43 +545,35 @@ describe('a column the editor builds around a cell', () => {
  * `targetAtBlock` answered for the pointer, and nothing else is passed.
  */
 describe('a two-by-two layout, gesture by gesture', () => {
-	it('takes five drags, and not one of them places a container', () => {
+	it('takes four drags, and not one of them places a container', () => {
 		builder.setDraft({ blocks: [] })
 
-		// 1 — the grid, dropped on the empty page.
-		builder.beginDrag({ type: 'Grid' })
+		// 1 and 2 — a block on the empty page, and one under it.
+		builder.beginDrag({ type: 'Text' })
 		builder.dropAt(null, 0)
-		// 2 — the first block, aimed at the middle of the grid.
 		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid', 0)
-		expect(names('grid/gridRow')).toEqual(['text'])
+		builder.dropAt(null, 1)
+		expect(names()).toEqual(['text', 'text2'])
 
-		// 3 — aimed at the band below that block, which is all its row holds: a
-		// row of its own, built by the grid the same way the first one was.
+		// 3 and 4 — aimed at the right-hand quarter of each block: a row each.
 		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid', 1)
-		expect(names('grid')).toEqual(['gridRow', 'gridRow2'])
+		builder.dropAt(null, 0, beside('text'))
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 1, beside('text2'))
 
-		// 4 and 5 — aimed at the right-hand quarter of each block.
-		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid/gridRow', 1)
-		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid/gridRow2', 1)
-
-		expect(names('grid/gridRow')).toEqual(['text', 'text2'])
-		expect(names('grid/gridRow2')).toEqual(['text', 'text2'])
+		expect(names()).toEqual(['grid', 'grid2'])
+		expect(names('grid/gridRow')).toEqual(['text', 'text3'])
+		expect(names('grid2/gridRow')).toEqual(['text2', 'text4'])
 		expect(builder.session.value.toast).toBe('Text added')
 	})
 
 	it('reaches the same square through the columns of one single row', () => {
 		builder.setDraft({ blocks: [] })
 
-		builder.beginDrag({ type: 'Grid' })
+		builder.beginDrag({ type: 'Text' })
 		builder.dropAt(null, 0)
 		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid', 0)
-		builder.beginDrag({ type: 'Text' })
-		builder.dropAt('grid/gridRow', 1)
+		builder.dropAt(null, 0, beside('text'))
 		// Below each of the two cells, which now have a neighbour: a column each.
 		builder.beginDrag({ type: 'Text' })
 		builder.dropAt('grid/gridRow', 0, {
@@ -562,6 +638,8 @@ describe('a block placed before it is configured', () => {
 			title: 'Form 1',
 			submitLabel: 'Submit',
 			fields: [],
+			// Placed showing its reset and submit buttons, before it saves anywhere.
+			showActions: true,
 		})
 	})
 
@@ -748,11 +826,11 @@ describe('a container that holds its children through its own slots', () => {
 	it('lets go of the tab when the block is moved somewhere that has none', () => {
 		builder.addBlock('Tab')
 		builder.addBlock('Text', 'tab', null)
-		builder.addBlock('HStack')
-		builder.move('tab/text', 'hStack', 0)
+		builder.addBlock('Section')
+		builder.move('tab/text', 'section', 0)
 
-		// A slot left over from the tab set would hide it inside the stack.
-		expect(slotOf('hStack/text')).toBe(undefined)
+		// A slot left over from the tab set would hide it inside the section.
+		expect(slotOf('section/text')).toBe(undefined)
 	})
 })
 
@@ -835,13 +913,13 @@ describe('leaving the editor', () => {
 
 describe('a move the draft refuses', () => {
 	it('drops a container into itself without changing anything, and without arming Undo', () => {
-		builder.addBlock('HStack')
-		builder.addBlock('Text', 'hStack', null)
+		builder.addBlock('Section')
+		builder.addBlock('Text', 'section', null)
 		const before = JSON.stringify(builder.session.value.draft)
 		const historyBefore = builder.session.value.history.length
 
-		builder.beginDrag({ path: 'hStack' })
-		builder.dropAt('hStack/text', 0)
+		builder.beginDrag({ path: 'section' })
+		builder.dropAt('section/text', 0)
 
 		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
 		expect(builder.session.value.toast).toBe('A block cannot go inside itself')
@@ -851,7 +929,7 @@ describe('a move the draft refuses', () => {
 	})
 
 	it('leaves no row behind when the move it built one for is refused', () => {
-		builder.addBlock('Grid')
+		withBlocks(row('card', 'note'))
 		const before = JSON.stringify(builder.session.value.draft)
 		const historyBefore = builder.session.value.history.length
 
@@ -889,7 +967,7 @@ describe('the draft after the preview refuses the page', () => {
 				code: 'invalid_config',
 				issues: [
 					{
-						pointer: '/blocks/2/children/0/meta/colSpan',
+						pointer: '/blocks/0/children/0/meta/colSpan',
 						message: 'colSpan must be a whole number of columns',
 					},
 				],
@@ -897,10 +975,10 @@ describe('the draft after the preview refuses the page', () => {
 		}
 	}
 
+	/** A block put beside the title: the row the preview then refuses. */
 	async function dropRowInAGrid(): Promise<void> {
-		builder.addBlock('Grid')
-		builder.beginDrag({ type: 'GridRow' })
-		builder.dropAt('grid', 0)
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 0, beside('title'))
 		await settle()
 	}
 
@@ -989,12 +1067,12 @@ describe('undo, redo and discard', () => {
 	})
 
 	it('keeps a selection the undone step did not touch', () => {
-		builder.addBlock('HStack')
-		builder.addBlock('Text', 'hStack', null)
-		builder.select('hStack')
-		builder.remove('hStack/text')
+		builder.addBlock('Section')
+		builder.addBlock('Text', 'section', null)
+		builder.select('section')
+		builder.remove('section/text')
 		builder.undo()
-		expect(builder.session.value.selection).toBe('hStack')
+		expect(builder.session.value.selection).toBe('section')
 		expect(builder.session.value.view).toBe('config')
 	})
 
@@ -1043,16 +1121,15 @@ describe('undo, redo and discard', () => {
 	})
 
 	it('keeps the draft and reports the refusal when the server rejects a save', async () => {
-		builder.addBlock('Grid')
-		builder.beginDrag({ type: 'GridRow' })
-		builder.dropAt('grid', 0)
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 0, beside('title'))
 		backend.save = {
 			ok: false,
 			error: {
 				code: 'invalid_config',
 				issues: [
 					{
-						pointer: '/blocks/2/children/0/meta/colSpan',
+						pointer: '/blocks/0/children/0/meta/colSpan',
 						message: 'colSpan must be a whole number of columns',
 					},
 				],

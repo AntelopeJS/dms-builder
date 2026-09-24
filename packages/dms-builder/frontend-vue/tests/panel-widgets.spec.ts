@@ -321,3 +321,214 @@ describe('a block nested in an option', () => {
 		])
 	})
 })
+
+describe('labels keyed by a closed set of values', () => {
+	const values = {
+		type: 'string',
+		enum: ['last-7-days', 'ytd'],
+		ui: { valueLabels: { 'last-7-days': 'Last 7 days', ytd: 'Year to date' } },
+	} satisfies OptionSchema
+	const schema: OptionSchema = {
+		type: 'record',
+		optional: true,
+		keys: values,
+		values: { type: 'string' },
+		ui: { label: 'Range labels' },
+	}
+
+	function labelsPanel(modelValue: unknown, written: unknown[]): TestNode {
+		return mount(Option, {
+			props: {
+				name: 'presetLabels',
+				schema,
+				modelValue,
+				'onUpdate:modelValue': (value: unknown) => written.push(value),
+			},
+		}).root
+	}
+
+	it('offers one box per value, named for whoever builds the page', async () => {
+		const written: unknown[] = []
+		const root = labelsPanel({ ytd: 'This year' }, written)
+		await nextTick()
+
+		const boxes = findAll(root, (node) => node.tag === 'UInput')
+		expect(boxes.map((node) => node.props.placeholder)).toEqual([
+			'Last 7 days',
+			'Year to date',
+		])
+		expect(boxes.map((node) => node.props['model-value'])).toEqual(['', 'This year'])
+		expect(textOf(root)).not.toContain('last-7-days')
+		expect(findAll(root, (node) => node.tag === 'UTextarea')).toHaveLength(0)
+
+		write(boxes[0]!, 'Past week')
+		expect(written).toEqual([{ ytd: 'This year', 'last-7-days': 'Past week' }])
+	})
+
+	it('leaves the option unset once every box is emptied', async () => {
+		const written: unknown[] = []
+		const root = labelsPanel({ ytd: 'This year' }, written)
+		await nextTick()
+
+		write(findAll(root, (node) => node.tag === 'UInput')[1]!, '')
+		expect(written).toEqual([undefined])
+	})
+
+	it('names the values of a picker the same way', async () => {
+		const { root } = mount(Option, {
+			props: {
+				name: 'defaultPreset',
+				schema: { ...values, optional: true, ui: { ...values.ui, widget: 'select' } },
+				modelValue: 'ytd',
+			},
+		})
+		await nextTick()
+
+		const [picker] = findAll(root, (node) => node.tag === 'USelectMenu')
+		expect(picker!.props.items).toEqual([
+			{ label: 'Last 7 days', value: 'last-7-days' },
+			{ label: 'Year to date', value: 'ytd' },
+		])
+	})
+})
+
+describe('an entry that is one of two kinds of object', () => {
+	const field: OptionSchema = {
+		type: 'object',
+		properties: { id: { type: 'string' }, type: { type: 'string' } },
+	}
+	const group: OptionSchema = {
+		type: 'object',
+		properties: { id: { type: 'string' }, fields: { type: 'array' } },
+	}
+
+	function tabs(schema: OptionSchema): unknown[] {
+		const { root } = mount(Option, {
+			props: { name: 'entry', schema, modelValue: {} },
+		})
+		return findAll(root, (node) => node.tag === 'UButton').map(
+			(node) => node.props.label,
+		)
+	}
+
+	it('calls each by the name its block gives it', async () => {
+		const labels = tabs({
+			type: 'union',
+			oneOf: [
+				{ ...group, ui: { label: 'Group of fields' } },
+				{ ...field, ui: { label: 'Field' } },
+			],
+		})
+		await nextTick()
+		expect(labels).toEqual(['Group of fields', 'Field'])
+	})
+
+	it('tells the two apart when the block names neither', async () => {
+		// Both would be "Details", and two tabs saying one word read as one.
+		const labels = tabs({ type: 'union', oneOf: [group, field] })
+		await nextTick()
+		expect(labels).toEqual(['Details 1', 'Details 2'])
+	})
+})
+
+describe('a value typed as data, such as a field default', () => {
+	it('suggests nothing a reader would take for a value', async () => {
+		const { root } = mount(Option, {
+			props: {
+				name: 'defaultValue',
+				schema: { type: 'unknown', optional: true, ui: { label: 'Default value', widget: 'json' } },
+				modelValue: undefined,
+			},
+		})
+		await nextTick()
+		const [box] = findAll(root, (node) => node.tag === 'UTextarea')
+		expect(box, 'the box is there').toBeDefined()
+		expect(box!.props.placeholder).toBe(undefined)
+	})
+})
+
+describe('a default typed by the field it belongs to', () => {
+	const schema: OptionSchema = {
+		type: 'unknown',
+		optional: true,
+		ui: { label: 'Default value', widget: 'json', typedBy: 'type' },
+	}
+
+	function defaultOf(typedAs: unknown, modelValue?: unknown) {
+		const written: unknown[] = []
+		const { root } = mount(Option, {
+			props: {
+				name: 'defaultValue',
+				schema,
+				modelValue,
+				typedAs,
+				'onUpdate:modelValue': (value: unknown) => written.push(value),
+			},
+		})
+		return { root, written }
+	}
+
+	const as = (id: string, config: Record<string, unknown> = {}) => ({
+		$dataType: id,
+		config,
+	})
+
+	it('is a number box for a number, which writes a number', async () => {
+		const { root, written } = defaultOf(as('number'), 12)
+		await nextTick()
+		const [box] = findAll(root, (node) => node.tag === 'UInput')
+		expect(box!.props.type).toBe('number')
+		expect(box!.props['model-value']).toBe(12)
+
+		write(box!, '42')
+		expect(written).toEqual([42])
+	})
+
+	it('is a plain text box for text, with no quotes to type', async () => {
+		const { root, written } = defaultOf(as('string'))
+		await nextTick()
+		expect(findAll(root, (node) => node.tag === 'UTextarea')).toHaveLength(0)
+
+		write(findAll(root, (node) => node.tag === 'UInput')[0]!, 'Paris')
+		expect(written).toEqual(['Paris'])
+	})
+
+	it('is a switch for yes or no', async () => {
+		const { root } = defaultOf(as('boolean'), true)
+		await nextTick()
+		const [toggle] = findAll(root, (node) => node.tag === 'USwitch')
+		expect(toggle!.props['model-value']).toBe(true)
+	})
+
+	it('is a date input for a date', async () => {
+		const { root } = defaultOf(as('date'), '2026-09-24')
+		await nextTick()
+		const [box] = findAll(root, (node) => node.tag === 'UInput')
+		expect(box!.props.type).toBe('date')
+		expect(box!.props['model-value']).toBe('2026-09-24')
+	})
+
+	it('is a pick among the choices of a list', async () => {
+		const { root } = defaultOf(
+			as('select', { items: [{ label: 'Paid', value: 'paid' }] }),
+			'paid',
+		)
+		await nextTick()
+		const [picker] = findAll(root, (node) => node.tag === 'USelectMenu')
+		expect(picker!.props.items).toEqual([{ label: 'Paid', value: 'paid' }])
+		expect(picker!.props['model-value']).toBe('paid')
+	})
+
+	it('shows nothing for a value of another kind rather than mangling it', async () => {
+		const { root } = defaultOf(as('number'), 'twelve')
+		await nextTick()
+		const [box] = findAll(root, (node) => node.tag === 'UInput')
+		expect(box!.props['model-value']).toBe(undefined)
+	})
+
+	it('keeps the JSON box for a type with no input of its own', async () => {
+		const { root } = defaultOf(as('relation'))
+		await nextTick()
+		expect(findAll(root, (node) => node.tag === 'UTextarea')).toHaveLength(1)
+	})
+})

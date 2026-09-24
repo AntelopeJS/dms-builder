@@ -17,6 +17,7 @@ import {
 	textOf,
 	type TestNode,
 } from './support/render'
+import { useBuilderMode } from '../app/runtime/mode'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockNode } from '../app/runtime/types'
 
@@ -102,10 +103,12 @@ describe('the badge in the bar', () => {
 	})
 
 	it('counts the block the module refused rather than going green on it', async () => {
-		await openWith([editable('grid', 'Grid')])
+		await openWith([editable('title', 'Text')])
 		const { root } = mount(Bar)
 		refuseTheRow()
-		builder.addBlock('GridRow', 'grid', 0)
+		// A block put beside the title: the row that takes the two is refused.
+		builder.beginDrag({ type: 'Text' })
+		builder.dropAt(null, 0, { around: 'title', type: 'Grid', index: 1 })
 		await vi.advanceTimersByTimeAsync(200)
 		await nextTick()
 
@@ -145,13 +148,21 @@ describe('the actions offered on a block', () => {
 		expect(entry(root, 'Duplicate').props.disabled).toBe(false)
 	})
 
-	// The palette lists no row: a Grid writes its own. That took away a way of
-	// creating one, not a block type — the rows on the page are handled as ever.
-	it('offers the whole set on a row, which the palette no longer lists', async () => {
+	// Nobody sees the row a block sits in, so nobody can delete it: deleting
+	// the block beside it is what has to take the row away.
+	it('offers the whole set on a block in a row, and the row goes with it', async () => {
 		await openWith([
-			{ ...editable('grid', 'Grid'), children: [editable('band', 'GridRow')] },
+			{
+				...editable('grid', 'Grid'),
+				children: [
+					{
+						...editable('band', 'GridRow'),
+						children: [editable('card', 'Text'), editable('note', 'Text')],
+					},
+				],
+			},
 		])
-		builder.openMenu('grid/band', 10, 10)
+		builder.openMenu('grid/band/card', 10, 10)
 		const { root } = mount(BlockMenu)
 		await nextTick()
 
@@ -159,16 +170,18 @@ describe('the actions offered on a block', () => {
 			expect(entry(root, label).props.disabled, label).toBe(false)
 		}
 		expect(builder.selectedDescriptor.value?.type, 'and it is selected').toBe(
-			'GridRow',
+			'Text',
 		)
 
 		fire(entry(root, 'Delete'), 'click')
-		expect(builder.session.value.draft?.blocks[0]?.children).toEqual([])
+		expect(
+			builder.session.value.draft?.blocks.map((block) => block.name),
+		).toEqual(['note'])
 	})
 })
 
 describe('a block the builder cannot rewrite', () => {
-	it('says why it is locked, and where to edit it', async () => {
+	it('says it is locked in words for whoever builds the page', async () => {
 		const reason = 'config holds an expression the builder cannot re-emit'
 		await openWith([opaque('legacy', reason)])
 		const block = builder.session.value.draft?.blocks[0]
@@ -176,11 +189,50 @@ describe('a block the builder cannot rewrite', () => {
 		await nextTick()
 
 		const shown = textOf(root)
-		expect(shown).toContain('legacy — written by hand, kept as is')
-		expect(shown).toContain(
-			'Config holds an expression the builder cannot re-emit.',
-		)
-		expect(shown, 'the file the block lives in').toContain('pages/sales.ts')
+		expect(shown).toContain("legacy is set up in code and can't be changed here")
+		expect(shown, 'no reason worded for a developer').not.toContain(reason)
+		expect(shown, 'and no file path').not.toContain('pages/sales.ts')
+	})
+
+	it('shows as the page shows it, once the DMS serves it', async () => {
+		backend.layout = {
+			components: {
+				period: { componentName: 'DmsPeriodSelector', options: {} },
+			},
+		}
+		backend.preview = {
+			ok: true,
+			data: { components: {}, degraded: ['/reports/sales#period'] },
+			changes: [],
+		}
+		await openWith([opaque('period', 'unresolved reference')])
+		const served = stub('DmsPeriodSelector')
+		Object.assign(globalThis, {
+			resolveDmsComponent: (name: string) =>
+				name === 'DmsPeriodSelector' ? served : undefined,
+		})
+		try {
+			builder.select('period')
+			const { root } = mount(Node, {
+				props: { block: builder.session.value.draft?.blocks[0], path: 'period' },
+				components: {
+					DmsBuilderChildren: Children as Component,
+					DmsBuilderPlaceholder: stub('DmsBuilderPlaceholder'),
+					DmsBuilderBoundary: stub('DmsBuilderBoundary'),
+				},
+			})
+			await nextTick()
+
+			expect(
+				findAll(root, (node) => node.tag === 'DmsPeriodSelector'),
+				'the real block, rendered',
+			).toHaveLength(1)
+			const shown = textOf(root)
+			expect(shown, 'the chip says why nothing opens').toContain('set up in code')
+			expect(shown).not.toContain("can't be changed here")
+		} finally {
+			Object.assign(globalThis, { resolveDmsComponent: () => undefined })
+		}
 	})
 })
 
@@ -382,13 +434,19 @@ describe('an option that takes one of several kinds', () => {
 	})
 })
 
-describe('an option whose branches are all of one kind', () => {
+describe('a list that takes two kinds of entry', () => {
 	/**
 	 * A form's field list: an entry is a field or a group of fields, and the two
-	 * are both objects. Kind cannot tell them apart, so a panel that went by kind
-	 * alone read every entry as the first of the two — a group — and a form built
-	 * in the editor came out as a group holding the one field that was asked for.
+	 * are both objects. Each is added by a button of its own and stays what it
+	 * was added as — a switch between the two on every entry asked someone who
+	 * had just added a field whether it was a field.
+	 *
+	 * In the advanced view: the simple one fills a form from a table instead.
 	 */
+	const { setMode } = useBuilderMode()
+	beforeEach(() => setMode('advanced'))
+	afterEach(() => setMode('simple'))
+
 	async function formWithFields(fields: unknown[]): Promise<TestNode> {
 		await openWith([editable('form', 'Form')])
 		builder.patchConfig('form', { fields })
@@ -399,12 +457,19 @@ describe('an option whose branches are all of one kind', () => {
 		return root
 	}
 
-	/** The two branch buttons of the list's one entry, in declared order. */
-	function branchButtons(root: TestNode): TestNode[] {
+	function button(root: TestNode, label: string): TestNode | undefined {
 		return findAll(
 			root,
-			(node) => node.tag === 'UButton' && node.props.label === 'Details',
-		)
+			(node) => node.tag === 'UButton' && node.props.label === label,
+		)[0]
+	}
+
+	/** What each entry says it is, at its head. */
+	function heads(root: TestNode): string[] {
+		return findAll(
+			root,
+			(node) => node.tag === 'span' && /^#\d/.test(textOf(node).trim()),
+		).map((node) => textOf(node).replace(/\s+/g, ' ').trim())
 	}
 
 	/** The text box of the option a label names, reached through that label. */
@@ -427,98 +492,172 @@ describe('an option whose branches are all of one kind', () => {
 		return builder.session.value.draft?.blocks[0]?.config?.fields
 	}
 
-	it('reads an entry as the branch its own properties fit', async () => {
-		// A plain field carries a type and no list of fields: nothing about it
-		// says group, however the branches happen to be ordered.
+	it('offers no switch between the two on an entry, and says which it is', async () => {
 		const root = await formWithFields([
 			{ id: 'amount', label: 'Amount', type: 'number' },
 		])
 
-		const [group, field] = branchButtons(root)
-		expect(field!.props.color, 'the field branch is the one shown').toBe(
-			'primary',
-		)
-		expect(group!.props.color).toBe('neutral')
+		expect(button(root, 'Field'), 'no tab to turn it into a group').toBe(undefined)
+		expect(button(root, 'Group')).toBe(undefined)
+		expect(heads(root)).toEqual(['#1 · Field'])
+		expect(
+			findAll(root, (node) => node.tag === 'label' && textOf(node) === 'Fields'),
+			'no second field list under a field',
+		).toHaveLength(0)
 	})
 
 	it('reads an entry that does hold fields as the group it is', async () => {
 		const root = await formWithFields([
 			{ id: 'address', label: 'Address', fields: [] },
 		])
-
-		const [group] = branchButtons(root)
-		expect(group!.props.color).toBe('primary')
+		expect(heads(root)).toEqual(['#1 · Group'])
 	})
 
-	it('keeps the branch that was picked while the entry is filled in', async () => {
-		const root = await formWithFields([{}])
-
-		// The group: the branch a blank entry is not opened on, so this is a
-		// choice and not the default holding by itself.
-		fire(branchButtons(root)[0]!, 'click')
-		await nextTick()
-		// A key alone fits both branches; the choice is all there is to go on, and
-		// moving off it would undo the choice at the first keystroke.
-		write(box(root, 'Key'), 'address')
-		await nextTick()
-
-		expect(branchButtons(root)[0]!.props.color).toBe('primary')
-		expect(fields()).toEqual([{ id: 'address' }])
-	})
-
-	it('seeds a fresh entry as an object, named after the list it joins', async () => {
+	it('adds each kind from a button of its own, named and counted after it', async () => {
 		const root = await formWithFields([])
+		expect(button(root, 'Add'), 'no button that leaves the kind open').toBe(
+			undefined,
+		)
 
-		const add = () =>
-			findAll(
-				root,
-				(node) => node.tag === 'UButton' && node.props.label === 'Add',
-			)[0]!
-		fire(add(), 'click')
+		fire(button(root, 'Add field')!, 'click')
 		await nextTick()
-		fire(add(), 'click')
+		fire(button(root, 'Add field')!, 'click')
+		await nextTick()
+		fire(button(root, 'Add group')!, 'click')
 		await nextTick()
 
-		// Seeded as `''`, the entry was of a kind no branch could carry; seeded
-		// nameless, it rendered as a blank label in a column of them; seeded
-		// untyped, it was a field the form could not be built with.
+		// Seeded untyped, a field was one the form could not be built with;
+		// seeded without its list, a group read as a field the moment it was drawn.
 		const text = { $dataType: 'string', config: {} }
 		expect(fields()).toEqual([
 			{ label: 'Field 1', type: text },
 			{ label: 'Field 2', type: text },
+			{ label: 'Group 1', fields: [] },
 		])
-		expect(branchButtons(root)).toHaveLength(4)
-		const [group, field] = branchButtons(root)
-		expect(field!.props.color, 'a typed entry reads as a field').toBe('primary')
-		expect(group!.props.color).toBe('neutral')
+		expect(heads(root)).toEqual(['#1 · Field', '#2 · Field', '#3 · Group'])
 	})
 
-	it('opens a blank entry on the branch that nests nothing', async () => {
-		const root = await formWithFields([{}])
-
-		// Blank, the entry fits both branches alike, and the group is the one
-		// declared first. Adding one field is not asking for a group of fields,
-		// so the list the group nests is what rules it out.
-		const [group, field] = branchButtons(root)
-		expect(field!.props.color).toBe('primary')
-		expect(group!.props.color).toBe('neutral')
-		expect(
-			findAll(root, (node) => node.tag === 'label' && textOf(node) === 'Fields'),
-			'no second field list under the entry',
-		).toHaveLength(0)
-	})
-
-	it('drops what only the branch left behind knew', async () => {
-		const root = await formWithFields([
-			{ id: 'address', label: 'Address', fields: [] },
-		])
-
-		fire(branchButtons(root)[1]!, 'click')
+	it('keeps an entry what it was added as while it is filled in', async () => {
+		const root = await formWithFields([])
+		fire(button(root, 'Add group')!, 'click')
 		await nextTick()
 
-		// `fields` left on the entry is what would read as a group again.
-		expect(fields()).toEqual([{ id: 'address', label: 'Address' }])
-		expect(branchButtons(root)[1]!.props.color).toBe('primary')
+		// The group's own label, the last one the panel shows.
+		const titles = findAll(
+			root,
+			(node) => node.tag === 'label' && textOf(node).startsWith('Label'),
+		)
+		const option = titles[titles.length - 1]?.parent?.parent
+		write(findAll(option!, (node) => node.tag === 'UInput')[0]!, 'Address')
+		await nextTick()
+
+		expect(heads(root)).toEqual(['#1 · Group'])
+		expect(fields()).toEqual([{ label: 'Address', fields: [] }])
+	})
+})
+
+/**
+ * A field is sent under a key, and a key is a name only code reads. The simple
+ * mode leaves it out and writes it from the label; the advanced view shows it
+ * and leaves it to whoever types it.
+ */
+describe('the key of a form field', () => {
+	const { setMode } = useBuilderMode()
+	const text = { $dataType: 'string', config: {} }
+
+	afterEach(() => setMode('simple'))
+
+	async function formWithFields(fields: unknown[]): Promise<TestNode> {
+		await openWith([editable('form', 'Form')])
+		builder.patchConfig('form', { fields })
+		builder.select('form')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Config, { components: panel() })
+		await nextTick()
+		return root
+	}
+
+	function labels(root: TestNode): string[] {
+		return findAll(root, (node) => node.tag === 'label').map((node) =>
+			textOf(node).replace('*', '').trim(),
+		)
+	}
+
+	function box(root: TestNode, name: string): TestNode {
+		const label = findAll(
+			root,
+			(node) => node.tag === 'label' && textOf(node).startsWith(name),
+		)[0]
+		const option = label?.parent?.parent
+		const input = option
+			? findAll(option, (node) => node.tag === 'UInput')[0]
+			: undefined
+		if (!input) {
+			throw new Error(`no box labelled ${name}`)
+		}
+		return input
+	}
+
+	function fields(): Array<Record<string, unknown>> {
+		return (builder.session.value.draft?.blocks[0]?.config?.fields ?? []) as Array<
+			Record<string, unknown>
+		>
+	}
+
+	it('is left out of the simple mode, and written from the label', async () => {
+		const root = await formWithFields([{ label: 'Field 1', type: text }])
+		expect(labels(root)).not.toContain('Key')
+		expect(labels(root)).toContain('Label')
+
+		write(box(root, 'Label'), 'Délai de livraison')
+		await nextTick()
+		expect(fields()[0]?.id).toBe('delaiDeLivraison')
+
+		// Following the label for as long as it is the key the label gave.
+		write(box(root, 'Label'), 'Delivery date')
+		await nextTick()
+		expect(fields()[0]?.id).toBe('deliveryDate')
+	})
+
+	it('is kept apart from the keys of the other fields of the form', async () => {
+		await formWithFields([
+			{ id: 'amount', label: 'Amount', type: text },
+			{ label: 'Amount', type: text },
+		])
+		expect(fields().map((field) => field.id)).toEqual(['amount', 'amount2'])
+	})
+
+	it('is shared with the fields a group holds, which are sent beside the rest', async () => {
+		await formWithFields([
+			{ id: 'city', label: 'City', type: text },
+			{ id: 'address', label: 'Address', fields: [{ label: 'City', type: text }] },
+		])
+		const group = fields()[1] as { fields: Array<Record<string, unknown>> }
+		expect(group.fields[0]?.id).toBe('city2')
+	})
+
+	it('is left alone once it says something the label did not give it', async () => {
+		// Written by hand, in the code or in the advanced view: a backend reads
+		// the form under that name.
+		const root = await formWithFields([{ id: 'test', label: 'aaa', type: text }])
+
+		write(box(root, 'Label'), 'Amount')
+		await nextTick()
+		expect(fields()[0]?.id).toBe('test')
+	})
+
+	it('is shown in the advanced view, and left to whoever types it', async () => {
+		setMode('advanced')
+		const root = await formWithFields([{ label: 'Field 1', type: text }])
+		expect(labels(root)).toContain('Key')
+
+		write(box(root, 'Label'), 'Amount')
+		await nextTick()
+		expect(fields()[0]?.id).toBe(undefined)
+
+		write(box(root, 'Key'), 'total')
+		await nextTick()
+		expect(fields()[0]?.id).toBe('total')
 	})
 })
 
@@ -739,5 +878,315 @@ describe('the way out of the editor', () => {
 				'Stay',
 			]),
 		)
+	})
+})
+
+/**
+ * A form says its own words once it is submitted, in the reader's language;
+ * writing others is a choice, made behind one switch.
+ */
+describe('the messages a form shows once it is submitted', () => {
+	async function formPanel(config: Record<string, unknown> = {}): Promise<TestNode> {
+		await openWith([{ ...editable('form', 'Form'), config }])
+		builder.select('form')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Config, { components: panel() })
+		await nextTick()
+		return root
+	}
+
+	function labels(root: TestNode): string[] {
+		return findAll(root, (node) => node.tag === 'label').map((node) =>
+			textOf(node).trim(),
+		)
+	}
+
+	function toggle(root: TestNode): TestNode {
+		const match = findAll(
+			root,
+			(node) =>
+				node.tag === 'USwitch' &&
+				node.props['aria-label'] === 'Custom submit messages',
+		)[0]
+		if (!match) {
+			throw new Error('no switch for the submit messages')
+		}
+		return match
+	}
+
+	function config(): Record<string, unknown> | undefined {
+		return builder.session.value.draft?.blocks[0]?.config
+	}
+
+	it('leaves them out behind a switch that is off', async () => {
+		const root = await formPanel()
+		expect(toggle(root).props['model-value']).toBe(false)
+		expect(labels(root)).not.toContain('Success message')
+		expect(labels(root)).not.toContain('Error message')
+	})
+
+	it('offers both once it is on, starting from what the form says itself', async () => {
+		const root = await formPanel()
+		write(toggle(root), true)
+		await nextTick()
+
+		expect(config()).toMatchObject({
+			successMessage: 'Data has been successfully saved',
+			errorMessage: 'An unknown error occurred',
+		})
+		expect(labels(root)).toContain('Success message')
+		expect(labels(root)).toContain('Error message')
+	})
+
+	it('drops both when it is turned off, and the form says its own again', async () => {
+		const root = await formPanel({ successMessage: 'Order sent' })
+		expect(toggle(root).props['model-value'], 'on for a message written').toBe(
+			true,
+		)
+
+		write(toggle(root), false)
+		await nextTick()
+		expect(config()).not.toHaveProperty('successMessage')
+		expect(config()).not.toHaveProperty('errorMessage')
+		expect(labels(root)).not.toContain('Success message')
+	})
+
+	it('starts again from what the form says once it is turned back on', async () => {
+		const root = await formPanel({ errorMessage: 'Try again later' })
+		write(toggle(root), false)
+		await nextTick()
+		write(toggle(root), true)
+		await nextTick()
+		expect(config()).toMatchObject({
+			successMessage: 'Data has been successfully saved',
+			errorMessage: 'An unknown error occurred',
+		})
+	})
+})
+
+describe('the default of a form field', () => {
+	const number = { $dataType: 'number', config: {} }
+
+	async function formWithFields(fields: unknown[]): Promise<TestNode> {
+		await openWith([editable('form', 'Form')])
+		builder.patchConfig('form', { fields })
+		builder.select('form')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Config, { components: panel() })
+		await nextTick()
+		return root
+	}
+
+	function field(): Record<string, unknown> | undefined {
+		const fields = builder.session.value.draft?.blocks[0]?.config?.fields as
+			| Array<Record<string, unknown>>
+			| undefined
+		return fields?.[0]
+	}
+
+	it('takes the input the field type calls for', async () => {
+		const root = await formWithFields([
+			{ id: 'qty', label: 'Quantity', type: number, defaultValue: 5 },
+		])
+		const boxes = findAll(
+			root,
+			(node) => node.tag === 'UInput' && node.props.type === 'number',
+		)
+		expect(boxes.map((box) => box.props['model-value'])).toContain(5)
+	})
+
+	it('is dropped when the field changes to a type that cannot hold it', async () => {
+		const root = await formWithFields([
+			{ id: 'qty', label: 'Quantity', type: number, defaultValue: 5 },
+		])
+		const [typePicker] = findAll(
+			root,
+			(node) =>
+				node.tag === 'USelectMenu' &&
+				node.props.placeholder === 'Choose a data type…',
+		)
+		write(typePicker!, 'string')
+		await nextTick()
+
+		expect(field()?.type).toMatchObject({ $dataType: 'string' })
+		expect(field()).not.toHaveProperty('defaultValue')
+	})
+})
+
+/**
+ * Someone building a page does not type an endpoint: in the simple mode a form
+ * saves into a table they pick, and asks for the columns they tick.
+ */
+describe('a form saving into a table', () => {
+	const { setMode } = useBuilderMode()
+	const RESOURCES = 'GET /api/builder/resources'
+	const RESOURCE = 'GET /api/builder/resource'
+
+	afterEach(() => setMode('simple'))
+
+	function orders() {
+		return {
+			ref: 'order',
+			className: 'orderDataAPI',
+			tableName: 'orders',
+			route: '/api/order',
+			version: 'v1',
+			fields: [
+				{ name: '_id', access: 'read', dataType: { $dataType: 'string' } },
+				{
+					name: 'amount',
+					label: 'Amount',
+					access: 'readwrite',
+					required: true,
+					dataType: { $dataType: 'number' },
+				},
+				{
+					name: 'status',
+					label: 'Status',
+					access: 'readwrite',
+					dataType: { $dataType: 'string' },
+				},
+			],
+		}
+	}
+
+	async function formPanel(config: Record<string, unknown> = {}): Promise<TestNode> {
+		backend.answers[RESOURCES] = [
+			{ ref: 'order', className: 'orderDataAPI', tableName: 'orders', route: '/api/order', fieldCount: 3 },
+		]
+		backend.answers[RESOURCE] = { ok: true, data: orders(), changes: [] }
+		await openWith([{ ...editable('form', 'Form'), config: { fields: [], ...config } }])
+		builder.select('form')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Config, { components: panel() })
+		// The table the form saves into is loaded as the panel opens; left in
+		// flight, it would land in the next test's session.
+		await vi.advanceTimersByTimeAsync(0)
+		await nextTick()
+		return root
+	}
+
+	function labels(root: TestNode): string[] {
+		return findAll(root, (node) => node.tag === 'label').map((node) =>
+			textOf(node).trim(),
+		)
+	}
+
+	function tablePicker(root: TestNode): TestNode | undefined {
+		return findAll(
+			root,
+			(node) =>
+				node.tag === 'USelectMenu' &&
+				node.props.placeholder === 'Choose the table it saves into…',
+		)[0]
+	}
+
+	function column(root: TestNode, label: string): TestNode {
+		const match = findAll(
+			root,
+			(node) => node.tag === 'UCheckbox' && node.props['aria-label'] === label,
+		)[0]
+		if (!match) {
+			throw new Error(`no box for the column ${label}`)
+		}
+		return match
+	}
+
+	function config(): Record<string, unknown> {
+		return builder.session.value.draft?.blocks[0]?.config ?? {}
+	}
+
+	function keys(): unknown[] {
+		return ((config().fields ?? []) as Array<Record<string, unknown>>).map(
+			(field) => field.id,
+		)
+	}
+
+	it('offers a table to save into, and no address to type', async () => {
+		const root = await formPanel()
+		expect(tablePicker(root)).toBeDefined()
+		expect(labels(root)).not.toContain('Submit to')
+		expect(labels(root)).not.toContain('Load from')
+		expect(textOf(root)).toContain('Choose a table')
+	})
+
+	it('asks for every column a row is written with once the table is picked', async () => {
+		const root = await formPanel()
+		write(tablePicker(root)!, 'order')
+		await vi.advanceTimersByTimeAsync(0)
+		await nextTick()
+		await vi.advanceTimersByTimeAsync(0)
+
+		expect(config()).toMatchObject({
+			submitUrl: '/api/order/new',
+			submitUrlMethod: 'POST',
+		})
+		expect(keys(), 'sent under the column names').toEqual(['amount', 'status'])
+		expect(column(root, 'Status').props['model-value']).toBe(true)
+	})
+
+	it('drops the field of a column unticked, and says so of one a row needs', async () => {
+		const root = await formPanel({
+			submitUrl: '/api/order/new',
+			fields: [
+				{ id: 'amount', label: 'Amount', type: { $dataType: 'number' }, required: true },
+				{ id: 'status', label: 'Status', type: { $dataType: 'string' } },
+			],
+		})
+		await vi.advanceTimersByTimeAsync(0)
+		await nextTick()
+
+		write(column(root, 'Status'), false)
+		await nextTick()
+		expect(keys()).toEqual(['amount'])
+
+		write(column(root, 'Status'), true)
+		await nextTick()
+		expect(keys()).toEqual(['amount', 'status'])
+
+		// The author's call, said rather than refused.
+		expect(textOf(root)).not.toContain('The table needs')
+		write(column(root, 'Amount'), false)
+		await nextTick()
+		expect(keys()).toEqual(['status'])
+		expect(textOf(root)).toContain(
+			'The table needs Amount: a new row cannot be saved without it.',
+		)
+	})
+
+	it('keeps sending each field under its column when its label changes', async () => {
+		await formPanel({
+			submitUrl: '/api/order/new',
+			fields: [{ id: 'status', label: 'Status', type: { $dataType: 'string' } }],
+		})
+		builder.patchConfig('form', {
+			fields: [{ id: 'status', label: 'Order state', type: { $dataType: 'string' } }],
+		})
+		expect(keys()).toEqual(['status'])
+	})
+
+	it('adds no field one by one: its fields are the columns ticked', async () => {
+		const root = await formPanel()
+		const adds = findAll(
+			root,
+			(node) =>
+				node.tag === 'UButton' && String(node.props.label ?? '').startsWith('Add'),
+		)
+		expect(adds, 'no Add field, no Add group').toHaveLength(0)
+		expect(textOf(root)).toContain('Choose a table above: its columns are the fields.')
+
+		write(tablePicker(root)!, 'order')
+		await vi.advanceTimersByTimeAsync(0)
+		await nextTick()
+		await vi.advanceTimersByTimeAsync(0)
+		expect(textOf(root)).toContain('Its fields are the columns ticked above.')
+	})
+
+	it('gives the addresses back to the advanced view, and no table to pick', async () => {
+		setMode('advanced')
+		const root = await formPanel()
+		expect(tablePicker(root)).toBe(undefined)
+		expect(labels(root)).toContain('Submit to')
+		expect(labels(root)).toContain('Load from')
 	})
 })

@@ -38,7 +38,7 @@ let backend: FakeBackend
 let builder: BuilderController
 
 /** The Nuxt build resolves a preview's `componentName` to a real component. */
-const resolvable = new Set(['DmsText', 'DmsHStack', 'DmsGrid'])
+const resolvable = new Set(['DmsText', 'DmsHStack', 'DmsGrid', 'DmsSection'])
 Object.assign(globalThis, {
 	resolveDmsComponent: (name: string) =>
 		resolvable.has(name) ? stub(name) : undefined,
@@ -376,7 +376,7 @@ describe('aiming at a block', () => {
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
-		aim(root, 'intro', 20)
+		aim(root, 'intro', 50, 20)
 		await nextTick()
 
 		expect(gaps(root)).toEqual(['before intro'])
@@ -389,7 +389,7 @@ describe('aiming at a block', () => {
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
-		aim(root, 'title', 80)
+		aim(root, 'title', 50, 80)
 		await nextTick()
 		expect(gaps(root)).toEqual(['before intro'])
 
@@ -404,13 +404,30 @@ describe('aiming at a block', () => {
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
-		aim(root, 'title', 20)
+		aim(root, 'title', 50, 20)
 		await nextTick()
 		expect(gaps(root)).toEqual(['before title'])
 
-		aim(root, 'intro', 90)
+		aim(root, 'intro', 50, 90)
 		await nextTick()
 		expect(gaps(root)).toEqual(['end of page'])
+	})
+
+	it('builds a row beside it from its flank, and opens a column there', async () => {
+		const { root } = mount(Canvas, { components: globals() })
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+
+		aim(root, 'title', 95, 50)
+		await nextTick()
+		expect(gaps(root)).toEqual(['below title'])
+		expect(gapAxes(root), 'a column beside it, not a band').toEqual(['vertical'])
+		expect(into(root)?.path).toBe('page')
+
+		letGo(root, 'title')
+		await nextTick()
+		expect(names()).toEqual(['grid', 'intro'])
+		expect(names('grid/gridRow')).toEqual(['title', 'text'])
 	})
 
 	it('answers for the whole surface of a block, which used to refuse the drop', async () => {
@@ -431,9 +448,9 @@ describe('aiming at a block', () => {
 
 describe('aiming into a container', () => {
 	beforeEach(async () => {
-		await openWith([block('row', 'HStack', [block('left', 'Text')])], {
+		await openWith([block('row', 'Section', [block('left', 'Text')])], {
 			row: {
-				componentName: 'DmsHStack',
+				componentName: 'DmsSection',
 				children: [{ id: 'left', component: { componentName: 'DmsText' } }],
 			},
 		})
@@ -449,7 +466,7 @@ describe('aiming into a container', () => {
 
 		expect(into(root)?.path).toBe('row')
 		expect(into(root)?.says).toContain('row')
-		expect(into(root)?.says).toContain('Horizontal stack')
+		expect(into(root)?.says).toContain('Section')
 		expect(frameOf(root, 'row')).toContain('outline-primary')
 		expect(gaps(root)).toEqual(['end of row'])
 
@@ -462,9 +479,9 @@ describe('aiming into a container', () => {
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
-		aim(root, 'row', 5)
+		aim(root, 'row', 50, 5)
 		await nextTick()
-		expect(into(root)?.path, 'the page receives, not the stack').toBe('page')
+		expect(into(root)?.path, 'the page receives, not the section').toBe('page')
 		expect(gaps(root)).toEqual(['before row'])
 
 		letGo(root, 'row')
@@ -472,12 +489,12 @@ describe('aiming into a container', () => {
 		expect(names('row')).toEqual(['left'])
 	})
 
-	it('lands beside the child the pointer is over, inside the stack', async () => {
+	it('lands beside the child the pointer is over, inside the container', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
-		aim(root, 'row/left', 20)
+		aim(root, 'row/left', 50, 20)
 		await nextTick()
 		expect(into(root)?.path).toBe('row')
 		expect(gaps(root)).toEqual(['before row/left'])
@@ -486,13 +503,12 @@ describe('aiming into a container', () => {
 		expect(names('row')).toEqual(['text', 'left'])
 	})
 
-	it('puts two blocks in a stack, one gesture after the other', async () => {
+	it('puts two blocks in it, one gesture after the other', async () => {
 		const { root } = mount(Canvas, { components: globals() })
-		// Near its right edge each time, which is the last column of the stack.
 		for (const _ of [0, 1]) {
 			builder.beginDrag({ type: 'Text' })
 			await nextTick()
-			aim(root, 'row', 95, 50)
+			aim(root, 'row', 50, 50)
 			await nextTick()
 			letGo(root, 'row')
 			await nextTick()
@@ -500,7 +516,13 @@ describe('aiming into a container', () => {
 		expect(names('row')).toEqual(['left', 'text', 'text2'])
 	})
 
-	it('lands at the joint the room opened on, not at the end of the stack', async () => {
+	it('lands at the joint the room opened on in a row, not at its end', async () => {
+		await openWith([block('row', 'HStack', [block('left', 'Text')])], {
+			row: {
+				componentName: 'DmsHStack',
+				children: [{ id: 'left', component: { componentName: 'DmsText' } }],
+			},
+		})
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
@@ -521,14 +543,14 @@ describe('aiming into a container', () => {
 	})
 })
 
-describe('a Grid, which holds nothing but rows', () => {
+describe('a grid written by hand, holding nothing yet', () => {
 	beforeEach(async () => {
 		await openWith([block('grid', 'Grid')], {
 			grid: { componentName: 'DmsGrid', children: [] },
 		})
 	})
 
-	it('promises the landing rather than refusing it', async () => {
+	it('promises the landing, and names the page rather than the grid', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
@@ -537,13 +559,12 @@ describe('a Grid, which holds nothing but rows', () => {
 		await nextTick()
 
 		expect(gaps(root)).toEqual(['end of grid'])
-		expect(into(root)?.path).toBe('grid')
+		expect(into(root)?.path).toBe('page')
 		expect(into(root)?.refused).toBe(false)
 		expect(into(root)?.says).not.toContain('only accepts')
-		expect(frameOf(root, 'grid')).toContain('outline-primary')
 	})
 
-	it('builds the row around the block, and hands the block back selected', async () => {
+	it('keeps no layout around the one block it ends up holding', async () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
@@ -551,27 +572,12 @@ describe('a Grid, which holds nothing but rows', () => {
 		await nextTick()
 
 		letGo(root, 'grid')
-		expect(names('grid/gridRow')).toEqual(['text'])
-		// What the user dropped is what is reported and what is selected: the
-		// scaffolding it needed is not the subject of the gesture.
+		// A grid of one row of one block is that block: nobody can see a row, so
+		// nobody could ever remove the one left behind.
+		expect(names()).toEqual(['text'])
 		expect(builder.session.value.toast).toBe('Text added')
-		expect(builder.session.value.selection).toBe('grid/gridRow/text')
+		expect(builder.session.value.selection).toBe('text')
 		expect(builder.session.value.error).toBe(null)
-	})
-
-	it('takes the row itself at the same spot, without building a second one', async () => {
-		const { root } = mount(Canvas, { components: globals() })
-		builder.beginDrag({ type: 'GridRow' })
-		await nextTick()
-
-		aim(root, 'grid', 50)
-		await nextTick()
-		expect(into(root)?.refused).toBe(false)
-		expect(gaps(root)).toEqual(['end of grid'])
-
-		letGo(root, 'grid')
-		expect(names('grid')).toEqual(['gridRow'])
-		expect(names('grid/gridRow')).toEqual([])
 	})
 })
 
@@ -611,9 +617,10 @@ describe('the two axes of a row', () => {
 		aim(root, 'grid/band', 5, 50)
 		await nextTick()
 		expect(receiver(), 'the row is what receives').toBe('grid/band')
-		// The canvas names the grid: the row is the grid's own writing, and a
-		// name for it would be a word the user never had to learn.
-		expect(into(root)?.path).toBe('grid')
+		// The canvas names the page: the grid and its row are the editor's own
+		// writing, and a name for either would be a word the user never had to
+		// learn.
+		expect(into(root)?.path).toBe('page')
 		expect(gaps(root)).toEqual(['before grid/band/card'])
 
 		letGo(root, 'grid/band')
@@ -634,18 +641,20 @@ describe('the two axes of a row', () => {
 		expect(names('grid/band')).toEqual(['card', 'note', 'text'])
 	})
 
-	it('still takes a row above it from its top band', async () => {
+	it('puts a block above the whole row from its top band', async () => {
 		const { root } = mount(Canvas, { components: globals() })
-		builder.beginDrag({ type: 'GridRow' })
+		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
+		// The row is the only one its grid holds, so above it is above the grid.
 		aim(root, 'grid/band', 50, 5)
 		await nextTick()
-		expect(into(root)?.path).toBe('grid')
-		expect(gaps(root)).toEqual(['before grid/band'])
+		expect(into(root)?.path).toBe('page')
+		expect(gaps(root)).toEqual(['before grid'])
 
 		letGo(root, 'grid/band')
-		expect(names('grid')).toEqual(['gridRow', 'band'])
+		expect(names()).toEqual(['text', 'grid'])
+		expect(names('grid/band')).toEqual(['card', 'note'])
 	})
 
 	it('drops the block left of the card whose left half is aimed at', async () => {
@@ -663,26 +672,32 @@ describe('the two axes of a row', () => {
 
 	// The palette offers no row, so the gesture left is a row already on the page
 	// being dragged onto the flank of another.
-	it('refuses a row moved against its flank, and says so instead of guessing', async () => {
-		builder.addBlock('GridRow', 'grid', null)
+	// A grid of two rows, as a page written by hand can hold one: moving one of
+	// them is no gesture the canvas offers, but the refusal is still said on
+	// the page, which is what is named when the layout receiving is hidden.
+	it('says on the page why a row cannot go against the flank of another', async () => {
+		await openWith([
+			block('grid', 'Grid', [
+				block('band', 'GridRow', [block('card', 'Text'), block('note', 'Text')]),
+				block('band2', 'GridRow', [block('a', 'Text'), block('b', 'Text')]),
+			]),
+		])
 		const { root } = mount(Canvas, { components: globals() })
-		builder.beginDrag({ path: 'grid/gridRow' })
+		builder.beginDrag({ path: 'grid/band2' })
 		await nextTick()
 
 		aim(root, 'grid/band', 5, 50)
 		await nextTick()
 		expect(gaps(root), 'nothing promises a landing').toEqual([])
 		expect(receiver()).toBe('grid/band')
-		expect(into(root)?.path).toBe('grid')
+		expect(into(root)?.path).toBe('page')
 		expect(into(root)?.refused).toBe(true)
 		expect(into(root)?.says).toContain('A row always spans the full width')
-		expect(frameOf(root, 'grid')).toContain('outline-error')
 
 		letGo(root, 'grid/band')
-		expect(names('grid/band')).toEqual(['card', 'note'])
 		expect(names('grid'), 'the row it was dragged from stays put').toEqual([
 			'band',
-			'gridRow',
+			'band2',
 		])
 		expect(builder.session.value.toast).toBe(
 			'A row always spans the full width; drop inside it for a column',
@@ -690,7 +705,7 @@ describe('the two axes of a row', () => {
 	})
 })
 
-describe('the column someone reaches for beside a block in a row', () => {
+describe('a block that is all its row holds', () => {
 	beforeEach(async () => {
 		await openWith(
 			[block('grid', 'Grid', [block('band', 'GridRow', [block('card', 'Text')])])],
@@ -711,42 +726,33 @@ describe('the column someone reaches for beside a block in a row', () => {
 		)
 	})
 
-	it('takes a Vertical stack at the card’s right edge, as the row’s second child', async () => {
+	it('takes a second column at its right edge, in the row it is in', async () => {
 		const { root } = mount(Canvas, { components: globals() })
-		builder.beginDrag({ type: 'VStack' })
+		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 
 		aim(root, 'grid/band/card', 80, 50)
 		await nextTick()
 		expect(receiver(), 'the row receives, not the grid').toBe('grid/band')
-		expect(into(root)?.path, 'and the grid is what is named').toBe('grid')
+		expect(into(root)?.path, 'and the page is what is named').toBe('page')
 		expect(into(root)?.refused, 'and nothing is refused').toBe(false)
 		expect(gaps(root)).toEqual(['end of grid/band'])
 
 		letGo(root, 'grid/band/card')
-		expect(names('grid/band')).toEqual(['card', 'vStack'])
+		expect(names('grid/band')).toEqual(['card', 'text'])
 		expect(names('grid'), 'no row of its own was built').toEqual(['band'])
 	})
 
-	it('stacks several blocks in it, which is the whole point of a column', async () => {
+	it('lets its row go once a block is put under it', async () => {
 		const { root } = mount(Canvas, { components: globals() })
-		builder.beginDrag({ type: 'VStack' })
+		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'grid/band/card', 80, 50)
-		await nextTick()
-		letGo(root, 'grid/band/card')
+		aim(root, 'grid/band/card', 50, 95)
 		await nextTick()
 
-		for (const _ of [0, 1]) {
-			builder.beginDrag({ type: 'Text' })
-			await nextTick()
-			aim(root, 'grid/band/vStack', 50, 50)
-			await nextTick()
-			letGo(root, 'grid/band/vStack')
-			await nextTick()
-		}
-		expect(names('grid/band/vStack')).toEqual(['text', 'text2'])
-		expect(names('grid/band')).toEqual(['card', 'vStack'])
+		letGo(root, 'grid/band/card')
+		// Two rows of one block each are two blocks one under the other.
+		expect(names()).toEqual(['card', 'text'])
 	})
 })
 
@@ -859,31 +865,25 @@ describe('two blocks side by side, from an empty page', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		await nextTick()
 
-		builder.beginDrag({ type: 'Grid' })
+		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 		fire(surface(root), 'dragover', pointerOver({}))
 		fire(surface(root), 'drop')
 		await nextTick()
+		expect(names()).toEqual(['text'])
+
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, 'text', 90, 50)
+		await nextTick()
+		expect(gaps(root)).toEqual(['below text'])
+		expect(gapAxes(root)).toEqual(['vertical'])
+		letGo(root, 'text')
+		await nextTick()
+
+		// Two gestures, one per block the user actually wanted, and the second
+		// sits beside the first rather than under it.
 		expect(names()).toEqual(['grid'])
-
-		builder.beginDrag({ type: 'Text' })
-		await nextTick()
-		aim(root, 'grid', 50)
-		await nextTick()
-		letGo(root, 'grid')
-		await nextTick()
-		expect(builder.session.value.toast).toBe('Text added')
-
-		builder.beginDrag({ type: 'Text' })
-		await nextTick()
-		aim(root, 'grid/gridRow/text', 90, 50)
-		await nextTick()
-		expect(gaps(root)).toEqual(['end of grid/gridRow'])
-		letGo(root, 'grid/gridRow/text')
-		await nextTick()
-
-		// Three gestures, one per thing the user actually wanted, and the second
-		// block sits beside the first rather than under it.
 		expect(names('grid/gridRow')).toEqual(['text', 'text2'])
 		expect(builder.session.value.toast).toBe('Text added')
 		expect(builder.session.value.selection).toBe('grid/gridRow/text2')
@@ -891,7 +891,7 @@ describe('two blocks side by side, from an empty page', () => {
 })
 
 /**
- * The whole of it, from an empty page: a grid, then four blocks in a square.
+ * The whole of it, from an empty page: four blocks in a square.
  *
  * Every step below is one drag aimed at a pixel of the canvas, and what the
  * editor answers is read back off the rendered tree. Nothing is passed to the
@@ -907,11 +907,11 @@ describe('a two-by-two layout, built with the pointer', () => {
 	}
 
 	/**
-	 * What the editor is allowed to say while the user is composing a grid.
+	 * What the editor is allowed to say while the user is composing the page.
 	 *
-	 * The two words are the vocabulary the gesture exists to spare them: a user
-	 * who reads either one on screen has been told the layout is made of parts
-	 * they now have to think about.
+	 * The words are the vocabulary the gesture exists to spare them: a user who
+	 * reads one on screen has been told the layout is made of parts they now
+	 * have to think about.
 	 */
 	function saysNothingStructural(root: TestNode): void {
 		// Comment nodes carry the source's own commentary, which is not on screen.
@@ -920,66 +920,42 @@ describe('a two-by-two layout, built with the pointer', () => {
 			.map((node) => node.text)
 			.join(' ')
 		const said = `${rendered} | ${builder.session.value.toast ?? ''}`
-		expect(said, said).not.toMatch(/row|stack/i)
+		expect(said, said).not.toMatch(/grid|row|stack/i)
 	}
 
-	it('takes five drags, names no structure, and asks for no container', async () => {
+	async function dragTextTo(root: TestNode, path: string, x: number, y: number) {
+		builder.beginDrag({ type: 'Text' })
+		await nextTick()
+		aim(root, path, x, y)
+		await nextTick()
+		saysNothingStructural(root)
+		letGo(root, path)
+		await nextTick()
+	}
+
+	it('takes four drags, names no structure, and asks for no container', async () => {
 		await openWith([], {})
 		const { root } = mount(Canvas, { components: globals() })
 		await nextTick()
 		saysNothingStructural(root)
 
-		// 1 — the grid, dropped on the empty page.
-		builder.beginDrag({ type: 'Grid' })
+		// 1 — the first block, dropped on the empty page.
+		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 		fire(surface(root), 'dragover', pointerOver({}))
-		saysNothingStructural(root)
 		fire(surface(root), 'drop')
 		await nextTick()
-		expect(names()).toEqual(['grid'])
+		// 2 — aimed at the band below it.
+		await dragTextTo(root, 'text', 50, 95)
+		expect(names()).toEqual(['text', 'text2'])
 
-		// 2 — the first block, aimed at the middle of the grid.
-		builder.beginDrag({ type: 'Text' })
-		await nextTick()
-		aim(root, 'grid', 50, 50)
-		await nextTick()
-		expect(into(root)?.path).toBe('grid')
-		saysNothingStructural(root)
-		letGo(root, 'grid')
-		await nextTick()
-		expect(names('grid/gridRow')).toEqual(['text'])
+		// 3 and 4 — aimed at the right-hand quarter of each block.
+		await dragTextTo(root, 'text', 95, 50)
+		await dragTextTo(root, 'text2', 95, 50)
 
-		// 3 — aimed at the band below it. That block is all its row holds, so the
-		// place below it is a row of its own, and the grid writes it.
-		builder.beginDrag({ type: 'Text' })
-		await nextTick()
-		aim(root, 'grid/gridRow/text', 50, 95)
-		await nextTick()
-		expect(into(root)?.path, 'the grid is what is named').toBe('grid')
-		expect(gapAxes(root), 'a band across the block, not a column').toEqual([
-			'horizontal',
-		])
-		saysNothingStructural(root)
-		letGo(root, 'grid/gridRow/text')
-		await nextTick()
-		expect(names('grid')).toHaveLength(2)
-
-		// 4 and 5 — aimed at the right-hand quarter of each block.
-		for (const cell of ['grid/gridRow/text', 'grid/gridRow2/text']) {
-			builder.beginDrag({ type: 'Text' })
-			await nextTick()
-			aim(root, cell, 95, 50)
-			await nextTick()
-			expect(gapAxes(root), 'a column at the flank of the cell').toEqual([
-				'vertical',
-			])
-			saysNothingStructural(root)
-			letGo(root, cell)
-			await nextTick()
-		}
-
-		expect(names('grid/gridRow')).toEqual(['text', 'text2'])
-		expect(names('grid/gridRow2')).toEqual(['text', 'text2'])
+		expect(names()).toEqual(['grid', 'grid2'])
+		expect(names('grid/gridRow')).toEqual(['text', 'text3'])
+		expect(names('grid2/gridRow')).toEqual(['text2', 'text4'])
 		expect(builder.session.value.toast).toBe('Text added')
 		saysNothingStructural(root)
 	})
@@ -989,7 +965,7 @@ describe('a container the preview has not answered for yet', () => {
 	it('still offers a way in, and takes a block through it', async () => {
 		// The state right after a stack is added: the draft has it, the debounced
 		// preview has not come back for it.
-		await openWith([block('row', 'HStack')], {})
+		await openWith([block('row', 'Section')], {})
 		const { root } = mount(Canvas, { components: globals() })
 		await nextTick()
 		expect(textOf(root)).toContain('Empty container — add a block')
@@ -1035,7 +1011,7 @@ describe('the room the page makes for the block', () => {
 
 		lift(root, 'intro', 120)
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 
 		// What the page shows mid-drag is the page the drop leaves behind: the
@@ -1047,7 +1023,7 @@ describe('the room the page makes for the block', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 
 		// Nothing has rendered it yet, so there is no height to be as tall as —
@@ -1060,7 +1036,7 @@ describe('the room the page makes for the block', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 		expect(String(gap(root).props.class)).toContain('dms-builder-room-down')
 
@@ -1086,7 +1062,7 @@ describe('the room the page makes for the block', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 
 		expect(textOf(gap(root))).toBe('Text')
@@ -1114,7 +1090,7 @@ describe('the room the page makes for the block', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 
 		const event = fire(gap(root), 'dragover', pointerOver({}))
@@ -1129,7 +1105,7 @@ describe('the room the page makes for the block', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 
 		fire(gap(root), 'drop')
@@ -1177,7 +1153,7 @@ describe('the seams between the blocks on a page', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 		expect(gaps(root)).toEqual(['before title'])
 
@@ -1205,7 +1181,7 @@ describe('the seams between the blocks on a page', () => {
 		const { root } = mount(Canvas, { components: globals() })
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 
 		fire(wayIn(root), 'dragover', pointerOver({}))
@@ -1380,7 +1356,7 @@ describe('the palette', () => {
 					label: 'Panel',
 					group: 'layout',
 					container: true,
-					allowedChildren: ['Text', 'VStack'],
+					allowedChildren: ['Text', 'Section'],
 					config: {},
 					shapeSource: 'test',
 				},
@@ -1409,7 +1385,7 @@ describe('the palette', () => {
 	})
 
 	it('appends into the selected container, and says which one', async () => {
-		await openWith([block('row', 'HStack')])
+		await openWith([block('row', 'Section')])
 		builder.select('row')
 		const { root } = mount(Library)
 		await nextTick()
@@ -1420,8 +1396,8 @@ describe('the palette', () => {
 	})
 
 	it('climbs to the container when a block inside one is selected', async () => {
-		await openWith([block('row', 'HStack', [block('left', 'Text')])])
-		// The user clicked the block inside the stack, then the palette.
+		await openWith([block('row', 'Section', [block('left', 'Text')])])
+		// The user clicked the block inside the section, then the palette.
 		builder.select('row/left')
 		const { root } = mount(Library)
 		await nextTick()
@@ -1434,8 +1410,8 @@ describe('the palette', () => {
 		expect(names()).toEqual(['row'])
 	})
 
-	it('takes a block into the selected Grid rather than greying it out', async () => {
-		await openWith([block('grid', 'Grid')])
+	it('takes a block into a grid written by hand rather than greying it out', async () => {
+		await openWith([block('grid', 'Grid', [block('band', 'GridRow', [block('card', 'Text'), block('note', 'Text')])])])
 		builder.select('grid')
 		const { root } = mount(Library)
 		await nextTick()
@@ -1445,7 +1421,9 @@ describe('the palette', () => {
 		expect(String(text.props.class)).not.toContain('opacity-50')
 
 		fire(text, 'click')
-		expect(names('grid/gridRow')).toEqual(['text'])
+		// On a row of its own, under the row the grid already held.
+		expect(names()).toEqual(['grid', 'text'])
+		expect(names('grid')).toEqual(['band'])
 	})
 
 	/**
@@ -1462,20 +1440,16 @@ describe('the palette', () => {
 		expect(() => paletteButton(root, 'Grid row')).toThrow(/no palette button/)
 	})
 
-	it('offers everything else the catalog carries, the Grid included', async () => {
+	it('offers every component, and none of the layout the editor writes', async () => {
 		await openWith([block('grid', 'Grid')])
 		const { root } = mount(Library)
 		await nextTick()
 
-		for (const label of [
-			'Grid',
-			'Horizontal stack',
-			'Vertical stack',
-			'Tabs',
-			'Text',
-			'Table',
-		]) {
+		for (const label of ['Section', 'Tabs', 'Text', 'Table']) {
 			expect(paletteButton(root, label).props.draggable, label).toBe('true')
+		}
+		for (const label of ['Grid', 'Horizontal stack', 'Vertical stack']) {
+			expect(() => paletteButton(root, label), label).toThrow(/no palette button/)
 		}
 	})
 
@@ -1486,16 +1460,16 @@ describe('the palette', () => {
 		const { root } = mount(Library)
 		await nextTick()
 
-		const grid = paletteButton(root, 'Grid')
-		expect(grid.props['aria-disabled']).toBe(true)
-		expect(grid.props.title).toBe('Panel only accepts Text, VStack')
-		expect(String(grid.props.class)).toContain('opacity-50')
+		const tabs = paletteButton(root, 'Tabs')
+		expect(tabs.props['aria-disabled']).toBe(true)
+		expect(tabs.props.title).toBe('Panel only accepts Text, Section')
+		expect(String(tabs.props.class)).toContain('opacity-50')
 		expect(paletteButton(root, 'Text').props['aria-disabled']).toBe(false)
 
 		// Clicking it adds nothing, and the refusal is what comes back.
-		fire(grid, 'click')
+		fire(tabs, 'click')
 		expect(names('panel')).toEqual([])
-		expect(builder.session.value.toast).toBe('Panel only accepts Text, VStack')
+		expect(builder.session.value.toast).toBe('Panel only accepts Text, Section')
 	})
 
 	it('stays draggable while greyed out: elsewhere the block is welcome', async () => {
@@ -1508,14 +1482,14 @@ describe('the palette', () => {
 		const canvas = mount(Canvas, { components: globals() })
 		await nextTick()
 
-		fire(paletteButton(palette.root, 'Grid'), 'dragstart')
+		fire(paletteButton(palette.root, 'Tabs'), 'dragstart')
 		await nextTick()
-		expect(builder.session.value.dragging).toEqual({ type: 'Grid' })
+		expect(builder.session.value.dragging).toEqual({ type: 'Tab' })
 
-		aim(canvas.root, 'title', 90)
+		aim(canvas.root, 'title', 50, 90)
 		await nextTick()
 		letGo(canvas.root, 'title')
-		expect(names()).toEqual(['panel', 'title', 'grid'])
+		expect(names()).toEqual(['panel', 'title', 'tab'])
 	})
 
 	it('offers no target until the pointer is over the page', async () => {
@@ -1546,7 +1520,7 @@ describe('a block already on the page', () => {
 		expect(builder.session.value.dragging).toEqual({ path: 'intro' })
 
 		await nextTick()
-		aim(root, 'title', 10)
+		aim(root, 'title', 50, 10)
 		await nextTick()
 		expect(gaps(root)).toEqual(['before title'])
 
@@ -1555,9 +1529,9 @@ describe('a block already on the page', () => {
 	})
 
 	it('refuses to be dropped inside itself', async () => {
-		await openWith([block('row', 'HStack', [block('left', 'Text')])], {
+		await openWith([block('row', 'Section', [block('left', 'Text')])], {
 			row: {
-				componentName: 'DmsHStack',
+				componentName: 'DmsSection',
 				children: [{ id: 'left', component: { componentName: 'DmsText' } }],
 			},
 		})

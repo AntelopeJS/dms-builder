@@ -28,10 +28,11 @@ import type { BlockCatalog, PageDraft } from '../app/runtime/types'
  * catalog's rules allow it. It is read off the block's own box, so it answers
  * without a page and without a DOM.
  *
- * A block laid out among columns answers on four sides: the quarter to its left
- * and the quarter to its right name the columns beside it, and the bands across
- * its top and bottom the places above and below it. Nothing here asks the user
- * to know what a row is.
+ * A block answers on four sides: the quarter to its left and the quarter to its
+ * right name the columns beside it, and the bands across its top and bottom the
+ * places above and below it. A block nothing lays out in columns yet gains a row
+ * the moment one is put beside it. Nothing here asks the user to know what a
+ * row is.
  */
 
 const catalog = testCatalog()
@@ -312,21 +313,63 @@ describe('the row a block is laid out in', () => {
 	})
 })
 
-describe('aiming at a block nothing lays out sideways', () => {
-	it('lands before it, against its own leading edge', () => {
-		expect(aim('title', at(10))).toEqual({
+describe('aiming at a block that sits on its own', () => {
+	it('lands above it from the band across its top', () => {
+		expect(aim('title', at(50, 10))).toEqual({
 			parent: null,
 			index: 0,
 			axis: 'horizontal',
 		})
 	})
 
-	it('lands after it, against its trailing edge', () => {
-		expect(aim('title', at(90))).toEqual({
+	it('lands below it from the band across its bottom', () => {
+		expect(aim('title', at(50, 90))).toEqual({
 			parent: null,
 			index: 1,
 			axis: 'horizontal',
 		})
+	})
+
+	it('builds a row around it from either flank, the drop on the side aimed at', () => {
+		expect(aim('title', at(5, 50))).toEqual({
+			parent: null,
+			index: 0,
+			wrap: { around: 'title', type: 'Grid', index: 0 },
+			axis: 'vertical',
+		})
+		expect(aim('title', at(95, 50))?.wrap).toEqual({
+			around: 'title',
+			type: 'Grid',
+			index: 1,
+		})
+	})
+
+	it('builds that row inside the region of a tab set too', () => {
+		const page: PageDraft = {
+			blocks: [
+				{
+					name: 'tab',
+					type: 'Tab',
+					config: {},
+					children: [{ name: 'text', type: 'Text', config: {}, slot: 'tab1' }],
+				},
+			],
+		}
+		expect(aim('tab/text', at(95, 50), { type: 'Text' }, page)).toEqual({
+			parent: 'tab',
+			index: 0,
+			wrap: { around: 'tab/text', type: 'Grid', index: 1 },
+			axis: 'vertical',
+		})
+	})
+
+	it('offers no flank on a block kept as written, which stays where it is', () => {
+		const page: PageDraft = { blocks: [{ name: 'legacy', preserve: true }] }
+		expect(aim('legacy', at(5, 50), { type: 'Text' }, page)?.wrap).toBe(undefined)
+	})
+
+	it('offers no flank on structure, which is only what it holds', () => {
+		expect(aim('grid', at(5, 50), { type: 'Text' })?.wrap).toBe(undefined)
 	})
 
 	it('has no inside to aim at when it holds nothing', () => {
@@ -523,16 +566,33 @@ describe('a container that builds its own child around the block', () => {
 })
 
 describe('the container the canvas names for a drop', () => {
-	it('is the grid, never the row the grid wrote for itself', () => {
-		expect(namedHost(catalog, draft(), 'board/band')).toBe('board')
-		expect(namedHost(catalog, draft(), 'board')).toBe('board')
+	it('is never the layout the editor writes, row, grid or column', () => {
+		expect(namedHost(catalog, draft(), 'board/band')).toBe(null)
+		expect(namedHost(catalog, draft(), 'board')).toBe(null)
+		expect(namedHost(catalog, draft(), 'panelled/strip/column')).toBe(null)
+		expect(namedHost(catalog, draft(), 'row')).toBe(null)
 	})
 
-	it('is a container the user did place, column included', () => {
-		expect(namedHost(catalog, draft(), 'panelled/strip/column')).toBe(
-			'panelled/strip/column',
-		)
-		expect(namedHost(catalog, draft(), 'row')).toBe('row')
+	it('is the container the user did place, however deep the layout in it', () => {
+		const page: PageDraft = {
+			blocks: [
+				{
+					name: 'section',
+					type: 'Section',
+					config: {},
+					children: [
+						{
+							name: 'grid',
+							type: 'Grid',
+							config: {},
+							children: [{ name: 'gridRow', type: 'GridRow', config: {} }],
+						},
+					],
+				},
+			],
+		}
+		expect(namedHost(catalog, page, 'section/grid/gridRow')).toBe('section')
+		expect(namedHost(catalog, page, 'section')).toBe('section')
 	})
 
 	it('is the page when there is nothing above it to name', () => {

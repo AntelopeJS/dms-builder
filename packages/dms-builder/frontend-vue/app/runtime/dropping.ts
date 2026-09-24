@@ -8,17 +8,19 @@
  * said before the drop rather than surfacing as the module's refusal one round
  * trip later.
  *
- * A block laid out among columns answers on all four of its sides at once: its
- * left and right quarters name the columns beside it, its top and bottom bands
- * the places above and below it, and what is left of a container aims inside it.
- * Nobody has to know that a grid is made of rows, or a column of a stack, to
- * compose one out of them.
+ * Every block answers on all four of its sides at once: its left and right
+ * quarters name the columns beside it, its top and bottom bands the places above
+ * and below it, and what is left of a container aims inside it. The page is a
+ * grid nobody sees — a block nothing lays out in columns yet gains a row of its
+ * own the moment another is put beside it — so nobody has to know that a grid is
+ * made of rows, or a column of a stack, to compose one out of them.
  */
 import { descriptorOf, isStructural } from './catalog'
 import {
 	COLUMN_CONTAINER,
 	FULL_WIDTH_BLOCKS,
 	ROW_CONTAINERS,
+	ROW_WRAPPER,
 } from './constants'
 import { findNode, leafName, parentPath } from './draft'
 import type {
@@ -55,14 +57,18 @@ export type DropZone = 'left' | 'right' | 'top' | 'bottom' | 'inside'
 /**
  * A container the editor builds around a block, to hold it and the drop.
  *
- * Unlike `wrapperFor`, this one takes in a block that is already on the page:
- * it is how a cell of a row gains a second block under it without the row
- * gaining a column.
+ * Unlike `wrapperFor`, this one takes in a block that is already on the page.
+ * A column is how a cell of a row gains a second block under it without the
+ * row gaining a column; a row is how a block nothing lays out in columns gains
+ * one beside it.
  */
 export interface DropWrap {
 	/** The block it encloses, beside the one being dropped. */
 	around: string
-	/** Its type — the catalog's own name for a column. */
+	/**
+	 * Its type: the catalog's own name for a column, or the grid that holds a
+	 * row — see `ROW_WRAPPER`.
+	 */
 	type: string
 	/** Where the dropped block sits inside it. */
 	index: number
@@ -402,7 +408,7 @@ export function targetAtBlock(
 	}
 	const columns = columnContext(draft, path)
 	const zone = zoneAt(box, {
-		columns: columns !== undefined,
+		columns: columns !== undefined || joinsRow(catalog, block),
 		inside: descriptorOf(catalog, block.type)?.container === true,
 	})
 	const target = targetInZone(draft, { path, block, box }, zone, columns)
@@ -475,6 +481,7 @@ export function sameTarget(
 		left.index === right.index &&
 		left.axis === right.axis &&
 		left.wrap?.around === right.wrap?.around &&
+		left.wrap?.type === right.wrap?.type &&
 		left.wrap?.index === right.wrap?.index &&
 		left.refusal === right.refusal
 	)
@@ -497,10 +504,70 @@ function targetInZone(
 		const fill = fillSpan(aimed.block, aimed.box, columns !== undefined)
 		return inside(aimed.path, aimed.block, fill)
 	}
-	if (columns && SIDEWAYS_ZONES.has(zone)) {
-		return beside(draft, columns.column, ZONE_EDGES[zone], 'vertical')
+	if (SIDEWAYS_ZONES.has(zone)) {
+		return columns
+			? beside(draft, columns.column, ZONE_EDGES[zone], 'vertical')
+			: inNewRow(draft, aimed.path, ZONE_EDGES[zone])
 	}
-	return stackedAt(draft, aimed.path, ZONE_EDGES[zone])
+	return stackedAt(draft, stackAnchor(draft, aimed.path), ZONE_EDGES[zone])
+}
+
+/**
+ * Whether a block nothing lays out in columns can still have one put beside it.
+ *
+ * Not structure: the canvas shows it as nothing but what it holds, so a flank
+ * of it is the flank of a block inside it. Not a block pinned across its
+ * container, which nothing can sit beside. And not a block kept as written,
+ * which the module finds again only where it was.
+ */
+function joinsRow(catalog: BlockCatalog | null, block: BlockDraft): boolean {
+	return (
+		block.preserve !== true &&
+		!isStructural(catalog, block.type) &&
+		!spansFullWidth(block.type)
+	)
+}
+
+/**
+ * Beside a block that sits on its own: a row built around the two of them.
+ *
+ * The block moves into the row where it stood, and the drop takes the column
+ * on the side that was aimed at.
+ */
+function inNewRow(
+	draft: PageDraft,
+	path: string,
+	edge: DropEdge,
+): DropTarget | null {
+	const index = siblingIndex(draft, path)
+	if (index === -1) {
+		return null
+	}
+	return {
+		parent: parentPath(path),
+		index,
+		wrap: {
+			around: path,
+			type: ROW_WRAPPER,
+			index: edge === 'before' ? 0 : 1,
+		},
+		axis: 'vertical',
+	}
+}
+
+/**
+ * What a band above or below a row stands for.
+ *
+ * A row the editor built is the only one its grid holds, so above it means
+ * above that grid. A row among several of a grid written by hand is still one
+ * row of that grid.
+ */
+function stackAnchor(draft: PageDraft, path: string): string {
+	const grid = parentPath(path)
+	if (grid === null || !spansFullWidth(findNode(draft, path)?.type)) {
+		return path
+	}
+	return childrenOf(draft, grid).length === 1 ? grid : path
 }
 
 /**

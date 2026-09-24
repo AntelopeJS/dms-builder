@@ -13,6 +13,8 @@ import {
 	valueKind,
 	visibleNameKey,
 } from '../runtime/catalog'
+import { useBuilderMode } from '../runtime/mode'
+import { fitsEditor, typedEditor } from '../runtime/typed-values'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
@@ -33,6 +35,17 @@ const props = defineProps<{
 	 * reads as another setting.
 	 */
 	hideLabel?: boolean
+	/**
+	 * The data type a sibling option holds, for an option typed by it: a form
+	 * field's default takes the input the field's own type calls for.
+	 */
+	typedAs?: unknown
+	/**
+	 * Where the entries of a list come from when it does not add them itself,
+	 * said in place of its buttons: a form saving into a table asks for the
+	 * columns ticked above it, not for fields added one by one.
+	 */
+	addedElsewhere?: string
 }>()
 
 const emit = defineEmits<{
@@ -48,6 +61,19 @@ const emit = defineEmits<{
 }>()
 
 const builder = useBuilder()
+const { advanced } = useBuilderMode()
+
+/**
+ * Whether the panel shows an option at all: never one the block hides, and in
+ * the simple mode never one the builder writes itself — a field's key, which
+ * follows its label.
+ */
+function shown(schema: OptionSchema): boolean {
+	return (
+		!schema.ui?.hidden &&
+		(advanced.value || (!schema.ui?.derivedFrom && !schema.ui?.advanced))
+	)
+}
 const session = builder.session
 
 const label = computed(() => optionLabel(props.name, props.schema))
@@ -69,21 +95,82 @@ const unfilled = computed(
 			props.modelValue === ''),
 )
 
+/** An enum value under the name its block gives it, or as it is spelled. */
+function valueLabel(schema: OptionSchema, value: unknown): string {
+	return schema.ui?.valueLabels?.[String(value)] ?? String(value)
+}
+
+/**
+ * The entries of a record whose keys come from a closed set and whose values
+ * are text, such as a period selector's range labels: one line per key, each
+ * with its own box, rather than an object typed by hand.
+ */
+const keyedEntries = computed(() => {
+	const keys = props.schema.keys
+	if (
+		props.schema.type !== 'record' ||
+		!keys?.enum?.length ||
+		props.schema.values?.type !== 'string'
+	) {
+		return undefined
+	}
+	return keys.enum.map((key) => ({
+		key: String(key),
+		label: valueLabel(keys, key),
+	}))
+})
+
+/** The input a value typed by a sibling's data type takes, when there is one. */
+const typed = computed(() =>
+	ui.value.typedBy ? typedEditor(props.typedAs) : undefined,
+)
+/**
+ * The value as the input can show it. One of another kind — a default left
+ * from the type the field had before — is shown as nothing rather than as
+ * something the input would mangle.
+ */
+const typedValue = computed(() =>
+	typed.value && fitsEditor(props.modelValue, typed.value)
+		? props.modelValue
+		: undefined,
+)
+const typedText = computed(() =>
+	typeof typedValue.value === 'string' ? typedValue.value : '',
+)
+const typedNumber = computed(() =>
+	typeof typedValue.value === 'number' ? typedValue.value : undefined,
+)
+
 const widget = computed(() => {
 	if (props.schema['x-dataType']) return 'dataType'
 	if (props.schema['x-component']) return 'block'
 	if (props.schema['x-controller']) return 'controller'
+	if (typed.value) return typed.value.kind === 'switch' ? 'switch' : 'typed'
 	if (ui.value.widget) return ui.value.widget
 	if (props.schema.oneOf?.length) return 'oneOf'
 	if (props.schema.enum) {
 		return props.schema.enum.length <= 4 ? 'segmented' : 'select'
 	}
+	if (keyedEntries.value) return 'keyed'
 	return props.schema.type
 })
 
 const enumItems = computed(() =>
-	(props.schema.enum ?? []).map((value) => ({ label: String(value), value })),
+	(props.schema.enum ?? []).map((value) => ({
+		label: valueLabel(props.schema, value),
+		value,
+	})),
 )
+
+function setEntry(key: string, text: string): void {
+	const next = { ...objectValue.value }
+	if (text === '') {
+		delete next[key]
+	} else {
+		next[key] = text
+	}
+	set(Object.keys(next).length ? next : undefined)
+}
 
 const resourceItems = computed(() =>
 	session.value.resources.map((entry) => ({
@@ -194,6 +281,7 @@ const SELF_CLEARING = new Set([
 	'number',
 	'switch',
 	'boolean',
+	'keyed',
 ])
 
 const clearable = computed(
@@ -232,7 +320,25 @@ const objectValue = computed(
 )
 
 function setProperty(key: string, value: unknown): void {
-	set(mergePatch(objectValue.value, { [key]: value }))
+	set(mergePatch(objectValue.value, { [key]: value, ...droppedWith(key, value) }))
+}
+
+/**
+ * What a new data type leaves no room for: a default of the old type's kind,
+ * which the field could not hold any more. One the new type has no input for
+ * is kept, since nothing says it no longer fits.
+ */
+function droppedWith(key: string, value: unknown): Record<string, undefined> {
+	const properties = props.schema.properties ?? branchSchema.value?.properties ?? {}
+	const dropped: Record<string, undefined> = {}
+	for (const [other, schema] of Object.entries(properties)) {
+		const editor = schema.ui?.typedBy === key ? typedEditor(value) : undefined
+		const current = objectValue.value[other]
+		if (editor && current !== undefined && !fitsEditor(current, editor)) {
+			dropped[other] = undefined
+		}
+	}
+	return dropped
 }
 
 const arrayValue = computed(() =>
@@ -258,31 +364,88 @@ function setItem(index: number, value: unknown): void {
  * the author has to notice is there at all — and as Text, until another type
  * is chosen.
  */
-function blankItem(): unknown {
+/**
+ * The kinds of entry a list takes, when it takes more than one kind of object:
+ * a form's fields are fields or groups of them.
+ *
+ * Each is added by a button of its own and stays what it was added as. A switch
+ * between the two on every entry asked, of someone who had just added a field,
+ * whether it was a field.
+ */
+const entryKinds = computed(() => {
+	const branches = props.schema.items?.oneOf ?? []
+	if (branches.length < 2 || !branches.every((branch) => branch.type === 'object')) {
+		return undefined
+	}
+	return branches.map((branch, index) => ({
+		index,
+		label: branch.ui?.label ?? `Entry ${index + 1}`,
+	}))
+})
+
+/** The branch an entry of a list of several kinds is, read off what it holds. */
+function entrySchema(item: unknown): OptionSchema | undefined {
+	const items = props.schema.items
+	if (!entryKinds.value || !items?.oneOf) {
+		return items
+	}
+	return items.oneOf[branchOf(items.oneOf, item)] ?? items
+}
+
+/** What an entry of a list of several kinds is, said at the head of it. */
+function entryKind(item: unknown): string | undefined {
+	const schema = entrySchema(item)
+	return entryKinds.value && schema?.ui?.label ? schema.ui.label : undefined
+}
+
+function blankItem(branch?: number): unknown {
 	const items = props.schema.items
 	if (!items) {
 		return ''
 	}
 	const branches = items.oneOf ?? []
-	const kinds = branches.length ? branches.map((branch) => branch.type) : [items.type]
+	const kinds = branches.length ? branches.map((entry) => entry.type) : [items.type]
 	if (!kinds.every((kind) => kind === 'object')) {
 		return ''
 	}
-	const entry = branches.length ? branches[branchOf(branches, {})] : items
+	const entry = branches.length
+		? branches[branch ?? branchOf(branches, {})]
+		: items
 	if (!entry) {
 		return {}
 	}
 	const named = visibleNameKey(entry)
+	// Named and counted after its own kind in a list of several: the first
+	// group added to a form's fields is “Group 1”, whatever it follows.
+	const noun = branch !== undefined ? (entry.ui?.label ?? label.value) : label.value
+	const rank =
+		branch !== undefined
+			? arrayValue.value.filter((item) => branchOf(branches, item) === branch)
+					.length + 1
+			: arrayValue.value.length + 1
 	return {
-		...(named
-			? { [named]: entryName(label.value, arrayValue.value.length + 1) }
-			: {}),
+		...(named ? { [named]: entryName(noun, rank) } : {}),
+		...seededLists(entry),
 		...seededDataTypes(entry, session.value.catalog),
 	}
 }
 
-function addItem(): void {
-	set([...arrayValue.value, blankItem()])
+/**
+ * The lists an entry cannot do without, opened empty.
+ *
+ * What makes a group a group is the list of fields it holds: an entry added as
+ * one and seeded without it would read as a field the moment it was drawn.
+ */
+function seededLists(entry: OptionSchema): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(entry.properties ?? {})
+			.filter(([, schema]) => schema.type === 'array' && isRequired(schema))
+			.map(([key]) => [key, []]),
+	)
+}
+
+function addItem(branch?: number): void {
+	set([...arrayValue.value, blankItem(branch)])
 }
 
 function removeItem(index: number): void {
@@ -393,6 +556,26 @@ function branchLabel(branch: OptionSchema, index: number): string {
 }
 
 /**
+ * The names the branches go by, told apart.
+ *
+ * Two branches of one kind that the block names neither of would both be
+ * called after that kind, and two tabs saying the same word read as one. The
+ * block's own names are the fix; numbering them is what keeps the panel honest
+ * until it has them.
+ */
+const branchLabels = computed(() => {
+	const labels = (props.schema.oneOf ?? []).map(branchLabel)
+	return labels.map((label, index) => {
+		const same = labels.filter((other) => other === label)
+		if (same.length < 2) {
+			return label
+		}
+		const rank = labels.slice(0, index + 1).filter((other) => other === label).length
+		return `${label} ${rank}`
+	})
+})
+
+/**
  * Which branch the panel is on.
  *
  * A tag answers it outright. Without one, the value itself does — its kind,
@@ -427,8 +610,7 @@ const branchIndex = computed(() => {
 const branchSchema = computed(() => (props.schema.oneOf ?? [])[branchIndex.value])
 const branchProperties = computed(() =>
 	Object.entries(branchSchema.value?.properties ?? {}).filter(
-		([key, nested]) =>
-			key !== props.schema.discriminator && !nested.ui?.hidden,
+		([key, nested]) => key !== props.schema.discriminator && shown(nested),
 	),
 )
 /**
@@ -494,8 +676,8 @@ function setJson(text: string): void {
 }
 
 const nestedProperties = computed(() =>
-	Object.entries(props.schema.properties ?? {}).filter(
-		([, schema]) => !schema.ui?.hidden,
+	Object.entries(props.schema.properties ?? {}).filter(([, schema]) =>
+		shown(schema),
 	),
 )
 </script>
@@ -653,12 +835,42 @@ const nestedProperties = computed(() =>
 			@update:model-value="set($event === '' ? undefined : $event)"
 		/>
 
+		<template v-else-if="widget === 'typed' && typed">
+			<USelectMenu
+				v-if="typed.kind === 'select'"
+				:model-value="typedValue"
+				:items="typed.items"
+				value-key="value"
+				:multiple="typed.multiple"
+				placeholder="Choose…"
+				@update:model-value="set($event ?? undefined)"
+			/>
+			<UTextarea
+				v-else-if="typed.kind === 'longText'"
+				:model-value="typedText"
+				:rows="3"
+				@update:model-value="set($event === '' ? undefined : $event)"
+			/>
+			<UInput
+				v-else-if="typed.kind === 'number'"
+				type="number"
+				:model-value="typedNumber"
+				@update:model-value="set($event === '' ? undefined : Number($event))"
+			/>
+			<UInput
+				v-else
+				:type="typed.kind === 'date' ? 'date' : typed.kind === 'time' ? 'time' : 'text'"
+				:model-value="typedText"
+				@update:model-value="set($event === '' ? undefined : $event)"
+			/>
+		</template>
+
 		<UTextarea
 			v-else-if="widget === 'json'"
 			:model-value="jsonText"
 			:rows="5"
 			class="font-mono text-xs"
-			placeholder="null"
+			:placeholder="ui.placeholder"
 			@update:model-value="setJson(String($event))"
 		/>
 
@@ -718,7 +930,7 @@ const nestedProperties = computed(() =>
 				<UButton
 					v-for="(branch, index) in schema.oneOf ?? []"
 					:key="index"
-					:label="branchLabel(branch, index)"
+					:label="branchLabels[index]"
 					size="xs"
 					:color="branchIndex === index ? 'primary' : 'neutral'"
 					:variant="branchIndex === index ? 'soft' : 'outline'"
@@ -735,6 +947,7 @@ const nestedProperties = computed(() =>
 					:name="key"
 					:schema="nested"
 					:model-value="objectValue[key]"
+					:typed-as="nested.ui?.typedBy ? objectValue[nested.ui.typedBy] : undefined"
 					:resource="resource"
 					@update:model-value="setProperty(key, $event)"
 				/>
@@ -759,7 +972,10 @@ const nestedProperties = computed(() =>
 				class="rounded-md border border-default p-2"
 			>
 				<div class="mb-1 flex items-center gap-1">
-					<span class="text-xs text-dimmed">#{{ index + 1 }}</span>
+					<span class="text-xs text-dimmed">
+						#{{ index + 1 }}
+						<template v-if="entryKind(item)">· {{ entryKind(item) }}</template>
+					</span>
 					<div class="ml-auto flex gap-0.5">
 						<UButton
 							icon="i-ph-arrow-up"
@@ -788,23 +1004,58 @@ const nestedProperties = computed(() =>
 					</div>
 				</div>
 				<DmsBuilderOption
-					v-if="schema.items"
+					v-if="entrySchema(item)"
 					:name="`${name}.${index}`"
-					:schema="schema.items"
+					:schema="entrySchema(item)!"
 					:model-value="item"
 					:resource="resource"
 					hide-label
 					@update:model-value="setItem(index, $event)"
 				/>
 			</div>
+			<p v-if="addedElsewhere" class="text-xs text-dimmed">
+				{{ addedElsewhere }}
+			</p>
+			<div v-else-if="entryKinds" class="flex flex-wrap gap-1">
+				<UButton
+					v-for="kind in entryKinds"
+					:key="kind.index"
+					icon="i-ph-plus"
+					size="xs"
+					color="neutral"
+					variant="outline"
+					:label="`Add ${kind.label.toLowerCase()}`"
+					@click="addItem(kind.index)"
+				/>
+			</div>
 			<UButton
+				v-else
 				icon="i-ph-plus"
 				size="xs"
 				color="neutral"
 				variant="outline"
 				label="Add"
-				@click="addItem"
+				@click="addItem()"
 			/>
+		</div>
+
+		<!-- Left empty, an entry keeps the block's own wording, which is what
+		the placeholder shows. -->
+		<div v-else-if="widget === 'keyed'" class="flex flex-col gap-1.5">
+			<div
+				v-for="entry in keyedEntries"
+				:key="entry.key"
+				class="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2"
+			>
+				<span class="truncate text-xs text-muted">{{ entry.label }}</span>
+				<UInput
+					:model-value="String(objectValue[entry.key] ?? '')"
+					size="sm"
+					:placeholder="entry.label"
+					:aria-label="`${label}: ${entry.label}`"
+					@update:model-value="setEntry(entry.key, String($event))"
+				/>
+			</div>
 		</div>
 
 		<div
@@ -817,6 +1068,7 @@ const nestedProperties = computed(() =>
 				:name="key"
 				:schema="nested"
 				:model-value="objectValue[key]"
+				:typed-as="nested.ui?.typedBy ? objectValue[nested.ui.typedBy] : undefined"
 				:resource="resource"
 				@update:model-value="setProperty(key, $event)"
 			/>
@@ -868,7 +1120,9 @@ const nestedProperties = computed(() =>
 			Required — the page cannot be built until this is filled in.
 		</p>
 		<p v-else-if="ineligible" class="text-xs text-warning">{{ ineligible }}</p>
-		<p v-else-if="schema.description" class="text-xs text-dimmed">
+		<!-- A list filled from elsewhere has said what fills it, which is all
+		its own description would add, in words for adding entries by hand. -->
+		<p v-else-if="schema.description && !addedElsewhere" class="text-xs text-dimmed">
 			{{ schema.description }}
 		</p>
 	</div>

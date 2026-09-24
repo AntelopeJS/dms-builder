@@ -1,4 +1,4 @@
-import { descriptorOf, slotIdFor, suggestedName } from './catalog'
+import { descriptorOf, isStructural, slotIdFor, suggestedName } from './catalog'
 import type {
 	BlockCatalog,
 	BlockDraft,
@@ -323,10 +323,18 @@ export function nameSlots(draft: PageDraft, catalog: BlockCatalog | null): void 
 	})
 }
 
-export function countBlocks(draft: PageDraft): number {
+/**
+ * How many blocks the page holds, as its author counts them.
+ *
+ * The layout the editor writes is not counted: nobody placed it, and a page of
+ * two cards side by side is two blocks, not four.
+ */
+export function countBlocks(draft: PageDraft, catalog: BlockCatalog | null): number {
 	let total = 0
-	walkDraft(draft.blocks, () => {
-		total += 1
+	walkDraft(draft.blocks, (block) => {
+		if (!isStructural(catalog, block.type)) {
+			total += 1
+		}
 	})
 	return total
 }

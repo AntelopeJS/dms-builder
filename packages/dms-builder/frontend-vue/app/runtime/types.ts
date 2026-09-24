@@ -25,6 +25,18 @@ export interface OptionUi {
 	responseShape?: string
 	/** The block's own period option, written alongside a bound source. */
 	periodOption?: string
+	/** What to call each value of an enum, keyed by the value. */
+	valueLabels?: Record<string, string>
+	/** The sibling option this one's value is derived from: a key from a label. */
+	derivedFrom?: string
+	/** The switch this option sits behind, by its label. */
+	optIn?: string
+	/** The sibling option holding the data type this value is one of. */
+	typedBy?: string
+	/** Offered in the advanced view only: an address, a method, a key. */
+	advanced?: boolean
+	/** What a new block is placed with, when not the option's default. */
+	initial?: unknown
 }
 
 export type FieldAspect = 'listable' | 'searchable' | 'sortable' | 'filterable'
@@ -39,6 +51,8 @@ export interface OptionSchema {
 	properties?: Record<string, OptionSchema>
 	items?: OptionSchema
 	values?: OptionSchema
+	/** A record's key shape; a closed set of keys carries it as `enum`. */
+	keys?: OptionSchema
 	oneOf?: OptionSchema[]
 	discriminator?: string
 	prefixItems?: OptionSchema[]

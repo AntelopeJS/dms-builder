@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
 const session = builder.session
+const { mode, setMode } = useBuilderMode()
 
 const problems = builder.problems
 const canUndo = computed(() => session.value.history.length > 0)
@@ -71,6 +73,30 @@ const canRedo = computed(() => session.value.future.length > 0)
 		/>
 
 		<div class="ml-auto flex items-center gap-1">
+			<!-- Who the panel speaks to: someone building the page, or whoever
+			reads the code the builder writes. -->
+			<div
+				class="mr-1 flex items-center rounded-md border border-default p-0.5"
+				role="group"
+				aria-label="Builder mode"
+			>
+				<UButton
+					label="Simple"
+					size="xs"
+					:color="mode === 'simple' ? 'primary' : 'neutral'"
+					:variant="mode === 'simple' ? 'soft' : 'ghost'"
+					title="Only what the page shows; the builder writes the rest"
+					@click="setMode('simple')"
+				/>
+				<UButton
+					label="Advanced"
+					size="xs"
+					:color="mode === 'advanced' ? 'primary' : 'neutral'"
+					:variant="mode === 'advanced' ? 'soft' : 'ghost'"
+					title="Every setting, keys and developer notes included"
+					@click="setMode('advanced')"
+				/>
+			</div>
 			<UButton
 				icon="i-ph-arrow-counter-clockwise"
 				size="xs"

@@ -56,7 +56,18 @@ const served = computed(() =>
 		? servedNodeAt(session.value.served, props.path)
 		: undefined,
 )
-const rendered = computed(() => served.value ?? props.preview)
+/**
+ * A block the builder cannot rewrite still shows the way the page shows it,
+ * from what the DMS served, and never as the preview's stand-in, which only
+ * knows it could not build it. That holds only while the block contains nothing.
+ * The draft does not carry its contents, so a container would render empty.
+ */
+const rendered = computed(() => {
+	if (props.block.preserve) {
+		return served.value?.children?.length ? undefined : served.value
+	}
+	return served.value ?? props.preview
+})
 const resolved = computed(() =>
 	rendered.value ? resolveDmsComponent(rendered.value.componentName) : undefined,
 )
@@ -155,6 +166,33 @@ const wrapGap = computed(() => {
 	}
 	return wrap.index === 0 ? 'before' : 'after'
 })
+/**
+ * The way that room runs: a band above or below the block for a column, a
+ * column beside it for the row a drop at its flank builds — the block giving up
+ * half its width, the way it will once the row is written.
+ */
+const wrapAxis = computed(() => target.value?.axis ?? 'horizontal')
+
+/**
+ * Structure answers for nothing a pointer does to it: it is what the canvas
+ * shows as nothing but what it holds. A click or a hover on it is one on
+ * whatever holds it, and there is nothing of it to carry.
+ */
+function onClick(event: MouseEvent): void {
+	if (structural.value) {
+		return
+	}
+	event.stopPropagation()
+	builder.select(props.path)
+}
+
+function onMouseEnter(event: MouseEvent): void {
+	if (structural.value) {
+		return
+	}
+	event.stopPropagation()
+	builder.hover(props.path)
+}
 /** Whether this block is the one being carried, and so no longer quite here. */
 const lifted = computed(() => session.value.dragging?.path === props.path)
 
@@ -223,14 +261,6 @@ const spanStyle = computed(() => {
 })
 
 const pageId = computed(() => session.value.structure?.page.id ?? '')
-const filepath = computed(() => session.value.structure?.page.filepath)
-// The engine words a reason as a lower-case fragment; here it opens a sentence.
-const opaqueReason = computed(() => {
-	const reason = props.block.opaqueReason
-	return reason
-		? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`
-		: undefined
-})
 
 function onDragStart(event: DragEvent): void {
 	event.dataTransfer?.setData('text/plain', props.path)
@@ -290,11 +320,14 @@ function answerCursor(event: DragEvent): void {
 			// A block that renders to nothing yet — a tab set with no tabs, an
 			// empty stack — would be a hairline nobody can click, and so could
 			// neither be configured nor removed. Give it something to aim at
-			// until it has content of its own.
-			'min-h-6',
+			// until it has content of its own. Structure is not something to
+			// aim at: holding nothing, it is gone on the next edit.
+			structural ? '' : 'min-h-6',
 			// Room opened above or below it is a second row of this grid, and
-			// the two want telling apart.
+			// the two want telling apart; room opened beside it is a second
+			// column, as wide as the block.
 			wrapGap ? 'gap-2' : '',
+			wrapGap && wrapAxis === 'vertical' ? 'grid-flow-col auto-cols-fr' : '',
 			// The block is on the pointer; what is left here is the hole it
 			// came out of, which the drop is about to fill from somewhere else.
 			lifted ? 'opacity-40' : '',
@@ -302,9 +335,9 @@ function answerCursor(event: DragEvent): void {
 		]"
 		:style="spanStyle"
 		:data-path="path"
-		draggable="true"
-		@click.stop="builder.select(path)"
-		@mouseenter.stop="builder.hover(path)"
+		:draggable="!structural"
+		@click="onClick"
+		@mouseenter="onMouseEnter"
 		@mouseleave="builder.hover(null)"
 		@dragstart.stop="onDragStart"
 		@dragend="builder.endDrag()"
@@ -334,8 +367,17 @@ function answerCursor(event: DragEvent): void {
 		>
 			<UIcon v-if="descriptor?.icon" :name="descriptor.icon" class="size-3" />
 			<span>{{ block.name }}</span>
-			<span class="opacity-70">· {{ label }}</span>
-			<span v-if="served" class="opacity-70">· as saved</span>
+			<!-- A block the builder cannot rewrite carries no type in the draft,
+			so its label would only say "Block". -->
+			<template v-if="block.preserve">
+				<span class="opacity-70">·</span>
+				<UIcon name="i-ph-lock-simple" class="size-3 opacity-70" />
+				<span class="opacity-70">set up in code</span>
+			</template>
+			<template v-else>
+				<span class="opacity-70">· {{ label }}</span>
+				<span v-if="served" class="opacity-70">· as saved</span>
+			</template>
 			<UIcon
 				v-if="missing.length"
 				name="i-ph-warning"
@@ -358,22 +400,16 @@ function answerCursor(event: DragEvent): void {
 			</button>
 		</div>
 
-		<DmsBuilderPlaceholder v-if="wrapGap === 'before'" axis="horizontal" />
+		<DmsBuilderPlaceholder v-if="wrapGap === 'before'" :axis="wrapAxis" />
 
+		<!-- Said for whoever is building the page: why the code cannot be
+		rewritten, and where it lives, are for the panel's developer notes. -->
 		<div
-			v-if="block.preserve"
-			class="flex flex-col gap-1 rounded-lg border border-dashed border-default bg-elevated p-4 text-sm text-dimmed"
+			v-if="block.preserve && !resolved"
+			class="flex items-center gap-2 rounded-lg border border-dashed border-default bg-elevated p-4 text-sm text-dimmed"
 		>
-			<div class="flex items-center gap-2">
-				<UIcon name="i-ph-lock-simple" class="size-4" />
-				<span>{{ block.name }} — written by hand, kept as is</span>
-			</div>
-			<p class="text-xs">
-				<span v-if="opaqueReason">{{ opaqueReason }} </span>
-				<template v-if="filepath">
-					Edit it in <code class="text-xs">{{ filepath }}</code>.
-				</template>
-			</p>
+			<UIcon name="i-ph-lock-simple" class="size-4" />
+			<span>{{ block.name }} is set up in code and can't be changed here</span>
 		</div>
 
 		<!-- Structure the editor wrote for itself stands in as nothing but what
@@ -384,11 +420,9 @@ function answerCursor(event: DragEvent): void {
 			class="flex gap-2"
 			:class="inner ? 'flex-row' : 'flex-col'"
 		>
-			<DmsBuilderChildren
-				:path="path"
-				:children="plain"
-				:empty="!children.length"
-			/>
+			<!-- No way in: structure holding nothing is removed on the next edit,
+			and a box offering to be filled would be the one thing it shows. -->
+			<DmsBuilderChildren :path="path" :children="plain" />
 		</div>
 
 		<!-- A container the preview has not answered for yet — a stack just
@@ -464,6 +498,7 @@ function answerCursor(event: DragEvent): void {
 							:path="path"
 							:children="plain"
 							:empty="
+								!structural &&
 								descriptor?.container === true &&
 								!children.length &&
 								!regions.length
@@ -474,6 +509,6 @@ function answerCursor(event: DragEvent): void {
 			</Suspense>
 		</DmsBuilderBoundary>
 
-		<DmsBuilderPlaceholder v-if="wrapGap === 'after'" axis="horizontal" />
+		<DmsBuilderPlaceholder v-if="wrapGap === 'after'" :axis="wrapAxis" />
 	</div>
 </template>

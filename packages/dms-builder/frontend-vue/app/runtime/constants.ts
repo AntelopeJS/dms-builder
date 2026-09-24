@@ -56,6 +56,23 @@ export const ROW_CONTAINERS = new Set(['HStack', 'GridRow'])
 export const FULL_WIDTH_BLOCKS = new Set(['GridRow'])
 
 /**
+ * The blocks that only lay other blocks out.
+ *
+ * The page is a grid its author never sees: they put one block beside or under
+ * another, and the editor writes whatever rows, columns and stacks that takes.
+ * None of these is offered in the palette or named on the canvas, whoever wrote
+ * them — someone building a page composes it from what it shows, not from the
+ * boxes that hold it.
+ */
+export const LAYOUT_BLOCKS = new Set(['Grid', 'GridRow', 'HStack', 'VStack'])
+
+/**
+ * The container the editor builds to put two blocks side by side where nothing
+ * lays them out in columns yet: a grid of one row, the row holding them both.
+ */
+export const ROW_WRAPPER = 'Grid'
+
+/**
  * The container the editor builds to stack two blocks inside one column.
  *
  * A row lays its children out side by side and nothing else, so it is the only

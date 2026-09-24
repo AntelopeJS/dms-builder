@@ -83,6 +83,30 @@ export interface OptionUi {
    * under its label — a set of switches that reads as one list of features.
    */
   flatten?: boolean;
+  /**
+   * What to call each value of an enum, keyed by the value: `Last 30 days`
+   * rather than `last-30-days`.
+   */
+  valueLabels?: Record<string, string>;
+  /**
+   * The sibling option this one's value can be derived from — a field's key
+   * from its label. The builder writes it itself in its simple mode.
+   */
+  derivedFrom?: string;
+  /**
+   * The switch this option sits behind, by its label: offered once an author
+   * turns it on, left out while it is off.
+   */
+  optIn?: string;
+  /**
+   * The sibling option holding the data type this value is one of: a field's
+   * default takes the input its type calls for.
+   */
+  typedBy?: string;
+  /** Offered in the builder's advanced view only. */
+  advanced?: boolean;
+  /** What the builder places a new block with, when not the option's default. */
+  initial?: unknown;
 }
 
 /** The primitive kinds a described option reduces to. */
@@ -116,6 +140,11 @@ export interface OptionSchema {
   items?: OptionSchema;
   /** Record value shape. */
   values?: OptionSchema;
+  /**
+   * Record key shape. A key drawn from a closed set carries it as `enum`, so
+   * an editor can offer one entry per key.
+   */
+  keys?: OptionSchema;
   /** Union branches, in declaration order. */
   oneOf?: OptionSchema[];
   /** Property carrying the branch tag of a discriminated union. */
