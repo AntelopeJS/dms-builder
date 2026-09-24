@@ -1,5 +1,5 @@
-// Deleting and reconfiguring blocks, then the page lifecycle: creation,
-// deletion, configuration.
+// Deleting and reconfiguring blocks, then the page lifecycle: creation and
+// configuration. Deletion is in page-delete.ts.
 //
 // Split out of ops.ts to stay under the size the linter allows.
 
@@ -49,7 +49,6 @@ import {
   UnknownReferenceError,
 } from "./value";
 import {
-  findImporters,
   findPageClass,
   getWritableProject,
   refreshFromDisk,
@@ -375,30 +374,6 @@ export function createPage(
   transaction.track(sourceFile, true);
   placement.wire();
   return commit(transaction, { ref, filepath: placement.filepath });
-}
-
-export function deletePage(ref: string, opts?: MutationOpts): OpResult {
-  const page = findPageRecord(ref);
-  if (!page) {
-    return notFound(ref);
-  }
-  const project = getWritableProject();
-  refreshFromDisk(project);
-  const sourceFile = project.getSourceFile(page.filepath);
-  if (!sourceFile) {
-    return notFound(page.filepath);
-  }
-  const stale = checkVersion(sourceFile, opts);
-  if (stale) {
-    return stale;
-  }
-  const transaction = new Transaction(project);
-  for (const importer of findImporters(project, page.filepath)) {
-    transaction.track(importer.getSourceFile());
-    importer.remove();
-  }
-  transaction.trackDelete(sourceFile);
-  return commit(transaction, undefined);
 }
 
 export function configurePage(

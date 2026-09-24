@@ -11,7 +11,7 @@ import type {
   EditableCategoryMeta,
   OpResult,
 } from "@antelopejs/interface-dms-builder";
-import { Node, type SourceFile } from "ts-morph";
+import { Node } from "ts-morph";
 import { applyImportRef, importStatement, relativeModule } from "./emit";
 import { slugError } from "./ops-blocks";
 import { indentationText, resolveProjectRoot } from "./project";
@@ -30,6 +30,7 @@ import {
 import {
   findImporters,
   getWritableProject,
+  holdsOnlyImports,
   refreshFromDisk,
   resolveRootBarrel,
   Transaction,
@@ -215,7 +216,9 @@ export function deleteCategory(ref: string): OpResult {
   const transaction = new Transaction(project);
   transaction.track(opened.sourceFile);
   statement.remove();
-  if (isDebrisAfterRemoval(opened.sourceFile)) {
+  // Left behind, the empty file and its barrel import would collide with a
+  // later CreateCategory of the same name.
+  if (holdsOnlyImports(opened.sourceFile)) {
     for (const importer of findImporters(
       project,
       opened.sourceFile.getFilePath(),
@@ -226,13 +229,4 @@ export function deleteCategory(ref: string): OpResult {
     transaction.trackDelete(opened.sourceFile);
   }
   return commit(transaction, undefined);
-}
-
-// A category file is debris once its declaration is gone and only imports
-// remain — delete it (and unwire its barrel) instead of leaving an empty file
-// and a dangling barrel import that a later CreateCategory would collide with.
-function isDebrisAfterRemoval(sourceFile: SourceFile): boolean {
-  return sourceFile
-    .getStatements()
-    .every((statement) => Node.isImportDeclaration(statement));
 }

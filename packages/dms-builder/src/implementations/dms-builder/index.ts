@@ -48,10 +48,10 @@ import {
 import {
   configurePage,
   createPage,
-  deletePage,
   moveBlock,
   removeBlock,
 } from "./engine/ops-blocks";
+import { deletePage } from "./engine/page-delete";
 import { setPageBlocks } from "./engine/page-draft";
 import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";

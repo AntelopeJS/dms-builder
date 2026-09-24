@@ -23,9 +23,7 @@ import {
 import {
   findQueryRoutes,
   pageRoutePaths,
-  parseQueryRouteCall,
-  routeModelMethodNames,
-  routeResourceRef,
+  routeModelBinding,
   unknownParamKeys,
 } from "./query-structure";
 import {
@@ -229,14 +227,15 @@ function resourceQueryRoutes(resource: string): RouteMethodBinding[] {
       continue;
     }
     for (const route of findQueryRoutes(pageClass)) {
-      if (routeResourceRef(route.method) !== resource) {
+      const binding = routeModelBinding(route.method);
+      if (binding?.resource !== resource) {
         continue;
       }
-      const call = parseQueryRouteCall(route.method);
-      const methods = call
-        ? [call.modelMethod]
-        : routeModelMethodNames(route.method, resource);
-      bindings.push({ page: record.ref, route: route.name, methods });
+      bindings.push({
+        page: record.ref,
+        route: route.name,
+        methods: binding.methods,
+      });
     }
   }
   return bindings;

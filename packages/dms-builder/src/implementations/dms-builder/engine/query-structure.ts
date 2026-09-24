@@ -164,6 +164,27 @@ export function routeModelMethodNames(
   return [...names];
 }
 
+/**
+ * The resource a query route reads and the model methods it calls: what is left
+ * without a caller once the route is gone. A route that drifted off-grammar has
+ * no parsed call, so its methods are recovered by scanning the body.
+ */
+export function routeModelBinding(
+  method: MethodDeclaration,
+): { resource: string; methods: string[] } | undefined {
+  const resource = routeResourceRef(method);
+  if (resource === undefined) {
+    return undefined;
+  }
+  const call = parseQueryRouteCall(method);
+  return {
+    resource,
+    methods: call
+      ? [call.modelMethod]
+      : routeModelMethodNames(method, resource),
+  };
+}
+
 function callsParseableModelMethod(
   method: MethodDeclaration,
   resource: string,

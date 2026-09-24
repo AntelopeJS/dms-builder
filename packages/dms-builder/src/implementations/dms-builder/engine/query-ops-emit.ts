@@ -32,9 +32,7 @@ import {
   findQueryRoute,
   MODEL_DECORATORS,
   ROUTE_GUARD_SYMBOLS,
-  parseQueryRouteCall,
-  routeModelMethodNames,
-  routeResourceRef,
+  routeModelBinding,
 } from "./query-structure";
 import { findResourceRecord } from "./resource-index";
 import { findPageClass, getWritableProject, Transaction } from "./writable";
@@ -315,17 +313,10 @@ export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
   if (!route) {
     return notFound(query);
   }
-  const call = parseQueryRouteCall(route.method);
-  const resource = routeResourceRef(route.method);
-  // A route that drifted off-grammar has no parsed call, so its backing method
-  // is recovered by scanning the body — otherwise removing an opaque query would
-  // orphan the model method it was the last caller of.
-  const modelMethods =
-    resource === undefined
-      ? []
-      : call
-        ? [call.modelMethod]
-        : routeModelMethodNames(route.method, resource);
+  // Read before the route goes: an opaque route's backing method is recovered
+  // from its body, and a query removed without it would orphan the model
+  // method it was the last caller of.
+  const binding = routeModelBinding(route.method);
   const transaction = new Transaction(getWritableProject());
   transaction.track(context.sourceFile);
   route.method.remove();
@@ -334,11 +325,11 @@ export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
     "Parameter",
     ...MODEL_DECORATORS,
     ...ROUTE_GUARD_SYMBOLS,
-    ...(resource ? modelClassNames(resource) : []),
+    ...(binding ? modelClassNames(binding.resource) : []),
   ]);
-  if (resource) {
-    for (const modelMethod of modelMethods) {
-      dropOrphanedModelMethod(resource, modelMethod, transaction);
+  if (binding) {
+    for (const modelMethod of binding.methods) {
+      dropOrphanedModelMethod(binding.resource, modelMethod, transaction);
     }
   }
   return commit(transaction, undefined);
