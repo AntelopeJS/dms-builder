@@ -276,4 +276,60 @@ describe("the page draft", () => {
       expect(app.read(PAGE_FILE)).to.not.contain("ordersKpi");
     });
   });
+
+  describe("a block whose author named one of its values", () => {
+    const revenueKpi = (title: string) => ({
+      blocks: [{ name: "revenueKpi", type: "KpiCard", config: { title } }],
+    });
+
+    before(() => {
+      const named = app
+        .read(PAGE_FILE)
+        .replace('title: "Revenue"', "title: REVENUE_TITLE")
+        .replace(
+          "@RegisterPage(",
+          'const REVENUE_TITLE = "Revenue";\n\n@RegisterPage(',
+        );
+      expect(named, "the fixture holds the constant").to.contain(
+        "const REVENUE_TITLE",
+      );
+      app.write(PAGE_FILE, named);
+    });
+
+    it("stays editable, and reads the value the constant holds", async function () {
+      this.timeout(OP_TIMEOUT);
+      const [block] = (await structure()).blocks;
+
+      expect(block.editable, "a named string locks nothing").to.equal(true);
+      expect(block.config).to.deep.equal({ title: "Revenue" });
+    });
+
+    it("keeps the name through a save that did not change the value", async function () {
+      this.timeout(OP_TIMEOUT);
+      const current = await structure();
+      expectOk(
+        await SetPageBlocks(PAGE, revenueKpi("Revenue"), {
+          expectedVersion: current.version,
+        }),
+        "SetPageBlocks",
+      );
+
+      expect(app.read(PAGE_FILE)).to.contain("title: REVENUE_TITLE");
+    });
+
+    it("writes the value out once the author changes it", async function () {
+      this.timeout(OP_TIMEOUT);
+      const current = await structure();
+      expectOk(
+        await SetPageBlocks(PAGE, revenueKpi("Income"), {
+          expectedVersion: current.version,
+        }),
+        "SetPageBlocks",
+      );
+
+      const written = app.read(PAGE_FILE);
+      expect(written).to.contain('title: "Income"');
+      expect(written).to.not.contain("title: REVENUE_TITLE");
+    });
+  });
 });

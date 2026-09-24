@@ -1,4 +1,9 @@
-import { Node, type PropertyAssignment, SyntaxKind } from "ts-morph";
+import {
+  Node,
+  type PropertyAssignment,
+  SyntaxKind,
+  VariableDeclarationKind,
+} from "ts-morph";
 import { blockDescriptor, buildCatalog } from "./catalog";
 import { findResourceBySymbol } from "./resource-index";
 
@@ -114,6 +119,58 @@ function resourceRef(node: Node): LiteralResult | undefined {
   return { value: { $ref: { resource: found.ref } }, fullyLiteral: true };
 }
 
+/** A value a `const` can hold that the writer can put back as its name. */
+export type ConstantValue = string | number | boolean | null;
+
+/**
+ * The value of a `const` declared in the same file with a plain value —
+ * `id: PERIOD_SCOPE` — or `undefined` for anything else.
+ *
+ * Only a plain value: an object held in a constant is one instance shared by
+ * every reader, and writing it back as a copy would quietly split it. And only
+ * the same file, so the name the writer puts back never depends on an import it
+ * does not manage.
+ */
+export function constantValue(
+  node: Node,
+): { value: ConstantValue } | undefined {
+  if (!Node.isIdentifier(node)) {
+    return undefined;
+  }
+  const definitions = node.getDefinitionNodes();
+  const definition = definitions[0];
+  if (
+    definitions.length !== 1 ||
+    !definition ||
+    !Node.isVariableDeclaration(definition) ||
+    definition.getSourceFile() !== node.getSourceFile() ||
+    definition.getVariableStatement()?.getDeclarationKind() !==
+      VariableDeclarationKind.Const
+  ) {
+    return undefined;
+  }
+  const initializer = literalToValue(definition.getInitializer());
+  const { value } = initializer;
+  if (
+    !initializer.fullyLiteral ||
+    value === undefined ||
+    (typeof value === "object" && value !== null)
+  ) {
+    return undefined;
+  }
+  return { value: value as ConstantValue };
+}
+
+/**
+ * A constant inside a config value, read as the value it holds, so one named
+ * string does not lock the whole block. The page writer puts the name back
+ * wherever the value is unchanged.
+ */
+function constantRef(node: Node): LiteralResult | undefined {
+  const constant = constantValue(node);
+  return constant && { value: constant.value, fullyLiteral: true };
+}
+
 function propertyName(prop: PropertyAssignment): string {
   const nameNode = prop.getNameNode();
   if (
@@ -171,6 +228,7 @@ function literalToValue(node: Node | undefined): LiteralResult {
     dataTypeCall(node) ??
     blockCall(node) ??
     resourceRef(node) ??
+    constantRef(node) ??
     opaqueExpr(node)
   );
 }
