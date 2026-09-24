@@ -106,6 +106,18 @@ describe("the block catalog", () => {
     expect(blockNamed("KpiCard").controllerArg).to.not.equal(true);
   });
 
+  it("marks the options a data type is handed a table in", () => {
+    const relation = catalog.dataTypes.find((type) => type.id === "relation");
+    expect(relation?.config.dataApiController).to.include({
+      "x-controller": true,
+      optional: false,
+    });
+    expect(
+      relation?.config.placeholder?.["x-controller"],
+      "only the option typed by the table",
+    ).to.equal(undefined);
+  });
+
   it("lists the field names a resource may not use", () => {
     expect(catalog.reservedFieldNames).to.include("_id");
     expect(catalog.reservedFieldNames).to.include("count");

@@ -72,6 +72,7 @@ const unfilled = computed(
 const widget = computed(() => {
 	if (props.schema['x-dataType']) return 'dataType'
 	if (props.schema['x-component']) return 'block'
+	if (props.schema['x-controller']) return 'controller'
 	if (ui.value.widget) return ui.value.widget
 	if (props.schema.oneOf?.length) return 'oneOf'
 	if (props.schema.enum) {
@@ -90,6 +91,21 @@ const resourceItems = computed(() =>
 		value: entry.ref,
 	})),
 )
+
+/**
+ * The table a `controller` option names. The page is handed the table's
+ * DataAPI class, so what the option holds is a reference to the resource the
+ * builder writes that class from, never the name typed in as text.
+ */
+const controllerRef = computed(
+	() =>
+		(props.modelValue as { $ref?: { resource?: string } } | undefined)?.$ref
+			?.resource,
+)
+
+function setController(resource: string | undefined): void {
+	set(resource ? { $ref: { resource } } : undefined)
+}
 
 const dataTypeChoices = computed(() => dataTypeItems(session.value.catalog))
 
@@ -541,6 +557,15 @@ const nestedProperties = computed(() =>
 			value-key="value"
 			placeholder="Choose a resource…"
 			@update:model-value="set($event)"
+		/>
+
+		<USelectMenu
+			v-else-if="widget === 'controller'"
+			:model-value="controllerRef"
+			:items="resourceItems"
+			value-key="value"
+			placeholder="Choose a table…"
+			@update:model-value="setController($event)"
 		/>
 
 		<USelectMenu

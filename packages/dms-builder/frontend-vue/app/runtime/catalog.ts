@@ -162,6 +162,10 @@ export function optionLabel(key: string, schema: OptionSchema): string {
 	if (schema.ui?.label) {
 		return schema.ui.label
 	}
+	// Named after what is picked, not after the class the page is handed.
+	if (schema['x-controller']) {
+		return 'Table'
+	}
 	const spaced = key.replace(/([A-Z])/g, ' $1').toLowerCase()
 	return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }

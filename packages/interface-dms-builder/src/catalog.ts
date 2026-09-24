@@ -132,6 +132,11 @@ export interface OptionSchema {
   ui?: OptionUi;
   "x-dataType"?: boolean;
   "x-component"?: boolean;
+  /**
+   * The option is handed a table's DataAPI class — a relation's
+   * `dataApiController`. Its value is a `$ref` to a resource.
+   */
+  "x-controller"?: boolean;
   [key: string]: unknown;
 }
 

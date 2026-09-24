@@ -124,7 +124,29 @@ function instantiateDataType(value: Record<string, unknown>): unknown {
     throw new DegradedBlockError(`dataType "${id}" is not constructible`);
   }
   const Ctor = exported as new (config?: unknown) => unknown;
-  return new Ctor(value.config);
+  // Materialized like any other option: a relation's config names its table.
+  return new Ctor(
+    value.config === undefined ? undefined : materialize(value.config),
+  );
+}
+
+/**
+ * The DataAPI class a `$ref` in a config names — the table a relation field
+ * points at — as the running app loaded it.
+ *
+ * Only read, as a table form's own class is: the DataType looks the table's
+ * routes up on it, which is what the saved page would do when served.
+ */
+function referencedController(ref: Record<string, unknown>): unknown {
+  const dataApi = ref.as === undefined || ref.as === "dataApi";
+  const controller =
+    dataApi && typeof ref.resource === "string"
+      ? loadedController(ref.resource)
+      : undefined;
+  if (!controller) {
+    throw new DegradedBlockError("a table it reads needs the running page");
+  }
+  return controller;
 }
 
 /** Resolves the sentinels a config may carry into the values a factory expects. */
@@ -139,7 +161,7 @@ function materialize(value: unknown): unknown {
     throw new DegradedBlockError("$expr cannot be previewed");
   }
   if (isPlainObject(value.$ref)) {
-    throw new DegradedBlockError("a resource reference cannot be previewed");
+    return referencedController(value.$ref);
   }
   if (typeof value.$dataType === "string") {
     return instantiateDataType(value);

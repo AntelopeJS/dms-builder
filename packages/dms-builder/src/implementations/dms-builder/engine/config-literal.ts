@@ -1,5 +1,6 @@
 import { Node, type PropertyAssignment, SyntaxKind } from "ts-morph";
 import { blockDescriptor, buildCatalog } from "./catalog";
+import { findResourceBySymbol } from "./resource-index";
 
 export interface LiteralResult {
   value: unknown;
@@ -96,6 +97,23 @@ function blockCall(node: Node): LiteralResult | undefined {
   };
 }
 
+/**
+ * A table's DataAPI class inside a config value — a relation field's
+ * `dataApiController`. Read back as the `$ref` the builder writes it from, so
+ * the table stays chosen in the panel rather than the whole block turning
+ * opaque on its first save.
+ */
+function resourceRef(node: Node): LiteralResult | undefined {
+  if (!Node.isIdentifier(node) || isLocallyDeclared(node)) {
+    return undefined;
+  }
+  const found = findResourceBySymbol(node.getText());
+  if (found?.as !== "dataApi") {
+    return undefined;
+  }
+  return { value: { $ref: { resource: found.ref } }, fullyLiteral: true };
+}
+
 function propertyName(prop: PropertyAssignment): string {
   const nameNode = prop.getNameNode();
   if (
@@ -149,7 +167,12 @@ export function literalToValue(node: Node | undefined): LiteralResult {
   if (Node.isArrayLiteralExpression(node)) {
     return arrayLiteralToValue(node);
   }
-  return dataTypeCall(node) ?? blockCall(node) ?? opaqueExpr(node);
+  return (
+    dataTypeCall(node) ??
+    blockCall(node) ??
+    resourceRef(node) ??
+    opaqueExpr(node)
+  );
 }
 
 export function objectLiteralToValue(node: Node): LiteralResult {

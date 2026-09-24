@@ -5,7 +5,9 @@ import {
   CreateCategory,
   CreatePage,
   CreateResource,
+  GetPageStructure,
   PreviewLayout,
+  SetPageBlocks,
 } from "../implementations/dms-builder";
 import {
   createFixture,
@@ -100,4 +102,69 @@ describe("previewing a block over a table", () => {
       label: "Table — needs the running page",
     });
   });
+
+  it("waits on the running page for a relation to a table it has not loaded", async function () {
+    this.timeout(60_000);
+    // Created a moment ago, say: the app has not reloaded under it yet, so
+    // there is no class to hand the field.
+    const { degraded, component } = await previewOf({
+      type: "Form",
+      config: { fields: [relationTo({ $ref: { resource: "invoice" } })] },
+    });
+
+    expect(degraded).to.deep.equal([`${PAGE}#block`]);
+    expect(component.options).to.include({
+      label: "a table it reads needs the running page",
+    });
+  });
+
+  it("writes the table a relation field points at, and reads it back", async function () {
+    this.timeout(120_000);
+    const current = expectOk(await GetPageStructure(PAGE), "GetPageStructure");
+    expectOk(
+      await SetPageBlocks(
+        PAGE,
+        {
+          blocks: [
+            {
+              name: "picker",
+              type: "Form",
+              config: {
+                fields: [relationTo({ $ref: { resource: "ticket" } })],
+              },
+            },
+          ],
+        },
+        { expectedVersion: current.version },
+      ),
+      "SetPageBlocks",
+    );
+
+    expect(app.read("board/page.ts")).to.contain(
+      "dataApiController: ticketDataAPI",
+    );
+    const [block] = expectOk(
+      await GetPageStructure(PAGE),
+      "GetPageStructure",
+    ).blocks;
+    expect(block.editable, "the class reads back as the table").to.equal(true);
+    const [field] = (block.config ?? {}).fields as Array<{
+      type: { config: Record<string, unknown> };
+    }>;
+    expect(field.type.config.dataApiController).to.deep.equal({
+      $ref: { resource: "ticket" },
+    });
+  });
 });
+
+/** A form field over another table, as the panel writes one. */
+function relationTo(dataApiController: unknown): Record<string, unknown> {
+  return {
+    id: "ticket",
+    label: "Ticket",
+    type: {
+      $dataType: "relation",
+      config: { dataApiController, keyMapping: { label: "title" } },
+    },
+  };
+}

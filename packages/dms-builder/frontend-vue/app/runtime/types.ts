@@ -47,6 +47,7 @@ export interface OptionSchema {
 	ui?: OptionUi
 	'x-dataType'?: boolean
 	'x-component'?: boolean
+	'x-controller'?: boolean
 }
 
 export interface SlotDescriptor {

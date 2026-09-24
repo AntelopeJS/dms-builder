@@ -8,6 +8,7 @@ import {
 	fire,
 	installDocumentStub,
 	mount,
+	textOf,
 	type TestNode,
 } from './support/render'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
@@ -167,5 +168,57 @@ describe('a ranking read from a table', () => {
 			direction: 'desc',
 			limit: 5,
 		})
+	})
+
+})
+
+describe('an option handed a table', () => {
+	// What the catalog reports for a relation's `dataApiController`.
+	const schema: OptionSchema = { type: 'unknown', 'x-controller': true }
+
+	async function mountPicker(modelValue: unknown, written: unknown[]) {
+		backend.answers['GET /api/builder/resources'] = [
+			{ ref: 'order', className: 'Order', tableName: 'orders', route: '/api/order', fieldCount: 2 },
+			{ ref: 'customer', className: 'Customer', tableName: 'customers', route: '/api/customer', fieldCount: 3 },
+		]
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(Option, {
+			props: {
+				name: 'dataApiController',
+				schema,
+				modelValue,
+				'onUpdate:modelValue': (value: unknown) => written.push(value),
+			},
+		})
+		await nextTick()
+		return root
+	}
+
+	it('offers the tables to pick from, and writes a reference to the one picked', async () => {
+		const written: unknown[] = []
+		const root = await mountPicker(undefined, written)
+
+		const [picker] = findAll(root, (node) => node.tag === 'USelectMenu')
+		expect(
+			(picker!.props.items as Array<{ value: string }>).map((item) => item.value),
+		).toEqual(['order', 'customer'])
+		expect(
+			findAll(root, (node) => node.tag === 'UTextarea'),
+			'no JSON to type a class into',
+		).toHaveLength(0)
+		expect(
+			findAll(root, (node) => node.tag === 'label').map((node) => textOf(node)),
+		).toEqual(['Table *'])
+
+		write(picker!, 'customer')
+		expect(written).toEqual([{ $ref: { resource: 'customer' } }])
+	})
+
+	it('shows the table already written as the one picked', async () => {
+		const root = await mountPicker({ $ref: { resource: 'order' } }, [])
+
+		const [picker] = findAll(root, (node) => node.tag === 'USelectMenu')
+		expect(picker!.props['model-value']).toBe('order')
 	})
 })
