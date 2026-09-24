@@ -9,6 +9,7 @@ import {
 	fitsAsWell,
 	isRequired,
 	optionLabel,
+	seededDataTypes,
 	valueKind,
 	visibleNameKey,
 } from '../runtime/catalog'
@@ -238,7 +239,8 @@ function setItem(index: number, value: unknown): void {
  *
  * An entry the page renders is seeded with a name taken from the list itself,
  * so a form's third field arrives as “Field 3” rather than as a blank label
- * the author has to notice is there at all.
+ * the author has to notice is there at all — and as Text, until another type
+ * is chosen.
  */
 function blankItem(): unknown {
 	const items = props.schema.items
@@ -251,10 +253,16 @@ function blankItem(): unknown {
 		return ''
 	}
 	const entry = branches.length ? branches[branchOf(branches, {})] : items
-	const named = entry && visibleNameKey(entry)
-	return named
-		? { [named]: entryName(label.value, arrayValue.value.length + 1) }
-		: {}
+	if (!entry) {
+		return {}
+	}
+	const named = visibleNameKey(entry)
+	return {
+		...(named
+			? { [named]: entryName(label.value, arrayValue.value.length + 1) }
+			: {}),
+		...seededDataTypes(entry, session.value.catalog),
+	}
 }
 
 function addItem(): void {

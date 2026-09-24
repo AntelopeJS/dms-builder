@@ -480,9 +480,17 @@ describe('an option whose branches are all of one kind', () => {
 		await nextTick()
 
 		// Seeded as `''`, the entry was of a kind no branch could carry; seeded
-		// nameless, it rendered as a blank label in a column of them.
-		expect(fields()).toEqual([{ label: 'Field 1' }, { label: 'Field 2' }])
+		// nameless, it rendered as a blank label in a column of them; seeded
+		// untyped, it was a field the form could not be built with.
+		const text = { $dataType: 'string', config: {} }
+		expect(fields()).toEqual([
+			{ label: 'Field 1', type: text },
+			{ label: 'Field 2', type: text },
+		])
 		expect(branchButtons(root)).toHaveLength(4)
+		const [group, field] = branchButtons(root)
+		expect(field!.props.color, 'a typed entry reads as a field').toBe('primary')
+		expect(group!.props.color).toBe('neutral')
 	})
 
 	it('opens a blank entry on the branch that nests nothing', async () => {

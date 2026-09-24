@@ -71,6 +71,9 @@ export const BLOCK_GROUP_LABELS: Record<string, string> = {
 	other: 'Other',
 }
 
+/** The DataType a form's field starts as, until the author picks another: Text. */
+export const DEFAULT_DATA_TYPE = 'string'
+
 /**
  * What each built-in DataType is called in a Type menu. The id is how the
  * source spells it — `cascader_relation`, `string_time` — which says little to

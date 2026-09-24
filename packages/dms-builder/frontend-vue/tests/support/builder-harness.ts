@@ -194,7 +194,11 @@ export function testCatalog(): BlockCatalog {
 											optional: true,
 											ui: { label: 'Label' },
 										},
-										type: { type: 'string', ui: { label: 'Type' } },
+										type: {
+											type: 'unknown',
+											'x-dataType': true,
+											ui: { label: 'Type', widget: 'dataType' },
+										},
 										required: {
 											type: 'boolean',
 											optional: true,
@@ -229,7 +233,7 @@ export function testCatalog(): BlockCatalog {
 				defaults: { id: 'page' },
 			}),
 		],
-		dataTypes: [],
+		dataTypes: [{ id: 'string', config: {} }],
 		reservedFieldNames: ['_id'],
 		generatedAt: '2026-01-01T00:00:00.000Z',
 	}

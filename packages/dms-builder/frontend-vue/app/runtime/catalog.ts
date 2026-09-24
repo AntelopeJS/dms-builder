@@ -1,4 +1,9 @@
-import { BLOCK_GROUP_LABELS, DATA_TYPE_LABELS, OPTION_GROUPS } from './constants'
+import {
+	BLOCK_GROUP_LABELS,
+	DATA_TYPE_LABELS,
+	DEFAULT_DATA_TYPE,
+	OPTION_GROUPS,
+} from './constants'
 import type {
 	BlockCatalog,
 	ComponentPreview,
@@ -481,6 +486,31 @@ function singular(label: string): string {
  */
 export function entryName(listLabel: string, rank: number): string {
 	return `${singular(listLabel)} ${rank}`
+}
+
+/**
+ * The data types a fresh entry of a list starts with: Text, for each one the
+ * entry cannot do without.
+ *
+ * A form's field is read by its type before anything else — the form builds its
+ * validation from it — so a field added without one was a field the preview had
+ * to leave out, and a page that would not compile once saved. Text is what a
+ * field the author has said nothing about yet holds.
+ */
+export function seededDataTypes(
+	entry: OptionSchema,
+	catalog: BlockCatalog | null,
+): Record<string, unknown> {
+	if (!catalog?.dataTypes.some((type) => type.id === DEFAULT_DATA_TYPE)) {
+		return {}
+	}
+	const seeded: Record<string, unknown> = {}
+	for (const [key, schema] of Object.entries(entry.properties ?? {})) {
+		if (schema['x-dataType'] && isRequired(schema)) {
+			seeded[key] = { $dataType: DEFAULT_DATA_TYPE, config: {} }
+		}
+	}
+	return seeded
 }
 
 /** The alignment that keeps a stack's children as wide as the stack itself. */
