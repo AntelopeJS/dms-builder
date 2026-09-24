@@ -739,7 +739,13 @@ export function useBuilder(): BuilderController {
 
 	// The rail is reached through what you are doing, not through a tab strip:
 	// these views are opened from somewhere and hand control back to it.
-	const SUB_VIEWS = new Set<RailView>(['resource', 'query', 'json', 'pages'])
+	const SUB_VIEWS = new Set<RailView>([
+		'resource',
+		'query',
+		'json',
+		'pages',
+		'page',
+	])
 
 	function back(): void {
 		if (!SUB_VIEWS.has(session.value.view)) {
@@ -750,6 +756,11 @@ export function useBuilder(): BuilderController {
 		const table = session.value.table
 		if (session.value.view === 'resource' && table) {
 			session.value.table = table.adding ? { ...table, adding: false } : null
+			return
+		}
+		// A page's settings sit under the pages they are listed among.
+		if (session.value.view === 'page') {
+			setView('pages')
 			return
 		}
 		setView(session.value.selection ? 'config' : 'library')
@@ -1571,7 +1582,8 @@ export function useBuilder(): BuilderController {
 		if (!report(result, 'Page updated')) {
 			return
 		}
-		await reload()
+		// The pages panel lists the page by its order too.
+		await Promise.all([reload(), loadSiteTree()])
 	}
 
 	/**

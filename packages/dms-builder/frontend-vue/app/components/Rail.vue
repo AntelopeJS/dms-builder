@@ -8,7 +8,7 @@ const session = builder.session
 // A drawer that edits a table's fields or shows the whole page as JSON needs
 // room; the design gives those the wide rail.
 const WIDE_VIEWS = new Set(['resource', 'json'])
-const BACK_VIEWS = new Set(['resource', 'query', 'json', 'pages'])
+const BACK_VIEWS = new Set(['resource', 'query', 'json', 'pages', 'page'])
 
 const wide = computed(() => WIDE_VIEWS.has(session.value.view))
 const canGoBack = computed(() => BACK_VIEWS.has(session.value.view))
@@ -50,6 +50,19 @@ const tableHeading = computed<Heading>(() => {
 	}
 })
 
+// A page's settings are reached from the pages they are listed among.
+const pageHeading = computed<Heading>(() => {
+	const page = session.value.structure?.page
+	const title =
+		(session.value.draft?.page?.displayName as string | undefined) ??
+		page?.displayName
+	return {
+		trail: ['Pages'],
+		title: title || 'Page',
+		subtitle: page ? `Page settings · ${page.ref}` : 'Page settings',
+	}
+})
+
 const heading = computed<Heading>(() => {
 	const headings: Record<string, Heading> = {
 		library: {
@@ -64,7 +77,7 @@ const heading = computed<Heading>(() => {
 				? `#${builder.selected.value.name}`
 				: 'Nothing selected',
 		},
-		page: { title: 'Page', subtitle: 'Title, description and icon' },
+		page: pageHeading.value,
 		pages: { title: 'Pages', subtitle: 'Pages and categories of the project' },
 		resource: tableHeading.value,
 		query: { title: 'Queries', subtitle: session.value.pageRef ?? '' },

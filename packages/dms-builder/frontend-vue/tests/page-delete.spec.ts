@@ -49,12 +49,16 @@ const ORDERS = summary('/shop/orders', 'shop')
 
 const PAGES = 'GET /api/builder/pages'
 
-function trashes(root: TestNode): TestNode[] {
-	return findAll(
+function trash(root: TestNode, name: string): TestNode {
+	const [button] = findAll(
 		root,
 		(node) =>
-			node.tag === 'UButton' && node.props['aria-label'] === 'Delete the page',
+			node.tag === 'UButton' && node.props['aria-label'] === `Delete ${name}`,
 	)
+	if (!button) {
+		throw new Error(`no trash beside ${name}`)
+	}
+	return button
 }
 
 function confirmation(root: TestNode): TestNode {
@@ -105,7 +109,7 @@ describe('deleting a page from the pages panel', () => {
 		})
 		await settle()
 
-		fire(trashes(root)[1] as TestNode, 'click')
+		fire(trash(root, 'Totals'), 'click')
 		await nextTick()
 		expect(deletions(), 'the trash only asks').toEqual([])
 		expect(textOf(root)).toContain('Delete Totals?')
@@ -124,7 +128,7 @@ describe('deleting a page from the pages panel', () => {
 		})
 		await settle()
 
-		fire(trashes(root)[1] as TestNode, 'click')
+		fire(trash(root, 'Totals'), 'click')
 		await nextTick()
 		const [keep] = findAll(
 			root,

@@ -19,7 +19,11 @@ const canRedo = computed(() => session.value.future.length > 0)
 		<UButton
 			icon="i-ph-tree-view"
 			size="xs"
-			:color="session.view === 'pages' ? 'primary' : 'neutral'"
+			:color="
+				session.view === 'pages' || session.view === 'page'
+					? 'primary'
+					: 'neutral'
+			"
 			variant="ghost"
 			label="Pages"
 			title="Pages and categories of the project"

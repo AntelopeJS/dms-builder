@@ -75,20 +75,23 @@ async function leaveDeletedPage(): Promise<void> {
 
 <template>
 	<div
-		class="flex flex-col gap-2 rounded-md border border-error/40 bg-error/5 p-2.5"
+		class="flex flex-col gap-2.5 rounded-md border border-error/40 bg-error/5 p-2.5"
 	>
-		<p class="text-xs text-toned">
+		<p class="text-xs leading-relaxed text-toned">
 			Delete
 			<span class="font-medium text-highlighted">{{ page.displayName }}</span>?
 			The page leaves the project, with the routes it declares and the
 			queries only it reads.
-			<span class="font-medium">The builder cannot undo this.</span>
 			<template v-if="open && builder.dirty.value">
 				Its unsaved changes go with it.
 			</template>
+			<span class="font-medium text-highlighted">
+				The builder cannot undo this.
+			</span>
 		</p>
-		<div class="flex gap-2">
+		<div class="flex gap-1.5">
 			<UButton
+				icon="i-ph-trash"
 				size="xs"
 				color="error"
 				:label="deleting ? 'Deleting…' : 'Delete the page'"

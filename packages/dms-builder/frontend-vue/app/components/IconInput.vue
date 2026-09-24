@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { ICON_PREFIXES, ICON_SEARCH_LIMIT, ICON_SEARCH_URL } from '../runtime/constants'
+import { computed } from 'vue'
+import { isBundledIcon, useIconSearch } from '../runtime/icon-search'
 
 const props = defineProps<{
 	modelValue?: string
@@ -9,63 +9,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [string | undefined] }>()
 
-const query = ref('')
-const results = ref<string[]>([])
-const searching = ref(false)
-const offline = ref(false)
-let debounce: ReturnType<typeof setTimeout> | undefined
+const { query, results, searching, offline, reset } = useIconSearch()
 
-// The frontend bundles Phosphor and Lucide only, so an icon from any other
-// collection would resolve to nothing. The search is scoped to those two rather
-// than offering names that cannot render.
-const known = computed(
-	() =>
-		!props.modelValue ||
-		ICON_PREFIXES.some((prefix) => props.modelValue?.startsWith(`i-${prefix}-`)),
-)
-
-/** `i-ph-house` → `{ prefixes: "ph", query: "house" }`, else a plain search. */
-function searchParams(text: string): { prefixes: string; query: string } {
-	const bare = text.replace(/^i-/, '')
-	const prefix = ICON_PREFIXES.find((entry) => bare.startsWith(`${entry}-`))
-	return {
-		prefixes: prefix ?? ICON_PREFIXES.join(','),
-		query: prefix ? bare.slice(prefix.length + 1) : bare,
-	}
-}
-
-async function search(text: string): Promise<void> {
-	const params = searchParams(text.trim())
-	if (params.query.length < 2) {
-		results.value = []
-		return
-	}
-	searching.value = true
-	try {
-		const url = `${ICON_SEARCH_URL}?query=${encodeURIComponent(params.query)}&prefixes=${params.prefixes}&limit=${ICON_SEARCH_LIMIT}`
-		const answer = (await $fetch<{ icons?: string[] }>(url)) ?? {}
-		results.value = (answer.icons ?? []).map(
-			(name) => `i-${name.replace(':', '-')}`,
-		)
-		offline.value = false
-	} catch {
-		// Searching needs the Iconify API; typing a name by hand does not.
-		results.value = []
-		offline.value = true
-	} finally {
-		searching.value = false
-	}
-}
-
-watch(query, (text) => {
-	clearTimeout(debounce)
-	debounce = setTimeout(() => void search(text), 250)
-})
+const known = computed(() => isBundledIcon(props.modelValue))
 
 function pick(name: string): void {
 	emit('update:modelValue', name)
-	query.value = ''
-	results.value = []
+	reset()
 }
 </script>
 

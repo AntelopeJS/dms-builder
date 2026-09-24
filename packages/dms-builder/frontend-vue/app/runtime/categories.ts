@@ -7,6 +7,15 @@ export interface CategoryOption {
 }
 
 /**
+ * The route a category puts its pages under: `pages.shop.reports` answers at
+ * `/shop/reports`, and the root category at `/`.
+ */
+export function categoryRoute(ref: string): string {
+	const slug = ref.replace(/^pages\.?/, '').replace(/\./g, '/')
+	return slug ? `/${slug}` : ''
+}
+
+/**
  * The categories as a menu reads them: in tree order, labelled by display name
  * and indented by depth.
  *

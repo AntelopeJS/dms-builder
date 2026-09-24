@@ -273,6 +273,9 @@ export interface PageSummary {
 	displayName: string
 	category: string
 	filepath: string
+	icon?: string
+	order?: number
+	hidden?: boolean
 }
 
 export interface CategorySummary {
