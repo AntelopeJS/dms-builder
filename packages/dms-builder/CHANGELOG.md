@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.0...v0.2.1)
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.1.1 ([7e7a7fd](https://github.com/AntelopeJS/dms-builder/commit/7e7a7fd))
+
 ## v0.2.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.1.3...v0.2.0)
