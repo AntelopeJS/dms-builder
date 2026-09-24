@@ -91,6 +91,15 @@ export type RailView =
 	| 'resource'
 	| 'query'
 
+export type TableTab = 'fields' | 'api' | 'settings'
+
+/** Where the Tables view stands inside a table: which tab, or a field being added. */
+export interface TableFocus {
+	ref: string
+	tab: TableTab
+	adding: boolean
+}
+
 export type { DragPayload, DropTarget, DropWrap }
 
 /** A place in the draft a block is inserted at; a null index means the end. */
@@ -117,6 +126,8 @@ export interface BuilderSession {
 	future: PageDraft[]
 	selection: string | null
 	view: RailView
+	/** The table the Tables view has open; null is the list of every table. */
+	table: TableFocus | null
 	railOpen: boolean
 	preview: Record<string, ComponentPreview>
 	/** The page as the DMS serves it, for blocks the preview cannot build. */
@@ -190,6 +201,7 @@ function emptySession(): BuilderSession {
 		future: [],
 		selection: null,
 		view: 'library',
+		table: null,
 		railOpen: true,
 		preview: {},
 		served: {},
@@ -714,6 +726,12 @@ export function useBuilder(): BuilderController {
 	}
 
 	function setView(view: RailView): void {
+		if (view === 'resource') {
+			// Reached from a block that reads a table, the tables open on that
+			// one; from anywhere else, on the list of them.
+			const ref = selected.value?.controller
+			session.value.table = ref ? { ref, tab: 'fields', adding: false } : null
+		}
 		session.value.view = view
 		session.value.railOpen = true
 		session.value.menu = null
@@ -725,6 +743,13 @@ export function useBuilder(): BuilderController {
 
 	function back(): void {
 		if (!SUB_VIEWS.has(session.value.view)) {
+			return
+		}
+		// Inside the tables, back climbs one step: out of the field being
+		// added, then out of the table, to the list.
+		const table = session.value.table
+		if (session.value.view === 'resource' && table) {
+			session.value.table = table.adding ? { ...table, adding: false } : null
 			return
 		}
 		setView(session.value.selection ? 'config' : 'library')

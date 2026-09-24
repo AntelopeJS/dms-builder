@@ -1,9 +1,12 @@
 import {
 	BLOCK_GROUP_LABELS,
+	DATA_TYPE_GROUPS,
+	DATA_TYPE_ICONS,
 	DATA_TYPE_LABELS,
 	DEFAULT_DATA_TYPE,
 	LAYOUT_BLOCKS,
 	OPTION_GROUPS,
+	OTHER_DATA_TYPE_ICON,
 } from './constants'
 import type {
 	BlockCatalog,
@@ -459,12 +462,27 @@ export function suggestedName(type: string): string {
 export interface DataTypeItem {
 	label: string
 	value: string
+	icon: string
+}
+
+export interface DataTypeGroup {
+	label: string
+	items: DataTypeItem[]
 }
 
 /** `made_up` → `Made up`, for a DataType a project registered itself. */
 function spelledOut(id: string): string {
 	const words = id.replace(/_/g, ' ')
 	return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** A DataType as a menu shows it: its name and its icon. */
+export function dataTypeItem(id: string): DataTypeItem {
+	return {
+		label: DATA_TYPE_LABELS[id] ?? spelledOut(id),
+		value: id,
+		icon: DATA_TYPE_ICONS[id] ?? OTHER_DATA_TYPE_ICON,
+	}
 }
 
 /**
@@ -480,7 +498,26 @@ export function dataTypeItems(catalog: BlockCatalog | null): DataTypeItem[] {
 	return (catalog?.dataTypes ?? [])
 		.map((entry) => entry.id)
 		.sort((a, b) => rank(a) - rank(b))
-		.map((id) => ({ label: DATA_TYPE_LABELS[id] ?? spelledOut(id), value: id }))
+		.map(dataTypeItem)
+}
+
+/**
+ * The same DataTypes, by family. Only the ones the catalog serves are offered,
+ * a family left with none is dropped, and a type no family names joins the
+ * last one.
+ */
+export function dataTypeGroups(catalog: BlockCatalog | null): DataTypeGroup[] {
+	const served = dataTypeItems(catalog)
+	const named = new Set(DATA_TYPE_GROUPS.flatMap((group) => group.types))
+	const last = DATA_TYPE_GROUPS.length - 1
+	return DATA_TYPE_GROUPS.map((group, at) => ({
+		label: group.label,
+		items: served.filter(
+			(item) =>
+				group.types.includes(item.value) ||
+				(at === last && !named.has(item.value)),
+		),
+	})).filter((group) => group.items.length > 0)
 }
 
 /* ---- names the page shows --------------------------------------------- */

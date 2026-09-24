@@ -120,3 +120,89 @@ export const DATA_TYPE_LABELS: Record<string, string> = {
 	file: 'File',
 	image: 'Image',
 }
+
+/**
+ * The HTTP routes a table can serve, as its API tab switches them: the ones
+ * that read rows, then the ones that write them.
+ */
+export const TABLE_ROUTES: {
+	key: string
+	label: string
+	help: string
+	writes: boolean
+}[] = [
+	{
+		key: 'list',
+		label: 'List',
+		help: 'Rows of the table, paged, sorted and filtered.',
+		writes: false,
+	},
+	{ key: 'get', label: 'Read', help: 'One row, by its id.', writes: false },
+	{
+		key: 'select',
+		label: 'Option lists',
+		help: 'Rows offered when another table points at this one.',
+		writes: false,
+	},
+	{ key: 'export', label: 'Export', help: 'Rows as a CSV file.', writes: false },
+	{ key: 'create', label: 'Create', help: 'Add a row.', writes: true },
+	{ key: 'edit', label: 'Update', help: 'Change a row.', writes: true },
+	{ key: 'delete', label: 'Delete', help: 'Remove a row for good.', writes: true },
+	{
+		key: 'archive',
+		label: 'Archive',
+		help: 'Set a row aside without deleting it.',
+		writes: true,
+	},
+]
+
+/** The icon a DataType is shown with, beside its name or on its own. */
+export const DATA_TYPE_ICONS: Record<string, string> = {
+	string: 'i-ph-text-t',
+	rich_text: 'i-ph-text-align-left',
+	number: 'i-ph-hash',
+	price: 'i-ph-currency-circle-dollar',
+	percentage: 'i-ph-percent',
+	date: 'i-ph-calendar-blank',
+	string_time: 'i-ph-clock',
+	boolean: 'i-ph-toggle-right',
+	status: 'i-ph-tag',
+	select: 'i-ph-list-checks',
+	email: 'i-ph-envelope-simple',
+	phone: 'i-ph-phone',
+	url: 'i-ph-globe-simple',
+	color: 'i-ph-palette',
+	password: 'i-ph-key',
+	relation: 'i-ph-link-simple',
+	cascader_relation: 'i-ph-stack',
+	tree: 'i-ph-tree-structure',
+	address: 'i-ph-map-pin',
+	permissions: 'i-ph-shield-check',
+	file: 'i-ph-file',
+	image: 'i-ph-image',
+}
+
+/** The icon of a DataType a project registered itself. */
+export const OTHER_DATA_TYPE_ICON = 'i-ph-dots-three-circle'
+
+/**
+ * The families a new field's type is picked from. Twenty-odd types in one
+ * list read as a wall; grouped by what the column holds, the one wanted is
+ * found by where it would be. A type no family names lands in the last one.
+ */
+export const DATA_TYPE_GROUPS: { label: string; types: string[] }[] = [
+	{
+		label: 'Text',
+		types: ['string', 'rich_text', 'email', 'phone', 'url', 'password'],
+	},
+	{
+		label: 'Numbers and time',
+		types: ['number', 'price', 'percentage', 'date', 'string_time'],
+	},
+	{ label: 'Choices', types: ['boolean', 'status', 'select', 'color'] },
+	{
+		label: 'Links to other tables',
+		types: ['relation', 'cascader_relation', 'tree'],
+	},
+	{ label: 'Other', types: ['address', 'file', 'image', 'permissions'] },
+]
