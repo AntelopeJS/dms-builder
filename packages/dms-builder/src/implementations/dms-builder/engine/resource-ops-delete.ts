@@ -42,7 +42,7 @@ import {
 } from "./resource-emit-types";
 import { contentVersion } from "./page-structure";
 import { routeMapExpr, TABLE_VIEW_MODULE } from "./resource-emit";
-import { getExtendsCall } from "./scan";
+import { getExtendsCall } from "./literals";
 function resourceVersion(
   databaseFile: SourceFile,
   dataApiFile: SourceFile,

@@ -14,9 +14,8 @@ import {
   type SourceFile,
   SyntaxKind,
 } from "ts-morph";
-import { stringLiteralValue } from "./literals";
+import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
 import { createProject, resolveProjectRoot } from "./project";
-import { getCalleeName, getExtendsCall } from "./scan";
 
 let writable: Project | undefined;
 

@@ -16,7 +16,7 @@ import {
 import { blockDescriptor } from "./catalog";
 import { resolveAndUnwrap, resolveExpr, unwrapBuilderChain } from "./chain";
 import { applyImportRef, blockCallText, childArgText } from "./emit";
-import { stringLiteralValue } from "./literals";
+import { getExtendsCall, stringLiteralValue } from "./literals";
 import {
   applyPatch,
   checkVersion,
@@ -31,7 +31,6 @@ import { contentVersion } from "./page-structure";
 import { syncQueries } from "./query-sync";
 import { validateDraft } from "./page-draft-validation";
 import { resourceRefResolver } from "./resource-index";
-import { getExtendsCall } from "./scan";
 import {
   createImportCollector,
   type EmitContext,

@@ -11,6 +11,8 @@ import {
 import { objectLiteralToValue } from "./config-literal";
 import {
   getBooleanProperty,
+  getCalleeName,
+  getExtendsCall,
   getIdentifierProperty,
   getNumberProperty,
   getObjectProperty,
@@ -67,22 +69,6 @@ export function joinSlug(parentSlug: string, urlSlug: string): string {
     return collapsed.slice(0, -1);
   }
   return collapsed;
-}
-
-export function getCalleeName(call: CallExpression): string | undefined {
-  const expr = call.getExpression();
-  return Node.isIdentifier(expr) ? expr.getText() : undefined;
-}
-
-export function getExtendsCall(
-  cls: ClassDeclaration,
-): CallExpression | undefined {
-  const ext = cls.getExtends();
-  if (!ext) {
-    return undefined;
-  }
-  const expr = ext.getExpression();
-  return Node.isCallExpression(expr) ? expr : undefined;
 }
 
 /**

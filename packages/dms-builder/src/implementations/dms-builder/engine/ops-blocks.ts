@@ -21,7 +21,7 @@ import {
   pascalCase,
   relativeModule,
 } from "./emit";
-import { stringLiteralValue } from "./literals";
+import { getExtendsCall, stringLiteralValue } from "./literals";
 import { parseBlockPath, valueToText } from "./paths";
 import { indentationText, resolveProjectRoot } from "./project";
 import {
@@ -37,7 +37,7 @@ import {
   planCategoryMove,
 } from "./page-category-move";
 import { resourceRefResolver } from "./resource-index";
-import { type CategoryRecord, getExtendsCall, joinSlug } from "./scan";
+import { type CategoryRecord, joinSlug } from "./scan";
 import {
   findCategoryRecord,
   findPageRecord,

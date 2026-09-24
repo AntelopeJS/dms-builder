@@ -10,7 +10,7 @@ import {
   type Project,
   type SourceFile,
 } from "ts-morph";
-import { stringLiteralValue } from "./literals";
+import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
 import {
   createProject,
   resolveProjectRoot,
@@ -18,7 +18,6 @@ import {
   stampSources,
 } from "./project";
 import { CORE_SCHEMA_NAME_VALUE, routesFromRouteMap } from "./resource-emit";
-import { getCalleeName, getExtendsCall } from "./scan";
 import { type EmitContext, UnknownReferenceError } from "./value";
 
 export const CORE_SCHEMA_IDENTIFIER = "CORE_SCHEMA_NAME";
