@@ -1,4 +1,8 @@
+import { Get } from "@antelopejs/interface-api";
+import { Model } from "@antelopejs/interface-database-decorators";
+import { User } from "@antelopejs/interface-dms/auth/db";
 import { DefaultDataTypes } from "@antelopejs/interface-dms/base/data-types/default-types";
+import { AuthUserWithPermission } from "@antelopejs/interface-dms/guards";
 import {
   Category,
   PageController,
@@ -8,13 +12,19 @@ import {
 import {
   ChartArea,
   ChartCard,
+  ChartCardData,
+  ChartColumn,
   Form,
   PeriodSelector,
   Placeholder,
+  ResourceForm,
   Tab,
   VStack,
+  chartCardData,
 } from "@antelopejs/interface-dms/base";
 import { Grid, GridRow } from "@antelopejs/interface-dms/base/grid";
+import { orderDataAPI } from "../order/data-api";
+import { OrderModel } from "../order/database";
 
 export const shopCategory = Category("shop", {
   displayName: "Shop",
@@ -80,4 +90,22 @@ export class PageShopBoard extends PageController("board", {
     showDelta: true,
     chart: ChartArea({ xaxisType: "category", smooth: true }),
   })));
+  static chartCard = ChartCard({
+    title: "Orders by status",
+    chart: ChartColumn(),
+    fetchUrl: "/shop/board/stats/chart-card",
+  });
+  static resourceForm = ResourceForm(orderDataAPI, {
+    mode: "new",
+    title: "New order",
+    submitLabel: "Submit",
+    successMessage: "Order created",
+  });
+  @Get("/stats/chart-card")
+  async chartCard(
+    @AuthUserWithPermission(PageShopBoard) _user: User,
+    @Model(OrderModel) model: OrderModel,
+  ): Promise<ChartCardData> {
+    return chartCardData(await model.chartCard(), { measure: "count", label: "order" });
+  }
 }

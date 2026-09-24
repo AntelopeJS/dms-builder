@@ -53,4 +53,10 @@ export class Order extends Table {
   @Index() @Field("date") declare createdAt: Date;
 }
 
-export class OrderModel extends BasicDataModel(Order, ORDERS_TABLE) {}
+export class OrderModel extends BasicDataModel(Order, ORDERS_TABLE) {
+  chartCard() {
+    return this.table
+      .group("status", (rows, group) => ({ x: group, y: rows.count() }))
+      .orderBy("x", "asc");
+  }
+}
