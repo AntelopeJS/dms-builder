@@ -68,6 +68,9 @@ export function listPageSummaries(): PageSummary[] {
     category: page.categoryRef,
     moduleId: page.moduleId,
     filepath: page.filepath,
+    icon: page.icon,
+    order: page.order,
+    hidden: page.hidden,
   }));
 }
 

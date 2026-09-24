@@ -134,6 +134,27 @@ describe("the page lifecycle", () => {
       expect(page.description).to.equal("Every order placed");
     });
 
+    it("is listed with its icon, its rank and whether the menu hides it", async function () {
+      this.timeout(OP_TIMEOUT);
+      expectOk(
+        await ConfigurePage("/shop/orders", {
+          icon: "i-ph-receipt",
+          order: 3,
+          hidden: true,
+        }),
+        "ConfigurePage",
+      );
+
+      const listed = (await ListPages()).find(
+        (page) => page.ref === "/shop/orders",
+      );
+      expect(listed).to.include({
+        icon: "i-ph-receipt",
+        order: 3,
+        hidden: true,
+      });
+    });
+
     it("is deleted with its folder, its barrel entry and the method behind its query", async function () {
       this.timeout(OP_TIMEOUT);
       expectOk(
