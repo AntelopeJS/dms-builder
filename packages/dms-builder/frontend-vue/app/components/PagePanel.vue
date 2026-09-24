@@ -23,6 +23,7 @@ const categories = computed(() => categoryOptions(session.value.categories))
 // The category a move is being confirmed for; null when none is pending.
 const moveTo = ref<string | null>(null)
 const moving = ref(false)
+const confirmingDelete = ref(false)
 
 /** The route the page would answer on under `category`. */
 const nextRoute = computed(() => {
@@ -192,5 +193,21 @@ async function confirmMove(): Promise<void> {
 			Declared in
 			<code>{{ meta.filepath.split('/').slice(-3).join('/') }}</code>
 		</p>
+
+		<DmsBuilderPageDelete
+			v-if="confirmingDelete"
+			:page="meta"
+			@close="confirmingDelete = false"
+		/>
+		<UButton
+			v-else
+			icon="i-ph-trash"
+			size="xs"
+			color="error"
+			variant="soft"
+			label="Delete the page"
+			class="self-start"
+			@click="confirmingDelete = true"
+		/>
 	</div>
 </template>

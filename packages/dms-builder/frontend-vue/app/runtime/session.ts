@@ -303,7 +303,7 @@ export interface BuilderController {
 	loadSiteTree: () => Promise<void>
 	createPage: (input: CreatePageInput) => Promise<string | undefined>
 	createCategory: (input: CreateCategoryInput) => Promise<void>
-	deletePage: (ref: string) => Promise<void>
+	deletePage: (ref: string) => Promise<boolean>
 	deleteCategory: (ref: string) => Promise<void>
 	configureField: (path: string, patch: Record<string, unknown>) => Promise<void>
 	configureResource: (resource: string, routes: string[]) => Promise<void>
@@ -1443,12 +1443,29 @@ export function useBuilder(): BuilderController {
 		await loadSiteTree()
 	}
 
-	async function deletePage(ref: string): Promise<void> {
+	/**
+	 * Delete a page, and answer whether it went. The caller moves off it when
+	 * it was the one open: which page to show instead is a navigation, and the
+	 * router is the caller's.
+	 */
+	async function deletePage(ref: string): Promise<boolean> {
 		const result = await api.deletePage(ref)
 		if (!report(result, 'Page deleted')) {
-			return
+			return false
+		}
+		if (session.value.pageRef === ref) {
+			// The draft edits a file that is gone. Kept, it would offer a Save
+			// that has nothing to write to, and stop the move off the page to
+			// ask about changes nobody can keep.
+			clearTimeout(previewTimer)
+			session.value.draft = null
+			session.value.baseline = null
+			session.value.structure = null
+			session.value.selection = null
+			session.value.loading = true
 		}
 		await loadSiteTree()
+		return true
 	}
 
 	async function deleteCategory(ref: string): Promise<void> {

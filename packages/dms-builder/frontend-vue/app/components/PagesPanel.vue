@@ -21,6 +21,8 @@ const router = useRouter()
 const devReload = useDmsDevReload()
 
 const creating = ref<'page' | 'category' | null>(null)
+// The page a deletion is being confirmed for; null when none is pending.
+const deleting = ref<string | null>(null)
 const renaming = ref<string | null>(null)
 const renameDraft = ref({ displayName: '', icon: '', order: 0 })
 const draft = ref({
@@ -341,36 +343,46 @@ async function write(): Promise<void> {
 						@click="builder.deleteCategory(category.ref)"
 					/>
 				</div>
-				<div
-					v-for="page in category.pages"
-					:key="page.ref"
-					class="group flex items-center gap-2 rounded-md pr-1 transition-colors"
-					:class="
-						session.pageRef === page.ref
-							? 'bg-primary/10 text-primary'
-							: 'text-muted hover:bg-elevated'
-					"
-				>
-					<button
-						type="button"
-						class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs"
-						:style="{ paddingLeft: `${category.depth * 12 + 20}px` }"
-						@click="router.push(page.ref)"
+				<template v-for="page in category.pages" :key="page.ref">
+					<div
+						class="group flex items-center gap-2 rounded-md pr-1 transition-colors"
+						:class="
+							session.pageRef === page.ref
+								? 'bg-primary/10 text-primary'
+								: 'text-muted hover:bg-elevated'
+						"
 					>
-						<UIcon name="i-ph-file" class="size-3.5 shrink-0" />
-						<span class="truncate font-medium">{{ page.displayName }}</span>
-						<span class="truncate opacity-60">{{ page.ref }}</span>
-					</button>
-					<UButton
-						icon="i-ph-trash"
-						size="xs"
-						color="error"
-						variant="ghost"
-						class="opacity-0 group-hover:opacity-100"
-						aria-label="Delete the page"
-						@click.stop="builder.deletePage(page.ref)"
+						<button
+							type="button"
+							class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs"
+							:style="{ paddingLeft: `${category.depth * 12 + 20}px` }"
+							@click="router.push(page.ref)"
+						>
+							<UIcon name="i-ph-file" class="size-3.5 shrink-0" />
+							<span class="truncate font-medium">{{ page.displayName }}</span>
+							<span class="truncate opacity-60">{{ page.ref }}</span>
+						</button>
+						<UButton
+							icon="i-ph-trash"
+							size="xs"
+							color="error"
+							variant="ghost"
+							:class="
+								deleting === page.ref
+									? 'opacity-100'
+									: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+							"
+							aria-label="Delete the page"
+							@click.stop="deleting = page.ref"
+						/>
+					</div>
+					<DmsBuilderPageDelete
+						v-if="deleting === page.ref"
+						:page="page"
+						:style="{ marginLeft: `${category.depth * 12 + 20}px` }"
+						@close="deleting = null"
 					/>
-				</div>
+				</template>
 			</template>
 			<p v-if="!tree.length" class="text-sm text-dimmed">
 				No category yet.
