@@ -18,6 +18,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { invalidConfig, notFound, unsupported } from "./ops";
 import {
+  isPerTenantSchema,
   outputForTemplate,
   RESPONSE_HELPERS,
   RESPONSE_KEYS,
@@ -46,6 +47,21 @@ export interface PreviewRequest {
    * table per tenant, and reading the wrong one is worse than reading none.
    */
   tenant?: string;
+}
+
+/**
+ * The instance a preview reads: the one the saved route's model resolves to.
+ *
+ * Only a per-tenant schema is read at the request's tenant. A table in any
+ * other has a single, shared instance, and asking it for the tenant's instance
+ * reads an empty one — every preview then answered "no rows" over a table full
+ * of them.
+ */
+export function previewInstance(
+  schema: string,
+  tenant: string | undefined,
+): string | undefined {
+  return isPerTenantSchema(schema) ? tenant : undefined;
 }
 
 /**
@@ -234,7 +250,11 @@ export async function runQueryPreview(
   if (!structure.ok) {
     return structure as OpResult<QueryPreview>;
   }
-  const table = openTable(record.schema, record.tableName, request.tenant);
+  const table = openTable(
+    record.schema,
+    record.tableName,
+    previewInstance(record.schema, request.tenant),
+  );
   if (!table) {
     // No database wired, or a schema the app never registered: a preview cannot
     // invent rows, and saying so beats an empty chart the caller reads as data.

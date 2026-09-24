@@ -237,7 +237,12 @@ export function parseQueryRef(
  * plain `Model` provider or every query returns zero rows.
  */
 export function modelDecoratorFor(schema: string): string {
-  return schema === TENANT_SCHEMA_NAME_VALUE ? "TenantScopedModel" : "Model";
+  return isPerTenantSchema(schema) ? "TenantScopedModel" : "Model";
+}
+
+/** Whether a schema holds one instance of its tables per tenant. */
+export function isPerTenantSchema(schema: string): boolean {
+  return schema === TENANT_SCHEMA_NAME_VALUE;
 }
 
 function methodParamText(param: MethodParam): string {

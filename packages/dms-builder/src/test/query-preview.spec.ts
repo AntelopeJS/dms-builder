@@ -1,5 +1,8 @@
 import { expect } from "chai";
-import { runPlanPreview } from "../implementations/dms-builder/engine/query-preview";
+import {
+  previewInstance,
+  runPlanPreview,
+} from "../implementations/dms-builder/engine/query-preview";
 import type { PlanStream } from "../implementations/dms-builder/engine/query-plan-execute";
 import { registerBuiltinQueryTemplates } from "../implementations/dms-builder/engine/query-template-emit";
 import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
@@ -234,5 +237,14 @@ describe("previewing a query", () => {
         "relation does not exist",
       );
     }
+  });
+
+  it("reads the instance the saved route's model would", () => {
+    // A per-tenant table is read where the request's tenant keeps its rows.
+    expect(previewInstance("dms-tenant", "acme")).to.equal("acme");
+    // Any other has one shared instance: reading it at the tenant's reads none.
+    expect(previewInstance("dms-builder-playground", "default")).to.equal(
+      undefined,
+    );
   });
 });
