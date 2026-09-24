@@ -88,7 +88,7 @@ function readPermission(
     : undefined;
 }
 
-export class SourceScanner {
+class SourceScanner {
   private readonly pages = new Map<string, PageRecord>();
   private readonly categories = new Map<string, CategoryRecord>();
   private readonly byDecl = new Map<Node, CategoryRecord>();

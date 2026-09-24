@@ -143,7 +143,7 @@ function findModelClass(
   return undefined;
 }
 
-export class ResourceScanner {
+class ResourceScanner {
   private readonly records = new Map<string, ResourceRecord>();
 
   constructor(private readonly project: Project) {}
@@ -239,7 +239,7 @@ export function findResourceRecord(ref: string): ResourceRecord | undefined {
   return getResourceIndex().get(ref);
 }
 
-export function listResourceRecords(): ResourceRecord[] {
+function listResourceRecords(): ResourceRecord[] {
   return Array.from(getResourceIndex().values());
 }
 

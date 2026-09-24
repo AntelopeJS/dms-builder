@@ -16,8 +16,8 @@ import { decoratorImport } from "./resource-emit-types";
  * may put a query at any path, and read-back finds queries by their shape, not by
  * where they sit.
  */
-export const DEFAULT_ENDPOINT_PREFIX = "/stats/";
-export const TENANT_SCHEMA_NAME_VALUE = "dms-tenant";
+const DEFAULT_ENDPOINT_PREFIX = "/stats/";
+const TENANT_SCHEMA_NAME_VALUE = "dms-tenant";
 
 /**
  * How a route hands back what the model computed.
@@ -208,7 +208,7 @@ function words(value: string): string[] {
     .map((part) => part.toLowerCase());
 }
 
-export function kebab(value: string): string {
+function kebab(value: string): string {
   return words(value).join("-");
 }
 
@@ -236,7 +236,7 @@ export function parseQueryRef(
  * table registered in a per-tenant schema; a core-schema table must use the
  * plain `Model` provider or every query returns zero rows.
  */
-export function modelDecoratorFor(schema: string): string {
+function modelDecoratorFor(schema: string): string {
   return isPerTenantSchema(schema) ? "TenantScopedModel" : "Model";
 }
 

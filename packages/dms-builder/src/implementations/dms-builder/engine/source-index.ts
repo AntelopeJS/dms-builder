@@ -29,7 +29,7 @@ let stamps: Map<string, number> | undefined;
  * before it checks, so a scan that does not would refuse every save as `stale`
  * against a file the builder itself was never shown.
  */
-export function getSourceIndex(): ScanResult {
+function getSourceIndex(): ScanResult {
   if (cached && stamps && !sourcesChanged(stamps)) {
     return cached;
   }

@@ -31,7 +31,7 @@ function buildOpaque(
 }
 
 /** The `.child()` third argument, split into its `slot` and the rest. */
-export function readChildMeta(metaArg: Node | undefined): {
+function readChildMeta(metaArg: Node | undefined): {
   slot?: string;
   meta?: Record<string, unknown>;
 } {
@@ -71,7 +71,7 @@ interface BlockNodeMeta {
   meta?: Record<string, unknown>;
 }
 
-export function buildBlockNode(
+function buildBlockNode(
   name: string,
   expr: Expression,
   path: string,

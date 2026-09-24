@@ -23,7 +23,7 @@ export const FILTER_OPS = new Set<FilterOp>([
  * parameter is identified by its *model-method* name — where the route sources
  * it is the route's business, resolved separately on read-back.
  */
-export type RawValue =
+type RawValue =
   | { kind: "literal"; value: unknown }
   | { kind: "param"; name: string };
 
@@ -34,7 +34,7 @@ export interface RawFilter {
 }
 
 /** A model method's body decomposed into `this.table.filter(...)*.<terminal>(...)`. */
-export interface RawChain {
+interface RawChain {
   filters: RawFilter[];
   terminalName: string;
   terminalArgs: Node[];
