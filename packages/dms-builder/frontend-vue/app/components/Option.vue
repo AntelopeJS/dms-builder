@@ -7,6 +7,7 @@ import {
 	descriptorOf,
 	entryName,
 	fitsAsWell,
+	heldBlockOptions,
 	isRequired,
 	optionLabel,
 	seededDataTypes,
@@ -40,6 +41,11 @@ const props = defineProps<{
 	 * field's default takes the input the field's own type calls for.
 	 */
 	typedAs?: unknown
+	/**
+	 * Whether the object holding this option is itself left unset: a bound of a
+	 * range nobody asked for is not one the page is missing.
+	 */
+	parentUnset?: boolean
 	/**
 	 * Where the entries of a list come from when it does not add them itself,
 	 * said in place of its buttons: a form saving into a table asks for the
@@ -90,6 +96,7 @@ const required = computed(() => isRequired(props.schema))
 const unfilled = computed(
 	() =>
 		required.value &&
+		!props.parentUnset &&
 		(props.modelValue === undefined ||
 			props.modelValue === null ||
 			props.modelValue === ''),
@@ -314,6 +321,16 @@ const colorText = computed(() =>
 const isSwitch = computed(
 	() => widget.value === 'switch' || widget.value === 'boolean',
 )
+/**
+ * Whether the switch reads on. Left unset, it reads what the block does
+ * without it: a table offers deleting rows unless it is turned off, and a
+ * switch showing that off tells its author the table is safe when it is not.
+ */
+const switchOn = computed(() =>
+	props.modelValue === undefined
+		? props.schema.default === true
+		: props.modelValue === true,
+)
 
 const objectValue = computed(
 	() => (props.modelValue ?? {}) as Record<string, unknown>,
@@ -500,6 +517,9 @@ const blockValue = computed(
 
 const blockSchema = computed(
 	() => descriptorOf(session.value.catalog, blockValue.value.type)?.config ?? {},
+)
+const blockOptions = computed(() =>
+	heldBlockOptions(props.schema, blockSchema.value, advanced.value),
 )
 
 function setBlockType(type: unknown): void {
@@ -689,7 +709,7 @@ const nestedProperties = computed(() =>
 		:class="separated ? 'border-t border-default' : ''"
 	>
 		<USwitch
-			:model-value="modelValue === true"
+			:model-value="switchOn"
 			class="mt-0.5 shrink-0"
 			@update:model-value="set($event)"
 		/>
@@ -907,13 +927,11 @@ const nestedProperties = computed(() =>
 				@update:model-value="setBlockType($event)"
 			/>
 			<div
-				v-if="Object.keys(blockSchema).length"
+				v-if="blockOptions.length"
 				class="flex flex-col gap-3 border-l border-default pl-3"
 			>
 				<DmsBuilderOption
-					v-for="[key, nested] in Object.entries(blockSchema).filter(
-						([, entry]) => !entry.ui?.hidden,
-					)"
+					v-for="[key, nested] in blockOptions"
 					:key="key"
 					:name="key"
 					:schema="nested"
@@ -1069,6 +1087,7 @@ const nestedProperties = computed(() =>
 				:schema="nested"
 				:model-value="objectValue[key]"
 				:typed-as="nested.ui?.typedBy ? objectValue[nested.ui.typedBy] : undefined"
+				:parent-unset="modelValue === undefined"
 				:resource="resource"
 				@update:model-value="setProperty(key, $event)"
 			/>

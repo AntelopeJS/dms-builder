@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 import type {
 	AddQueryInput,
@@ -26,6 +27,8 @@ const emit = defineEmits<{
 
 const builder = useBuilder()
 const session = builder.session
+// The route the source is served at is for whoever reads the code.
+const { advanced } = useBuilderMode()
 
 /** Measures a source can take, in the order someone reaches for them. */
 const MEASURES = [
@@ -585,7 +588,9 @@ watch(
 				</template>
 			</div>
 
-			<p class="truncate font-mono text-xs text-dimmed">{{ endpoint }}</p>
+			<p v-if="advanced" class="truncate font-mono text-xs text-dimmed">
+				{{ endpoint }}
+			</p>
 		</template>
 	</div>
 </template>

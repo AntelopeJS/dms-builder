@@ -14,6 +14,8 @@ export interface OptionUi {
 	step?: number
 	scope?: string
 	blockTypes?: string[]
+	/** The options of the held block that the block holding it supplies. */
+	supplies?: string[]
 	flatten?: boolean
 	// One option may need several: a Kanban groups by a field it both reads
 	// off the listed row and filters each column with.

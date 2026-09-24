@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
+	ADVANCED_OPTION_GROUP,
 	descriptorOf,
 	missingConfig,
 	optionGroups,
@@ -43,7 +44,6 @@ interface RenderedGroup {
 	options: RenderedOption[]
 }
 
-const ADVANCED_GROUP = 'advanced'
 /**
  * The block that has a search bar. Every block reading a table shares its
  * fields, but a form over one has nothing to search, and a picker there would
@@ -270,11 +270,11 @@ function setOptIn(entry: RenderedOptIn, on: boolean): void {
 }
 
 const plainGroups = computed(() =>
-	groups.value.filter((group) => group.id !== ADVANCED_GROUP),
+	groups.value.filter((group) => group.id !== ADVANCED_OPTION_GROUP),
 )
 const advanced = computed(() =>
 	advancedMode.value
-		? groups.value.find((group) => group.id === ADVANCED_GROUP)
+		? groups.value.find((group) => group.id === ADVANCED_OPTION_GROUP)
 		: undefined,
 )
 

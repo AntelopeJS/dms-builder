@@ -45,6 +45,8 @@ export interface OptionGroup {
 
 const DEFAULT_OPTION_GROUP = 'content'
 const UNGROUPED = 'other'
+/** The group a block files what only a developer sets under. */
+export const ADVANCED_OPTION_GROUP = 'advanced'
 
 export function descriptorOf(
 	catalog: BlockCatalog | null,
@@ -176,6 +178,33 @@ export function optionGroups(
 			(a, b) => (a.schema.ui?.order ?? 0) - (b.schema.ui?.order ?? 0),
 		),
 	}))
+}
+
+/**
+ * The options of a block held by another's `block` option, as the panel offers
+ * them.
+ *
+ * Never one the holder supplies itself: a card fetches and heads the chart it
+ * wraps, so a source set on that chart does nothing — and, named after the
+ * card, it would replace the card's own. In the simple mode, never one a
+ * developer sets either, which the panel leaves out of a block's own options
+ * the same way.
+ */
+export function heldBlockOptions(
+	holder: OptionSchema,
+	config: Record<string, OptionSchema>,
+	advanced: boolean,
+): Array<[string, OptionSchema]> {
+	const supplied = new Set(holder.ui?.supplies ?? [])
+	return Object.entries(config).filter(
+		([key, schema]) =>
+			!schema.ui?.hidden &&
+			!supplied.has(key) &&
+			(advanced ||
+				(schema.ui?.group !== ADVANCED_OPTION_GROUP &&
+					!schema.ui?.advanced &&
+					!schema.ui?.derivedFrom)),
+	)
 }
 
 export function optionLabel(key: string, schema: OptionSchema): string {

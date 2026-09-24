@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { nextTick, type Component } from 'vue'
 import DataSource from '../app/components/DataSource.vue'
 import Option from '../app/components/Option.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
@@ -8,6 +8,7 @@ import {
 	fire,
 	installDocumentStub,
 	mount,
+	stub,
 	textOf,
 	type TestNode,
 } from './support/render'
@@ -562,5 +563,130 @@ describe('a default typed by the field it belongs to', () => {
 		const { root } = defaultOf(as('relation'))
 		await nextTick()
 		expect(findAll(root, (node) => node.tag === 'UTextarea')).toHaveLength(1)
+	})
+})
+
+describe('a switch left unset', () => {
+	function switchOf(schema: OptionSchema, modelValue: unknown): TestNode {
+		const { root } = mount(Option, {
+			props: { name: 'delete', schema, modelValue },
+		})
+		return findAll(root, (node) => node.tag === 'USwitch')[0]!
+	}
+
+	// What a table does with no row action set: it offers deleting its rows.
+	const offered: OptionSchema = {
+		type: 'union',
+		default: true,
+		ui: { label: 'Deleting data', widget: 'switch' },
+	}
+
+	it('reads what the block does without it', async () => {
+		const toggle = switchOf(offered, undefined)
+		await nextTick()
+		expect(toggle.props['model-value']).toBe(true)
+	})
+
+	it('reads what it was set to once set', async () => {
+		const toggle = switchOf(offered, false)
+		await nextTick()
+		expect(toggle.props['model-value']).toBe(false)
+	})
+
+	it('reads off for a block that does nothing without it', async () => {
+		const toggle = switchOf(
+			{ type: 'boolean', optional: true, ui: { label: 'Row selection', widget: 'switch' } },
+			undefined,
+		)
+		await nextTick()
+		expect(toggle.props['model-value']).toBe(false)
+	})
+})
+
+describe('an optional range left unset', () => {
+	const schema: OptionSchema = {
+		type: 'object',
+		optional: true,
+		ui: { label: 'Y range' },
+		properties: {
+			min: { type: 'number', ui: { label: 'Min' } },
+			max: { type: 'number', ui: { label: 'Max' } },
+		},
+	}
+
+	it('does not say the page is missing its bounds', async () => {
+		const { root } = mount(Option, {
+			props: { name: 'yRange', schema, modelValue: undefined },
+			components: { DmsBuilderOption: Option as Component },
+		})
+		await nextTick()
+		expect(textOf(root)).not.toContain('cannot be built')
+	})
+
+	it('says so once one bound is set without the other', async () => {
+		const { root } = mount(Option, {
+			props: { name: 'yRange', schema, modelValue: { min: 0 } },
+			components: { DmsBuilderOption: Option as Component },
+		})
+		await nextTick()
+		expect(textOf(root)).toContain('cannot be built')
+	})
+})
+
+describe('a chart a card holds', () => {
+	it('offers none of the settings the card supplies itself', async () => {
+		backend.catalog = {
+			...backend.catalog,
+			blocks: [
+				...backend.catalog.blocks,
+				{
+					type: 'ChartLine',
+					componentName: 'DmsChart',
+					label: 'Line chart',
+					group: 'visualization',
+					container: false,
+					shapeSource: 'test',
+					config: {
+						fetchUrl: {
+							type: 'string',
+							optional: true,
+							ui: { label: 'Data source', widget: 'dataSource' },
+						},
+						showGrid: {
+							type: 'boolean',
+							optional: true,
+							ui: { label: 'Show grid', widget: 'switch' },
+						},
+					},
+				},
+			],
+		}
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+
+		const { root } = mount(Option, {
+			props: {
+				name: 'chart',
+				schema: {
+					type: 'unknown',
+					'x-component': true,
+					ui: {
+						label: 'Chart',
+						widget: 'block',
+						blockTypes: ['ChartLine'],
+						supplies: ['fetchUrl'],
+					},
+				},
+				modelValue: { $block: { type: 'ChartLine', config: {} } },
+			},
+			components: {
+				DmsBuilderOption: Option as Component,
+				DmsBuilderDataSource: stub('DmsBuilderDataSource'),
+			},
+		})
+		await nextTick()
+
+		expect(textOf(root)).toContain('Show grid')
+		expect(textOf(root)).not.toContain('Data source')
 	})
 })

@@ -73,6 +73,11 @@ export interface OptionUi {
   /** Block types a `block` widget accepts. */
   blockTypes?: string[];
   /**
+   * The options of the block a `block` widget holds that the block holding it
+   * supplies itself: a card fetches and heads the chart it wraps.
+   */
+  supplies?: string[];
+  /**
    * The aspect, or aspects, a `field` widget's value must carry on the
    * resource. Naming a field that lacks one is written and then ignored at
    * runtime, so it is refused instead.
