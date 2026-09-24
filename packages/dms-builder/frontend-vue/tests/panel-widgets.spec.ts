@@ -170,6 +170,48 @@ describe('a ranking read from a table', () => {
 		})
 	})
 
+	it('shows what a source already configured answers when it is reopened', async () => {
+		backend.answers['GET /api/builder/resources'] = [
+			{ ref: 'order', className: 'Order', tableName: 'orders', route: '/api/order', fieldCount: 2 },
+		]
+		backend.answers['GET /api/builder/resource'] = {
+			ok: true,
+			data: orders(),
+			changes: [],
+		}
+		backend.answers['POST /api/builder/query-preview'] = {
+			ok: true,
+			data: { body: { series: [{ x: 'BE', y: 12 }] } },
+			changes: [],
+		}
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+		builder.setDraftQuery({
+			name: 'topCountries',
+			resource: 'order',
+			template: 'series',
+			params: { op: 'count', groupBy: 'country' },
+			response: 'items',
+		})
+		const before = backend.calls.length
+
+		const { root } = mount(DataSource, {
+			props: {
+				modelValue: '/reports/sales/stats/top-countries',
+				responseShape: 'items',
+				blockName: 'topCountries',
+			},
+		})
+		await settle()
+
+		expect(
+			backend.calls
+				.slice(before)
+				.map((call) => `${call.method} ${call.path}`),
+		).toContain('POST /api/builder/query-preview')
+		expect(textOf(root)).not.toContain('No rows match.')
+		expect(textOf(root)).toContain('BE')
+	})
 })
 
 describe('an option handed a table', () => {

@@ -265,9 +265,13 @@ async function apply(): Promise<void> {
 		patch[props.periodOption] = followPeriod.value ? PAGE_PERIOD_SCOPE : undefined
 	}
 	emit('patch', patch)
+	await readPreview()
+}
+
+async function readPreview(): Promise<void> {
 	previewing.value = true
 	try {
-		preview.value = await builder.previewQuery(input, periodArgs())
+		preview.value = await builder.previewQuery(queryInput(), periodArgs())
 	} finally {
 		previewing.value = false
 	}
@@ -388,6 +392,12 @@ function hydrate(): void {
 }
 
 hydrate()
+// Read what the source already answers: reopened, the editor otherwise said "No
+// rows match." over a table it had not asked anything yet. Only read — the
+// source is what the block holds, and writing it back would be an edit.
+if (ready.value) {
+	void readPreview()
+}
 
 // Re-read whenever the choices settle, so the numbers on screen are the ones the
 // saved page would show rather than the ones a previous choice produced.
