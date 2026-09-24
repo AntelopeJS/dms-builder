@@ -14,18 +14,6 @@
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "typesVersions": {
-    "*": {
-      "dist/*": [
-        "dist/*",
-        "dist/*/index.d.ts"
-      ],
-      "*": [
-        "dist/*",
-        "dist/*/index.d.ts"
-      ]
-    }
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -34,12 +22,6 @@
     "./*": {
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"
-    },
-    "./dist": {
-      "types": "./dist/index.d.ts"
-    },
-    "./dist/*": {
-      "types": "./dist/*.d.ts"
     },
     "./package.json": "./package.json"
   },
