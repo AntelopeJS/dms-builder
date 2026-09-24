@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
-import { categoryOptions, categoryRoute } from '../runtime/categories'
+import { byMenuOrder, categoryOptions, categoryRoute } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
 import { useBuilder } from '../runtime/session'
 import type { PageSummary } from '../runtime/types'
@@ -64,15 +64,6 @@ function shown(page: PageSummary): PageSummary {
 		icon: (patch.icon as string | undefined) ?? meta?.icon ?? page.icon,
 		hidden: (patch.hidden as boolean | undefined) ?? meta?.hidden ?? page.hidden,
 	}
-}
-
-/** Pages in the order the menu lists them: by order, then name, then id. */
-function byMenuOrder(a: PageSummary, b: PageSummary): number {
-	return (
-		(a.order ?? 0) - (b.order ?? 0) ||
-		a.displayName.localeCompare(b.displayName) ||
-		a.id.localeCompare(b.id)
-	)
 }
 
 const tree = computed(() => {

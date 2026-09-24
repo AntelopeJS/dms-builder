@@ -11,6 +11,7 @@
  * form is sent under its name.
  */
 import { optionLabel } from './catalog'
+import { mergePatch } from './object'
 import type {
 	ResourceFieldStructure,
 	ResourceStructure,
@@ -48,6 +49,34 @@ export function formTableOf(
  */
 export function takesRows(table: ResourceStructure): boolean {
 	return !table.routes || table.routes.includes(CREATE_ROUTE)
+}
+
+/** Where a form hands what it is filled with, as the simple mode tells it. */
+export type FormDestination =
+	| { kind: 'table'; table: ResourceSummary }
+	| { kind: 'address'; url: string; method?: string }
+	| { kind: 'none' }
+
+/**
+ * Where a form sends its values: a table's create route, an address someone
+ * typed in the advanced view or in the code, or nowhere yet.
+ */
+export function destinationOf(
+	config: Record<string, unknown> | undefined,
+	tables: ResourceSummary[],
+): FormDestination {
+	const table = formTableOf(config, tables)
+	if (table) {
+		return { kind: 'table', table }
+	}
+	const url = config?.submitUrl
+	if (typeof url === 'string' && url !== '') {
+		const method = config?.submitUrlMethod
+		return typeof method === 'string'
+			? { kind: 'address', url, method }
+			: { kind: 'address', url }
+	}
+	return { kind: 'none' }
 }
 
 /** The columns a form can ask for: those a row is written with. */
@@ -118,6 +147,97 @@ export function withoutColumn(fields: unknown, name: string): Entry[] {
 				? { ...entry, fields: entries(entry.fields).filter((nested) => nested.id !== name) }
 				: entry,
 		)
+}
+
+/**
+ * One line of a form's field list: a field, or a group followed by the fields
+ * it holds.
+ */
+export interface FormRow {
+	/** The entry's rank in the form, then its rank inside its group. */
+	path: number[]
+	entry: Entry
+	group: boolean
+	/** How many entries share its list, which is as far as it can move. */
+	siblings: number
+}
+
+/** A form's entries as the lines of a list, a group's fields under it. */
+export function formRows(fields: unknown): FormRow[] {
+	const top = entries(fields)
+	return top.flatMap((entry, at): FormRow[] => {
+		if (!Array.isArray(entry.fields)) {
+			return [{ path: [at], entry, group: false, siblings: top.length }]
+		}
+		const nested = entries(entry.fields)
+		return [
+			{ path: [at], entry, group: true, siblings: top.length },
+			...nested.map((field, inner) => ({
+				path: [at, inner],
+				entry: field,
+				group: false,
+				siblings: nested.length,
+			})),
+		]
+	})
+}
+
+/** The form's fields with `patch` applied to the entry at `path`. */
+export function withEntryPatched(
+	fields: unknown,
+	path: number[],
+	patch: Record<string, unknown>,
+): Entry[] {
+	return inList(fields, path, (list, at) =>
+		list.map((entry, index) => (index === at ? mergePatch(entry, patch) : entry)),
+	)
+}
+
+/** The form's fields with the entry at `path` moved `delta` places in its list. */
+export function withEntryMoved(
+	fields: unknown,
+	path: number[],
+	delta: number,
+): Entry[] {
+	return inList(fields, path, (list, at) => {
+		const target = at + delta
+		if (target < 0 || target >= list.length) {
+			return list
+		}
+		const next = [...list]
+		const [moved] = next.splice(at, 1)
+		next.splice(target, 0, moved as Entry)
+		return next
+	})
+}
+
+/** The form's fields without the entry at `path`. */
+export function withoutEntry(fields: unknown, path: number[]): Entry[] {
+	return inList(fields, path, (list, at) => list.filter((_, index) => index !== at))
+}
+
+/** The form's fields with `field` added at the end. */
+export function withField(fields: unknown, field: Entry): Entry[] {
+	return [...entries(fields), field]
+}
+
+/** Apply `edit` to the list that holds the entry at `path`. */
+function inList(
+	fields: unknown,
+	path: number[],
+	edit: (list: Entry[], at: number) => Entry[],
+): Entry[] {
+	const top = entries(fields)
+	const [first, second] = path
+	if (first === undefined) {
+		return top
+	}
+	if (second === undefined) {
+		return edit(top, first)
+	}
+	return top.map((entry, at) =>
+		at === first ? { ...entry, fields: edit(entries(entry.fields), second) } : entry,
+	)
 }
 
 function entries(value: unknown): Entry[] {

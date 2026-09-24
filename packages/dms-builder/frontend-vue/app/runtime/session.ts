@@ -253,6 +253,8 @@ export interface BuilderController {
 	openMenu: (path: string, x: number, y: number) => void
 	closeMenu: () => void
 	setView: (view: RailView) => void
+	/** Open one table in the tables view, whatever block is selected. */
+	openTable: (ref: string) => void
 	/** Apply an edit to the draft; answers false when it changed nothing. */
 	mutate: (apply: (draft: PageDraft) => void) => boolean
 	addBlock: (
@@ -735,6 +737,11 @@ export function useBuilder(): BuilderController {
 		session.value.view = view
 		session.value.railOpen = true
 		session.value.menu = null
+	}
+
+	function openTable(ref: string): void {
+		setView('resource')
+		session.value.table = { ref, tab: 'fields', adding: false }
 	}
 
 	// The rail is reached through what you are doing, not through a tab strip:
@@ -1859,6 +1866,7 @@ export function useBuilder(): BuilderController {
 		stayOpen,
 		select,
 		setView,
+		openTable,
 		back,
 		openRegion,
 		openMenu,

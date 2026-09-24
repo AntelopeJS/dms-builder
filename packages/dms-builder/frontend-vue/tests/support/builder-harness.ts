@@ -161,6 +161,22 @@ export function testCatalog(): BlockCatalog {
 				group: 'data',
 				config: {
 					title: { type: 'string', optional: true, ui: { label: 'Title' } },
+					description: {
+						type: 'string',
+						optional: true,
+						ui: { label: 'Description', widget: 'textarea' },
+					},
+					fieldsOrientation: {
+						type: 'string',
+						optional: true,
+						enum: ['horizontal', 'vertical'],
+						ui: { label: 'Field orientation', group: 'layout', widget: 'segmented' },
+					},
+					redirectOnSuccess: {
+						type: 'string',
+						optional: true,
+						ui: { label: 'Redirect on success', group: 'behavior' },
+					},
 					submitLabel: {
 						type: 'string',
 						optional: true,
@@ -255,10 +271,25 @@ export function testCatalog(): BlockCatalog {
 											'x-dataType': true,
 											ui: { label: 'Type', widget: 'dataType' },
 										},
+										description: {
+											type: 'string',
+											optional: true,
+											ui: { label: 'Help text', widget: 'textarea' },
+										},
+										disabled: {
+											type: 'boolean',
+											optional: true,
+											ui: { label: 'Disabled', widget: 'switch' },
+										},
 										required: {
 											type: 'boolean',
 											optional: true,
 											ui: { label: 'Required', widget: 'switch' },
+										},
+										localized: {
+											type: 'boolean',
+											optional: true,
+											ui: { label: 'Translatable', widget: 'switch' },
 										},
 										defaultValue: {
 											type: 'unknown',

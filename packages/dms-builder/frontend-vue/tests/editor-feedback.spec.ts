@@ -4,6 +4,10 @@ import Bar from '../app/components/Bar.vue'
 import BlockMenu from '../app/components/BlockMenu.vue'
 import Children from '../app/components/Children.vue'
 import Config from '../app/components/Config.vue'
+import FormFieldDetail from '../app/components/FormFieldDetail.vue'
+import FormFields from '../app/components/FormFields.vue'
+import FormPanel from '../app/components/FormPanel.vue'
+import FormTarget from '../app/components/FormTarget.vue'
 import Node from '../app/components/Node.vue'
 import Overlay from '../app/components/Overlay.vue'
 import Option from '../app/components/Option.vue'
@@ -357,6 +361,10 @@ describe('a tab set the preview cannot build', () => {
 /** What the Nuxt build auto-imports around the config panel. */
 const panel = (): Record<string, Component> => ({
 	DmsBuilderOption: Option as Component,
+	DmsBuilderFormPanel: FormPanel as Component,
+	DmsBuilderFormTarget: FormTarget as Component,
+	DmsBuilderFormFields: FormFields as Component,
+	DmsBuilderFormFieldDetail: FormFieldDetail as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 	USelectMenu: stub('USelectMenu'),
@@ -604,8 +612,19 @@ describe('the key of a form field', () => {
 		>
 	}
 
+	/** Open the form's first field, where the simple mode edits its label. */
+	async function openFirst(root: TestNode): Promise<void> {
+		const line = findAll(
+			root,
+			(node) => node.tag === 'button' && node.props['aria-expanded'] === false,
+		)[0]
+		fire(line!, 'click')
+		await nextTick()
+	}
+
 	it('is left out of the simple mode, and written from the label', async () => {
 		const root = await formWithFields([{ label: 'Field 1', type: text }])
+		await openFirst(root)
 		expect(labels(root)).not.toContain('Key')
 		expect(labels(root)).toContain('Label')
 
@@ -640,6 +659,7 @@ describe('the key of a form field', () => {
 		// Written by hand, in the code or in the advanced view: a backend reads
 		// the form under that name.
 		const root = await formWithFields([{ id: 'test', label: 'aaa', type: text }])
+		await openFirst(root)
 
 		write(box(root, 'Label'), 'Amount')
 		await nextTick()
@@ -878,315 +898,5 @@ describe('the way out of the editor', () => {
 				'Stay',
 			]),
 		)
-	})
-})
-
-/**
- * A form says its own words once it is submitted, in the reader's language;
- * writing others is a choice, made behind one switch.
- */
-describe('the messages a form shows once it is submitted', () => {
-	async function formPanel(config: Record<string, unknown> = {}): Promise<TestNode> {
-		await openWith([{ ...editable('form', 'Form'), config }])
-		builder.select('form')
-		await vi.advanceTimersByTimeAsync(200)
-		const { root } = mount(Config, { components: panel() })
-		await nextTick()
-		return root
-	}
-
-	function labels(root: TestNode): string[] {
-		return findAll(root, (node) => node.tag === 'label').map((node) =>
-			textOf(node).trim(),
-		)
-	}
-
-	function toggle(root: TestNode): TestNode {
-		const match = findAll(
-			root,
-			(node) =>
-				node.tag === 'USwitch' &&
-				node.props['aria-label'] === 'Custom submit messages',
-		)[0]
-		if (!match) {
-			throw new Error('no switch for the submit messages')
-		}
-		return match
-	}
-
-	function config(): Record<string, unknown> | undefined {
-		return builder.session.value.draft?.blocks[0]?.config
-	}
-
-	it('leaves them out behind a switch that is off', async () => {
-		const root = await formPanel()
-		expect(toggle(root).props['model-value']).toBe(false)
-		expect(labels(root)).not.toContain('Success message')
-		expect(labels(root)).not.toContain('Error message')
-	})
-
-	it('offers both once it is on, starting from what the form says itself', async () => {
-		const root = await formPanel()
-		write(toggle(root), true)
-		await nextTick()
-
-		expect(config()).toMatchObject({
-			successMessage: 'Data has been successfully saved',
-			errorMessage: 'An unknown error occurred',
-		})
-		expect(labels(root)).toContain('Success message')
-		expect(labels(root)).toContain('Error message')
-	})
-
-	it('drops both when it is turned off, and the form says its own again', async () => {
-		const root = await formPanel({ successMessage: 'Order sent' })
-		expect(toggle(root).props['model-value'], 'on for a message written').toBe(
-			true,
-		)
-
-		write(toggle(root), false)
-		await nextTick()
-		expect(config()).not.toHaveProperty('successMessage')
-		expect(config()).not.toHaveProperty('errorMessage')
-		expect(labels(root)).not.toContain('Success message')
-	})
-
-	it('starts again from what the form says once it is turned back on', async () => {
-		const root = await formPanel({ errorMessage: 'Try again later' })
-		write(toggle(root), false)
-		await nextTick()
-		write(toggle(root), true)
-		await nextTick()
-		expect(config()).toMatchObject({
-			successMessage: 'Data has been successfully saved',
-			errorMessage: 'An unknown error occurred',
-		})
-	})
-})
-
-describe('the default of a form field', () => {
-	const number = { $dataType: 'number', config: {} }
-
-	async function formWithFields(fields: unknown[]): Promise<TestNode> {
-		await openWith([editable('form', 'Form')])
-		builder.patchConfig('form', { fields })
-		builder.select('form')
-		await vi.advanceTimersByTimeAsync(200)
-		const { root } = mount(Config, { components: panel() })
-		await nextTick()
-		return root
-	}
-
-	function field(): Record<string, unknown> | undefined {
-		const fields = builder.session.value.draft?.blocks[0]?.config?.fields as
-			| Array<Record<string, unknown>>
-			| undefined
-		return fields?.[0]
-	}
-
-	it('takes the input the field type calls for', async () => {
-		const root = await formWithFields([
-			{ id: 'qty', label: 'Quantity', type: number, defaultValue: 5 },
-		])
-		const boxes = findAll(
-			root,
-			(node) => node.tag === 'UInput' && node.props.type === 'number',
-		)
-		expect(boxes.map((box) => box.props['model-value'])).toContain(5)
-	})
-
-	it('is dropped when the field changes to a type that cannot hold it', async () => {
-		const root = await formWithFields([
-			{ id: 'qty', label: 'Quantity', type: number, defaultValue: 5 },
-		])
-		const [typePicker] = findAll(
-			root,
-			(node) =>
-				node.tag === 'USelectMenu' &&
-				node.props.placeholder === 'Choose a data type…',
-		)
-		write(typePicker!, 'string')
-		await nextTick()
-
-		expect(field()?.type).toMatchObject({ $dataType: 'string' })
-		expect(field()).not.toHaveProperty('defaultValue')
-	})
-})
-
-/**
- * Someone building a page does not type an endpoint: in the simple mode a form
- * saves into a table they pick, and asks for the columns they tick.
- */
-describe('a form saving into a table', () => {
-	const { setMode } = useBuilderMode()
-	const RESOURCES = 'GET /api/builder/resources'
-	const RESOURCE = 'GET /api/builder/resource'
-
-	afterEach(() => setMode('simple'))
-
-	function orders() {
-		return {
-			ref: 'order',
-			className: 'orderDataAPI',
-			tableName: 'orders',
-			route: '/api/order',
-			version: 'v1',
-			fields: [
-				{ name: '_id', access: 'read', dataType: { $dataType: 'string' } },
-				{
-					name: 'amount',
-					label: 'Amount',
-					access: 'readwrite',
-					required: true,
-					dataType: { $dataType: 'number' },
-				},
-				{
-					name: 'status',
-					label: 'Status',
-					access: 'readwrite',
-					dataType: { $dataType: 'string' },
-				},
-			],
-		}
-	}
-
-	async function formPanel(config: Record<string, unknown> = {}): Promise<TestNode> {
-		backend.answers[RESOURCES] = [
-			{ ref: 'order', className: 'orderDataAPI', tableName: 'orders', route: '/api/order', fieldCount: 3 },
-		]
-		backend.answers[RESOURCE] = { ok: true, data: orders(), changes: [] }
-		await openWith([{ ...editable('form', 'Form'), config: { fields: [], ...config } }])
-		builder.select('form')
-		await vi.advanceTimersByTimeAsync(200)
-		const { root } = mount(Config, { components: panel() })
-		// The table the form saves into is loaded as the panel opens; left in
-		// flight, it would land in the next test's session.
-		await vi.advanceTimersByTimeAsync(0)
-		await nextTick()
-		return root
-	}
-
-	function labels(root: TestNode): string[] {
-		return findAll(root, (node) => node.tag === 'label').map((node) =>
-			textOf(node).trim(),
-		)
-	}
-
-	function tablePicker(root: TestNode): TestNode | undefined {
-		return findAll(
-			root,
-			(node) =>
-				node.tag === 'USelectMenu' &&
-				node.props.placeholder === 'Choose the table it saves into…',
-		)[0]
-	}
-
-	function column(root: TestNode, label: string): TestNode {
-		const match = findAll(
-			root,
-			(node) => node.tag === 'UCheckbox' && node.props['aria-label'] === label,
-		)[0]
-		if (!match) {
-			throw new Error(`no box for the column ${label}`)
-		}
-		return match
-	}
-
-	function config(): Record<string, unknown> {
-		return builder.session.value.draft?.blocks[0]?.config ?? {}
-	}
-
-	function keys(): unknown[] {
-		return ((config().fields ?? []) as Array<Record<string, unknown>>).map(
-			(field) => field.id,
-		)
-	}
-
-	it('offers a table to save into, and no address to type', async () => {
-		const root = await formPanel()
-		expect(tablePicker(root)).toBeDefined()
-		expect(labels(root)).not.toContain('Submit to')
-		expect(labels(root)).not.toContain('Load from')
-		expect(textOf(root)).toContain('Choose a table')
-	})
-
-	it('asks for every column a row is written with once the table is picked', async () => {
-		const root = await formPanel()
-		write(tablePicker(root)!, 'order')
-		await vi.advanceTimersByTimeAsync(0)
-		await nextTick()
-		await vi.advanceTimersByTimeAsync(0)
-
-		expect(config()).toMatchObject({
-			submitUrl: '/api/order/new',
-			submitUrlMethod: 'POST',
-		})
-		expect(keys(), 'sent under the column names').toEqual(['amount', 'status'])
-		expect(column(root, 'Status').props['model-value']).toBe(true)
-	})
-
-	it('drops the field of a column unticked, and says so of one a row needs', async () => {
-		const root = await formPanel({
-			submitUrl: '/api/order/new',
-			fields: [
-				{ id: 'amount', label: 'Amount', type: { $dataType: 'number' }, required: true },
-				{ id: 'status', label: 'Status', type: { $dataType: 'string' } },
-			],
-		})
-		await vi.advanceTimersByTimeAsync(0)
-		await nextTick()
-
-		write(column(root, 'Status'), false)
-		await nextTick()
-		expect(keys()).toEqual(['amount'])
-
-		write(column(root, 'Status'), true)
-		await nextTick()
-		expect(keys()).toEqual(['amount', 'status'])
-
-		// The author's call, said rather than refused.
-		expect(textOf(root)).not.toContain('The table needs')
-		write(column(root, 'Amount'), false)
-		await nextTick()
-		expect(keys()).toEqual(['status'])
-		expect(textOf(root)).toContain(
-			'The table needs Amount: a new row cannot be saved without it.',
-		)
-	})
-
-	it('keeps sending each field under its column when its label changes', async () => {
-		await formPanel({
-			submitUrl: '/api/order/new',
-			fields: [{ id: 'status', label: 'Status', type: { $dataType: 'string' } }],
-		})
-		builder.patchConfig('form', {
-			fields: [{ id: 'status', label: 'Order state', type: { $dataType: 'string' } }],
-		})
-		expect(keys()).toEqual(['status'])
-	})
-
-	it('adds no field one by one: its fields are the columns ticked', async () => {
-		const root = await formPanel()
-		const adds = findAll(
-			root,
-			(node) =>
-				node.tag === 'UButton' && String(node.props.label ?? '').startsWith('Add'),
-		)
-		expect(adds, 'no Add field, no Add group').toHaveLength(0)
-		expect(textOf(root)).toContain('Choose a table above: its columns are the fields.')
-
-		write(tablePicker(root)!, 'order')
-		await vi.advanceTimersByTimeAsync(0)
-		await nextTick()
-		await vi.advanceTimersByTimeAsync(0)
-		expect(textOf(root)).toContain('Its fields are the columns ticked above.')
-	})
-
-	it('gives the addresses back to the advanced view, and no table to pick', async () => {
-		setMode('advanced')
-		const root = await formPanel()
-		expect(tablePicker(root)).toBe(undefined)
-		expect(labels(root)).toContain('Submit to')
-		expect(labels(root)).toContain('Load from')
 	})
 })

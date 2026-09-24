@@ -46,12 +46,6 @@ const props = defineProps<{
 	 * range nobody asked for is not one the page is missing.
 	 */
 	parentUnset?: boolean
-	/**
-	 * Where the entries of a list come from when it does not add them itself,
-	 * said in place of its buttons: a form saving into a table asks for the
-	 * columns ticked above it, not for fields added one by one.
-	 */
-	addedElsewhere?: string
 }>()
 
 const emit = defineEmits<{
@@ -1031,10 +1025,7 @@ const nestedProperties = computed(() =>
 					@update:model-value="setItem(index, $event)"
 				/>
 			</div>
-			<p v-if="addedElsewhere" class="text-xs text-dimmed">
-				{{ addedElsewhere }}
-			</p>
-			<div v-else-if="entryKinds" class="flex flex-wrap gap-1">
+			<div v-if="entryKinds" class="flex flex-wrap gap-1">
 				<UButton
 					v-for="kind in entryKinds"
 					:key="kind.index"
@@ -1139,9 +1130,7 @@ const nestedProperties = computed(() =>
 			Required — the page cannot be built until this is filled in.
 		</p>
 		<p v-else-if="ineligible" class="text-xs text-warning">{{ ineligible }}</p>
-		<!-- A list filled from elsewhere has said what fills it, which is all
-		its own description would add, in words for adding entries by hand. -->
-		<p v-else-if="schema.description && !addedElsewhere" class="text-xs text-dimmed">
+		<p v-else-if="schema.description" class="text-xs text-dimmed">
 			{{ schema.description }}
 		</p>
 	</div>

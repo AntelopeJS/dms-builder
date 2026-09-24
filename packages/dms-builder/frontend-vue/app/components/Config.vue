@@ -3,20 +3,12 @@ import { computed, ref, watch } from 'vue'
 import {
 	ADVANCED_OPTION_GROUP,
 	descriptorOf,
-	missingConfig,
+	missingSettings,
 	optionGroups,
 	slotsOf,
 } from '../runtime/catalog'
 import { findNode } from '../runtime/draft'
-import {
-	askedColumns,
-	boundTo,
-	fillableColumns,
-	formTableOf,
-	takesRows,
-	withColumn,
-	withoutColumn,
-} from '../runtime/form-table'
+import { FORM_BLOCK, FORM_PANEL_OPTIONS } from '../runtime/form-panel'
 import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
 import { parentPath, useBuilder } from '../runtime/session'
@@ -50,14 +42,6 @@ interface RenderedGroup {
  * rewrite the table's search for a setting that block never reads.
  */
 const SEARCH_BAR_BLOCK = 'TableView'
-/**
- * The block the simple mode binds to a table: a form someone builds a page with
- * saves into a table they pick, not into an endpoint they type.
- */
-const TABLE_BOUND_BLOCK = 'Form'
-/** The option of that block its table's columns fill. */
-const TABLE_FILLED_OPTION = 'fields'
-
 const builder = useBuilder()
 const session = builder.session
 
@@ -101,8 +85,26 @@ const parentBlock = computed(() => {
 		: undefined
 })
 
+/**
+ * A form someone builds a page with has a panel of its own in the simple mode:
+ * it saves into a table they pick, not into an endpoint they type.
+ */
+const formPanel = computed(
+	() => !advancedMode.value && block.value?.type === FORM_BLOCK,
+)
+
+/** Whether the form's own panel edits this option rather than the list below. */
+function inFormPanel(key: unknown): boolean {
+	return formPanel.value && FORM_PANEL_OPTIONS.has(String(key))
+}
+
+// What the form's panel edits, it says is missing in its own words.
 const missing = computed(() =>
-	block.value ? missingConfig(descriptor.value, block.value) : [],
+	block.value
+		? missingSettings(descriptor.value, block.value)
+				.filter((entry) => !inFormPanel(entry.path[0]))
+				.map((entry) => entry.label)
+		: [],
 )
 const childMeta = computed(() => parentDescriptor.value?.childMeta ?? {})
 const slots = computed(() => slotsOf(parentDescriptor.value, parentBlock.value))
@@ -187,8 +189,9 @@ const groups = computed<RenderedGroup[]>(() =>
 					// follows, an address from the table picked — or leaves to code.
 					.filter(
 						(option) =>
-							advancedMode.value ||
-							(!option.schema.ui?.derivedFrom && !option.schema.ui?.advanced),
+							(advancedMode.value ||
+								(!option.schema.ui?.derivedFrom && !option.schema.ui?.advanced)) &&
+							!inFormPanel(option.id.split('.')[0]),
 					),
 			),
 		}))
@@ -277,83 +280,6 @@ const advanced = computed(() =>
 		? groups.value.find((group) => group.id === ADVANCED_OPTION_GROUP)
 		: undefined,
 )
-
-/* ---- a form saving into a table ----------------------------------------- */
-
-const bindsTable = computed(
-	() => !advancedMode.value && block.value?.type === TABLE_BOUND_BLOCK,
-)
-const formTable = computed(() =>
-	formTableOf(block.value?.config, session.value.resources),
-)
-const formTableStructure = computed(() =>
-	formTable.value
-		? session.value.resourceStructures[formTable.value.ref]
-		: undefined,
-)
-const formColumns = computed(() => fillableColumns(formTableStructure.value))
-const askedFormColumns = computed(() => askedColumns(block.value?.config?.fields))
-/**
- * The columns a row cannot be written without that the form no longer asks
- * for: unticking one is the author's call, and saving will say it failed.
- */
-const unaskedRequired = computed(() =>
-	formColumns.value
-		.filter((column) => column.required && !askedFormColumns.value.has(column.name))
-		.map((column) => column.label ?? column.name),
-)
-const tableItems = computed(() =>
-	session.value.resources.map((entry) => ({ label: entry.ref, value: entry.ref })),
-)
-
-watch(
-	formTable,
-	(table) => {
-		if (table) void builder.loadResource(table.ref)
-	},
-	{ immediate: true },
-)
-
-/**
- * Save the form into a table: every column a row is written with becomes a
- * field of it, ready to be unticked, and it submits to the table's create
- * route. The fields a form had for another table are not this one's.
- */
-async function chooseFormTable(ref: string): Promise<void> {
-	const table = session.value.resources.find((entry) => entry.ref === ref)
-	const at = path.value
-	if (!table || !at) {
-		return
-	}
-	await builder.loadResource(ref)
-	builder.patchConfig(
-		at,
-		boundTo(table, fillableColumns(session.value.resourceStructures[ref])),
-	)
-}
-
-/** What the field list says in place of its buttons, once a table fills it. */
-function addedElsewhere(name: string): string | undefined {
-	if (!bindsTable.value || name !== TABLE_FILLED_OPTION) {
-		return undefined
-	}
-	return formTable.value
-		? 'Its fields are the columns ticked above.'
-		: 'Choose a table above: its columns are the fields.'
-}
-
-function askColumn(
-	column: (typeof formColumns.value)[number],
-	asked: boolean,
-): void {
-	if (!path.value) {
-		return
-	}
-	const fields = block.value?.config?.fields
-	builder.patchConfig(path.value, {
-		fields: asked ? withColumn(fields, column) : withoutColumn(fields, column.name),
-	})
-}
 
 /* ---- what lives on the resource rather than on the block ---------------- */
 
@@ -447,53 +373,7 @@ async function setSearchField(name: string): Promise<void> {
 				</p>
 			</div>
 
-			<!-- Where the form's values go, in the simple mode: a table and the
-			columns it asks for, rather than an address. -->
-			<div v-if="bindsTable" class="flex flex-col gap-3">
-				<p class="text-sm font-semibold text-highlighted">Table</p>
-				<USelectMenu
-					:model-value="formTable?.ref"
-					:items="tableItems"
-					value-key="value"
-					placeholder="Choose the table it saves into…"
-					@update:model-value="chooseFormTable($event)"
-				/>
-				<p v-if="!formTable" class="text-xs text-warning">
-					Choose a table: what is filled in is saved as a new row of it.
-				</p>
-				<p
-					v-else-if="formTableStructure && !takesRows(formTableStructure)"
-					class="text-xs text-warning"
-				>
-					This table takes no new rows.
-				</p>
-				<div
-					v-if="formTable && formColumns.length"
-					class="flex flex-col gap-1.5"
-					data-form-columns
-				>
-					<p class="text-xs text-dimmed">What the form asks for</p>
-					<label
-						v-for="column in formColumns"
-						:key="column.name"
-						class="flex items-center gap-2 text-sm text-default"
-					>
-						<UCheckbox
-							:model-value="askedFormColumns.has(column.name)"
-							:aria-label="column.label ?? column.name"
-							@update:model-value="askColumn(column, $event === true)"
-						/>
-						<span>{{ column.label ?? column.name }}</span>
-						<span v-if="column.required" class="text-xs text-dimmed">
-							required
-						</span>
-					</label>
-					<p v-if="unaskedRequired.length" class="text-xs text-warning">
-						The table needs {{ unaskedRequired.join(', ') }}: a new row cannot
-						be saved without {{ unaskedRequired.length === 1 ? 'it' : 'them' }}.
-					</p>
-				</div>
-			</div>
+			<DmsBuilderFormPanel v-if="formPanel" :path="path" />
 
 			<div
 				v-for="group in plainGroups"
@@ -538,7 +418,6 @@ async function setSearchField(name: string): Promise<void> {
 						:resource="block.controller"
 						:block-name="block.name"
 						:separated="entry.separated"
-						:added-elsewhere="addedElsewhere(entry.name)"
 						@update:model-value="entry.update($event)"
 						@patch="builder.patchConfig(path, $event)"
 					/>

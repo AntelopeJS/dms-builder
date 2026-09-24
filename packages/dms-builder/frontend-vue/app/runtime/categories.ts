@@ -1,4 +1,4 @@
-import type { CategorySummary } from './types'
+import type { CategorySummary, PageSummary } from './types'
 
 export interface CategoryOption {
 	label: string
@@ -13,6 +13,15 @@ export interface CategoryOption {
 export function categoryRoute(ref: string): string {
 	const slug = ref.replace(/^pages\.?/, '').replace(/\./g, '/')
 	return slug ? `/${slug}` : ''
+}
+
+/** Pages in the order the menu lists them: by order, then name, then id. */
+export function byMenuOrder(a: PageSummary, b: PageSummary): number {
+	return (
+		(a.order ?? 0) - (b.order ?? 0) ||
+		a.displayName.localeCompare(b.displayName) ||
+		a.id.localeCompare(b.id)
+	)
 }
 
 /**
