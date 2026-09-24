@@ -59,4 +59,10 @@ export class OrderModel extends BasicDataModel(Order, ORDERS_TABLE) {
       .group("status", (rows, group) => ({ x: group, y: rows.count() }))
       .orderBy("x", "asc");
   }
+
+  chartCard2() {
+    return this.table
+      .group("status", (rows, group) => ({ x: group, y: rows.count() }))
+      .orderBy("x", "desc");
+  }
 }

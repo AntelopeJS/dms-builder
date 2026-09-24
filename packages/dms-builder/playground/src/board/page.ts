@@ -14,15 +14,15 @@ import {
   ChartCard,
   ChartCardData,
   ChartColumn,
+  ChartLine,
   Form,
   PeriodSelector,
   Placeholder,
   ResourceForm,
   Tab,
-  VStack,
+  TableView,
   chartCardData,
 } from "@antelopejs/interface-dms/base";
-import { Grid, GridRow } from "@antelopejs/interface-dms/base/grid";
 import { orderDataAPI } from "../order/data-api";
 import { OrderModel } from "../order/database";
 
@@ -57,10 +57,7 @@ export class PageShopBoard extends PageController("board", {
     defaultPreset: "last-30-days",
     defaultComparison: "previous-period",
   });
-  // A row between the grid and the card because a Grid takes nothing else:
-  // the layout renders either way, but a whole-tree save refuses a card placed
-  // straight under the grid, which is every save the source editor makes.
-  static grid = Grid({ gap: "1rem" }).child("gridRow", GridRow().child("grid", Grid().child("gridRow", GridRow().child("vStack", VStack({ alignment: "stretch" }).child("tab", Tab({
+  static tab = Tab({
     items: [
       { label: "Tab 1", slot: "tab1" },
       { label: "Tab 2", slot: "tab2", badge: { label: "aaa" } },
@@ -81,7 +78,8 @@ export class PageShopBoard extends PageController("board", {
     submitLabel: "finir",
     submitUrl: "/test",
     submitUrlMethod: "POST",
-  }), { slot: "tab3" }).child("placeholder2", Placeholder(), { slot: "tab1" })))))).child("gridRow2", GridRow()).child("row", GridRow().child("revenueChart", ChartCard({
+  }), { slot: "tab3" }).child("placeholder2", Placeholder(), { slot: "tab1" });
+  static revenueChart = ChartCard({
     title: "Revenue",
     description: "Sum of paid orders, by month",
     icon: "i-ph-currency-eur",
@@ -89,7 +87,7 @@ export class PageShopBoard extends PageController("board", {
     currencyCode: "EUR",
     showDelta: true,
     chart: ChartArea({ xaxisType: "category", smooth: true }),
-  })));
+  });
   static chartCard = ChartCard({
     title: "Orders by status",
     chart: ChartColumn(),
@@ -101,11 +99,53 @@ export class PageShopBoard extends PageController("board", {
     submitLabel: "Submit",
     successMessage: "Order created",
   });
+  static form2 = Form({
+    title: "Form 2",
+    fields: [
+      {
+        id: "amount",
+        label: "Amount",
+        type: new DefaultDataTypes.NumberType({ min: 0 }),
+        required: true,
+      },
+      {
+        id: "status",
+        label: "Status",
+        type: new DefaultDataTypes.StringType({ placeholder: "paid" }),
+        required: true,
+      },
+      {
+        id: "createdAt",
+        label: "Created",
+        type: new DefaultDataTypes.DateType(),
+        required: true,
+      },
+    ],
+    submitLabel: "Submit",
+    showActions: true,
+    submitUrl: "/api/order/new",
+    submitUrlMethod: "POST",
+  });
+  static tableView = TableView(orderDataAPI, { rowActions: { delete: false } });
+  static chartCard2 = ChartCard({
+    title: "Chart card 3",
+    chart: ChartLine(),
+    fetchUrl: "/shop/board/stats/chart-card2",
+  });
+
   @Get("/stats/chart-card")
   async chartCard(
     @AuthUserWithPermission(PageShopBoard) _user: User,
     @Model(OrderModel) model: OrderModel,
   ): Promise<ChartCardData> {
     return chartCardData(await model.chartCard(), { measure: "count", label: "order" });
+  }
+
+  @Get("/stats/chart-card2")
+  async chartCard2(
+    @AuthUserWithPermission(PageShopBoard) _user: User,
+    @Model(OrderModel) model: OrderModel,
+  ): Promise<ChartCardData> {
+    return chartCardData(await model.chartCard2(), { measure: "count", label: "order" });
   }
 }
