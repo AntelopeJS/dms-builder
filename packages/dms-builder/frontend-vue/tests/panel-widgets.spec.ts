@@ -212,6 +212,38 @@ describe('a ranking read from a table', () => {
 		expect(textOf(root)).not.toContain('No rows match.')
 		expect(textOf(root)).toContain('BE')
 	})
+
+	it('leaves the other sources of the page answering the way they did', async () => {
+		backend.structure = {
+			...backend.structure,
+			queries: [
+				{
+					name: 'revenueCard',
+					endpoint: '/stats/revenue-card',
+					resource: 'order',
+					template: 'series',
+					params: { op: 'count', groupBy: 'country' },
+					response: 'card',
+				},
+			],
+		}
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+
+		builder.setDraftQuery({
+			name: 'topCountries',
+			resource: 'order',
+			template: 'series',
+			params: { op: 'count', groupBy: 'country' },
+			response: 'items',
+		})
+
+		expect(
+			builder.session.value.draft?.queries?.find(
+				(query) => query.name === 'revenueCard',
+			),
+		).toMatchObject({ response: 'card' })
+	})
 })
 
 describe('an option handed a table', () => {

@@ -363,6 +363,8 @@ export interface QueryStructure {
 	resource?: string
 	template?: string
 	params?: Record<string, unknown>
+	/** How the route arranges its answer, read off what it returns. */
+	response?: QueryResponseShape
 	opaque?: boolean
 	opaqueReason?: string
 }

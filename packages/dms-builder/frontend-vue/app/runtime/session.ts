@@ -1154,7 +1154,9 @@ export function useBuilder(): BuilderController {
 	 *
 	 * Seeded from what was read off the page the first time the editor touches
 	 * one: sending a draft that carries only the query being edited would tell the
-	 * engine the page serves nothing else.
+	 * engine the page serves nothing else. Each keeps how its route arranges its
+	 * answer, or the save rewrites a card's route to answer bare points, which the
+	 * card cannot read.
 	 */
 	function draftQueries(draft: PageDraft): AddQueryInput[] {
 		if (draft.queries) {
@@ -1167,6 +1169,7 @@ export function useBuilder(): BuilderController {
 				resource: query.resource as string,
 				template: query.template as string,
 				params: query.params ?? {},
+				...(query.response ? { response: query.response } : {}),
 				endpoint: query.endpoint,
 			}))
 	}
