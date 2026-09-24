@@ -101,6 +101,13 @@ function resourceFields(record: ResourceRecord): ResourceFieldStructure[] {
 function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
   const names = new Set(PAGE_RESERVED_MEMBERS);
   for (const member of pageClass.getMembers()) {
+    // A block is a static field, read off the class itself; a route is a
+    // method on its prototype. The two never meet — and a block's own data is
+    // the query the editor names after it, so counting the block as taken made
+    // a card placed on the page unable to read anything.
+    if ("isStatic" in member && member.isStatic()) {
+      continue;
+    }
     const name = "getName" in member ? member.getName() : undefined;
     if (typeof name === "string") {
       names.add(name);

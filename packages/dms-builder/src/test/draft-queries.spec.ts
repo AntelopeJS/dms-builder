@@ -301,4 +301,27 @@ describe("queries in a page draft", () => {
       );
     });
   });
+
+  it("names a block's own data after the block, as the editor does", async function () {
+    this.timeout(OP_TIMEOUT);
+    // The block is a static field of the page, its route a method: the one
+    // name is both, and neither stands in the other's way.
+    const card = {
+      name: "ordersCard",
+      type: "KpiCard",
+      config: { title: "Orders", fetchUrl: `${PAGE}/stats/orders-card` },
+    };
+    expectOk(
+      await SetPageBlocks(PAGE, {
+        blocks: [card],
+        queries: [{ ...ORDER_COUNT, name: "ordersCard" }],
+      }),
+      "SetPageBlocks",
+    );
+
+    const page = app.read(PAGE_FILE);
+    expect(page).to.contain("static ordersCard = KpiCard({");
+    expect(page).to.contain('@Get("/stats/orders-card")');
+    expect(page).to.contain("async ordersCard(");
+  });
 });
