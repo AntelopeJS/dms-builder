@@ -264,3 +264,60 @@ describe('an option handed a table', () => {
 		expect(picker!.props['model-value']).toBe('order')
 	})
 })
+
+describe('a block nested in an option', () => {
+	it('takes the options a nested data source writes together', async () => {
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+		// A chart a card wraps, which can read its own points too.
+		builder.session.value.catalog?.blocks.push({
+			type: 'ChartLine',
+			componentName: 'DmsChartLine',
+			label: 'Line Chart',
+			group: 'visualization',
+			container: false,
+			config: {
+				fetchUrl: { type: 'string', optional: true, ui: { widget: 'dataSource' } },
+				periodScope: { type: 'string', optional: true },
+			},
+			shapeSource: 'test',
+		} as never)
+		const written: unknown[] = []
+		const { root } = mount(Option, {
+			props: {
+				name: 'chart',
+				schema: {
+					type: 'unknown',
+					'x-component': true,
+					ui: { blockTypes: ['ChartLine'] },
+				},
+				modelValue: { $block: { type: 'ChartLine', config: { smooth: true } } },
+				'onUpdate:modelValue': (value: unknown) => written.push(value),
+			},
+		})
+		await nextTick()
+
+		const [source] = findAll(
+			root,
+			(node) => node.tag === 'DmsBuilderOption' && node.props.name === 'fetchUrl',
+		)
+		;(source!.props.onPatch as (patch: Record<string, unknown>) => void)({
+			fetchUrl: '/reports/sales/stats/revenue',
+			periodScope: 'page',
+		})
+
+		// Dropped, the query was saved and the chart never pointed at it.
+		expect(written).toEqual([
+			{
+				$block: {
+					type: 'ChartLine',
+					config: {
+						smooth: true,
+						fetchUrl: '/reports/sales/stats/revenue',
+						periodScope: 'page',
+					},
+				},
+			},
+		])
+	})
+})

@@ -344,10 +344,19 @@ function setBlockType(type: unknown): void {
 }
 
 function setBlockConfig(key: string, value: unknown): void {
+	patchBlockConfig({ [key]: value })
+}
+
+/**
+ * Several of the nested block's options at once — a data source writes its URL
+ * and the period it follows together. Left unhandled here, that patch never
+ * reached the block: the query was saved and the chart never pointed at it.
+ */
+function patchBlockConfig(patch: Record<string, unknown>): void {
 	set({
 		$block: {
 			type: blockValue.value.type,
-			config: mergePatch(blockValue.value.config ?? {}, { [key]: value }),
+			config: mergePatch(blockValue.value.config ?? {}, patch),
 		},
 	})
 }
@@ -699,6 +708,7 @@ const nestedProperties = computed(() =>
 					:model-value="(blockValue.config ?? {})[key]"
 					:resource="resource"
 					@update:model-value="setBlockConfig(key, $event)"
+					@patch="patchBlockConfig($event)"
 				/>
 			</div>
 		</div>
