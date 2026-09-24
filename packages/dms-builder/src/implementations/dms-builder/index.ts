@@ -50,6 +50,8 @@ import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
 import { addQuery, configureQuery, removeQuery } from "./engine/query-ops-emit";
 import { listQueryTemplates } from "./engine/query-template";
+// Registers the count and aggregate templates as a side effect.
+import "./engine/query-template-emit";
 import { listResourceSummaries } from "./engine/resource-index";
 import { createResource } from "./engine/resource-ops";
 import {

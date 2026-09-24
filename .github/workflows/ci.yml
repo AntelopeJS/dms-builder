@@ -46,6 +46,8 @@ jobs:
       - run: pnpm --filter @antelopejs/dms-builder test:package-contract
       # `prepack` runs the build, so this also gates on compile errors.
       - run: pnpm --filter @antelopejs/dms-builder prepack
+      - run: pnpm --filter @antelopejs/dms-builder test:builder-enabled
+      - run: pnpm --filter @antelopejs/dms-builder test:query-templates
       - run: pnpm --filter @antelopejs/dms-builder test:frontend-registration
 
       - run: pnpm --dir packages/dms-builder/frontend-vue typecheck
