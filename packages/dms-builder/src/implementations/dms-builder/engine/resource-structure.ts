@@ -59,7 +59,7 @@ function dataTypeIdByCtor(ctorName: string): string | undefined {
   return ctorToId.get(ctorName);
 }
 
-export function literalToValue(node: Node): unknown {
+function literalToValue(node: Node): unknown {
   if (
     Node.isStringLiteral(node) ||
     Node.isNoSubstitutionTemplateLiteral(node)

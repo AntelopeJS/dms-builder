@@ -27,7 +27,7 @@ const ROUTE_DECORATORS = ["Get", "Post", "Put", "Patch", "Delete"];
 const PARAM_SOURCES = new Set(["query", "param", "header"]);
 
 /** One argument of a route's call into its model method, per the §4 grammar. */
-export type QueryArg =
+type QueryArg =
   | { kind: "literal"; text: string }
   | { kind: "param"; name: string; coerce?: "number" | "date" | "boolean" };
 
@@ -181,9 +181,7 @@ function modelParameter(
 }
 
 /** Hop 2 — the model class a route injects, as a bare identifier. */
-export function routeModelClassName(
-  method: MethodDeclaration,
-): string | undefined {
+function routeModelClassName(method: MethodDeclaration): string | undefined {
   const parameter = modelParameter(method);
   if (!parameter) {
     return undefined;

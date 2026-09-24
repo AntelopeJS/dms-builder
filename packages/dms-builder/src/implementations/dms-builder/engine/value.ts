@@ -2,7 +2,7 @@ import type { ImportRef, RefValue } from "@antelopejs/interface-dms-builder";
 import { buildCatalog } from "./catalog";
 import { propertyKey } from "./paths";
 
-export interface RefResolution {
+interface RefResolution {
   text: string;
   import: ImportRef;
 }

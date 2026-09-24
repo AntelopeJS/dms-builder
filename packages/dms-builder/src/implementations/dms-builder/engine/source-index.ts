@@ -12,7 +12,7 @@ import {
 
 let cached: ScanResult | undefined;
 
-export function getSourceIndex(): ScanResult {
+function getSourceIndex(): ScanResult {
   if (!cached) {
     cached = scanProject(createProject(resolveProjectRoot()));
   }

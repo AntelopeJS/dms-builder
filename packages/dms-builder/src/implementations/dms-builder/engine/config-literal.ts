@@ -107,7 +107,7 @@ function propertyName(prop: PropertyAssignment): string {
   return prop.getName();
 }
 
-export function literalToValue(node: Node | undefined): LiteralResult {
+function literalToValue(node: Node | undefined): LiteralResult {
   if (!node) {
     return { value: undefined, fullyLiteral: true };
   }

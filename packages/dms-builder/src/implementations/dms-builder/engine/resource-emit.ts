@@ -16,7 +16,7 @@ const CONSTANTS_MODULE = "@antelopejs/interface-dms/constants";
 const TENANT_MODEL_MODULE = "@antelopejs/interface-dms/tenant-scoped-model";
 export const DATABASE_LOCAL = "./database";
 
-export const RESOURCE_ROUTES: readonly ResourceRoute[] = [
+const RESOURCE_ROUTES: readonly ResourceRoute[] = [
   "list",
   "get",
   "create",
@@ -179,15 +179,15 @@ export function resourceClassName(name: string): string {
   return pascalCase(name);
 }
 
-export function resourceModelName(name: string): string {
+function resourceModelName(name: string): string {
   return `${resourceClassName(name)}Model`;
 }
 
-export function resourceApiName(name: string): string {
+function resourceApiName(name: string): string {
   return `${camelCase(name)}DataAPI`;
 }
 
-export function resourceTableName(name: string): string {
+function resourceTableName(name: string): string {
   return pluralize(words(name).join("_"));
 }
 

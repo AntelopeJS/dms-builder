@@ -144,7 +144,7 @@ function findField(
   return fields.find((field) => field.name === name);
 }
 
-export interface FieldTypes {
+interface FieldTypes {
   ts: string;
   dataType: string;
   /**
