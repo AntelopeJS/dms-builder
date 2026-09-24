@@ -5,6 +5,7 @@
     "target": "esnext",
     "module": "preserve",
     "lib": ["ES2020"],
+    "types": ["node"],
     "allowJs": true,
     "outDir": "dist",
     "strict": true,

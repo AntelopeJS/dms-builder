@@ -27,10 +27,10 @@ const dmsSource = DMS_MODULE_PATH
       type: "package" as const,
       // Single-bound on purpose: the CLI passes this range to `npm pack`
       // through a shell without quoting it, so a range containing a space
-      // ("\u003e=0.3.5 <1.0.0") is split into two arguments and the module fails
+      // ("\u003e=0.4.2 <1.0.0") is split into two arguments and the module fails
       // to load. Same resolution, one word.
       package: "@antelopejs/dms",
-      version: "^0.3.5",
+      version: "^0.4.2",
     };
 
 export default defineConfig({
@@ -120,11 +120,7 @@ export default defineConfig({
       source: {
         type: "package",
         package: "@antelopejs/api",
-        // Exact on purpose: 1.3.0 requires `@antelopejs/interface-core` 0.1,
-        // and the playground's interfaces are on 0.0.13 — a caret range pulls
-        // it in and the core refuses to construct any module. Lift the pin with
-        // the move to interface-core 0.1.
-        version: "1.2.5",
+        version: "^1.3.0",
       },
       config: {
         servers: [{ protocol: "http", port: API_PORT }],
