@@ -8,7 +8,9 @@ import type {
   BlockDraft,
   BlockPath,
   ComponentPreview,
+  ConfigSchema,
   OpResult,
+  OptionSchema,
   PageDraft,
   PageLayoutPreview,
 } from "@antelopejs/interface-dms-builder";
@@ -157,6 +159,97 @@ function materialize(value: unknown): unknown {
   return materialized;
 }
 
+/** A value still missing an option its schema requires. */
+const UNFINISHED = Symbol("unfinished");
+
+function isEmpty(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+function isRequired(schema: OptionSchema): boolean {
+  return !schema.optional && schema.default === undefined;
+}
+
+/**
+ * `value` without the list entries it holds that are still being filled in, or
+ * `UNFINISHED` when `value` is one of them: a required option left empty,
+ * however deep. Hidden options are not the author's to fill, so they are not
+ * counted — the same reading the panel's "Waiting on" makes.
+ */
+function finished(schema: OptionSchema, value: unknown): unknown {
+  if (isEmpty(value)) {
+    return isRequired(schema) ? UNFINISHED : value;
+  }
+  if (schema.oneOf?.length) {
+    for (const branch of schema.oneOf) {
+      const kept = finished(branch, value);
+      if (kept !== UNFINISHED) {
+        return kept;
+      }
+    }
+    return UNFINISHED;
+  }
+  if (schema.properties && isPlainObject(value)) {
+    const kept: Record<string, unknown> = { ...value };
+    for (const [key, nested] of Object.entries(schema.properties)) {
+      if (nested.ui?.hidden) {
+        continue;
+      }
+      const entry = finished(nested, value[key]);
+      if (entry === UNFINISHED) {
+        return UNFINISHED;
+      }
+      if (key in value) {
+        kept[key] = entry;
+      }
+    }
+    return kept;
+  }
+  if (schema.items && Array.isArray(value)) {
+    const items = schema.items;
+    return value
+      .map((entry) => finished(items, entry))
+      .filter((entry) => entry !== UNFINISHED);
+  }
+  if (schema.values && isPlainObject(value)) {
+    const values = schema.values;
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, entry]) => [key, finished(values, entry)] as const)
+        .filter(([, entry]) => entry !== UNFINISHED),
+    );
+  }
+  return value;
+}
+
+/**
+ * A block's options as the preview builds it: the list entries the author has
+ * only begun left out.
+ *
+ * A form's field arrives with a label and nothing else, and the factory reads
+ * its type the moment it is called — so one field just added took the whole
+ * form down to a placeholder, until a type was chosen. The block previews as it
+ * stood before the entry, and the entry joins it once it is filled in. An
+ * option of the block itself left empty is kept as it is: that is the block
+ * being unfinished, and the placeholder is the right answer to it.
+ */
+function withoutUnfinishedEntries(
+  schema: ConfigSchema,
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const kept: Record<string, unknown> = { ...config };
+  for (const [key, option] of Object.entries(schema)) {
+    if (!(key in config)) {
+      continue;
+    }
+    const entry = finished(option, config[key]);
+    if (entry !== UNFINISHED) {
+      kept[key] = entry;
+    }
+  }
+  return kept;
+}
+
 /** What the preview walks: the paths it had to stand in for. */
 interface PreviewContext {
   degraded: BlockPath[];
@@ -213,7 +306,9 @@ function buildBlock(block: BlockDraft): unknown {
   if (descriptor.controllerArg && !controller) {
     throw new DegradedBlockError(`${label} — needs the running page`);
   }
-  const config = materialize(block.config ?? {}) as Record<string, unknown>;
+  const config = materialize(
+    withoutUnfinishedEntries(descriptor.config, block.config ?? {}),
+  ) as Record<string, unknown>;
   const options = { ...descriptor.defaults, ...config };
   return controller
     ? factoryFor(descriptor.type)(controller, options)

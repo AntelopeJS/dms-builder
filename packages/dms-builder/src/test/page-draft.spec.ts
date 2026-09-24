@@ -128,6 +128,35 @@ describe("the page draft", () => {
       expect(preview.degraded).to.deep.equal([]);
     });
 
+    it("previews a form without the field the author has only just added", async function () {
+      this.timeout(OP_TIMEOUT);
+      const email = {
+        id: "email",
+        label: "Email",
+        type: { $dataType: "string", config: {} },
+      };
+      const preview = expectOk(
+        await PreviewLayout(PAGE, {
+          blocks: [
+            {
+              name: "signup",
+              type: "Form",
+              // What the panel adds a field as: a label, and no key or type yet.
+              config: { fields: [email, { label: "Field 2" }] },
+            },
+          ],
+        }),
+        "PreviewLayout",
+      );
+
+      expect(preview.degraded).to.deep.equal([]);
+      expect(preview.components.signup.componentName).to.equal("dms-form");
+      const fields = preview.components.signup.options?.fields as Array<{
+        id: string;
+      }>;
+      expect(fields.map((field) => field.id)).to.deep.equal(["email"]);
+    });
+
     it("leaves the file untouched", async function () {
       this.timeout(OP_TIMEOUT);
       const before = app.read(PAGE_FILE);
