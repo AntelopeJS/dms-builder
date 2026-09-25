@@ -160,6 +160,56 @@ describe("previewing a query", () => {
     }
   });
 
+  it("answers the period before too, when the card compares against it", async function () {
+    if (!arrangementsAvailable()) {
+      this.skip();
+    }
+    const rows = [
+      { x: 202601, y: 150 },
+      { x: 202602, y: 30 },
+    ];
+    const compared = {
+      ...MONTHLY_CARD,
+      params: {
+        ...MONTHLY.params,
+        where: [
+          { field: "createdAt", op: "ge", value: { $param: { name: "from" } } },
+          { field: "createdAt", op: "le", value: { $param: { name: "to" } } },
+        ],
+      },
+      compare: true,
+    };
+    const bounds = { from: "2026-02-01", to: "2026-02-28" };
+    const preceding = { compareFrom: "2026-01-01", compareTo: "2026-01-31" };
+
+    const result = await runPlanPreview(
+      tableAnswering(rows),
+      { query: compared, args: { ...bounds, ...preceding } },
+      FIELDS,
+    );
+    expect(result.ok).to.equal(true);
+    if (result.ok) {
+      expect(
+        result.data.body.previousValue,
+        "the preceding period's headline, as the route would answer it",
+      ).to.equal(180);
+      expect(result.data.body.comparisonSeries).to.not.equal(undefined);
+    }
+
+    const alone = await runPlanPreview(
+      tableAnswering(rows),
+      { query: compared, args: bounds },
+      FIELDS,
+    );
+    expect(alone.ok).to.equal(true);
+    if (alone.ok) {
+      expect(
+        alone.data.body.previousValue,
+        "no comparison bounds, no period before to read",
+      ).to.equal(undefined);
+    }
+  });
+
   it("refuses an arrangement the installed DMS cannot build", async function () {
     if (arrangementsAvailable()) {
       this.skip();

@@ -183,6 +183,11 @@ export interface QueryStructure {
    * one binds `$param` to `query` or `param`.
    */
   routeParams?: { name: string; in: "query" | "param" | "header" }[];
+  /**
+   * True when the route answers the preceding period beside the current one,
+   * as {@link AddQueryInput.compare} asked it to.
+   */
+  compare?: boolean;
   /** True when the query could not be reversed to an editable template. */
   opaque?: boolean;
   /**

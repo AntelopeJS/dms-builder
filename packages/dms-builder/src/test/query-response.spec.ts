@@ -223,6 +223,16 @@ describe("how a query's answer is arranged", () => {
       );
     });
 
+    it("reads the comparison back, so the next save keeps it", async () => {
+      const trend = await queryNamed("revenueTrend");
+      expect(trend?.opaque).to.not.equal(true);
+      expect(trend?.compare).to.equal(true);
+      expect(
+        (await queryNamed("revenueCard"))?.compare,
+        "a card that does not compare says nothing of it",
+      ).to.equal(undefined);
+    });
+
     it("declines to compare a calculation whose dates are baked in", async function () {
       this.timeout(OP_TIMEOUT);
       // Nothing to shift: without bounds the route supplies, there is no

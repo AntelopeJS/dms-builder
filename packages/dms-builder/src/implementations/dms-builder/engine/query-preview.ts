@@ -18,6 +18,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { invalidConfig, notFound, unsupported } from "./ops";
 import {
+  COMPARISON_PARAMETERS,
   isPerTenantSchema,
   outputForTemplate,
   RESPONSE_HELPERS,
@@ -31,7 +32,8 @@ import {
   type PlanArguments,
   type PlanStream,
 } from "./query-plan-execute";
-import { getQueryTemplate } from "./query-template";
+import type { QueryPlan } from "./query-plan";
+import { getQueryTemplate, isParamBinding } from "./query-template";
 import { findResourceRecord } from "./resource-index";
 import { buildResourceStructure } from "./resource-structure";
 
@@ -87,7 +89,7 @@ function openTable(
 
 type ResponseArranger = (
   points: QueryPoint[],
-  options: SeriesNaming,
+  options: SeriesNaming & { previous?: QueryPoint[] },
 ) => QueryResponseBody;
 
 /**
@@ -145,6 +147,7 @@ function arrange(
   output: QueryOutputKind,
   requested: QueryResponseShape | undefined,
   naming: SeriesNaming,
+  previous?: QueryPoint[],
 ): OpResult<QueryPreview> {
   const points = read.points;
   if (output === "scalar" || !points) {
@@ -171,9 +174,48 @@ function arrange(
   return preview({
     output,
     response: shape,
-    body: arranger(points, naming),
+    body: arranger(points, previous ? { ...naming, previous } : naming),
     truncated: read.truncated,
   });
+}
+
+/**
+ * The arguments the route hands the calculation for the preceding period: the
+ * comparison's bounds, in the place of the two date bounds the query binds — the
+ * same substitution the emitted route makes. None when the query binds no such
+ * pair, or the caller sent no comparison bounds.
+ */
+function precedingArguments(
+  plan: QueryPlan,
+  fields: ResourceFieldStructure[],
+  args: PlanArguments,
+): PlanArguments | undefined {
+  const dates = new Set(
+    fields
+      .filter((field) => field.dataType?.$dataType === "date")
+      .map((field) => field.name),
+  );
+  const bounds = [
+    ...new Set(
+      plan.filters.flatMap((filter) =>
+        dates.has(filter.field) && isParamBinding(filter.value)
+          ? [filter.value.$param.name]
+          : [],
+      ),
+    ),
+  ];
+  if (bounds.length !== COMPARISON_PARAMETERS.length) {
+    return undefined;
+  }
+  const preceding: PlanArguments = { ...args };
+  for (const [at, name] of bounds.entries()) {
+    const value = args[COMPARISON_PARAMETERS[at]];
+    if (value === undefined) {
+      return undefined;
+    }
+    preceding[name] = value;
+  }
+  return preceding;
 }
 
 /** A preview writes nothing, so there is nothing for a caller to diff. */
@@ -206,18 +248,24 @@ export async function runPlanPreview(
     return { ok: false, error: { code: "invalid_config", issues } };
   }
   try {
-    const rows = await executePlan(
-      table,
-      template.plan(params, fields),
-      fields,
-      request.args ?? {},
-    );
+    const plan = template.plan(params, fields);
+    const args = request.args ?? {};
+    const rows = await executePlan(table, plan, fields, args);
+    // The period before, read the way the route reads it, so the card's
+    // variation shows before the page is saved.
+    const preceding = query.compare
+      ? precedingArguments(plan, fields, args)
+      : undefined;
+    const previous = preceding
+      ? readRows(await executePlan(table, plan, fields, preceding)).points
+      : undefined;
     return arrange(
       readRows(rows),
       outputForTemplate(query.template) ??
         (Array.isArray(rows) ? "series" : "scalar"),
       query.response,
       seriesNaming(params, fields, query.resource),
+      previous,
     );
   } catch (error) {
     return unsupported<QueryPreview>(

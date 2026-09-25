@@ -43,6 +43,8 @@ export interface QueryRouteCall {
   output: QueryOutputKind;
   /** The arrangement a helper applied, when one did. */
   response?: string;
+  /** Whether the helper is handed the preceding period too. */
+  compare?: boolean;
 }
 
 export interface QueryRoute {
@@ -338,6 +340,19 @@ interface UnwrappedResponse {
   call: CallExpression;
   output: QueryOutputKind;
   response?: string;
+  compare?: boolean;
+}
+
+/** The option a helper is handed the preceding period's calculation under. */
+const PREVIOUS_OPTION = "previous";
+
+/** Whether a helper's options hand it the preceding period. */
+function comparesPrevious(options: Node | undefined): boolean {
+  return (
+    !!options &&
+    Node.isObjectLiteralExpression(options) &&
+    options.getProperty(PREVIOUS_OPTION) !== undefined
+  );
 }
 
 /**
@@ -356,14 +371,20 @@ function unwrapHelperCall(call: CallExpression): UnwrappedResponse | undefined {
   if (!shape) {
     return undefined;
   }
-  const [first] = call.getArguments();
+  const [first, options] = call.getArguments();
   if (!first || !Node.isAwaitExpression(first)) {
     return undefined;
   }
   const inner = first.getExpression();
-  return Node.isCallExpression(inner)
-    ? { call: inner, output: "series", response: shape }
-    : undefined;
+  if (!Node.isCallExpression(inner)) {
+    return undefined;
+  }
+  return {
+    call: inner,
+    output: "series",
+    response: shape,
+    ...(comparesPrevious(options) ? { compare: true } : {}),
+  };
 }
 
 /**
@@ -378,7 +399,7 @@ export function parseQueryRouteCall(
   if (!unwrapped) {
     return undefined;
   }
-  const { call, output, response } = unwrapped;
+  const { call, output, response, compare } = unwrapped;
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) {
     return undefined;
@@ -406,7 +427,13 @@ export function parseQueryRouteCall(
     }
     args.push(parsed);
   }
-  return { modelMethod: callee.getName(), args, output, response };
+  return {
+    modelMethod: callee.getName(),
+    args,
+    output,
+    response,
+    ...(compare ? { compare } : {}),
+  };
 }
 
 type ParamSource = "query" | "param" | "header";
@@ -555,6 +582,10 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     // The arrangement lives on the route rather than in the chain, so it reads
     // back beside the parameters instead of among them.
     base.response = call.response as QueryStructure["response"];
+  }
+  if (call.compare) {
+    // Read back, or the next save would write the route without it.
+    base.compare = true;
   }
   return {
     ...base,
