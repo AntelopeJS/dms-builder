@@ -383,7 +383,7 @@ function unwrapHelperCall(call: CallExpression): UnwrappedResponse | undefined {
     call: inner,
     output: "series",
     response: shape,
-    ...(comparesPrevious(options) ? { compare: true } : {}),
+    compare: comparesPrevious(options) || undefined,
   };
 }
 
@@ -432,7 +432,7 @@ export function parseQueryRouteCall(
     args,
     output,
     response,
-    ...(compare ? { compare } : {}),
+    compare,
   };
 }
 
