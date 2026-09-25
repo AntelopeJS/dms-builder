@@ -58,58 +58,50 @@ async function remove(): Promise<void> {
 				:key="entry.label"
 				class="flex h-10 items-center justify-between gap-4 border-t border-default px-3"
 			>
-				<span class="text-[13px] text-muted">{{ entry.label }}</span>
+				<span class="text-sm text-muted">{{ entry.label }}</span>
 				<span
 					class="truncate text-default"
-					:class="entry.mono ? 'font-mono text-xs' : 'text-[13px]'"
+					:class="entry.mono ? 'font-mono text-xs' : 'text-sm'"
 				>
 					{{ entry.value }}
 				</span>
 			</div>
 		</div>
 
-		<div
-			class="flex flex-col gap-3.5 rounded-lg border border-error/30 bg-error/5 p-3.5"
+		<UAlert
+			color="error"
+			variant="subtle"
+			icon="i-ph-warning"
+			title="Delete this table"
 		>
-			<div class="flex flex-col gap-1">
-				<p class="text-sm font-semibold text-highlighted">Delete this table</p>
-				<p class="text-xs leading-relaxed text-muted">
-					Removes
-					<span class="font-mono text-toned">{{ structure?.tableName }}</span>,
-					its API and <b class="font-medium text-default">every row it holds</b
-					>. There is no undo, and it happens now, not on Save.
-					<template v-if="readBy">
-						{{ blocks }} on this page read from it.
-					</template>
-				</p>
-			</div>
-			<div class="flex flex-col gap-1.5">
-				<label
-					:for="`delete-${resource}`"
-					class="text-xs font-medium text-toned"
-				>
-					Type <span class="font-mono text-highlighted">{{ resource }}</span> to
-					confirm
-				</label>
-				<UInput
-					:id="`delete-${resource}`"
-					v-model="typed"
-					:placeholder="resource"
+			<template #description>
+				Removes <span class="font-mono">{{ structure?.tableName }}</span>, its
+				API and <b>every row it holds</b>. There is no undo, and it happens now,
+				not on Save.
+				<template v-if="readBy">
+					{{ blocks }} on this page read from it.
+				</template>
+			</template>
+			<template #actions>
+				<UFormField :label="`Type ${resource} to confirm`" class="w-full">
+					<UInput
+						v-model="typed"
+						:placeholder="resource"
+						color="error"
+						autocomplete="off"
+						class="w-full font-mono"
+						@keydown.enter="remove"
+					/>
+				</UFormField>
+				<UButton
+					icon="i-ph-trash"
 					color="error"
-					autocomplete="off"
-					class="font-mono"
-					@keydown.enter="remove"
+					label="Delete the table and its rows"
+					:disabled="!confirmed"
+					:loading="deleting"
+					@click="remove"
 				/>
-			</div>
-			<UButton
-				icon="i-ph-trash"
-				color="error"
-				label="Delete the table and its rows"
-				class="self-start"
-				:disabled="!confirmed"
-				:loading="deleting"
-				@click="remove"
-			/>
-		</div>
+			</template>
+		</UAlert>
 	</div>
 </template>

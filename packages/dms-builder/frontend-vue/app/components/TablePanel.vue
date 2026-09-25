@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { dataTypeItem } from '../runtime/catalog'
+import { dataTypeItem, sortDirections } from '../runtime/catalog'
 import { useBuilder } from '../runtime/session'
 import { useTableBlock } from '../runtime/table-panel'
 import type { ResourceFieldStructure } from '../runtime/types'
@@ -40,7 +40,7 @@ function labelOf(column: ResourceFieldStructure): string {
 }
 
 function iconOf(column: ResourceFieldStructure | undefined): string {
-	return dataTypeItem(column?.dataType?.$dataType ?? 'string').icon
+	return dataTypeItem(column?.dataType?.$dataType).icon
 }
 
 function columnNamed(name: string | undefined): ResourceFieldStructure | undefined {
@@ -94,30 +94,13 @@ const sortItems = computed(() =>
 )
 const sortColumn = computed(() => columnNamed(sort.value?.field))
 
-/**
- * The two ways a column is sorted, in the words its type reads in, the way
- * people want it first leading: the newest date, the largest number, and
- * text from A.
- */
-const directions = computed(() => {
-	const type = sortColumn.value?.dataType?.$dataType ?? 'string'
-	if (['date', 'string_time'].includes(type)) {
-		return [
-			{ desc: true, label: 'Newest first' },
-			{ desc: false, label: 'Oldest first' },
-		]
-	}
-	if (['number', 'price', 'percentage'].includes(type)) {
-		return [
-			{ desc: true, label: 'Largest first' },
-			{ desc: false, label: 'Smallest first' },
-		]
-	}
-	return [
-		{ desc: false, label: 'A to Z' },
-		{ desc: true, label: 'Z to A' },
-	]
-})
+/** The two ways the column sorts, as choices: a choice's value is no boolean. */
+const directions = computed(() =>
+	sortDirections(sortColumn.value?.dataType?.$dataType).map((entry) => ({
+		label: entry.label,
+		value: entry.desc ? 'desc' : 'asc',
+	})),
+)
 
 function setSortField(value: unknown): void {
 	const field = String(value)
@@ -125,9 +108,11 @@ function setSortField(value: unknown): void {
 		table.patch({ defaultSort: undefined })
 		return
 	}
-	const type = columnNamed(field)?.dataType?.$dataType
-	// A date reads newest first, unless the author already chose otherwise.
-	const desc = sort.value ? sort.value.desc : type === 'date'
+	// A column sorts the way people want it first, unless the author already
+	// chose otherwise.
+	const desc = sort.value
+		? sort.value.desc
+		: sortDirections(columnNamed(field)?.dataType?.$dataType)[0]?.desc === true
 	table.patch({ defaultSort: desc ? { field, desc } : { field } })
 }
 
@@ -162,11 +147,10 @@ const nameItems = computed(() =>
 </script>
 
 <template>
-	<div class="flex flex-col gap-[22px]">
-		<div v-if="table.has('caption')" class="flex flex-col gap-1.5">
-			<label for="table-caption" class="text-xs font-medium text-toned">Title</label>
+	<div class="flex flex-col gap-6">
+		<UFormField v-if="table.has('caption')" label="Title">
 			<UInput
-				id="table-caption"
+				class="w-full"
 				:model-value="caption"
 				size="lg"
 				placeholder="Shown above the table — optional"
@@ -174,7 +158,7 @@ const nameItems = computed(() =>
 					table.patch({ caption: String($event) === '' ? undefined : String($event) })
 				"
 			/>
-		</div>
+		</UFormField>
 
 		<div class="flex flex-col gap-3.5">
 			<p class="text-xs font-semibold text-toned">Data</p>
@@ -188,49 +172,42 @@ const nameItems = computed(() =>
 					class="flex flex-col gap-2"
 				>
 					<p class="text-xs font-medium text-toned">Rows</p>
-					<div class="overflow-hidden rounded-lg border border-default">
-						<div
+					<div class="divide-y divide-default rounded-lg border border-default">
+						<UFormField
 							v-if="table.has('defaultSort')"
-							class="flex flex-col gap-1.5 px-3 py-2.5"
+							label="Come sorted by"
+							:help="sortHint"
+							class="px-3 py-2.5"
 						>
-							<label class="text-xs text-muted">Come sorted by</label>
-							<div class="flex gap-1.5">
+							<div class="flex flex-col gap-1.5">
 								<USelectMenu
 									:model-value="sort?.field ?? NONE"
 									:items="sortItems"
 									value-key="value"
 									:icon="sort ? iconOf(sortColumn) : 'i-ph-minus'"
 									aria-label="Rows come sorted by"
-									class="min-w-0 flex-1"
+									class="w-full"
 									@update:model-value="setSortField($event)"
 								/>
-								<div
+								<DmsSegmented
 									v-if="sort"
-									role="group"
+									:model-value="sort.desc ? 'desc' : 'asc'"
+									:items="directions"
 									aria-label="Order"
-									class="flex shrink-0 rounded-md border border-accented bg-default p-0.5"
-								>
-									<UButton
-										v-for="entry in directions"
-										:key="entry.label"
-										:label="entry.label"
-										size="xs"
-										:color="sort.desc === entry.desc ? 'primary' : 'neutral'"
-										:variant="sort.desc === entry.desc ? 'soft' : 'ghost'"
-										:aria-pressed="sort.desc === entry.desc"
-										@click="setDesc(entry.desc)"
-									/>
-								</div>
+									size="xs"
+									class="self-start"
+									@update:model-value="setDesc($event === 'desc')"
+								/>
 							</div>
-							<p class="text-xs text-dimmed">{{ sortHint }}</p>
-						</div>
-						<div
+						</UFormField>
+						<UFormField
 							v-if="table.has('labelKey')"
-							class="flex flex-col gap-1.5 px-3 py-2.5"
-							:class="table.has('defaultSort') ? 'border-t border-default' : ''"
+							label="Are called by"
+							help="In the title of their dialogs."
+							class="px-3 py-2.5"
 						>
-							<label class="text-xs text-muted">Are called by</label>
 							<USelectMenu
+								class="w-full"
 								:model-value="labelKey ?? NONE"
 								:items="nameItems"
 								value-key="value"
@@ -242,8 +219,7 @@ const nameItems = computed(() =>
 									})
 								"
 							/>
-							<p class="text-xs text-dimmed">In the title of their dialogs.</p>
-						</div>
+						</UFormField>
 					</div>
 				</div>
 			</template>

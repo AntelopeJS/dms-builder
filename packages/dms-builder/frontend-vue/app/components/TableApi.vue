@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { TABLE_ROUTES } from '../runtime/constants'
 import { useBuilder } from '../runtime/session'
+import { servedRoutes, type TableRoute } from '../runtime/table-routes'
 
 const GROUPS = [
 	{ label: 'Read', writes: false },
@@ -15,12 +16,9 @@ const session = builder.session
 
 const structure = computed(() => session.value.resourceStructures[props.resource])
 const writing = computed(() => session.value.pending.includes(props.resource))
-/** What the table serves; a structure naming none serves them all. */
-const served = computed(
-	() => structure.value?.routes ?? TABLE_ROUTES.map((entry) => entry.key),
-)
+const served = computed(() => servedRoutes(structure.value))
 
-function serves(route: string): boolean {
+function serves(route: TableRoute): boolean {
 	return served.value.includes(route)
 }
 
@@ -28,7 +26,7 @@ function routesOf(writes: boolean) {
 	return TABLE_ROUTES.filter((entry) => entry.writes === writes)
 }
 
-function toggle(route: string): void {
+function toggle(route: TableRoute): void {
 	const next = serves(route)
 		? served.value.filter((entry) => entry !== route)
 		: [...new Set([...served.value, route])]
@@ -62,22 +60,16 @@ function toggle(route: string): void {
 					of {{ routesOf(group.writes).length }} on
 				</span>
 			</div>
-			<div
+			<USwitch
 				v-for="entry in routesOf(group.writes)"
 				:key="entry.key"
-				class="flex items-center gap-4 border-t border-default px-3 py-2.5"
-			>
-				<div class="min-w-0 flex-1">
-					<p class="text-[13px] text-default">{{ entry.label }}</p>
-					<p class="text-xs text-muted">{{ entry.help }}</p>
-				</div>
-				<USwitch
-					:model-value="serves(entry.key)"
-					:disabled="writing || (serves(entry.key) && served.length === 1)"
-					:aria-label="entry.label"
-					@update:model-value="toggle(entry.key)"
-				/>
-			</div>
+				:model-value="serves(entry.key)"
+				:label="entry.label"
+				:description="entry.help"
+				:disabled="writing || (serves(entry.key) && served.length === 1)"
+				class="border-t border-default px-3 py-2.5"
+				@update:model-value="toggle(entry.key)"
+			/>
 		</div>
 	</div>
 </template>

@@ -8,7 +8,6 @@ import {
 	isBound,
 	MEASURE_WORDS,
 	sourceQuery,
-	variationText,
 } from '../runtime/data-source'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
@@ -60,11 +59,11 @@ const FILTER_OPS = Object.entries(FILTER_WORDS).map(([value, label]) => ({
 	value,
 }))
 
+/** A preview is narrow: its labels lie flat, the ones that would overlap left out. */
+const PREVIEW_X_AXIS = { rotate: 0, hideOverlappingLabels: true }
+
 /** The most groups a series keeps, as the engine bounds it. */
 const MAX_LIMIT = 1000
-
-/** How many points the preview draws before saying how many more there are. */
-const PREVIEW_POINTS = 8
 
 /**
  * The scope a card bound to a period follows: the one a period selector drives
@@ -78,11 +77,11 @@ const PAGE_PERIOD_SCOPE = 'page'
  */
 type Refinement = 'sort' | 'top' | 'conditions' | 'period'
 
-const REFINEMENTS: { kind: Refinement; label: string; icon: string }[] = [
-	{ kind: 'sort', label: 'Sort', icon: 'i-ph-sort-ascending' },
-	{ kind: 'top', label: 'Top groups', icon: 'i-ph-list-numbers' },
-	{ kind: 'conditions', label: 'Conditions', icon: 'i-ph-funnel' },
-	{ kind: 'period', label: 'Period', icon: 'i-ph-calendar-blank' },
+const REFINEMENTS: { kind: Refinement; label: string }[] = [
+	{ kind: 'sort', label: 'Sort' },
+	{ kind: 'top', label: 'Top groups' },
+	{ kind: 'conditions', label: 'Conditions' },
+	{ kind: 'period', label: 'Period' },
 ]
 
 interface DraftFilter {
@@ -533,29 +532,19 @@ const previousPoints = computed(() =>
 	pointsOf(preview.value?.body?.comparisonSeries),
 )
 
-const shownPoints = computed(() => previewPoints.value.slice(0, PREVIEW_POINTS))
-const tallest = computed(() =>
-	Math.max(1, ...shownPoints.value.map((point) => point.y)),
-)
-
-/** A line through the points, in a box 100 wide and 40 high. */
-function lineOf(points: QueryPoint[], top: number): string {
-	if (!points.length) {
-		return ''
+/** What the preview draws: the points, and the period before dashed beside them. */
+const previewSeries = computed(() => {
+	const series: Array<{ name: string; data: QueryPoint[]; strokeDashArray?: number }> =
+		[{ name: 'This period', data: previewPoints.value }]
+	if (previousPoints.value.length) {
+		series.push({
+			name: 'Previous period',
+			data: previousPoints.value,
+			strokeDashArray: 4,
+		})
 	}
-	const step = points.length > 1 ? 100 / (points.length - 1) : 0
-	return points
-		.map((point, index) => `${index * step},${40 - (point.y / top) * 36}`)
-		.join(' ')
-}
-
-const lineTop = computed(() =>
-	Math.max(
-		1,
-		...previewPoints.value.map((point) => point.y),
-		...previousPoints.value.map((point) => point.y),
-	),
-)
+	return series
+})
 
 /* ---- reopened ----------------------------------------------------------- */
 
@@ -641,7 +630,7 @@ watch(
 		>
 			<div class="flex items-center gap-2.5">
 				<span
-					class="flex size-[30px] shrink-0 items-center justify-center rounded-md bg-accented text-muted"
+					class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accented text-muted"
 				>
 					<UIcon name="i-ph-code" class="size-4" />
 				</span>
@@ -673,8 +662,8 @@ watch(
 				class="flex flex-col gap-2.5 rounded-lg border border-default bg-elevated/60 p-3"
 			>
 				<div class="flex items-start justify-between gap-2">
-					<p class="text-[13px] text-default">{{ summary }}</p>
-					<span class="shrink-0 text-[11px] text-dimmed">
+					<p class="text-sm text-default">{{ summary }}</p>
+					<span class="shrink-0 text-xs text-dimmed">
 						{{ previewing ? 'Reading…' : 'Preview' }}
 					</span>
 				</div>
@@ -685,73 +674,17 @@ watch(
 					<span class="text-2xl font-semibold tabular-nums text-highlighted">
 						{{ previewValue.toLocaleString() }}
 					</span>
-					<span
-						v-if="previewDelta !== undefined"
-						class="inline-flex h-5 items-center rounded-full px-1.5 text-xs font-medium"
-						:class="
-							previewDelta < 0
-								? 'bg-error/10 text-error'
-								: 'bg-success/10 text-success'
-						"
-					>
-						{{ variationText(previewDelta) }}
-					</span>
+					<DmsTrendBadge v-if="previewDelta !== undefined" :delta="previewDelta" />
 				</div>
 
-				<template v-if="previewPoints.length">
-					<svg
-						v-if="draw === 'line'"
-						viewBox="0 0 100 40"
-						preserveAspectRatio="none"
-						class="h-20 w-full overflow-visible"
-						role="img"
-						aria-label="What it answers, drawn as a line"
-					>
-						<polyline
-							v-if="previousPoints.length"
-							:points="lineOf(previousPoints, lineTop)"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1"
-							stroke-dasharray="3 3"
-							vector-effect="non-scaling-stroke"
-							class="text-dimmed"
-						/>
-						<polyline
-							:points="lineOf(previewPoints, lineTop)"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							vector-effect="non-scaling-stroke"
-							class="text-primary"
-						/>
-					</svg>
-					<div
-						v-else
-						class="flex h-[100px] items-end gap-1.5 border-b border-default"
-					>
-						<div
-							v-for="point in shownPoints"
-							:key="String(point.x)"
-							class="flex min-w-0 flex-1 flex-col items-center gap-1"
-						>
-							<span class="text-[10px] tabular-nums text-muted">{{ point.y }}</span>
-							<span
-								class="w-full max-w-[30px] rounded-t-[3px] bg-primary"
-								:style="{ height: `${Math.max(3, (point.y / tallest) * 64)}px` }"
-							/>
-							<span class="w-full truncate text-center text-[10px] text-dimmed">
-								{{ point.x }}
-							</span>
-						</div>
-					</div>
-					<p
-						v-if="previewPoints.length > PREVIEW_POINTS"
-						class="text-xs text-dimmed"
-					>
-						and {{ previewPoints.length - PREVIEW_POINTS }} more
-					</p>
-				</template>
+				<DmsChart
+					v-if="previewPoints.length"
+					:type="draw === 'line' ? 'line' : 'column'"
+					:static-dataset="previewSeries"
+					height="180px"
+					:show-legend="false"
+					:x-axis="PREVIEW_X_AXIS"
+				/>
 				<p
 					v-else-if="previewValue === undefined && !previewing"
 					class="text-xs text-dimmed"
@@ -760,9 +693,9 @@ watch(
 				</p>
 			</div>
 
-			<div class="overflow-hidden rounded-lg border border-default">
+			<div class="divide-y divide-default overflow-hidden rounded-lg border border-default">
 				<div class="flex items-center gap-2 px-2.5 py-1.5">
-					<span class="w-[70px] shrink-0 text-xs text-muted">From</span>
+					<span class="w-18 shrink-0 text-xs text-muted">From</span>
 					<USelectMenu
 						:model-value="resource"
 						:items="
@@ -780,8 +713,8 @@ watch(
 					/>
 				</div>
 				<template v-if="resource">
-					<div class="flex items-center gap-2 border-t border-default px-2.5 py-1.5">
-						<span class="w-[70px] shrink-0 text-xs text-muted">Measure</span>
+					<div class="flex items-center gap-2 px-2.5 py-1.5">
+						<span class="w-18 shrink-0 text-xs text-muted">Measure</span>
 						<USelectMenu
 							v-model="measure"
 							:items="MEASURES"
@@ -800,11 +733,8 @@ watch(
 							@update:model-value="measureField = $event"
 						/>
 					</div>
-					<div
-						v-if="wantsSeries"
-						class="flex items-center gap-2 border-t border-default px-2.5 py-1.5"
-					>
-						<span class="w-[70px] shrink-0 text-xs text-muted">Split by</span>
+					<div v-if="wantsSeries" class="flex items-center gap-2 px-2.5 py-1.5">
+						<span class="w-18 shrink-0 text-xs text-muted">Split by</span>
 						<USelectMenu
 							:model-value="groupBy"
 							:items="groupableFields"
@@ -828,51 +758,28 @@ watch(
 
 			<div v-if="resource && refinements.length" class="flex flex-col gap-1.5">
 				<p class="text-xs text-muted">Refine it</p>
-				<div role="group" aria-label="Refine it" class="flex flex-wrap gap-1.5">
-					<button
+				<div role="group" aria-label="Refine it" class="flex flex-wrap gap-x-4 gap-y-1.5">
+					<UCheckbox
 						v-for="entry in refinements"
 						:key="entry.kind"
-						type="button"
-						class="flex h-[30px] items-center gap-1.5 rounded-lg border pl-2 pr-2.5 text-xs font-medium transition-colors"
-						:class="
-							refined(entry.kind)
-								? 'border-primary/45 bg-primary/8 text-primary'
-								: 'border-accented text-toned hover:border-primary/40'
-						"
-						:aria-pressed="refined(entry.kind)"
-						@click="refine(entry.kind, !refined(entry.kind))"
-					>
-						<span
-							class="flex size-3.5 shrink-0 items-center justify-center rounded-[4px]"
-							:class="
-								refined(entry.kind)
-									? 'bg-primary text-inverted'
-									: 'border-[1.5px] border-accented'
-							"
-						>
-							<UIcon
-								v-if="refined(entry.kind)"
-								name="i-ph-check-bold"
-								class="size-2.5"
-							/>
-						</span>
-						<UIcon :name="entry.icon" class="size-3.5" />
-						{{ entry.label }}
-					</button>
+						:model-value="refined(entry.kind)"
+						:label="entry.label"
+						size="sm"
+						@update:model-value="refine(entry.kind, $event === true)"
+					/>
 				</div>
 			</div>
 
 			<div
 				v-if="resource && shownRefinements.length"
-				class="overflow-hidden rounded-lg border border-default"
+				class="divide-y divide-default overflow-hidden rounded-lg border border-default"
 			>
-				<template v-for="(entry, index) in shownRefinements" :key="entry.kind">
+				<template v-for="entry in shownRefinements" :key="entry.kind">
 					<div
 						v-if="entry.kind === 'sort'"
 						class="flex items-center gap-2 px-2.5 py-1.5"
-						:class="index ? 'border-t border-default' : ''"
 					>
-						<span class="w-[70px] shrink-0 text-xs text-muted">Sorted</span>
+						<span class="w-18 shrink-0 text-xs text-muted">Sorted</span>
 						<USelectMenu
 							:model-value="`${orderBy}:${direction}`"
 							:items="sortItems"
@@ -886,9 +793,8 @@ watch(
 					<div
 						v-else-if="entry.kind === 'top'"
 						class="flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted"
-						:class="index ? 'border-t border-default' : ''"
 					>
-						<span class="w-[70px] shrink-0">Keep</span>
+						<span class="w-18 shrink-0">Keep</span>
 						<span>the first</span>
 						<UInput
 							type="number"
@@ -907,14 +813,13 @@ watch(
 					<div
 						v-else-if="entry.kind === 'conditions'"
 						class="flex flex-col gap-1.5 px-2.5 py-1.5"
-						:class="index ? 'border-t border-default' : ''"
 					>
 						<div
 							v-for="(filter, at) in filters"
 							:key="at"
 							class="flex items-center gap-1.5"
 						>
-							<span class="w-[70px] shrink-0 text-xs text-muted">
+							<span class="w-18 shrink-0 text-xs text-muted">
 								{{ at ? 'and' : 'Where' }}
 							</span>
 							<USelectMenu
@@ -951,47 +856,40 @@ watch(
 							size="xs"
 							variant="link"
 							label="Add a condition"
-							class="ml-[78px] self-start px-0"
+							class="self-start px-0"
 							@click="addFilter"
 						/>
 					</div>
 
 					<div
 						v-else-if="entry.kind === 'period'"
-						class="flex flex-col gap-2 px-2.5 py-2"
-						:class="index ? 'border-t border-default' : ''"
+						class="flex items-baseline gap-2 px-2.5 py-2"
 					>
-						<div class="flex items-center gap-2">
-							<span class="w-[70px] shrink-0 text-xs text-muted">Period</span>
-							<span class="text-[13px] text-default">The page's period</span>
-							<template v-if="!groupsByDate">
-								<span class="text-xs text-muted">on</span>
-								<USelectMenu
-									:model-value="boundField"
-									:items="dateFields"
-									value-key="value"
-									aria-label="Column the period bounds"
-									class="min-w-0 flex-1"
-									@update:model-value="periodField = $event"
-								/>
-							</template>
-						</div>
-						<p class="pl-[78px] text-xs leading-relaxed text-dimmed">
-							Its figures change with the period chosen on the page.
-						</p>
-						<div v-if="comparable" class="flex items-start gap-2.5 pl-[78px]">
-							<USwitch
-								v-model="compare"
-								aria-label="Compare with the previous period"
-							/>
-							<div class="flex min-w-0 flex-col">
-								<span class="text-[13px] text-default">
-									Compare with the previous period
-								</span>
-								<span class="text-xs leading-relaxed text-dimmed">
-									Drawn dashed beside it, and gives the variation.
-								</span>
+						<span class="w-18 shrink-0 text-xs text-muted">Period</span>
+						<div class="flex min-w-0 flex-1 flex-col gap-2">
+							<div class="flex items-center gap-2">
+								<span class="text-sm text-default">The page's period</span>
+								<template v-if="!groupsByDate">
+									<span class="text-xs text-muted">on</span>
+									<USelectMenu
+										:model-value="boundField"
+										:items="dateFields"
+										value-key="value"
+										aria-label="Column the period bounds"
+										class="min-w-0 flex-1"
+										@update:model-value="periodField = $event"
+									/>
+								</template>
 							</div>
+							<p class="text-xs leading-relaxed text-dimmed">
+								Its figures change with the period chosen on the page.
+							</p>
+							<USwitch
+								v-if="comparable"
+								v-model="compare"
+								label="Compare with the previous period"
+								description="Drawn dashed beside it, and gives the variation."
+							/>
 						</div>
 					</div>
 				</template>

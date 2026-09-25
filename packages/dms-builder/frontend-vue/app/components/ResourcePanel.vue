@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { TABLE_ROUTES } from '../runtime/constants'
+import { DEFAULT_DATA_TYPE, TABLE_ROUTES } from '../runtime/constants'
+import { walkDraft } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder, type TableTab } from '../runtime/session'
-import type { BlockDraft, FieldSpec, ResourceSummary } from '../runtime/types'
-
-const TABS: { key: TableTab; label: string }[] = [
-	{ key: 'fields', label: 'Fields' },
-	{ key: 'api', label: 'API' },
-	{ key: 'settings', label: 'Settings' },
-]
+import { servedRoutes } from '../runtime/table-routes'
+import type { FieldSpec, ResourceSummary } from '../runtime/types'
 
 /** The field every new table starts with, so its rows have a name from the first. */
 const FIRST_FIELD: FieldSpec = {
 	name: 'title',
-	dataType: { $dataType: 'string' },
+	dataType: { $dataType: DEFAULT_DATA_TYPE },
 	label: 'Title',
 	listable: true,
 	selectable: true,
@@ -44,15 +40,11 @@ const composerOpen = computed(
 /** How many blocks of this page read each table, by its ref. */
 const readers = computed(() => {
 	const counts: Record<string, number> = {}
-	const visit = (blocks: BlockDraft[]): void => {
-		for (const block of blocks) {
-			if (block.controller) {
-				counts[block.controller] = (counts[block.controller] ?? 0) + 1
-			}
-			if (block.children) visit(block.children)
+	walkDraft(session.value.draft?.blocks ?? [], (block) => {
+		if (block.controller) {
+			counts[block.controller] = (counts[block.controller] ?? 0) + 1
 		}
-	}
-	visit(session.value.draft?.blocks ?? [])
+	})
 	return counts
 })
 
@@ -66,9 +58,20 @@ const listed = computed(() => {
 	)
 })
 
-const servedRoutes = computed(
-	() => structure.value?.routes?.length ?? TABLE_ROUTES.length,
-)
+/** The open table's sections, each with what it holds once the table is read. */
+const tabs = computed(() => {
+	const read = structure.value
+	return [
+		{ label: 'Fields', value: 'fields', badge: read?.fields.length },
+		{
+			label: 'API',
+			value: 'api',
+			badge:
+				read && `${servedRoutes(read).length}/${TABLE_ROUTES.length}`,
+		},
+		{ label: 'Settings', value: 'settings' },
+	]
+})
 
 watch(
 	() => table.value?.ref,
@@ -110,19 +113,14 @@ function describe(entry: ResourceSummary): string {
 		.join(' · ')
 }
 
-function badge(tab: TableTab): string {
-	if (!structure.value) return ''
-	if (tab === 'fields') return String(structure.value.fields.length)
-	if (tab === 'api') return `${servedRoutes.value}/${TABLE_ROUTES.length}`
-	return ''
-}
-
 function open(ref_: string): void {
 	session.value.table = { ref: ref_, tab: 'fields', adding: false }
 }
 
-function setTab(tab: TableTab): void {
-	if (table.value) session.value.table = { ...table.value, tab }
+function setTab(tab: string | number): void {
+	if (table.value) {
+		session.value.table = { ...table.value, tab: tab as TableTab }
+	}
 }
 
 function setAdding(adding: boolean): void {
@@ -172,54 +170,28 @@ async function addField(spec: FieldSpec): Promise<void> {
 
 	<div v-else-if="table" class="flex flex-col gap-4">
 		<div class="flex flex-wrap gap-2">
-			<span
-				class="inline-flex h-6 items-center gap-1.5 rounded-full border border-default bg-elevated px-2.5 text-xs text-muted"
-			>
-				<UIcon name="i-ph-lightning" class="size-3.5 text-primary" />
-				Saved as you edit — no Save needed
-			</span>
-			<span
+			<UBadge
+				color="neutral"
+				variant="outline"
+				icon="i-ph-lightning"
+				label="Saved as you edit — no Save needed"
+			/>
+			<UBadge
 				v-if="readBy(table.ref)"
-				class="inline-flex h-6 items-center gap-1.5 rounded-full border border-default bg-elevated px-2.5 text-xs text-muted"
-			>
-				<UIcon name="i-ph-squares-four" class="size-3.5" />
-				Read by {{ plural(readBy(table.ref), 'block') }} on this page
-			</span>
+				color="neutral"
+				variant="outline"
+				icon="i-ph-squares-four"
+				:label="`Read by ${plural(readBy(table.ref), 'block')} on this page`"
+			/>
 		</div>
 
-		<div
-			role="tablist"
-			aria-label="Table sections"
-			class="flex gap-5 border-b border-default"
-		>
-			<button
-				v-for="tab in TABS"
-				:key="tab.key"
-				type="button"
-				role="tab"
-				:aria-selected="table.tab === tab.key"
-				class="-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 text-[13px] font-medium transition-colors"
-				:class="
-					table.tab === tab.key
-						? 'border-primary text-highlighted'
-						: 'border-transparent text-muted hover:text-default'
-				"
-				@click="setTab(tab.key)"
-			>
-				{{ tab.label }}
-				<span
-					v-if="badge(tab.key)"
-					class="rounded-full px-1.5 text-[11px]"
-					:class="
-						table.tab === tab.key
-							? 'bg-primary/15 text-primary'
-							: 'bg-accented text-muted'
-					"
-				>
-					{{ badge(tab.key) }}
-				</span>
-			</button>
-		</div>
+		<UTabs
+			:items="tabs"
+			:model-value="table.tab"
+			:content="false"
+			variant="link"
+			@update:model-value="setTab"
+		/>
 
 		<p v-if="unreadable" class="text-sm text-muted">
 			This table could not be read. It may have been removed from the code.
@@ -266,30 +238,24 @@ async function addField(spec: FieldSpec): Promise<void> {
 			class="flex flex-col gap-3.5 rounded-lg border border-accented bg-elevated p-3.5"
 		>
 			<p class="text-sm font-semibold text-highlighted">New table</p>
-			<div class="flex flex-col gap-1.5">
-				<label for="new-table-name" class="text-xs font-medium text-toned">
-					Name
-				</label>
+			<UFormField
+				label="Name"
+				help="Names the table and its API. It can't be renamed afterwards."
+			>
 				<UInput
-					id="new-table-name"
 					v-model="newName"
 					placeholder="Product"
 					autofocus
+					class="w-full"
 					@keydown.enter="create"
 				/>
-				<p class="text-xs text-muted">
-					Names the table and its API. It can't be renamed afterwards.
-				</p>
-			</div>
+			</UFormField>
 			<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
 				<span>Starts with</span>
-				<span
-					class="inline-flex h-6 items-center gap-1.5 rounded-md border border-default bg-accented px-2 text-toned"
-				>
-					<UIcon name="i-ph-text-t" class="size-3.5 text-muted" />
+				<UBadge color="neutral" variant="subtle" icon="i-ph-text-t">
 					Title
 					<span v-if="advanced" class="font-mono text-muted">title</span>
-				</span>
+				</UBadge>
 				<span>— add the rest once it exists.</span>
 			</div>
 			<div class="flex gap-2">
@@ -313,11 +279,14 @@ async function addField(spec: FieldSpec): Promise<void> {
 				{{ plural(session.resources.length, 'table') }}
 			</p>
 			<div class="overflow-hidden rounded-lg border border-default">
-				<button
+				<UButton
 					v-for="entry in listed"
 					:key="entry.ref"
-					type="button"
-					class="flex w-full items-center gap-3 border-t border-default px-3 py-2.5 text-left transition-colors first:border-t-0 hover:bg-elevated"
+					color="neutral"
+					variant="ghost"
+					block
+					trailing-icon="i-ph-caret-right"
+					class="justify-start gap-3 rounded-none border-t border-default px-3 py-2.5 text-left font-normal first:border-t-0"
 					@click="open(entry.ref)"
 				>
 					<span
@@ -333,8 +302,7 @@ async function addField(spec: FieldSpec): Promise<void> {
 							{{ describe(entry) }}
 						</span>
 					</span>
-					<UIcon name="i-ph-caret-right" class="size-4 shrink-0 text-dimmed" />
-				</button>
+				</UButton>
 				<p v-if="!listed.length" class="px-3 py-3 text-xs text-muted">
 					No table matches “{{ query.trim() }}”.
 				</p>

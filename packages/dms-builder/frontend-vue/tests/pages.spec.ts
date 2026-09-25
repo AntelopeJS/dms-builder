@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, type Component } from 'vue'
-import PageDelete from '../app/components/PageDelete.vue'
+import { h, nextTick, type Component, type VNode } from 'vue'
 import PagePanel from '../app/components/PagePanel.vue'
 import PagesPanel from '../app/components/PagesPanel.vue'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { PageSummary } from '../app/runtime/types'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
+	fakeEvent,
 	findAll,
 	fire,
 	installDocumentStub,
@@ -15,6 +15,7 @@ import {
 	textOf,
 	type TestNode,
 } from './support/render'
+import { pushedRoutes } from './stubs/frontend-module'
 
 /**
  * The pages of a project as a tree an author finds their way in — by the
@@ -48,9 +49,83 @@ function summary(
 	}
 }
 
+interface TreeRow {
+	label?: string
+	slot?: string
+	children?: TreeRow[]
+}
+
+/**
+ * A stand-in for `UTree` that draws its items the way the real one does: each
+ * a `treeitem` filled by the slots an item is drawn with, its children listed
+ * under it while it is expanded. Clicking a row selects it and folds or
+ * unfolds it, as a user's click does.
+ */
+function treeDouble(): Component {
+	return {
+		name: 'UTree',
+		inheritAttrs: false,
+		setup(_props, { slots, attrs }) {
+			return () => {
+				const key = attrs['get-key'] as (row: TreeRow) => string
+				const expanded = attrs.expanded as string[]
+				const current = attrs['model-value'] as TreeRow | undefined
+				const select = attrs.onSelect as (event: unknown, row: TreeRow) => void
+				const expand = attrs['onUpdate:expanded'] as (keys: string[]) => void
+				const draw = (row: TreeRow, level: number): VNode => {
+					const open = expanded.includes(key(row))
+					const props = { item: row, level, expanded: open }
+					return h('li', [
+						h(
+							'div',
+							{
+								role: 'treeitem',
+								'aria-level': level,
+								'aria-selected': !!current && key(current) === key(row),
+								onClick: () => {
+									select(fakeEvent('tree.select'), row)
+									if (row.children) {
+										expand(
+											open
+												? expanded.filter((entry) => entry !== key(row))
+												: [...expanded, key(row)],
+										)
+									}
+								},
+							},
+							row.slot
+								? (slots[row.slot]?.(props) ?? [])
+								: [
+										...(slots['item-label']?.(props) ?? [row.label]),
+										...(slots['item-trailing']?.(props) ?? []),
+									],
+						),
+						open && row.children
+							? h(
+									'ul',
+									{ role: 'group' },
+									row.children.map((child) => draw(child, level + 1)),
+								)
+							: null,
+					])
+				}
+				return h(
+					'UTree',
+					attrs,
+					(attrs.items as TreeRow[]).map((row) => draw(row, 1)),
+				)
+			}
+		},
+	}
+}
+
 const parts = (): Record<string, Component> => ({
-	DmsBuilderPageDelete: PageDelete as Component,
+	UTree: treeDouble(),
 	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
+	USelectMenu: stub('USelectMenu'),
+	USwitch: stub('USwitch'),
+	UTextarea: stub('UTextarea'),
+	UInputNumber: stub('UInputNumber'),
 })
 
 /** Mount a panel, and unmount it once the test is over. */
@@ -77,10 +152,7 @@ function buttonLabelled(root: TestNode, label: string): TestNode {
 function listed(root: TestNode): string[] {
 	return findAll(
 		root,
-		(node) =>
-			node.tag === 'button' &&
-			textOf(node).includes('/') &&
-			!('aria-expanded' in node.props),
+		(node) => node.props.role === 'treeitem' && textOf(node).includes('/'),
 	).map(textOf)
 }
 
@@ -96,6 +168,12 @@ function sent(method: string, path: string): Record<string, unknown> | undefined
 	return backend.calls.find(
 		(call) => call.method === method && call.path === path,
 	)?.body
+}
+
+function deletions(): Array<Record<string, string> | undefined> {
+	return backend.calls
+		.filter((call) => call.method === 'DELETE')
+		.map((call) => call.query)
 }
 
 async function settle(): Promise<void> {
@@ -119,6 +197,7 @@ beforeEach(() => {
 	]
 	builder = useBuilder()
 	builder.close()
+	pushedRoutes.length = 0
 })
 
 afterEach(() => {
@@ -141,13 +220,13 @@ describe('the pages, as a tree', () => {
 		const root = await tree()
 
 		expect(listed(root)).toEqual([
-			'Totals/reports/totals',
-			'Weekly/reports/weekly',
-			'Sales/reports/sales',
-			'Orders/shop/orders',
+			'Totals /reports/totals',
+			'Weekly /reports/weekly',
+			'Sales /reports/sales',
+			'Orders /shop/orders',
 		])
-		const open = findAll(root, (node) => node.props['aria-current'] === 'page')
-		expect(open.map(textOf)).toEqual(['Sales/reports/sales'])
+		const open = findAll(root, (node) => node.props['aria-selected'] === true)
+		expect(open.map(textOf)).toEqual(['Sales /reports/sales'])
 		expect(
 			findAll(root, (node) => node.props.name === 'i-ph-eye-slash'),
 			'the hidden page says so',
@@ -158,11 +237,12 @@ describe('the pages, as a tree', () => {
 		const root = await tree()
 		const reports = findAll(
 			root,
-			(node) => node.tag === 'button' && textOf(node).startsWith('Reports'),
+			(node) =>
+				node.props.role === 'treeitem' && textOf(node).startsWith('Reports'),
 		)[0]!
 		fire(reports, 'click')
 		await nextTick()
-		expect(listed(root), 'folded away').toEqual(['Orders/shop/orders'])
+		expect(listed(root), 'folded away').toEqual(['Orders /shop/orders'])
 
 		write(
 			findAll(root, (node) => node.props.placeholder === 'Find a page')[0]!,
@@ -170,7 +250,7 @@ describe('the pages, as a tree', () => {
 		)
 		await nextTick()
 
-		expect(listed(root)).toEqual(['Totals/reports/totals'])
+		expect(listed(root)).toEqual(['Totals /reports/totals'])
 		expect(textOf(root)).not.toContain('Shop')
 	})
 
@@ -180,7 +260,10 @@ describe('the pages, as a tree', () => {
 		fire(buttonLabelled(root, 'New page in Shop'), 'click')
 		await nextTick()
 		write(
-			findAll(root, (node) => node.props.id === 'new-entry-title')[0]!,
+			findAll(
+				root,
+				(node) => node.tag === 'UInput' && node.props.placeholder === 'Revenue',
+			)[0]!,
 			'Monthly revenue',
 		)
 		await nextTick()
@@ -225,6 +308,31 @@ describe('the pages, as a tree', () => {
 		expect(labels).toContain('Delete Old')
 		expect(labels).not.toContain('Delete Shop')
 	})
+
+	it('asks before deleting a page, and deletes it once told to', async () => {
+		const root = await tree()
+
+		fire(buttonLabelled(root, 'Delete Totals'), 'click')
+		await settle()
+
+		expect(backend.confirms).toEqual([
+			expect.objectContaining({ title: 'Delete Totals?', confirmColor: 'error' }),
+		])
+		expect(deletions()).toEqual([{ ref: '/reports/totals' }])
+		expect(pushedRoutes, 'another page than the open one').toEqual([])
+		expect(builder.session.value.draft).not.toBeNull()
+	})
+
+	it('deletes nothing when the question is turned down', async () => {
+		const root = await tree()
+		backend.confirmAnswer = false
+
+		fire(buttonLabelled(root, 'Delete Totals'), 'click')
+		await settle()
+
+		expect(backend.confirms).toHaveLength(1)
+		expect(deletions()).toEqual([])
+	})
 })
 
 describe("a page's settings", () => {
@@ -247,7 +355,7 @@ describe("a page's settings", () => {
 	it('move the page down the menu at once', async () => {
 		const root = await settings()
 
-		fire(buttonLabelled(root, 'Later in the menu'), 'click')
+		write(findAll(root, (node) => node.tag === 'UInputNumber')[0]!, 1)
 		await settle()
 
 		expect(sent('POST', '/api/builder/page/configure')).toEqual({
@@ -263,16 +371,40 @@ describe("a page's settings", () => {
 			(node) => node.tag === 'USelectMenu' && node.props['model-value'] === 'reports',
 		)[0]!
 
+		backend.confirmAnswer = false
 		write(category, 'shop')
-		await nextTick()
-		expect(textOf(root)).toContain('/shop/sales')
-		expect(textOf(root)).toContain('Nothing redirects the old address.')
+		await settle()
+		const [asked] = backend.confirms
+		expect(asked?.description).toContain('/shop/sales')
+		expect(asked?.description).toContain('Nothing redirects the old address.')
+		expect(asked).toMatchObject({ cancelLabel: 'Keep it in Reports' })
 		expect(sent('POST', '/api/builder/page/configure'), 'nothing moved yet').toBe(
 			undefined,
 		)
 
-		fire(buttonLabelled(root, 'Keep it in Reports'), 'click')
-		await nextTick()
-		expect(textOf(root)).not.toContain('Nothing redirects')
+		backend.confirmAnswer = true
+		write(category, 'shop')
+		await settle()
+		expect(sent('POST', '/api/builder/page/configure')).toEqual({
+			page: '/reports/sales',
+			patch: { category: 'shop' },
+		})
+	})
+
+	it('write the permission once it is changed', async () => {
+		const root = await settings()
+		const permission = findAll(
+			root,
+			(node) => node.tag === 'UInput' && node.props.placeholder === 'shop.products',
+		)[0]!
+
+		write(permission, 'shop.orders')
+		fire(permission, 'change')
+		await settle()
+
+		expect(sent('POST', '/api/builder/page/configure')).toEqual({
+			page: '/reports/sales',
+			patch: { permission: { id: 'shop.orders', title: 'Sales' } },
+		})
 	})
 })

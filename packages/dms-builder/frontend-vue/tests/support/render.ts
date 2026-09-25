@@ -112,6 +112,45 @@ export function stub(name: string): Component {
 	}
 }
 
+/**
+ * A stand-in for `UListbox` that lists its items the way the real one does:
+ * one `option` each, carrying its label and whether it can be picked, its
+ * trailing slot filled in. Clicking one picks it, as a user's click does; a
+ * list with nothing in it shows its `empty` slot.
+ */
+export function listboxStub(): Component {
+	return {
+		name: 'UListbox',
+		inheritAttrs: false,
+		setup(_props, { slots, attrs }) {
+			return () => {
+				const items = (attrs.items ?? []) as Array<Record<string, unknown>>
+				const pick = attrs['onUpdate:modelValue'] as
+					| ((value: unknown) => void)
+					| undefined
+				return h('UListbox', attrs, [
+					...items.map((item, index) =>
+						h(
+							'div',
+							{
+								role: 'option',
+								disabled: item.disabled === true,
+								'aria-selected': attrs['model-value'] === item.value,
+								onClick: () => pick?.(item.value),
+							},
+							[
+								String(item.label ?? ''),
+								...(slots['item-trailing']?.({ item, index }) ?? []),
+							],
+						),
+					),
+					...(items.length ? [] : (slots.empty?.({ searchTerm: '' }) ?? [])),
+				])
+			}
+		},
+	}
+}
+
 export interface Mounted {
 	root: TestNode
 	app: App<TestNode>
@@ -130,9 +169,24 @@ export function mount(component: Component, options: MountOptions = {}): Mounted
 	const app = createApp(component, options.props)
 	const warnings: string[] = []
 	app.config.warnHandler = (message) => warnings.push(message)
-	for (const name of ['UIcon', 'UButton', 'UInput', 'UBadge', 'UTooltip']) {
+	for (const name of [
+		'UIcon',
+		'UButton',
+		'UInput',
+		'UBadge',
+		'UTooltip',
+		'UAlert',
+		'UFormField',
+		'UCheckbox',
+		'UTabs',
+		'UCollapsible',
+		'DmsSegmented',
+		'DmsChart',
+		'DmsTrendBadge',
+	]) {
 		app.component(name, stub(name))
 	}
+	app.component('UListbox', listboxStub())
 	for (const [name, impl] of Object.entries(options.components ?? {})) {
 		app.component(name, impl)
 	}

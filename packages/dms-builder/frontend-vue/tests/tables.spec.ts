@@ -101,18 +101,46 @@ function buttonLabelled(root: TestNode, label: string): TestNode {
 	return found
 }
 
-/** A plain `<button>` of the panel's own, by what it says or is called. */
+/** A button of the panel's own, by what it says or is called. */
 function button(root: TestNode, text: string): TestNode {
 	const found = findAll(
 		root,
 		(node) =>
-			node.tag === 'button' &&
+			node.tag === 'UButton' &&
 			(node.props['aria-label'] === text || textOf(node).includes(text)),
 	)[0]
 	if (!found) {
 		throw new Error(`no button reading "${text}"`)
 	}
 	return found
+}
+
+/** A control of the framework's, by the prop that names it. */
+function control(
+	root: TestNode,
+	tag: string,
+	prop: string,
+	value: string,
+): TestNode {
+	const found = findAll(
+		root,
+		(node) => node.tag === tag && node.props[prop] === value,
+	)[0]
+	if (!found) {
+		throw new Error(`no <${tag}> with ${prop} "${value}"`)
+	}
+	return found
+}
+
+/** Switch the open table to one of its tabs, by what the tab reads. */
+function openTab(root: TestNode, label: string): void {
+	const strip = findAll(root, (node) => node.tag === 'UTabs')[0]
+	const items = (strip?.props.items ?? []) as { label: string; value: string }[]
+	const tab = items.find((item) => item.label === label)
+	if (!strip || !tab) {
+		throw new Error(`no tab reading "${label}"`)
+	}
+	write(strip, tab.value)
 }
 
 function input(root: TestNode, placeholder: string): TestNode {
@@ -265,7 +293,7 @@ describe('a table, open', () => {
 	it('writes a tick of the grid straight away', async () => {
 		const root = await panelOnTicket()
 
-		fire(button(root, 'Title: Search'), 'click')
+		write(control(root, 'UCheckbox', 'aria-label', 'Title: Search'), true)
 		await settle()
 
 		const written = backend.calls.find(
@@ -301,7 +329,7 @@ describe('a table, open', () => {
 			changes: [],
 		}
 		write(input(root, 'Price'), 'Priority')
-		fire(button(root, 'Number'), 'click')
+		fire(buttonLabelled(root, 'Number'), 'click')
 		await nextTick()
 		fire(buttonLabelled(root, 'Add field'), 'click')
 		await settle()
@@ -322,18 +350,33 @@ describe('a table, open', () => {
 		await nextTick()
 
 		fire(buttonLabelled(root, 'Remove field'), 'click')
-		await nextTick()
-		expect(deletions(), 'nothing written on the first click').toEqual([])
-		expect(textOf(root)).toContain('drops its column')
-
-		fire(buttonLabelled(root, 'Remove the field and its data'), 'click')
 		await settle()
+
+		expect(backend.confirms).toHaveLength(1)
+		expect(backend.confirms[0]).toMatchObject({
+			confirmLabel: 'Remove the field and its data',
+			confirmColor: 'error',
+		})
+		expect(backend.confirms[0]?.description).toContain('drops its column')
 		expect(deletions()).toEqual(['DELETE /api/builder/resource/fields'])
+	})
+
+	it('keeps a field and its column when the author says no', async () => {
+		const root = await panelOnTicket()
+		fire(button(root, 'Title'), 'click')
+		await nextTick()
+
+		backend.confirmAnswer = false
+		fire(buttonLabelled(root, 'Remove field'), 'click')
+		await settle()
+
+		expect(backend.confirms, 'asked').toHaveLength(1)
+		expect(deletions()).toEqual([])
 	})
 
 	it("asks for the table's name before it and every row in it go", async () => {
 		const root = await panelOnTicket()
-		fire(button(root, 'Settings'), 'click')
+		openTab(root, 'Settings')
 		await nextTick()
 
 		const confirm = () => buttonLabelled(root, 'Delete the table and its rows')
@@ -355,14 +398,10 @@ describe('a table, open', () => {
 
 	it('never switches off the last route it serves', async () => {
 		const root = await panelOnTicket(ticket({ routes: ['list'] }))
-		fire(button(root, 'API'), 'click')
+		openTab(root, 'API')
 		await nextTick()
 
-		const toggle = (label: string) =>
-			findAll(
-				root,
-				(node) => node.tag === 'USwitch' && node.props['aria-label'] === label,
-			)[0]!
+		const toggle = (label: string) => control(root, 'USwitch', 'label', label)
 		expect(toggle('List').props.disabled).toBe(true)
 		expect(toggle('Create').props.disabled).toBe(false)
 
@@ -394,8 +433,8 @@ describe('a new field', () => {
 
 		const tiles = findAll(
 			root,
-			(node) => node.tag === 'button' && 'aria-pressed' in node.props,
-		).map(textOf)
+			(node) => node.tag === 'UButton' && 'aria-pressed' in node.props,
+		).map((node) => node.props.label)
 		expect(tiles, 'known ones first, a registered one last').toEqual([
 			'Text',
 			'Row of another table',
@@ -416,7 +455,9 @@ describe('a new field', () => {
 
 		write(input(root, 'Price'), 'Title')
 		await nextTick()
-		expect(textOf(root)).toContain('already has a title field')
+		expect(control(root, 'UFormField', 'label', 'Label').props.error).toContain(
+			'already has a title field',
+		)
 		expect(buttonLabelled(root, 'Add field').props.disabled).toBe(true)
 
 		write(input(root, 'Price'), 'Delivery date')
@@ -447,7 +488,7 @@ describe('a new field', () => {
 		await nextTick()
 
 		write(input(root, 'Price'), 'Customer')
-		fire(button(root, 'Row of another table'), 'click')
+		fire(buttonLabelled(root, 'Row of another table'), 'click')
 		await nextTick()
 
 		expect(buttonLabelled(root, 'Add field').props.disabled).toBe(true)
@@ -491,11 +532,9 @@ describe('a write that went through with a warning', () => {
 		const listed = findAll(root, (node) => node.tag === 'li').map(textOf)
 		expect(listed).toEqual([fallback.message])
 
-		const dismiss = findAll(
-			root,
-			(node) => node.props['aria-label'] === 'Dismiss the warnings',
-		)[0]!
-		fire(dismiss, 'click')
+		const alert = findAll(root, (node) => node.tag === 'UAlert')[0]!
+		expect(alert.props.close).toMatchObject({ 'aria-label': 'Dismiss the warnings' })
+		fire(alert, 'update:open')
 		await nextTick()
 		expect(findAll(root, (node) => node.tag === 'li')).toHaveLength(0)
 	})

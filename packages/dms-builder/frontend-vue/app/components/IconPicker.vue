@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { ICON_PREFIXES } from '../runtime/constants'
 import { isBundledIcon, useIconSearch } from '../runtime/icon-search'
 
@@ -10,18 +10,22 @@ import { isBundledIcon, useIconSearch } from '../runtime/icon-search'
  * names by sight — a page, a category: the tile is the choice, and the name
  * only shows once it has been made.
  */
-const props = defineProps<{
+defineProps<{
 	modelValue?: string
 	/** Shown in the tile while nothing is picked. */
 	fallback?: string
 	label?: string
-	size?: 'sm' | 'md'
+	/** The size of the input the tile sits beside. */
+	size?: 'sm' | 'lg'
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [string | undefined] }>()
 
 const open = ref(false)
 const { query, results, searching, offline, reset } = useIconSearch()
+const searchId = useId()
+
+const bundled = ICON_PREFIXES.map((prefix) => `i-${prefix}-*`).join(' and ')
 
 /** A full name typed in: the search may not know it, or not be reachable. */
 const typed = computed(() => {
@@ -50,32 +54,25 @@ function pick(name: string | undefined): void {
 
 <template>
 	<UPopover v-model:open="open" :content="{ align: 'start', sideOffset: 6 }">
-		<button
-			type="button"
-			class="flex shrink-0 items-center justify-center rounded-md border transition-colors"
-			:class="[
-				size === 'sm' ? 'size-7' : 'size-9',
-				open
-					? 'border-primary bg-primary/10 text-primary'
-					: modelValue
-						? 'border-primary/30 bg-primary/10 text-primary hover:border-primary/60'
-						: 'border-accented bg-default text-muted hover:border-primary/40',
-			]"
+		<UButton
+			:icon="modelValue || fallback || 'i-ph-image'"
+			:color="modelValue || open ? 'primary' : 'neutral'"
+			:variant="modelValue || open ? 'subtle' : 'outline'"
+			:size="size ?? 'lg'"
+			square
 			:aria-label="label ?? 'Choose an icon'"
 			:title="modelValue ?? label ?? 'Choose an icon'"
-		>
-			<UIcon
-				:name="modelValue || fallback || 'i-ph-image'"
-				:class="size === 'sm' ? 'size-4' : 'size-[18px]'"
-			/>
-		</button>
+		/>
 
 		<template #content>
 			<div class="flex w-72 flex-col gap-2 p-2">
+				<!-- An id of its own: set beside a field's input, the picker sits in
+				that field, and the search would take the input's id. -->
 				<UInput
+					:id="searchId"
 					v-model="query"
 					icon="i-ph-magnifying-glass"
-					placeholder="Search Phosphor and Lucide"
+					placeholder="Search icons"
 					aria-label="Search icons"
 					size="sm"
 					autofocus
@@ -85,38 +82,35 @@ function pick(name: string | undefined): void {
 					v-if="results.length"
 					class="grid max-h-52 grid-cols-7 gap-1 overflow-y-auto"
 				>
-					<button
+					<UButton
 						v-for="name in results"
 						:key="name"
-						type="button"
-						class="flex h-8 items-center justify-center rounded-md border transition-colors"
-						:class="
-							name === modelValue
-								? 'border-primary bg-primary/15 text-primary'
-								: 'border-transparent text-toned hover:border-accented hover:bg-elevated'
-						"
+						:icon="name"
+						:color="name === modelValue ? 'primary' : 'neutral'"
+						:variant="name === modelValue ? 'soft' : 'ghost'"
+						square
+						block
 						:title="name"
 						:aria-label="name"
 						:aria-pressed="name === modelValue"
 						@click="pick(name)"
-					>
-						<UIcon :name="name" class="size-4" />
-					</button>
+					/>
 				</div>
-				<button
+				<UButton
 					v-if="typed && !results.includes(typed)"
-					type="button"
-					class="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs text-toned hover:bg-elevated"
+					:icon="typed"
+					size="xs"
+					color="neutral"
+					variant="ghost"
 					@click="pick(typed)"
 				>
-					<UIcon :name="typed" class="size-4 shrink-0" />
 					Use <span class="truncate font-mono">{{ typed }}</span>
-				</button>
+				</UButton>
 				<p v-else-if="!results.length" class="px-1 py-1.5 text-xs text-muted">
 					{{ hint }}
 				</p>
 				<div
-					class="flex items-center justify-between gap-2 border-t border-default px-0.5 pt-2 text-[11px] text-muted"
+					class="flex items-center justify-between gap-2 border-t border-default px-0.5 pt-2 text-xs text-muted"
 				>
 					<span
 						class="truncate font-mono"
@@ -124,20 +118,19 @@ function pick(name: string | undefined): void {
 						:title="
 							isBundledIcon(modelValue)
 								? undefined
-								: 'Only Phosphor and Lucide icons are bundled; this one will not render.'
+								: `Only ${bundled} icons are bundled; this one will not render.`
 						"
 					>
 						{{ modelValue ?? 'No icon' }}
 					</span>
-					<button
+					<UButton
 						v-if="modelValue"
-						type="button"
-						class="shrink-0 hover:text-default"
+						label="Remove"
+						size="xs"
+						color="neutral"
+						variant="link"
 						@click="pick(undefined)"
-					>
-						Remove
-					</button>
-					<span v-else class="shrink-0">Phosphor · Lucide</span>
+					/>
 				</div>
 			</div>
 		</template>

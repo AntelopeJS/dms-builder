@@ -141,13 +141,10 @@ describe('a ranking read from a table', () => {
 				root,
 				(node) => node.tag === 'USelectMenu' && node.props['aria-label'] === name,
 			)[0]!
-		const pill = (name: string) =>
+		const refinement = (name: string) =>
 			findAll(
 				root,
-				(node) =>
-					node.tag === 'button' &&
-					node.props['aria-pressed'] !== undefined &&
-					textOf(node) === name,
+				(node) => node.tag === 'UCheckbox' && node.props.label === name,
 			)[0]!
 		write(picker('From'), 'order')
 		await settle()
@@ -155,8 +152,8 @@ describe('a ranking read from a table', () => {
 		await settle()
 
 		// Ranking and keeping a few are refinements, ticked to be set.
-		fire(pill('Sort'), 'click')
-		fire(pill('Top groups'), 'click')
+		write(refinement('Sort'), true)
+		write(refinement('Top groups'), true)
 		await settle()
 		write(picker('Sorted'), 'measure:desc')
 		write(
@@ -216,7 +213,10 @@ describe('a ranking read from a table', () => {
 				.map((call) => `${call.method} ${call.path}`),
 		).toContain('POST /api/builder/query-preview')
 		expect(textOf(root)).not.toContain('No rows match.')
-		expect(textOf(root)).toContain('BE')
+		const chart = findAll(root, (node) => node.tag === 'DmsChart')[0]
+		expect(chart?.props['static-dataset']).toEqual([
+			{ name: 'This period', data: [{ x: 'BE', y: 12 }] },
+		])
 	})
 
 	it('leaves the other sources of the page answering the way they did', async () => {

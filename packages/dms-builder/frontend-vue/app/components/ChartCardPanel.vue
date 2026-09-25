@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { descriptorOf, heldBlockOptions } from '../runtime/catalog'
+import { useBlockPanel } from '../runtime/block-panel'
+import { descriptorOf, heldBlockOptions, switchOn } from '../runtime/catalog'
 import {
 	chartTypeLabel,
 	COLOUR_OPTION,
@@ -9,10 +10,9 @@ import {
 	LINE_CHART_TYPES,
 	LOOK_SWITCHES,
 	MAIN_CHART_TYPES,
-	THEME_COLOURS,
 } from '../runtime/chart-card'
+import { THEME_COLORS } from '../runtime/constants'
 import { describeSource, sourceQuery } from '../runtime/data-source'
-import { findNode } from '../runtime/draft'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
@@ -25,48 +25,12 @@ import type { OptionSchema } from '../runtime/types'
  */
 const props = defineProps<{ path: string }>()
 
-type Part = 'data' | 'headline' | 'look'
-
 const builder = useBuilder()
 const session = builder.session
 
-const block = computed(() =>
-	session.value.draft ? findNode(session.value.draft, props.path) : undefined,
+const { block, config, options, has, text, patch, write } = useBlockPanel(
+	() => props.path,
 )
-const config = computed<Record<string, unknown>>(() => block.value?.config ?? {})
-const options = computed<Record<string, OptionSchema>>(
-	() => descriptorOf(session.value.catalog, block.value?.type)?.config ?? {},
-)
-
-function has(key: string): boolean {
-	return key in options.value
-}
-
-function text(key: string): string {
-	const value = config.value[key]
-	return typeof value === 'string' ? value : ''
-}
-
-function patch(values: Record<string, unknown>): void {
-	builder.patchConfig(props.path, values)
-}
-
-function write(key: string, value: unknown): void {
-	patch({ [key]: value === '' ? undefined : value })
-}
-
-/** What folds open: what it measures, first, since a card shows nothing without it. */
-const open = ref(new Set<Part>(['data']))
-
-function toggle(part: Part): void {
-	const next = new Set(open.value)
-	if (next.has(part)) {
-		next.delete(part)
-	} else {
-		next.add(part)
-	}
-	open.value = next
-}
 
 /* ---- the chart it draws with ------------------------------------------- */
 
@@ -155,9 +119,14 @@ const draw = computed(() =>
 /* ---- its headline figure ----------------------------------------------- */
 
 const formats = computed(() =>
-	(options.value.valueFormat?.enum ?? []).map((value) => String(value)),
+	(options.value.valueFormat?.enum ?? []).map((value) => ({
+		label: FORMAT_LABELS[String(value)] ?? String(value),
+		value: String(value),
+	})),
 )
-const format = computed(() => text('valueFormat') || formats.value[0] || 'number')
+const format = computed(
+	() => text('valueFormat') || formats.value[0]?.value || 'number',
+)
 const currency = computed(() => format.value === 'currency')
 
 /** The source answers the period before, which is what a variation is taken from. */
@@ -168,7 +137,9 @@ const compares = computed(() => source.value?.compare === true)
  */
 const variationLocked = computed(() => !!source.value && !compares.value)
 const showsVariation = computed(
-	() => config.value.showDelta === true && !variationLocked.value,
+	() =>
+		switchOn(config.value.showDelta, options.value.showDelta) &&
+		!variationLocked.value,
 )
 
 const headlineSummary = computed(() => {
@@ -183,15 +154,17 @@ const colour = computed(() => {
 	const value = chartValue(COLOUR_OPTION)
 	return typeof value === 'string' ? value : undefined
 })
+/** The theme's colour it is drawn in, primary until set; none for one of its own. */
 const themed = computed(() =>
-	THEME_COLOURS.find((entry) => entry.name === (colour.value ?? 'primary')),
+	THEME_COLORS.find((name) => name === (colour.value ?? 'primary')),
 )
-/** A colour of its own, typed in: shown while asked for or while one is set. */
-const typingColour = ref(false)
-const customColour = computed(
-	() =>
-		typingColour.value ||
-		(chartValue(COLOUR_OPTION) !== undefined && !themed.value),
+
+function chartOn(key: string): boolean {
+	return switchOn(chartValue(key), chartOptions.value[key])
+}
+
+const legendOn = computed(() =>
+	switchOn(config.value.showLegend, options.value.showLegend),
 )
 
 const lookSwitches = computed(() =>
@@ -199,12 +172,12 @@ const lookSwitches = computed(() =>
 )
 
 const lookSummary = computed(() => {
-	const parts = [themed.value?.name ?? 'Own colour']
+	const parts = [themed.value ?? 'Own colour']
 	if ('showTooltip' in chartOptions.value) {
-		parts.push(chartValue('showTooltip') === true ? 'figures on hover' : 'no hover figures')
+		parts.push(chartOn('showTooltip') ? 'figures on hover' : 'no hover figures')
 	}
 	if (has('showLegend')) {
-		parts.push(config.value.showLegend === true ? 'legend' : 'no legend')
+		parts.push(legendOn.value ? 'legend' : 'no legend')
 	}
 	return parts.join(' · ')
 })
@@ -225,62 +198,46 @@ const showingMore = ref(false)
 </script>
 
 <template>
-	<div class="flex flex-col gap-[22px]">
+	<div class="flex flex-col gap-6">
 		<div class="flex flex-col gap-3">
-			<div v-if="has('title')" class="flex flex-col gap-1.5">
-				<label for="chart-title" class="text-xs font-medium text-toned">
-					Title
-					<span v-if="!options.title?.optional" class="text-warning">*</span>
-				</label>
+			<UFormField
+				v-if="has('title')"
+				label="Title"
+				:required="!options.title?.optional"
+			>
 				<UInput
-					id="chart-title"
 					:model-value="text('title')"
 					size="lg"
 					placeholder="Shown at the top of the card"
+					class="w-full"
 					@update:model-value="write('title', String($event))"
 				/>
-			</div>
-			<div v-if="has('description')" class="flex flex-col gap-1.5">
-				<label for="chart-description" class="text-xs font-medium text-toned">
-					Description
-				</label>
+			</UFormField>
+			<UFormField v-if="has('description')" label="Description">
 				<UTextarea
-					id="chart-description"
 					:model-value="text('description')"
 					:rows="2"
 					placeholder="Shown under the title — optional"
+					class="w-full"
 					@update:model-value="write('description', String($event))"
 				/>
-			</div>
+			</UFormField>
 		</div>
 
-		<div v-if="chartTypes.length" class="flex flex-col gap-2">
-			<p class="text-xs font-semibold text-toned">
-				Chart
-				<span v-if="!chart.type" class="text-warning">*</span>
-			</p>
+		<UFormField v-if="chartTypes.length" label="Chart" :required="!chart.type">
 			<div role="group" aria-label="How it draws" class="grid grid-cols-3 gap-1.5">
-				<button
+				<UButton
 					v-for="type in [...mainTypes, ...(othersShown ? otherTypes : [])]"
 					:key="type"
-					type="button"
-					class="flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-lg border transition-colors"
-					:class="
-						chart.type === type
-							? 'border-primary/50 bg-primary/10 text-primary'
-							: 'border-accented text-muted hover:border-primary/40'
-					"
+					:icon="typeOf(type).icon"
+					:label="typeOf(type).label"
+					:color="chart.type === type ? 'primary' : 'neutral'"
+					:variant="chart.type === type ? 'subtle' : 'outline'"
 					:aria-pressed="chart.type === type"
+					:ui="{ leadingIcon: 'size-5', label: 'max-w-full text-xs' }"
+					class="h-14 flex-col justify-center"
 					@click="setChartType(type)"
-				>
-					<UIcon :name="typeOf(type).icon" class="size-5" />
-					<span
-						class="max-w-full truncate px-1 text-xs font-medium"
-						:class="chart.type === type ? 'text-primary' : 'text-toned'"
-					>
-						{{ typeOf(type).label }}
-					</span>
-				</button>
+				/>
 			</div>
 			<UButton
 				v-if="otherTypes.length && !othersShown"
@@ -292,10 +249,10 @@ const showingMore = ref(false)
 					.slice(0, 3)
 					.map((type) => typeOf(type).label.toLowerCase())
 					.join(', ')}…`"
-				class="self-start px-0"
+				class="mt-2 px-0"
 				@click="showingOthers = true"
 			/>
-		</div>
+		</UFormField>
 
 		<div class="flex flex-col gap-2.5">
 			<DmsBuilderFoldCard
@@ -303,8 +260,7 @@ const showingMore = ref(false)
 				icon="i-ph-table"
 				title="Data"
 				:summary="dataSummary"
-				:open="open.has('data')"
-				@toggle="toggle('data')"
+				default-open
 			>
 				<DmsBuilderDataSource
 					:key="block.name"
@@ -322,43 +278,32 @@ const showingMore = ref(false)
 				icon="i-ph-trend-up"
 				title="Headline"
 				:summary="headlineSummary"
-				:open="open.has('headline')"
-				@toggle="toggle('headline')"
 			>
-				<div v-if="formats.length" class="flex flex-col gap-1.5">
-					<p class="text-xs font-medium text-toned">Shown as</p>
-					<div
-						role="group"
+				<UFormField v-if="formats.length" label="Shown as">
+					<DmsSegmented
+						:model-value="format"
+						:items="formats"
 						aria-label="Shown as"
-						class="flex rounded-md border border-accented bg-default p-0.5"
-					>
-						<UButton
-							v-for="entry in formats"
-							:key="entry"
-							:label="FORMAT_LABELS[entry] ?? entry"
-							size="xs"
-							:color="format === entry ? 'primary' : 'neutral'"
-							:variant="format === entry ? 'soft' : 'ghost'"
-							:aria-pressed="format === entry"
-							class="flex-1 justify-center"
-							@click="write('valueFormat', entry === formats[0] ? undefined : entry)"
-						/>
-					</div>
-				</div>
-				<div
+						size="xs"
+						@update:model-value="
+							write('valueFormat', $event === formats[0]?.value ? undefined : $event)
+						"
+					/>
+				</UFormField>
+				<UFormField
 					v-if="currency && has('currencyCode')"
-					class="flex items-center gap-2"
+					label="In"
+					help="Three letters: EUR, USD, GBP…"
+					orientation="horizontal"
+					class="justify-start"
 				>
-					<label for="chart-currency" class="text-xs text-muted">In</label>
 					<UInput
-						id="chart-currency"
 						:model-value="text('currencyCode')"
 						placeholder="EUR"
 						class="w-20"
 						@update:model-value="write('currencyCode', String($event).toUpperCase())"
 					/>
-					<span class="text-xs text-dimmed">Three letters: EUR, USD, GBP…</span>
-				</div>
+				</UFormField>
 				<div v-if="has('showDelta')" class="flex items-center gap-3">
 					<UIcon
 						name="i-ph-arrow-up-right"
@@ -367,7 +312,7 @@ const showingMore = ref(false)
 					/>
 					<div class="flex min-w-0 flex-1 flex-col">
 						<span
-							class="text-[13px]"
+							class="text-sm"
 							:class="variationLocked ? 'text-dimmed' : 'text-default'"
 						>
 							Show the variation
@@ -386,7 +331,7 @@ const showingMore = ref(false)
 						:model-value="showsVariation"
 						:disabled="variationLocked"
 						aria-label="Show the variation"
-						@update:model-value="write('showDelta', $event === true ? true : undefined)"
+						@update:model-value="write('showDelta', $event === true)"
 					/>
 				</div>
 				<div
@@ -394,31 +339,30 @@ const showingMore = ref(false)
 					class="grid gap-2"
 					:class="compares || text('comparisonLabel') ? 'grid-cols-2' : 'grid-cols-1'"
 				>
-					<div v-if="has('primaryLabel')" class="flex min-w-0 flex-col gap-1.5">
-						<label for="chart-primary" class="text-xs font-medium text-toned">
-							{{ compares ? 'This period' : 'Series name' }}
-						</label>
+					<UFormField
+						v-if="has('primaryLabel')"
+						:label="compares ? 'This period' : 'Series name'"
+						class="min-w-0"
+					>
 						<UInput
-							id="chart-primary"
 							:model-value="text('primaryLabel')"
 							placeholder="In the tooltip and legend"
+							class="w-full"
 							@update:model-value="write('primaryLabel', String($event))"
 						/>
-					</div>
-					<div
+					</UFormField>
+					<UFormField
 						v-if="has('comparisonLabel') && (compares || text('comparisonLabel'))"
-						class="flex min-w-0 flex-col gap-1.5"
+						label="Previous period"
+						class="min-w-0"
 					>
-						<label for="chart-previous" class="text-xs font-medium text-toned">
-							Previous period
-						</label>
 						<UInput
-							id="chart-previous"
 							:model-value="text('comparisonLabel')"
 							placeholder="Last period"
+							class="w-full"
 							@update:model-value="write('comparisonLabel', String($event))"
 						/>
-					</div>
+					</UFormField>
 				</div>
 			</DmsBuilderFoldCard>
 
@@ -426,49 +370,15 @@ const showingMore = ref(false)
 				icon="i-ph-sliders-horizontal"
 				title="Look"
 				:summary="lookSummary"
-				:dot="themed?.swatch"
-				:open="open.has('look')"
-				@toggle="toggle('look')"
+				:dot="themed"
 			>
-				<div v-if="COLOUR_OPTION in chartOptions" class="flex flex-col gap-1.5">
-					<p class="text-xs font-medium text-toned">Colour</p>
-					<div role="group" aria-label="Colour" class="flex items-center gap-2.5 px-0.5 py-1">
-						<button
-							v-for="entry in THEME_COLOURS"
-							:key="entry.name"
-							type="button"
-							class="size-[22px] rounded-full ring-offset-2 ring-offset-(--ui-bg) transition-shadow"
-							:class="[
-								entry.swatch,
-								themed?.name === entry.name && !customColour
-									? 'ring-2 ring-(--ui-text-highlighted)'
-									: '',
-							]"
-							:aria-label="entry.name"
-							:title="entry.name"
-							:aria-pressed="themed?.name === entry.name && !customColour"
-							@click="setChartOption(COLOUR_OPTION, entry.name === 'primary' ? undefined : entry.name); typingColour = false"
-						/>
-						<button
-							type="button"
-							class="flex size-[22px] items-center justify-center rounded-full border border-dashed border-accented text-muted"
-							aria-label="Another colour"
-							title="Another colour"
-							:aria-pressed="customColour"
-							@click="typingColour = true"
-						>
-							<UIcon name="i-ph-plus" class="size-3" />
-						</button>
-					</div>
-					<UInput
-						v-if="customColour"
-						:model-value="colour ?? ''"
-						size="sm"
-						placeholder="primary-600, #1f7aec…"
-						aria-label="Own colour"
-						@update:model-value="setChartOption(COLOUR_OPTION, String($event) || undefined)"
-					/>
-				</div>
+				<DmsBuilderOption
+					v-if="COLOUR_OPTION in chartOptions"
+					:name="COLOUR_OPTION"
+					:schema="chartOptions[COLOUR_OPTION]!"
+					:model-value="chartValue(COLOUR_OPTION)"
+					@update:model-value="setChartOption(COLOUR_OPTION, $event)"
+				/>
 
 				<div
 					v-if="has('showLegend') || lookSwitches.length"
@@ -481,13 +391,13 @@ const showingMore = ref(false)
 						<UIcon
 							name="i-ph-list-bullets"
 							class="size-4 shrink-0"
-							:class="config.showLegend === true ? 'text-primary' : 'text-dimmed'"
+							:class="legendOn ? 'text-primary' : 'text-dimmed'"
 						/>
-						<span class="min-w-0 flex-1 text-[13px] text-default">Legend</span>
+						<span class="min-w-0 flex-1 text-sm text-default">Legend</span>
 						<USwitch
-							:model-value="config.showLegend === true"
+							:model-value="legendOn"
 							aria-label="Legend"
-							@update:model-value="write('showLegend', $event === true ? true : undefined)"
+							@update:model-value="write('showLegend', $event === true)"
 						/>
 					</div>
 					<div
@@ -498,13 +408,13 @@ const showingMore = ref(false)
 						<UIcon
 							:name="entry.icon"
 							class="size-4 shrink-0"
-							:class="chartValue(entry.key) === true ? 'text-primary' : 'text-dimmed'"
+							:class="chartOn(entry.key) ? 'text-primary' : 'text-dimmed'"
 						/>
-						<span class="min-w-0 flex-1 text-[13px] text-default">{{ entry.label }}</span>
+						<span class="min-w-0 flex-1 text-sm text-default">{{ entry.label }}</span>
 						<USwitch
-							:model-value="chartValue(entry.key) === true"
+							:model-value="chartOn(entry.key)"
 							:aria-label="entry.label"
-							@update:model-value="setChartOption(entry.key, $event === true ? true : undefined)"
+							@update:model-value="setChartOption(entry.key, $event === true)"
 						/>
 					</div>
 				</div>
@@ -517,34 +427,38 @@ const showingMore = ref(false)
 					@update:model-value="write('icon', $event)"
 				/>
 
-				<div v-if="moreChartOptions.length" class="flex flex-col gap-3">
-					<button
-						type="button"
-						class="flex min-h-11 items-center gap-2.5 rounded-lg border border-default px-3 py-2 text-left"
-						:aria-expanded="showingMore"
-						@click="showingMore = !showingMore"
+				<UCollapsible
+					v-if="moreChartOptions.length"
+					v-model:open="showingMore"
+					class="flex flex-col gap-3"
+				>
+					<UButton
+						color="neutral"
+						variant="outline"
+						leading-icon="i-ph-sliders"
+						:trailing-icon="showingMore ? 'i-ph-caret-down' : 'i-ph-caret-right'"
+						block
+						:ui="{ leadingIcon: 'size-4 text-muted', trailingIcon: 'size-4 text-dimmed' }"
+						class="min-h-11 justify-start gap-2.5 px-3 text-left"
 					>
-						<UIcon name="i-ph-sliders" class="size-4 shrink-0 text-muted" />
 						<span class="flex min-w-0 flex-1 flex-col">
-							<span class="text-[13px] text-default">More options</span>
-							<span class="truncate text-xs text-dimmed">Height, width, value range, axes</span>
+							<span class="font-normal text-default">More options</span>
+							<span class="truncate text-xs font-normal text-dimmed">Height, width, value range, axes</span>
 						</span>
-						<UIcon
-							:name="showingMore ? 'i-ph-caret-down' : 'i-ph-caret-right'"
-							class="size-3.5 text-dimmed"
-						/>
-					</button>
-					<template v-if="showingMore">
-						<DmsBuilderOption
-							v-for="[key, nested] in moreChartOptions"
-							:key="key"
-							:name="key"
-							:schema="nested"
-							:model-value="chartValue(key)"
-							@update:model-value="setChartOption(key, $event)"
-						/>
+					</UButton>
+					<template #content>
+						<div class="flex flex-col gap-3">
+							<DmsBuilderOption
+								v-for="[key, nested] in moreChartOptions"
+								:key="key"
+								:name="key"
+								:schema="nested"
+								:model-value="chartValue(key)"
+								@update:model-value="setChartOption(key, $event)"
+							/>
+						</div>
 					</template>
-				</div>
+				</UCollapsible>
 			</DmsBuilderFoldCard>
 		</div>
 	</div>

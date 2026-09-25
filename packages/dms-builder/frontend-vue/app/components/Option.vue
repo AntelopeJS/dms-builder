@@ -9,11 +9,14 @@ import {
 	fitsAsWell,
 	heldBlockOptions,
 	isRequired,
+	offeredIn,
 	optionLabel,
 	seededDataTypes,
+	switchOn,
 	valueKind,
 	visibleNameKey,
 } from '../runtime/catalog'
+import { THEME_COLORS } from '../runtime/constants'
 import { useBuilderMode } from '../runtime/mode'
 import { fitsEditor, typedEditor } from '../runtime/typed-values'
 import { mergePatch } from '../runtime/object'
@@ -63,16 +66,9 @@ const emit = defineEmits<{
 const builder = useBuilder()
 const { advanced } = useBuilderMode()
 
-/**
- * Whether the panel shows an option at all: never one the block hides, and in
- * the simple mode never one the builder writes itself — a field's key, which
- * follows its label.
- */
+/** Whether the panel shows an option at all: never one the block hides. */
 function shown(schema: OptionSchema): boolean {
-	return (
-		!schema.ui?.hidden &&
-		(advanced.value || (!schema.ui?.derivedFrom && !schema.ui?.advanced))
-	)
+	return !schema.ui?.hidden && offeredIn(schema, advanced.value)
 }
 const session = builder.session
 
@@ -293,21 +289,10 @@ const clearable = computed(
 )
 
 /**
- * The colours every theme defines, offered as swatches: a name follows the
- * theme where a hex code stays put. Anything else — a shade, a hex code, a CSS
- * variable — is still typed in beside them.
+ * Beside the theme's colours, anything else — a shade, a hex code, a CSS
+ * variable — is typed in. A palette of several is written as a list; the text
+ * box shows one.
  */
-const THEME_COLORS = [
-	'primary',
-	'secondary',
-	'success',
-	'info',
-	'warning',
-	'error',
-	'neutral',
-] as const
-
-/** A palette of several colours is written as a list; the text box shows one. */
 const colorText = computed(() =>
 	typeof props.modelValue === 'string' ? props.modelValue : '',
 )
@@ -315,16 +300,7 @@ const colorText = computed(() =>
 const isSwitch = computed(
 	() => widget.value === 'switch' || widget.value === 'boolean',
 )
-/**
- * Whether the switch reads on. Left unset, it reads what the block does
- * without it: a table offers deleting rows unless it is turned off, and a
- * switch showing that off tells its author the table is safe when it is not.
- */
-const switchOn = computed(() =>
-	props.modelValue === undefined
-		? props.schema.default === true
-		: props.modelValue === true,
-)
+const isOn = computed(() => switchOn(props.modelValue, props.schema))
 
 const objectValue = computed(
 	() => (props.modelValue ?? {}) as Record<string, unknown>,
@@ -703,7 +679,7 @@ const nestedProperties = computed(() =>
 		:class="separated ? 'border-t border-default' : ''"
 	>
 		<USwitch
-			:model-value="switchOn"
+			:model-value="isOn"
 			class="mt-0.5 shrink-0"
 			@update:model-value="set($event)"
 		/>
@@ -734,17 +710,15 @@ const nestedProperties = computed(() =>
 			/>
 		</div>
 
-		<div v-if="widget === 'segmented'" class="flex flex-wrap gap-1">
-			<UButton
-				v-for="item in enumItems"
-				:key="String(item.value)"
-				:label="item.label"
-				size="xs"
-				:color="modelValue === item.value ? 'primary' : 'neutral'"
-				:variant="modelValue === item.value ? 'soft' : 'outline'"
-				@click="set(item.value)"
-			/>
-		</div>
+		<DmsSegmented
+			v-if="widget === 'segmented'"
+			:model-value="modelValue as string"
+			:items="enumItems as { label: string; value: string }[]"
+			:aria-label="label"
+			size="xs"
+			class="self-start"
+			@update:model-value="set($event)"
+		/>
 
 		<USelectMenu
 			v-else-if="widget === 'select'"
@@ -1057,12 +1031,13 @@ const nestedProperties = computed(() =>
 			<div
 				v-for="entry in keyedEntries"
 				:key="entry.key"
-				class="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2"
+				class="grid grid-cols-5 items-center gap-2"
 			>
-				<span class="truncate text-xs text-muted">{{ entry.label }}</span>
+				<span class="col-span-2 truncate text-xs text-muted">{{ entry.label }}</span>
 				<UInput
 					:model-value="String(objectValue[entry.key] ?? '')"
 					size="sm"
+					class="col-span-3"
 					:placeholder="entry.label"
 					:aria-label="`${label}: ${entry.label}`"
 					@update:model-value="setEntry(entry.key, String($event))"

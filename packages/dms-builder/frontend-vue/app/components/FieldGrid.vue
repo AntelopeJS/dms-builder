@@ -1,23 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { dataTypeItem } from '../runtime/catalog'
+import { fieldFlags } from '../runtime/constants'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
-import type { ResourceFieldStructure } from '../runtime/types'
-
-type Column = 'listable' | 'searchable' | 'sortable' | 'filterable' | 'required'
+import type { FieldFlag, ResourceFieldStructure } from '../runtime/types'
 
 /**
  * The aspects worth seeing for every field at once, one column each. The rest
  * of a field — its label, type and form rules — is a click away, under it.
  */
-const COLUMNS: { key: Column; label: string; help: string }[] = [
-	{ key: 'listable', label: 'Shown', help: 'Shown in the table on first load.' },
-	{ key: 'searchable', label: 'Search', help: "Read by the table's search bar." },
-	{ key: 'sortable', label: 'Sort', help: 'Usable to sort the table.' },
-	{ key: 'filterable', label: 'Filter', help: "Usable in the table's filters." },
-	{ key: 'required', label: 'Required', help: 'A row cannot be saved without it.' },
-]
+const COLUMNS = fieldFlags('listable', 'searchable', 'sortable', 'filterable', 'required')
 
 const props = defineProps<{ resource: string }>()
 const emit = defineEmits<{ add: [] }>()
@@ -39,7 +32,7 @@ watch(
 	},
 )
 
-function on(field: ResourceFieldStructure, key: Column): boolean {
+function on(field: ResourceFieldStructure, key: FieldFlag): boolean {
 	return field[key] === true
 }
 
@@ -48,10 +41,10 @@ function writing(name: string): boolean {
 }
 
 function typeOf(field: ResourceFieldStructure) {
-	return dataTypeItem(field.dataType?.$dataType ?? 'string')
+	return dataTypeItem(field.dataType?.$dataType)
 }
 
-function toggle(field: ResourceFieldStructure, key: Column): void {
+function toggle(field: ResourceFieldStructure, key: FieldFlag): void {
 	void builder.configureField(`${props.resource}#${field.name}`, {
 		[key]: !on(field, key),
 	})
@@ -83,9 +76,10 @@ function toggle(field: ResourceFieldStructure, key: Column): void {
 				:class="open === field.name ? 'bg-elevated' : ''"
 			>
 				<div class="flex h-13 items-center">
-					<button
-						type="button"
-						class="flex h-full min-w-0 flex-1 items-center gap-2.5 px-3 text-left"
+					<UButton
+						color="neutral"
+						variant="ghost"
+						class="h-full min-w-0 flex-1 gap-2.5 rounded-none px-3 text-left font-normal"
 						:aria-expanded="open === field.name"
 						@click="open = open === field.name ? null : field.name"
 					>
@@ -117,7 +111,7 @@ function toggle(field: ResourceFieldStructure, key: Column): void {
 								/>
 								<span
 									v-if="writing(field.name)"
-									class="inline-flex shrink-0 items-center gap-1 text-[11px] font-normal text-primary"
+									class="inline-flex shrink-0 items-center gap-1 text-xs font-normal text-primary"
 								>
 									<UIcon name="i-ph-circle-notch" class="size-3 animate-spin" />
 									Saving
@@ -128,37 +122,19 @@ function toggle(field: ResourceFieldStructure, key: Column): void {
 								>{{ typeOf(field).label }}
 							</span>
 						</span>
-					</button>
+					</UButton>
 					<div
 						v-for="column in COLUMNS"
 						:key="column.key"
 						class="flex w-15 justify-center"
 					>
-						<button
-							type="button"
-							class="flex size-5 items-center justify-center rounded-[5px] border transition-colors disabled:opacity-50"
-							:class="[
-								on(field, column.key)
-									? 'border-primary/45 bg-primary/15 text-primary'
-									: 'border-accented',
-								field.opaque
-									? 'cursor-not-allowed'
-									: writing(field.name)
-										? 'cursor-progress'
-										: 'hover:border-primary/60',
-							]"
-							:aria-pressed="on(field, column.key)"
+						<UCheckbox
+							:model-value="on(field, column.key)"
 							:aria-label="`${field.label || field.name}: ${column.label}`"
 							:title="field.opaque ? 'Set up in code' : column.help"
 							:disabled="field.opaque || writing(field.name)"
-							@click="toggle(field, column.key)"
-						>
-							<UIcon
-								v-if="on(field, column.key)"
-								name="i-ph-check-bold"
-								class="size-3"
-							/>
-						</button>
+							@update:model-value="toggle(field, column.key)"
+						/>
 					</div>
 					<div class="flex w-9 justify-center text-muted">
 						<UIcon
@@ -172,6 +148,7 @@ function toggle(field: ResourceFieldStructure, key: Column): void {
 					v-if="open === field.name"
 					:resource="resource"
 					:field="field"
+					class="px-3 pb-4 pt-1"
 				/>
 			</div>
 

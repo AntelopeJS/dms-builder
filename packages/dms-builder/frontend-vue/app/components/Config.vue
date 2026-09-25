@@ -2,8 +2,10 @@
 import { computed, ref, watch } from 'vue'
 import {
 	ADVANCED_OPTION_GROUP,
+	CONTROLLER_SETTING,
 	descriptorOf,
 	missingSettings,
+	offeredIn,
 	optionGroups,
 	slotsOf,
 } from '../runtime/catalog'
@@ -88,40 +90,30 @@ const parentBlock = computed(() => {
 })
 
 /**
- * A form someone builds a page with has a panel of its own in the simple mode:
- * it saves into a table they pick, not into an endpoint they type.
+ * The blocks with a panel of their own in the simple mode, and the options
+ * each panel edits; whatever else a block declares is offered below it.
+ *
+ * - a form saves into a table its author picks, not into an endpoint typed;
+ * - a table lists one picked from the tables there are, their columns beside;
+ * - a chart card draws a chart picked by how it draws, measuring what is
+ *   built from a table, the rest folded away behind a line each.
  */
-const formPanel = computed(
-	() => !advancedMode.value && block.value?.type === FORM_BLOCK,
-)
+const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
+	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
+	[TABLE_BLOCK]: { component: 'DmsBuilderTablePanel', options: TABLE_PANEL_OPTIONS },
+	[CHART_CARD_BLOCK]: {
+		component: 'DmsBuilderChartCardPanel',
+		options: CHART_CARD_PANEL_OPTIONS,
+	},
+}
 
-/**
- * A table has one too: the table it lists is picked from the tables there
- * are, and their columns are set beside it.
- */
-const tablePanel = computed(
-	() => !advancedMode.value && block.value?.type === TABLE_BLOCK,
+const panel = computed(() =>
+	advancedMode.value ? undefined : PANELS[block.value?.type ?? ''],
 )
-
-/**
- * And a chart card: its chart picked by how it draws, what it measures built
- * from a table, and the rest folded away behind a line each.
- */
-const chartCardPanel = computed(
-	() => !advancedMode.value && block.value?.type === CHART_CARD_BLOCK,
-)
-
-/** The table it reads, which the table's panel picks itself. */
-const CONTROLLER = 'controller'
 
 /** Whether a block's own panel edits this option rather than the list below. */
 function inPanel(key: unknown): boolean {
-	return (
-		(formPanel.value && FORM_PANEL_OPTIONS.has(String(key))) ||
-		(tablePanel.value &&
-			(TABLE_PANEL_OPTIONS.has(String(key)) || key === CONTROLLER)) ||
-		(chartCardPanel.value && CHART_CARD_PANEL_OPTIONS.has(String(key)))
-	)
+	return panel.value?.options.has(String(key)) === true
 }
 
 // What a block's panel edits, it says is missing in its own words.
@@ -215,8 +207,7 @@ const groups = computed<RenderedGroup[]>(() =>
 					// follows, an address from the table picked — or leaves to code.
 					.filter(
 						(option) =>
-							(advancedMode.value ||
-								(!option.schema.ui?.derivedFrom && !option.schema.ui?.advanced)) &&
+							offeredIn(option.schema, advancedMode.value) &&
 							!inPanel(option.id.split('.')[0]),
 					),
 			),
@@ -379,7 +370,7 @@ async function setSearchField(name: string): Promise<void> {
 			</div>
 
 			<div
-				v-if="descriptor?.controllerArg && !tablePanel"
+				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
 				class="flex flex-col gap-1.5"
 			>
 				<label class="text-sm font-medium text-default">
@@ -402,9 +393,7 @@ async function setSearchField(name: string): Promise<void> {
 				</p>
 			</div>
 
-			<DmsBuilderFormPanel v-if="formPanel" :path="path" />
-			<DmsBuilderTablePanel v-if="tablePanel" :path="path" />
-			<DmsBuilderChartCardPanel v-if="chartCardPanel" :key="path" :path="path" />
+			<component :is="panel.component" v-if="panel" :key="path" :path="path" />
 
 			<div
 				v-for="group in plainGroups"
@@ -456,7 +445,7 @@ async function setSearchField(name: string): Promise<void> {
 			</div>
 
 			<div
-				v-if="descriptor?.controllerArg && !tablePanel"
+				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
 				class="flex flex-col gap-3"
 			>
 				<p class="text-sm font-semibold text-highlighted">Fields</p>

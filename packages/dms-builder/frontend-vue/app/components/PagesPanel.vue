@@ -3,22 +3,41 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
 import { byMenuOrder, categoryOptions, categoryRoute } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
+import { usePageDelete } from '../runtime/page-delete'
 import { useBuilder } from '../runtime/session'
 import type { PageSummary } from '../runtime/types'
 
 interface CategoryNode {
 	ref: string
 	label: string
-	depth: number
 	pages: PageSummary[]
 	children: CategoryNode[]
 }
 
-type Row =
-	| { kind: 'category'; node: CategoryNode; open: boolean }
-	| { kind: 'page'; page: PageSummary; depth: number }
+/** A line of the tree: keyed by the category's ref, or by the page's route. */
+interface RowBase {
+	ref: string
+	label: string
+	icon?: string
+	/** The category being renamed is drawn as the form that renames it. */
+	slot?: 'rename'
+}
+
+interface CategoryRow extends RowBase {
+	kind: 'category'
+	node: CategoryNode
+	children?: Row[]
+}
+
+interface PageRow extends RowBase {
+	kind: 'page'
+	page: PageSummary
+}
+
+type Row = CategoryRow | PageRow
 
 const builder = useBuilder()
+const { deleting, deletePage } = usePageDelete()
 const session = builder.session
 const router = useRouter()
 // Auto-imported from the host's own layer, like every `app/composables` the
@@ -28,8 +47,6 @@ const devReload = useDmsDevReload()
 const query = ref('')
 const collapsed = ref(new Set<string>())
 const creating = ref<'page' | 'category' | null>(null)
-// The page a deletion is being confirmed for; null when none is pending.
-const deleting = ref<string | null>(null)
 const renaming = ref<string | null>(null)
 const renameDraft = ref<{ displayName: string; icon?: string }>({
 	displayName: '',
@@ -66,6 +83,16 @@ function shown(page: PageSummary): PageSummary {
 	}
 }
 
+function pageRow(page: PageSummary): PageRow {
+	return {
+		kind: 'page',
+		ref: page.ref,
+		label: page.displayName,
+		icon: page.icon || 'i-ph-file',
+		page,
+	}
+}
+
 const tree = computed(() => {
 	const pages = new Map<string, PageSummary[]>()
 	for (const page of session.value.pages) {
@@ -73,17 +100,16 @@ const tree = computed(() => {
 		bucket.push(shown(page))
 		pages.set(page.category, bucket)
 	}
-	const build = (parent: string | undefined, depth: number): CategoryNode[] =>
+	const build = (parent: string | undefined): CategoryNode[] =>
 		session.value.categories
 			.filter((entry) => (entry.parent ?? undefined) === parent)
 			.map((entry) => ({
 				ref: entry.ref,
 				label: entry.displayName,
-				depth,
 				pages: (pages.get(entry.ref) ?? []).sort(byMenuOrder),
-				children: build(entry.ref, depth + 1),
+				children: build(entry.ref),
 			}))
-	return build(undefined, 0)
+	return build(undefined)
 })
 
 const needle = computed(() => query.value.trim().toLowerCase())
@@ -97,29 +123,73 @@ function found(text: string): boolean {
  * above them opened; a category it finds by name keeps all of its pages.
  */
 const rows = computed<Row[]>(() => {
-	const out: Row[] = []
 	const holds = (node: CategoryNode): boolean =>
 		found(node.label) ||
 		node.pages.some((page) => found(page.displayName) || found(page.ref)) ||
 		node.children.some(holds)
-	const walk = (nodes: CategoryNode[], named: boolean): void => {
-		for (const node of nodes) {
-			if (needle.value && !named && !holds(node)) continue
-			const open = !!needle.value || !collapsed.value.has(node.ref)
-			out.push({ kind: 'category', node, open })
-			if (!open) continue
-			const keepAll = !needle.value || named || found(node.label)
-			for (const page of node.pages) {
-				if (keepAll || found(page.displayName) || found(page.ref)) {
-					out.push({ kind: 'page', page, depth: node.depth })
+	const build = (nodes: CategoryNode[], named: boolean): Row[] =>
+		nodes
+			.filter((node) => !needle.value || named || holds(node))
+			.map((node) => {
+				const keepAll = !needle.value || named || found(node.label)
+				const children = [
+					...node.pages
+						.filter(
+							(page) => keepAll || found(page.displayName) || found(page.ref),
+						)
+						.map(pageRow),
+					...build(node.children, keepAll && !!needle.value),
+				]
+				return {
+					kind: 'category',
+					ref: node.ref,
+					label: node.label,
+					// Nothing to open: the tree only draws a folder for what it can.
+					icon: children.length ? undefined : 'i-ph-folder',
+					slot: renaming.value === node.ref ? 'rename' : undefined,
+					node,
+					children: children.length ? children : undefined,
 				}
-			}
-			walk(node.children, keepAll && !!needle.value)
-		}
-	}
-	walk(tree.value, false)
-	return out
+			})
+	return build(tree.value, false)
 })
+
+/** The open page, which the tree shows selected. */
+const current = computed(() => {
+	const page = session.value.pages.find(
+		(entry) => entry.ref === session.value.pageRef,
+	)
+	return page && pageRow(page)
+})
+
+/** Every category is open unless folded, and a search opens them all. */
+const expanded = computed(() =>
+	session.value.categories
+		.map((entry) => entry.ref)
+		.filter((ref_) => !!needle.value || !collapsed.value.has(ref_)),
+)
+
+// What is kept is the folds, so a category created later starts open. A
+// search holds every category open, so nothing folds under one.
+function expand(open: string[]): void {
+	if (needle.value) return
+	collapsed.value = new Set(
+		session.value.categories
+			.map((entry) => entry.ref)
+			.filter((ref_) => !open.includes(ref_)),
+	)
+}
+
+/**
+ * A page picked in the tree opens, and a category picked only folds: what
+ * shows selected is the open page, which the route decides, not the click.
+ */
+function visit(event: Event, row: Row): void {
+	event.preventDefault()
+	if (row.kind === 'page') {
+		void router.push(row.ref)
+	}
+}
 
 const categoryItems = computed(() => categoryOptions(session.value.categories))
 
@@ -127,13 +197,6 @@ const categoryItems = computed(() => categoryOptions(session.value.categories))
 const address = computed(
 	() => `${categoryRoute(draft.value.parent)}/${draft.value.name || '…'}`,
 )
-
-function toggle(ref_: string): void {
-	const next = new Set(collapsed.value)
-	if (next.has(ref_)) next.delete(ref_)
-	else next.add(ref_)
-	collapsed.value = next
-}
 
 function empty(node: CategoryNode): boolean {
 	return !node.pages.length && !node.children.length
@@ -297,7 +360,7 @@ async function write(): Promise<void> {
 			class="flex flex-col gap-3.5 rounded-lg border border-accented bg-elevated p-3"
 		>
 			<div class="flex items-center justify-between">
-				<p class="text-[13px] font-semibold text-highlighted">
+				<p class="text-sm font-semibold text-highlighted">
 					{{ creating === 'page' ? 'New page' : 'New category' }}
 				</p>
 				<UButton
@@ -311,17 +374,13 @@ async function write(): Promise<void> {
 				/>
 			</div>
 
-			<div class="flex flex-col gap-1.5">
-				<label for="new-entry-title" class="text-xs font-medium text-toned">
-					Title
-				</label>
+			<UFormField label="Title">
 				<div class="flex gap-2">
 					<DmsBuilderIconPicker
 						v-model="draft.icon"
 						:fallback="creating === 'page' ? 'i-ph-file' : 'i-ph-folder'"
 					/>
 					<UInput
-						id="new-entry-title"
 						v-model="draft.displayName"
 						size="lg"
 						:placeholder="creating === 'page' ? 'Revenue' : 'Reports'"
@@ -330,12 +389,9 @@ async function write(): Promise<void> {
 						@keydown.enter="submit"
 					/>
 				</div>
-			</div>
+			</UFormField>
 
-			<div class="flex flex-col gap-1.5">
-				<label class="text-xs font-medium text-toned">
-					{{ creating === 'page' ? 'Category' : 'Parent category' }}
-				</label>
+			<UFormField :label="creating === 'page' ? 'Category' : 'Parent category'">
 				<USelectMenu
 					v-model="draft.parent"
 					:items="categoryItems"
@@ -346,19 +402,23 @@ async function write(): Promise<void> {
 						icon: 'i-ph-magnifying-glass',
 					}"
 					:placeholder="creating === 'page' ? 'Choose a category…' : 'Top level'"
+					class="w-full"
 				/>
-			</div>
+			</UFormField>
 
-			<div class="flex flex-col gap-1.5">
-				<label for="new-entry-slug" class="text-xs font-medium text-toned">
-					Address
-				</label>
+			<UFormField
+				label="Address"
+				:help="
+					slugEdited
+						? 'Also names the folder and the exported class.'
+						: 'Follows the title unless you edit it.'
+				"
+			>
 				<div v-if="editingSlug" class="flex items-center gap-1.5">
 					<span class="shrink-0 font-mono text-xs text-muted">
 						{{ categoryRoute(draft.parent) }}/
 					</span>
 					<UInput
-						id="new-entry-slug"
 						:model-value="draft.name"
 						placeholder="revenue"
 						class="min-w-0 flex-1 font-mono"
@@ -380,23 +440,16 @@ async function write(): Promise<void> {
 						@click="editingSlug = true"
 					/>
 				</div>
-				<p class="text-xs text-muted">
-					{{
-						slugEdited
-							? 'Also names the folder and the exported class.'
-							: 'Follows the title unless you edit it.'
-					}}
-				</p>
-			</div>
+			</UFormField>
 
-			<div v-if="creating === 'page'" class="flex flex-col gap-1.5">
-				<label class="text-xs font-medium text-toned">Description</label>
+			<UFormField v-if="creating === 'page'" label="Description">
 				<UTextarea
 					v-model="draft.description"
 					:rows="2"
 					placeholder="What the page is for — optional"
+					class="w-full"
 				/>
-			</div>
+			</UFormField>
 
 			<div class="flex flex-col gap-2">
 				<div class="flex gap-2">
@@ -430,162 +483,42 @@ async function write(): Promise<void> {
 			</div>
 		</div>
 
-		<div role="tree" aria-label="Pages" class="flex flex-col gap-px">
-			<template
-				v-for="row in rows"
-				:key="row.kind === 'category' ? `c:${row.node.ref}` : `p:${row.page.ref}`"
-			>
-				<template v-if="row.kind === 'category'">
-					<div
-						v-if="renaming === row.node.ref"
-						class="flex h-10 items-center gap-1 rounded-md border border-accented bg-elevated px-1"
-						:style="{ marginLeft: `${row.node.depth * 16}px` }"
-					>
-						<DmsBuilderIconPicker
-							v-model="renameDraft.icon"
-							fallback="i-ph-folder"
-							label="Category icon"
-							size="sm"
-						/>
-						<UInput
-							v-model="renameDraft.displayName"
-							size="sm"
-							aria-label="Category name"
-							class="min-w-0 flex-1"
-							autofocus
-							@keydown.enter="submitRename"
-							@keydown.esc="renaming = null"
-						/>
-						<UButton
-							icon="i-ph-check-bold"
-							size="sm"
-							variant="soft"
-							aria-label="Save the name"
-							:disabled="!renameDraft.displayName.trim()"
-							@click="submitRename"
-						/>
-						<UButton
-							icon="i-ph-x"
-							size="sm"
-							color="neutral"
-							variant="ghost"
-							aria-label="Keep the old name"
-							@click="renaming = null"
-						/>
-					</div>
-					<div
-						v-else
-						class="group flex h-8 items-center gap-0.5 rounded-md pr-1 transition-colors hover:bg-elevated"
-						:style="{ paddingLeft: `${4 + row.node.depth * 16}px` }"
-					>
-						<button
-							type="button"
-							class="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left"
-							:aria-expanded="row.open"
-							@click="toggle(row.node.ref)"
-						>
-							<UIcon
-								:name="row.open ? 'i-ph-caret-down' : 'i-ph-caret-right'"
-								class="size-3 shrink-0 text-muted"
-							/>
-							<UIcon name="i-ph-folder" class="size-[15px] shrink-0 text-muted" />
-							<span class="truncate text-[13px] font-medium text-toned">
-								{{ row.node.label }}
-							</span>
-							<span class="shrink-0 text-[11px] text-muted">
-								{{
-									row.node.pages.length ||
-									(row.node.children.length ? '' : 'empty')
-								}}
-							</span>
-						</button>
-						<div
-							class="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-						>
-							<UButton
-								icon="i-ph-plus"
-								size="xs"
-								color="neutral"
-								variant="ghost"
-								:aria-label="`New page in ${row.node.label}`"
-								:title="`New page in ${row.node.label}`"
-								@click="start('page', row.node.ref)"
-							/>
-							<UButton
-								icon="i-ph-pencil-simple"
-								size="xs"
-								color="neutral"
-								variant="ghost"
-								:aria-label="`Rename ${row.node.label}`"
-								title="Rename"
-								@click="startRename(row.node)"
-							/>
-							<UButton
-								v-if="empty(row.node)"
-								icon="i-ph-trash"
-								size="xs"
-								color="neutral"
-								variant="ghost"
-								:aria-label="`Delete ${row.node.label}`"
-								title="Delete the empty category"
-								@click="builder.deleteCategory(row.node.ref)"
-							/>
-						</div>
-					</div>
-				</template>
+		<!-- Each row holds buttons of its own, which a row drawn as a button
+		could not: the rows are drawn as `div`s, and the buttons keep their
+		clicks from reaching the row, which would select or fold it. -->
+		<UTree
+			:items="rows"
+			:model-value="current"
+			:expanded="expanded"
+			:get-key="(row: Row) => row.ref"
+			:as="{ link: 'div' }"
+			expanded-icon="i-ph-folder-open"
+			collapsed-icon="i-ph-folder"
+			aria-label="Pages"
+			@update:expanded="expand"
+			@select="visit"
+		>
+			<template #item-label="{ item }">
+				{{ item.label }}
+				<span v-if="item.kind === 'page'" class="font-mono text-xs text-muted">{{
+					item.ref
+				}}</span>
+				<span v-else class="text-xs text-muted">{{
+					item.node.pages.length || (empty(item.node) ? 'empty' : '')
+				}}</span>
+			</template>
 
-				<template v-else>
-					<div
-						class="group flex h-[34px] items-center gap-0.5 rounded-md pr-1 transition-colors"
-						:class="
-							session.pageRef === row.page.ref
-								? 'bg-primary/10'
-								: 'hover:bg-elevated'
-						"
-						:style="{ paddingLeft: `${22 + row.depth * 16}px` }"
-					>
-						<button
-							type="button"
-							class="flex h-full min-w-0 flex-1 items-center gap-2 text-left"
-							:aria-current="session.pageRef === row.page.ref ? 'page' : undefined"
-							@click="router.push(row.page.ref)"
-						>
-							<UIcon
-								:name="row.page.icon || 'i-ph-file'"
-								class="size-[15px] shrink-0"
-								:class="
-									session.pageRef === row.page.ref ? 'text-primary' : 'text-muted'
-								"
-							/>
-							<span
-								class="truncate text-[13px]"
-								:class="
-									session.pageRef === row.page.ref
-										? 'font-medium text-primary'
-										: 'text-default'
-								"
-							>
-								{{ row.page.displayName }}
-							</span>
-							<UIcon
-								v-if="row.page.hidden"
-								name="i-ph-eye-slash"
-								class="size-3.5 shrink-0 text-muted"
-								title="Hidden from the menu"
-							/>
-							<span
-								class="min-w-0 shrink-[4] truncate font-mono text-[11px]"
-								:class="
-									session.pageRef === row.page.ref
-										? 'text-primary/70'
-										: 'text-muted'
-								"
-							>
-								{{ row.page.ref }}
-							</span>
-						</button>
+			<template #item-trailing="{ item }">
+				<div class="flex items-center" @click.stop>
+					<template v-if="item.kind === 'page'">
+						<UIcon
+							v-if="item.page.hidden"
+							name="i-ph-eye-slash"
+							class="size-4 text-muted"
+							title="Hidden from the menu"
+						/>
 						<UButton
-							v-if="session.pageRef === row.page.ref"
+							v-if="item.ref === session.pageRef"
 							icon="i-ph-sliders-horizontal"
 							size="xs"
 							variant="ghost"
@@ -598,32 +531,96 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`Delete ${row.page.displayName}`"
+							:aria-label="`Delete ${item.label}`"
 							title="Delete"
-							:class="
-								deleting === row.page.ref
-									? 'opacity-100'
-									: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-							"
-							@click.stop="deleting = row.page.ref"
+							:loading="deleting === item.ref"
+							:class="{
+								'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100':
+									deleting !== item.ref,
+							}"
+							@click="deletePage(item.page)"
+						/>
+					</template>
+					<div
+						v-else
+						class="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+					>
+						<UButton
+							icon="i-ph-plus"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							:aria-label="`New page in ${item.label}`"
+							:title="`New page in ${item.label}`"
+							@click="start('page', item.ref)"
+						/>
+						<UButton
+							icon="i-ph-pencil-simple"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							:aria-label="`Rename ${item.label}`"
+							title="Rename"
+							@click="startRename(item.node)"
+						/>
+						<UButton
+							v-if="empty(item.node)"
+							icon="i-ph-trash"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							:aria-label="`Delete ${item.label}`"
+							title="Delete the empty category"
+							@click="builder.deleteCategory(item.ref)"
 						/>
 					</div>
-					<DmsBuilderPageDelete
-						v-if="deleting === row.page.ref"
-						:page="row.page"
-						class="mb-1.5 mt-0.5"
-						:style="{ marginLeft: `${22 + row.depth * 16}px` }"
-						@close="deleting = null"
-					/>
-				</template>
+				</div>
 			</template>
 
-			<p v-if="!session.categories.length" class="text-xs text-muted">
-				No category yet — create one to hold pages.
-			</p>
-			<p v-else-if="!rows.length" class="text-xs text-muted">
-				No page matches “{{ query.trim() }}”.
-			</p>
-		</div>
+			<!-- The tree also reads every key typed inside it as a jump to the
+			row it starts: the form keeps its keys to itself. -->
+			<template #rename>
+				<div class="flex flex-1 items-center gap-1" @click.stop @keydown.stop>
+					<DmsBuilderIconPicker
+						v-model="renameDraft.icon"
+						fallback="i-ph-folder"
+						label="Category icon"
+						size="sm"
+					/>
+					<UInput
+						v-model="renameDraft.displayName"
+						size="sm"
+						aria-label="Category name"
+						class="min-w-0 flex-1"
+						autofocus
+						@keydown.enter="submitRename"
+						@keydown.esc="renaming = null"
+					/>
+					<UButton
+						icon="i-ph-check-bold"
+						size="sm"
+						variant="soft"
+						aria-label="Save the name"
+						:disabled="!renameDraft.displayName.trim()"
+						@click="submitRename"
+					/>
+					<UButton
+						icon="i-ph-x"
+						size="sm"
+						color="neutral"
+						variant="ghost"
+						aria-label="Keep the old name"
+						@click="renaming = null"
+					/>
+				</div>
+			</template>
+		</UTree>
+
+		<p v-if="!session.categories.length" class="text-xs text-muted">
+			No category yet — create one to hold pages.
+		</p>
+		<p v-else-if="!rows.length" class="text-xs text-muted">
+			No page matches “{{ query.trim() }}”.
+		</p>
 	</div>
 </template>

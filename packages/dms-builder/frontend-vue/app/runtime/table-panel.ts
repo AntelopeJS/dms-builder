@@ -6,15 +6,12 @@
  * reads the same block: which table it lists, and what that table serves.
  */
 import { computed } from 'vue'
-import { descriptorOf } from './catalog'
-import { findNode } from './draft'
+import { useBlockPanel } from './block-panel'
+import { CONTROLLER_SETTING } from './catalog'
 import { mergePatch } from './object'
 import { useBuilder } from './session'
-import type {
-	OptionSchema,
-	ResourceFieldStructure,
-	ResourceStructure,
-} from './types'
+import type { TableRoute } from './table-routes'
+import type { ResourceFieldStructure } from './types'
 
 /** The block the simple mode edits with a panel of its own. */
 export const TABLE_BLOCK = 'TableView'
@@ -24,6 +21,8 @@ export const TABLE_BLOCK = 'TableView'
  * offered the way any block's options are.
  */
 export const TABLE_PANEL_OPTIONS = new Set([
+	// The table it lists, which the panel picks among the tables there are.
+	CONTROLLER_SETTING,
 	'caption',
 	'labelKey',
 	'defaultSort',
@@ -35,7 +34,7 @@ export const TABLE_PANEL_OPTIONS = new Set([
  * The route of the table's API each action goes through. An action the API
  * does not serve is still offered, and refused on every use.
  */
-export const ACTION_ROUTES: Record<string, string> = {
+export const ACTION_ROUTES: Record<string, TableRoute> = {
 	add: 'create',
 	duplicate: 'create',
 	edit: 'edit',
@@ -89,25 +88,12 @@ export function columnsInOrder(
 	return [...(fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 }
 
-/** Whether the table's API serves a route; one that says nothing serves all. */
-export function serves(
-	table: ResourceStructure | undefined,
-	route: string,
-): boolean {
-	return !table?.routes || table.routes.includes(route)
-}
-
 export function useTableBlock(path: () => string) {
 	const builder = useBuilder()
 	const session = builder.session
 
-	const block = computed(() =>
-		session.value.draft ? findNode(session.value.draft, path()) : undefined,
-	)
-	const config = computed<Record<string, unknown>>(() => block.value?.config ?? {})
-	const options = computed<Record<string, OptionSchema>>(
-		() => descriptorOf(session.value.catalog, block.value?.type)?.config ?? {},
-	)
+	const panel = useBlockPanel(path)
+	const { block, config, options, patch } = panel
 	const table = computed(() => block.value?.controller)
 	const structure = computed(() =>
 		table.value ? session.value.resourceStructures[table.value] : undefined,
@@ -118,14 +104,6 @@ export function useTableBlock(path: () => string) {
 		structure.value?.fields.find((field) => field.archiveField),
 	)
 	const actions = computed(() => options.value.rowActions?.properties ?? {})
-
-	function has(key: string): boolean {
-		return key in options.value
-	}
-
-	function patch(values: Record<string, unknown>): void {
-		builder.patchConfig(path(), values)
-	}
 
 	function rowActions(): Record<string, unknown> {
 		const value = config.value.rowActions
@@ -169,16 +147,12 @@ export function useTableBlock(path: () => string) {
 	}
 
 	return {
-		block,
-		config,
-		options,
+		...panel,
 		table,
 		structure,
 		columns,
 		archiveColumn,
 		actions,
-		has,
-		patch,
 		isOn,
 		action,
 		setAction,

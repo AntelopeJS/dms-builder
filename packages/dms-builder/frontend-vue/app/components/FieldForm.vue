@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { dataTypeGroups, dataTypeItem } from '../runtime/catalog'
-import { DEFAULT_DATA_TYPE } from '../runtime/constants'
+import { DEFAULT_DATA_TYPE, fieldFlags } from '../runtime/constants'
 import { keyFrom } from '../runtime/keys'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 import type { FieldSpec } from '../runtime/types'
 
-/** What a new field starts as; every one of them is a tick in the grid later. */
-const ASPECTS = [
-	{ key: 'listable', label: 'Shown' },
-	{ key: 'selectable', label: 'In option lists' },
-	{ key: 'searchable', label: 'Search' },
-	{ key: 'sortable', label: 'Sort' },
-	{ key: 'filterable', label: 'Filter' },
-	{ key: 'required', label: 'Required' },
-	{ key: 'exported', label: 'In export' },
-] as const
+/** What a new field starts as; every one of them is set on the field later. */
+const ASPECTS = fieldFlags(
+	'listable',
+	'selectable',
+	'searchable',
+	'sortable',
+	'filterable',
+	'required',
+	'exported',
+)
 
 /** `busy` while the field the form handed over is being written. */
 const props = defineProps<{ resource?: string; busy?: boolean }>()
@@ -45,9 +45,11 @@ const structure = computed(
 const name = computed(() =>
 	typedKey.value !== null ? typedKey.value.trim() : (keyFrom(label.value) ?? ''),
 )
+// Undefined rather than empty when there is none: a form field takes an empty
+// error for a raised one.
 const problem = computed(() => {
 	if (!name.value) {
-		return label.value.trim() ? 'Use at least one letter or digit.' : ''
+		return label.value.trim() ? 'Use at least one letter or digit.' : undefined
 	}
 	if ((session.value.catalog?.reservedFieldNames ?? []).includes(name.value)) {
 		return `${name.value} is reserved by the DataAPI.`
@@ -55,7 +57,7 @@ const problem = computed(() => {
 	if (structure.value?.fields.some((field) => field.name === name.value)) {
 		return `This table already has a ${name.value} field.`
 	}
-	return ''
+	return undefined
 })
 // A relation stores the DataAPI of the resource it points at, so it is built
 // from a resource plus the field that labels a row — not typed as raw JSON.
@@ -117,49 +119,33 @@ function submit(): void {
 				class="grid gap-3"
 				:class="advanced ? 'grid-cols-2' : 'grid-cols-1'"
 			>
-				<div class="flex flex-col gap-1.5">
-					<label for="new-field-label" class="text-xs font-medium text-toned">
-						Label
-					</label>
+				<UFormField
+					label="Label"
+					help="What forms and the table show."
+					:error="!advanced && problem"
+				>
 					<UInput
-						id="new-field-label"
 						v-model="label"
 						placeholder="Price"
 						autofocus
+						class="w-full"
 						@keydown.enter="submit"
 					/>
-					<p v-if="problem && !advanced" class="text-xs text-error">
-						{{ problem }}
-					</p>
-					<p v-else class="text-xs text-muted">
-						What forms and the table show.
-					</p>
-				</div>
-				<div v-if="advanced" class="flex flex-col gap-1.5">
-					<label
-						for="new-field-key"
-						class="flex items-center gap-1.5 text-xs font-medium text-toned"
-					>
-						Key
-						<span
-							v-if="typedKey === null"
-							class="rounded bg-accented px-1.5 text-[11px] font-normal text-muted"
-						>
-							from the label
-						</span>
-					</label>
+				</UFormField>
+				<UFormField
+					v-if="advanced"
+					label="Key"
+					:hint="typedKey === null ? 'from the label' : undefined"
+					help="The column's name. Fixed once created."
+					:error="problem"
+				>
 					<UInput
-						id="new-field-key"
 						:model-value="name"
 						placeholder="price"
-						class="font-mono"
+						class="w-full font-mono"
 						@update:model-value="typeKey(String($event))"
 					/>
-					<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
-					<p v-else class="text-xs text-muted">
-						The column's name. Fixed once created.
-					</p>
-				</div>
+				</UFormField>
 			</div>
 
 			<div class="flex flex-col gap-3">
@@ -172,32 +158,21 @@ function submit(): void {
 					:key="group.label"
 					class="flex flex-col gap-1.5"
 				>
-					<p
-						class="text-[11px] font-semibold uppercase tracking-wider text-muted"
-					>
+					<p class="text-xs font-semibold uppercase tracking-wider text-muted">
 						{{ group.label }}
 					</p>
 					<div class="grid grid-cols-3 gap-1.5">
-						<button
+						<UButton
 							v-for="item in group.items"
 							:key="item.value"
-							type="button"
-							class="flex h-9 min-w-0 items-center gap-2 rounded-md border px-2.5 text-left text-[13px] transition-colors"
-							:class="
-								dataType === item.value
-									? 'border-primary bg-primary/10 font-medium text-primary'
-									: 'border-default text-toned hover:border-accented hover:bg-elevated'
-							"
+							:label="item.label"
+							:icon="item.icon"
+							:color="dataType === item.value ? 'primary' : 'neutral'"
+							variant="outline"
 							:aria-pressed="dataType === item.value"
+							class="min-w-0"
 							@click="dataType = item.value"
-						>
-							<UIcon
-								:name="item.icon"
-								class="size-4 shrink-0"
-								:class="dataType === item.value ? '' : 'text-muted'"
-							/>
-							<span class="truncate">{{ item.label }}</span>
-						</button>
+						/>
 					</div>
 				</div>
 			</div>
@@ -207,27 +182,27 @@ function submit(): void {
 				class="flex flex-col gap-3 rounded-lg border border-default bg-elevated p-3"
 			>
 				<div class="grid grid-cols-2 gap-3">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-xs font-medium text-toned">Points at</label>
+					<UFormField label="Points at">
 						<USelectMenu
 							:model-value="target"
 							:items="targets"
 							icon="i-ph-database"
 							value-key="value"
 							placeholder="Choose a table…"
+							class="w-full"
 							@update:model-value="pickTarget($event)"
 						/>
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-xs font-medium text-toned">Shown as</label>
+					</UFormField>
+					<UFormField label="Shown as">
 						<USelectMenu
 							v-model="labelKey"
 							:items="targetFields"
 							value-key="value"
 							:disabled="!target"
 							placeholder="Which field names a row"
+							class="w-full"
 						/>
-					</div>
+					</UFormField>
 				</div>
 				<p v-if="target && labelKey" class="text-xs leading-relaxed text-muted">
 					Each row of <b class="font-medium text-toned">{{ resource }}</b> picks
@@ -238,18 +213,13 @@ function submit(): void {
 
 			<div class="flex flex-col gap-2">
 				<p class="text-xs font-semibold text-toned">Starts as</p>
-				<div class="flex flex-wrap gap-1.5">
-					<UButton
+				<div class="flex flex-wrap gap-x-4 gap-y-2">
+					<UCheckbox
 						v-for="entry in ASPECTS"
 						:key="entry.key"
+						:model-value="aspects[entry.key]"
 						:label="entry.label"
-						:icon="aspects[entry.key] ? 'i-ph-check-bold' : undefined"
-						size="xs"
-						:color="aspects[entry.key] ? 'primary' : 'neutral'"
-						:variant="aspects[entry.key] ? 'soft' : 'outline'"
-						:aria-pressed="aspects[entry.key] === true"
-						class="rounded-full"
-						@click="aspects[entry.key] = !aspects[entry.key]"
+						@update:model-value="aspects[entry.key] = $event === true"
 					/>
 				</div>
 				<p class="text-xs text-muted">

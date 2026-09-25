@@ -141,9 +141,3 @@ export function describeSource(
 	}
 	return parts.join(', ')
 }
-
-/** A share of change, the way a card shows it: "+16%", "−4%". */
-export function variationText(delta: number): string {
-	const percent = Math.round(delta * 100)
-	return `${percent > 0 ? '+' : percent < 0 ? '−' : ''}${Math.abs(percent)}%`
-}

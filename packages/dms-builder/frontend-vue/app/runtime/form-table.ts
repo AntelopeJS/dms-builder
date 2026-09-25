@@ -22,8 +22,6 @@ import type {
 const CREATE_SEGMENT = '/new'
 /** The method that route takes, as the DMS spells it. */
 const CREATE_METHOD = 'POST'
-/** The route a table offers for creating a row, as the module lists it. */
-const CREATE_ROUTE = 'create'
 
 type Entry = Record<string, unknown>
 
@@ -41,14 +39,6 @@ export function formTableOf(
 	return typeof submitUrl === 'string'
 		? tables.find((table) => createUrlOf(table) === submitUrl)
 		: undefined
-}
-
-/**
- * Whether a table can take a row from a form. One whose routes the module
- * could not read is given the benefit of the doubt.
- */
-export function takesRows(table: ResourceStructure): boolean {
-	return !table.routes || table.routes.includes(CREATE_ROUTE)
 }
 
 /** Where a form hands what it is filled with, as the simple mode tells it. */

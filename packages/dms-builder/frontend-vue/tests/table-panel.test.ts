@@ -4,9 +4,7 @@ import {
 	actionTurned,
 	columnsInOrder,
 	ruled,
-	serves,
 } from '../app/runtime/table-panel'
-import type { ResourceStructure } from '../app/runtime/types'
 
 describe('a row action, as a table reads it', () => {
 	it('is what the table does when left unset', () => {
@@ -47,12 +45,5 @@ describe('a table, as its block lists it', () => {
 			'b',
 			'c',
 		])
-	})
-
-	it('serves every route when its API names none', () => {
-		const table = { routes: ['list', 'get'] } as ResourceStructure
-		expect(serves(table, 'list')).toBe(true)
-		expect(serves(table, 'edit')).toBe(false)
-		expect(serves({ routes: undefined } as ResourceStructure, 'edit')).toBe(true)
 	})
 })

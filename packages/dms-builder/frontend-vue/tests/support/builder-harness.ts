@@ -39,6 +39,15 @@ export interface FakeBackend {
 	 */
 	answers: Record<string, unknown>
 	calledPaths: () => string[]
+	/** What each `useConfirm().confirm` was asked, in order. */
+	confirms: Array<{
+		title: string
+		description: string
+		confirmLabel?: string
+		confirmColor?: string
+	}>
+	/** How the next confirmations are answered: yes unless a suite says no. */
+	confirmAnswer: boolean
 }
 
 export function testCatalog(): BlockCatalog {
@@ -457,6 +466,8 @@ export function installFakeHost(): FakeBackend {
 		save: { ok: true, data: { version: 'v2' }, changes: [] },
 		answers: {},
 		calledPaths: () => backend.calls.map((call) => `${call.method} ${call.path}`),
+		confirms: [],
+		confirmAnswer: true,
 	}
 
 	function answer(method: string, path: string): unknown {
@@ -510,6 +521,14 @@ export function installFakeHost(): FakeBackend {
 		},
 	})
 
-	Object.assign(globalThis, { useAuthFetch })
+	// The DMS's own confirmation dialog, answered without being shown.
+	const useConfirm = () => ({
+		confirm: (options: FakeBackend['confirms'][number]) => {
+			backend.confirms.push(options)
+			return Promise.resolve(backend.confirmAnswer)
+		},
+	})
+
+	Object.assign(globalThis, { useAuthFetch, useConfirm })
 	return backend
 }

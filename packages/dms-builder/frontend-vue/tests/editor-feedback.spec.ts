@@ -121,6 +121,26 @@ describe('the badge in the bar', () => {
 	})
 })
 
+describe('the mode switch in the bar', () => {
+	const { mode, setMode } = useBuilderMode()
+
+	afterEach(() => setMode('simple'))
+
+	it('switches the builder to the advanced view and shows it chosen', async () => {
+		setMode('simple')
+		await openWith([editable('title', 'Text')])
+		const { root } = mount(Bar)
+		const switcher = findAll(root, (node) => node.tag === 'DmsSegmented')[0]!
+		expect(switcher.props['model-value']).toBe('simple')
+
+		write(switcher, 'advanced')
+		await nextTick()
+
+		expect(mode.value).toBe('advanced')
+		expect(switcher.props['model-value']).toBe('advanced')
+	})
+})
+
 describe('the actions offered on a block', () => {
 	function entry(root: TestNode, label: string): TestNode {
 		const match = findAll(
@@ -585,18 +605,26 @@ describe('the key of a form field', () => {
 		return root
 	}
 
+	/** What a box is labelled, by a form field or by a `label` of its own. */
+	function labelOf(node: TestNode): string | undefined {
+		const text =
+			node.tag === 'UFormField'
+				? String(node.props.label ?? '')
+				: node.tag === 'label'
+					? textOf(node)
+					: undefined
+		return text?.replace('*', '').trim()
+	}
+
 	function labels(root: TestNode): string[] {
-		return findAll(root, (node) => node.tag === 'label').map((node) =>
-			textOf(node).replace('*', '').trim(),
+		return findAll(root, (node) => labelOf(node) !== undefined).map(
+			(node) => labelOf(node) ?? '',
 		)
 	}
 
 	function box(root: TestNode, name: string): TestNode {
-		const label = findAll(
-			root,
-			(node) => node.tag === 'label' && textOf(node).startsWith(name),
-		)[0]
-		const option = label?.parent?.parent
+		const label = findAll(root, (node) => !!labelOf(node)?.startsWith(name))[0]
+		const option = label?.tag === 'UFormField' ? label : label?.parent?.parent
 		const input = option
 			? findAll(option, (node) => node.tag === 'UInput')[0]
 			: undefined
@@ -614,10 +642,7 @@ describe('the key of a form field', () => {
 
 	/** Open the form's first field, where the simple mode edits its label. */
 	async function openFirst(root: TestNode): Promise<void> {
-		const line = findAll(
-			root,
-			(node) => node.tag === 'button' && node.props['aria-expanded'] === false,
-		)[0]
+		const line = findAll(root, (node) => node.props['aria-expanded'] === false)[0]
 		fire(line!, 'click')
 		await nextTick()
 	}

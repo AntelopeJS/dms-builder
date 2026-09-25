@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { chartTypeLabel, heldBlock } from '../app/runtime/chart-card'
-import { describeSource, variationText } from '../app/runtime/data-source'
+import { describeSource } from '../app/runtime/data-source'
 import type { ResourceFieldStructure } from '../app/runtime/types'
 
 const FIELDS = [
@@ -66,14 +66,6 @@ describe('what a source measures, in one line', () => {
 
 	it('says nothing of a source with no table', () => {
 		expect(describeSource(undefined, FIELDS)).toBeUndefined()
-	})
-})
-
-describe('a variation, as a card shows it', () => {
-	it('signs the share it moved, in whole percents', () => {
-		expect(variationText(0.157)).toBe('+16%')
-		expect(variationText(-0.04)).toBe('−4%')
-		expect(variationText(0)).toBe('0%')
 	})
 })
 

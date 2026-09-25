@@ -6,8 +6,7 @@
  * columns that table is written with, and which of them the form asks for.
  */
 import { computed } from 'vue'
-import { descriptorOf } from './catalog'
-import { findNode } from './draft'
+import { useBlockPanel } from './block-panel'
 import {
 	askedColumns,
 	boundTo,
@@ -44,14 +43,9 @@ function fieldBranch(fields: OptionSchema | undefined): OptionSchema | undefined
 export function useFormBlock(path: () => string) {
 	const builder = useBuilder()
 	const session = builder.session
+	const panel = useBlockPanel(path)
+	const { config, options, patch } = panel
 
-	const block = computed(() =>
-		session.value.draft ? findNode(session.value.draft, path()) : undefined,
-	)
-	const config = computed<Record<string, unknown>>(() => block.value?.config ?? {})
-	const options = computed<Record<string, OptionSchema>>(
-		() => descriptorOf(session.value.catalog, block.value?.type)?.config ?? {},
-	)
 	const destination = computed(() =>
 		destinationOf(config.value, session.value.resources),
 	)
@@ -74,14 +68,6 @@ export function useFormBlock(path: () => string) {
 	)
 	const fieldSchema = computed(() => fieldBranch(options.value.fields))
 
-	function has(key: string): boolean {
-		return key in options.value
-	}
-
-	function patch(values: Record<string, unknown>): void {
-		builder.patchConfig(path(), values)
-	}
-
 	function setFields(fields: unknown[]): void {
 		patch({ fields })
 	}
@@ -89,12 +75,14 @@ export function useFormBlock(path: () => string) {
 	/**
 	 * Save the form into a table: every column a row is written with becomes a
 	 * field of it, ready to be left out, and it submits to the table's create
-	 * route. The fields a form had for another table are not this one's.
+	 * route. The fields a form had for another table are not this one's; the
+	 * ones it has for this table are the author's, and picking it again keeps
+	 * them.
 	 */
 	async function bindTo(ref: string): Promise<void> {
 		const target = session.value.resources.find((entry) => entry.ref === ref)
 		const at = path()
-		if (!target) {
+		if (!target || ref === table.value?.ref) {
 			return
 		}
 		await builder.loadResource(ref)
@@ -105,9 +93,7 @@ export function useFormBlock(path: () => string) {
 	}
 
 	return {
-		block,
-		config,
-		options,
+		...panel,
 		destination,
 		table,
 		structure,
@@ -115,8 +101,6 @@ export function useFormBlock(path: () => string) {
 		asked,
 		needed,
 		fieldSchema,
-		has,
-		patch,
 		setFields,
 		bindTo,
 	}

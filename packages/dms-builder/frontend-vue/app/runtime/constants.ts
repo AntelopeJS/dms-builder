@@ -1,3 +1,6 @@
+import type { TypedKind } from './typed-values'
+import type { FieldFlag } from './types'
+
 // State keys owned by the host DMS. Declared here rather than imported so this
 // layer carries no build-time dependency on the core layers; the key and the
 // shape are the whole contract.
@@ -35,6 +38,20 @@ export const OPTION_GROUPS = [
 	'layout',
 	'behavior',
 	'advanced',
+] as const
+
+/**
+ * The colours every theme defines, offered as swatches: a name follows the
+ * theme where a hex code stays put.
+ */
+export const THEME_COLORS = [
+	'primary',
+	'secondary',
+	'success',
+	'info',
+	'warning',
+	'error',
+	'neutral',
 ] as const
 
 /**
@@ -88,49 +105,39 @@ export const BLOCK_GROUP_LABELS: Record<string, string> = {
 	other: 'Other',
 }
 
+/**
+ * The yes-or-nos of a table's field, as every view setting them names them:
+ * the grid of a table's fields, a field opened, a new field, the columns of a
+ * table block. Each view shows the ones it sets — `fieldFlags` — so a flag
+ * reads the same wherever it is set.
+ */
+const FIELD_FLAGS: Record<FieldFlag, { label: string; help: string }> = {
+	listable: { label: 'Shown', help: 'Shown in the table on first load.' },
+	selectable: {
+		label: 'In option lists',
+		help: 'Offered when another table points at a row of this one.',
+	},
+	searchable: { label: 'Search', help: "Read by the table's search bar." },
+	sortable: { label: 'Sort', help: 'Usable to sort the table.' },
+	filterable: { label: 'Filter', help: "Usable in the table's filters." },
+	required: { label: 'Required', help: 'A row cannot be saved without it.' },
+	exported: { label: 'In export', help: "Carried by the table's CSV export." },
+}
+
+export function fieldFlags(
+	...keys: FieldFlag[]
+): { key: FieldFlag; label: string; help: string }[] {
+	return keys.map((key) => ({ key, ...FIELD_FLAGS[key] }))
+}
+
 /** The DataType a form's field starts as, until the author picks another: Text. */
 export const DEFAULT_DATA_TYPE = 'string'
-
-/**
- * What each built-in DataType is called in a Type menu. The id is how the
- * source spells it — `cascader_relation`, `string_time` — which says little to
- * someone choosing what a column holds.
- */
-export const DATA_TYPE_LABELS: Record<string, string> = {
-	string: 'Text',
-	rich_text: 'Rich text',
-	number: 'Number',
-	price: 'Price',
-	percentage: 'Percentage',
-	date: 'Date',
-	string_time: 'Time of day',
-	boolean: 'Yes / no',
-	status: 'Status',
-	select: 'Choice list',
-	email: 'Email',
-	phone: 'Phone number',
-	url: 'Link',
-	color: 'Colour',
-	password: 'Password',
-	relation: 'Row of another table',
-	cascader_relation: 'Row of a nested table',
-	tree: 'Tree',
-	address: 'Postal address',
-	permissions: 'Permissions',
-	file: 'File',
-	image: 'Image',
-}
 
 /**
  * The HTTP routes a table can serve, as its API tab switches them: the ones
  * that read rows, then the ones that write them.
  */
-export const TABLE_ROUTES: {
-	key: string
-	label: string
-	help: string
-	writes: boolean
-}[] = [
+export const TABLE_ROUTES = [
 	{
 		key: 'list',
 		label: 'List',
@@ -154,55 +161,103 @@ export const TABLE_ROUTES: {
 		help: 'Set a row aside without deleting it.',
 		writes: true,
 	},
-]
-
-/** The icon a DataType is shown with, beside its name or on its own. */
-export const DATA_TYPE_ICONS: Record<string, string> = {
-	string: 'i-ph-text-t',
-	rich_text: 'i-ph-text-align-left',
-	number: 'i-ph-hash',
-	price: 'i-ph-currency-circle-dollar',
-	percentage: 'i-ph-percent',
-	date: 'i-ph-calendar-blank',
-	string_time: 'i-ph-clock',
-	boolean: 'i-ph-toggle-right',
-	status: 'i-ph-tag',
-	select: 'i-ph-list-checks',
-	email: 'i-ph-envelope-simple',
-	phone: 'i-ph-phone',
-	url: 'i-ph-globe-simple',
-	color: 'i-ph-palette',
-	password: 'i-ph-key',
-	relation: 'i-ph-link-simple',
-	cascader_relation: 'i-ph-stack',
-	tree: 'i-ph-tree-structure',
-	address: 'i-ph-map-pin',
-	permissions: 'i-ph-shield-check',
-	file: 'i-ph-file',
-	image: 'i-ph-image',
-}
-
-/** The icon of a DataType a project registered itself. */
-export const OTHER_DATA_TYPE_ICON = 'i-ph-dots-three-circle'
+] as const
 
 /**
  * The families a new field's type is picked from. Twenty-odd types in one
  * list read as a wall; grouped by what the column holds, the one wanted is
  * found by where it would be. A type no family names lands in the last one.
  */
-export const DATA_TYPE_GROUPS: { label: string; types: string[] }[] = [
-	{
-		label: 'Text',
-		types: ['string', 'rich_text', 'email', 'phone', 'url', 'password'],
+export const DATA_TYPE_FAMILIES = [
+	{ id: 'text', label: 'Text' },
+	{ id: 'numbers', label: 'Numbers and time' },
+	{ id: 'choices', label: 'Choices' },
+	{ id: 'links', label: 'Links to other tables' },
+	{ id: 'other', label: 'Other' },
+] as const
+
+export interface DataTypeInfo {
+	/** What it is called in a Type menu. */
+	label: string
+	icon: string
+	family: (typeof DATA_TYPE_FAMILIES)[number]['id']
+	/** The input a value of it takes, for the ones the builder has one for. */
+	input?: TypedKind
+}
+
+/**
+ * The built-in DataTypes, as the builder shows them, in the order a Type menu
+ * offers them. The id is how the source spells a type — `cascader_relation`,
+ * `string_time` — which says little to someone choosing what a column holds;
+ * a type a project registered itself is spelled out from its id.
+ */
+export const DATA_TYPES: Record<string, DataTypeInfo> = {
+	string: { label: 'Text', icon: 'i-ph-text-t', family: 'text', input: 'text' },
+	rich_text: {
+		label: 'Rich text',
+		icon: 'i-ph-text-align-left',
+		family: 'text',
+		input: 'longText',
 	},
-	{
-		label: 'Numbers and time',
-		types: ['number', 'price', 'percentage', 'date', 'string_time'],
+	number: { label: 'Number', icon: 'i-ph-hash', family: 'numbers', input: 'number' },
+	price: {
+		label: 'Price',
+		icon: 'i-ph-currency-circle-dollar',
+		family: 'numbers',
+		input: 'number',
 	},
-	{ label: 'Choices', types: ['boolean', 'status', 'select', 'color'] },
-	{
-		label: 'Links to other tables',
-		types: ['relation', 'cascader_relation', 'tree'],
+	percentage: {
+		label: 'Percentage',
+		icon: 'i-ph-percent',
+		family: 'numbers',
+		input: 'number',
 	},
-	{ label: 'Other', types: ['address', 'file', 'image', 'permissions'] },
-]
+	date: { label: 'Date', icon: 'i-ph-calendar-blank', family: 'numbers', input: 'date' },
+	string_time: {
+		label: 'Time of day',
+		icon: 'i-ph-clock',
+		family: 'numbers',
+		input: 'time',
+	},
+	boolean: {
+		label: 'Yes / no',
+		icon: 'i-ph-toggle-right',
+		family: 'choices',
+		input: 'switch',
+	},
+	status: { label: 'Status', icon: 'i-ph-tag', family: 'choices', input: 'select' },
+	select: {
+		label: 'Choice list',
+		icon: 'i-ph-list-checks',
+		family: 'choices',
+		input: 'select',
+	},
+	email: {
+		label: 'Email',
+		icon: 'i-ph-envelope-simple',
+		family: 'text',
+		input: 'text',
+	},
+	phone: { label: 'Phone number', icon: 'i-ph-phone', family: 'text', input: 'text' },
+	url: { label: 'Link', icon: 'i-ph-globe-simple', family: 'text', input: 'text' },
+	color: { label: 'Colour', icon: 'i-ph-palette', family: 'choices', input: 'text' },
+	password: { label: 'Password', icon: 'i-ph-key', family: 'text' },
+	relation: {
+		label: 'Row of another table',
+		icon: 'i-ph-link-simple',
+		family: 'links',
+	},
+	cascader_relation: {
+		label: 'Row of a nested table',
+		icon: 'i-ph-stack',
+		family: 'links',
+	},
+	tree: { label: 'Tree', icon: 'i-ph-tree-structure', family: 'links' },
+	address: { label: 'Postal address', icon: 'i-ph-map-pin', family: 'other' },
+	permissions: { label: 'Permissions', icon: 'i-ph-shield-check', family: 'other' },
+	file: { label: 'File', icon: 'i-ph-file', family: 'other' },
+	image: { label: 'Image', icon: 'i-ph-image', family: 'other' },
+}
+
+/** The icon of a DataType a project registered itself. */
+export const OTHER_DATA_TYPE_ICON = 'i-ph-dots-three-circle'

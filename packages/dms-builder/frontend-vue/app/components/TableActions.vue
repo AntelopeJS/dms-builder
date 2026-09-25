@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { TABLE_ROUTES } from '../runtime/constants'
 import { useBuilder } from '../runtime/session'
+import { ACTION_ROUTES, ruled, useTableBlock } from '../runtime/table-panel'
 import {
-	ACTION_ROUTES,
-	ruled,
+	routeLabel,
+	servedWith,
 	serves,
-	useTableBlock,
-} from '../runtime/table-panel'
+	type TableRoute,
+} from '../runtime/table-routes'
 
 /**
  * What people can do with the rows a table block lists, where they find it:
@@ -59,6 +59,13 @@ const EACH: Action[] = [
 	},
 	{ key: 'copyLink', label: 'Copy its link', aria: "Copy a row's link", icon: 'i-ph-link', gerund: 'copying' },
 	{ key: ARCHIVE, label: 'Archive', aria: 'Archive rows', icon: 'i-ph-archive', gerund: 'archiving' },
+	{
+		key: RESTORE,
+		label: 'Restore',
+		aria: 'Restore archived rows',
+		icon: 'i-ph-arrow-counter-clockwise',
+		gerund: 'restoring',
+	},
 	{ key: 'delete', label: 'Delete', aria: 'Delete rows', icon: 'i-ph-trash', gerund: 'deleting' },
 ]
 
@@ -71,6 +78,26 @@ const REFUSALS: Record<string, string> = {
 	archive: 'no row can be archived',
 }
 
+/** How an action's row reads, from one gone wrong to one turned off. */
+const TONES = {
+	warning: { row: 'bg-warning/5', icon: 'text-warning', label: 'text-default', note: 'text-warning' },
+	locked: { row: '', icon: 'text-dimmed opacity-60', label: 'text-dimmed', note: 'text-dimmed' },
+	on: { row: '', icon: 'text-primary', label: 'text-default', note: 'text-dimmed' },
+	off: { row: '', icon: 'text-dimmed', label: 'text-muted', note: 'text-dimmed' },
+}
+
+/** An action as its row shows it. */
+interface Row extends Action {
+	/** Never on while it is locked. */
+	on: boolean
+	/** Why its switch cannot be turned on, when it cannot. */
+	locked?: string
+	note?: string
+	tone: keyof typeof TONES
+	/** The route the API refuses it through, on the first action refused there. */
+	refusal?: { route: TableRoute; label: string }
+}
+
 const builder = useBuilder()
 const session = builder.session
 const table = useTableBlock(() => props.path)
@@ -80,241 +107,150 @@ const archiving = computed(() => table.config.value[ARCHIVE_MODE] === true)
 const writing = computed(() => session.value.pending.includes(tableRef.value))
 
 function offers(action: Action): boolean {
-	return action.key === ARCHIVE ? table.has(ARCHIVE_MODE) : action.key in table.actions.value
+	if (action.key === ARCHIVE) return table.has(ARCHIVE_MODE)
+	// Bringing an archived row back only means something while archiving is on.
+	if (action.key === RESTORE && !archiving.value) return false
+	return action.key in table.actions.value
 }
 
-function on(action: Action): boolean {
-	return action.key === ARCHIVE ? archiving.value : table.isOn(action.key)
-}
-
-function set(action: Action, value: boolean): void {
-	if (action.key === ARCHIVE) {
+function set(key: string, value: boolean): void {
+	if (key === ARCHIVE) {
 		table.patch({ [ARCHIVE_MODE]: value ? true : undefined })
 	} else {
-		table.setAction(action.key, value)
+		table.setAction(key, value)
 	}
 }
 
-/**
- * Editing opens a row already, so the block drops the read-only way in —
- * unless editing runs under a rule, which leaves some rows to read only.
- */
-const detailsCovered = computed(
-	() => table.isOn('edit') && !ruled(table.action('edit')),
-)
-
-/** Why a switch cannot be turned on, when it cannot. */
-function lockedBy(action: Action): string | undefined {
-	if (action.key === 'details' && detailsCovered.value) {
+function lockOf(key: string): string | undefined {
+	// Editing opens a row already, so the block drops the read-only way in —
+	// unless editing runs under a rule, which leaves some rows to read only.
+	if (key === 'details' && table.isOn('edit') && !ruled(table.action('edit'))) {
 		return 'Edit already opens the row'
 	}
-	if (action.key === ARCHIVE && !table.archiveColumn.value && !archiving.value) {
+	if (key === ARCHIVE && !archiving.value && !table.archiveColumn.value) {
 		return `${tableRef.value} has no column to mark archived rows`
 	}
 	return undefined
 }
 
-function routeOf(action: Action): string | undefined {
-	return ACTION_ROUTES[action.key]
-}
-
-/** The actions that are on and go through a route the API does not serve. */
-function refused(action: Action): boolean {
-	const route = routeOf(action)
-	return (
-		!!route &&
-		on(action) &&
-		!lockedBy(action) &&
-		!!table.structure.value &&
-		!serves(table.structure.value, route)
-	)
-}
-
-/** The first action refused for each route says why; the others point to it. */
-const explained = computed(() => {
-	const seen = new Set<string>()
-	const first = new Set<string>()
-	for (const action of [...ABOVE, ...EACH]) {
-		const route = routeOf(action)
-		if (route && offers(action) && refused(action) && !seen.has(route)) {
-			seen.add(route)
-			first.add(action.key)
-		}
-	}
-	return first
-})
-
-function note(action: Action): string | undefined {
-	const locked = lockedBy(action)
-	if (locked) return locked
-	if (refused(action)) return 'Refused by the table'
-	if (action.key === ARCHIVE) {
-		if (archiving.value && !table.archiveColumn.value) {
-			return `${tableRef.value} has no column to mark archived rows: the page won't load`
-		}
-		const column = table.archiveColumn.value
-		return archiving.value && column
+/** What an action does that its name does not say. */
+function noteOf(key: string): string | undefined {
+	const column = table.archiveColumn.value
+	if (key === ARCHIVE && !archiving.value) return 'Set aside, restored later'
+	if (key === ARCHIVE) {
+		return column
 			? `Marked in the column ${column.label || column.name}`
-			: 'Set aside, restored later'
+			: `${tableRef.value} has no column to mark archived rows: the page won't load`
 	}
-	if (action.key === 'delete') {
+	if (key === 'delete') {
 		return archiving.value ? 'Archived rows only, for good' : 'Erases it for good'
 	}
 	return undefined
 }
 
-function warns(action: Action): boolean {
-	return (
-		refused(action) ||
-		(action.key === ARCHIVE && archiving.value && !table.archiveColumn.value)
-	)
-}
-
-function routeLabel(route: string): string {
-	return TABLE_ROUTES.find((entry) => entry.key === route)?.label ?? route
-}
-
 /** Written straight to the table, as its API tab would. */
-function serve(route: string): void {
-	const served =
-		table.structure.value?.routes ?? TABLE_ROUTES.map((entry) => entry.key)
-	void builder.configureResource(tableRef.value, [...new Set([...served, route])])
+function serve(route: TableRoute): void {
+	void builder.configureResource(tableRef.value, servedWith(table.structure.value, route))
 }
 
-const groups = computed(() =>
-	[
-		{ label: 'Above the table', actions: ABOVE.filter(offers) },
-		{ label: 'On each row', actions: EACH.filter(offers) },
-	].filter((group) => group.actions.length),
-)
-
-/** Bringing an archived row back, under archiving and only while it is on. */
-const restoring = computed(
-	() => archiving.value && RESTORE in table.actions.value,
-)
+const groups = computed(() => {
+	// The first action refused through a route says why; the others point to it.
+	const explained = new Set<string>()
+	function row(action: Action): Row {
+		const locked = lockOf(action.key)
+		const on =
+			!locked && (action.key === ARCHIVE ? archiving.value : table.isOn(action.key))
+		const route = ACTION_ROUTES[action.key]
+		const refused = on && !!route && !serves(table.structure.value, route)
+		const broken = action.key === ARCHIVE && on && !table.archiveColumn.value
+		const refusal =
+			refused && !explained.has(route) ? { route, label: routeLabel(route) } : undefined
+		if (refusal) explained.add(refusal.route)
+		return {
+			...action,
+			on,
+			locked,
+			note: locked ?? (refused ? 'Refused by the table' : noteOf(action.key)),
+			tone: refused || broken ? 'warning' : locked ? 'locked' : on ? 'on' : 'off',
+			refusal,
+		}
+	}
+	return [
+		{ label: 'Above the table', rows: ABOVE.filter(offers).map(row) },
+		{ label: 'On each row', rows: EACH.filter(offers).map(row) },
+	].filter((group) => group.rows.length)
+})
 </script>
 
 <template>
 	<div v-if="groups.length" class="flex flex-col gap-2">
 		<p class="text-xs font-semibold text-toned">What people can do</p>
-		<div class="overflow-hidden rounded-lg border border-default">
-			<template v-for="(group, index) in groups" :key="group.label">
-				<div
-					class="flex h-7 items-center bg-elevated px-3 text-[11px] font-medium text-muted"
-					:class="index ? 'border-t border-default' : ''"
-				>
+		<div class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+			<template v-for="group in groups" :key="group.label">
+				<p class="flex h-7 items-center bg-elevated px-3 text-xs font-medium text-muted">
 					{{ group.label }}
-				</div>
-				<template v-for="action in group.actions" :key="action.key">
+				</p>
+				<div v-for="row in group.rows" :key="row.key">
 					<div
-						class="flex min-h-10 items-center gap-2.5 border-t border-default px-3 py-1.5"
-						:class="warns(action) ? 'bg-warning/5' : ''"
+						class="flex min-h-10 items-center gap-2.5 py-1.5 pr-3"
+						:class="[TONES[row.tone].row, row.key === RESTORE ? 'pl-10' : 'pl-3']"
 					>
 						<UIcon
-							:name="action.icon"
+							:name="row.icon"
 							class="size-4 shrink-0"
-							:class="
-								warns(action)
-									? 'text-warning'
-									: lockedBy(action)
-										? 'text-dimmed opacity-60'
-										: on(action)
-											? 'text-primary'
-											: 'text-dimmed'
-							"
+							:class="TONES[row.tone].icon"
 						/>
 						<span class="flex min-w-0 flex-1 flex-col">
-							<span
-								class="text-[13px]"
-								:class="
-									lockedBy(action)
-										? 'text-dimmed'
-										: on(action)
-											? 'text-default'
-											: 'text-muted'
-								"
-							>
-								{{ action.label }}
+							<span class="text-sm" :class="TONES[row.tone].label">
+								{{ row.label }}
 							</span>
-							<span
-								v-if="note(action)"
-								class="text-xs"
-								:class="warns(action) ? 'text-warning' : 'text-dimmed'"
-							>
-								{{ note(action) }}
+							<span v-if="row.note" class="text-xs" :class="TONES[row.tone].note">
+								{{ row.note }}
 							</span>
 						</span>
 						<USwitch
-							:model-value="!lockedBy(action) && on(action)"
-							:disabled="!!lockedBy(action)"
-							:aria-label="action.aria"
-							@update:model-value="set(action, $event === true)"
+							:model-value="row.on"
+							:disabled="!!row.locked"
+							:aria-label="row.aria"
+							@update:model-value="set(row.key, $event === true)"
 						/>
 					</div>
 
-					<div
-						v-if="explained.has(action.key)"
+					<UAlert
+						v-if="row.refusal"
 						role="alert"
-						class="flex flex-col gap-2.5 bg-warning/5 py-2.5 pl-9.5 pr-3"
+						color="warning"
+						variant="soft"
+						:description="`The API of ${tableRef} has ${row.refusal.label} turned off, so ${REFUSALS[row.refusal.route]}.`"
+						class="rounded-none py-2.5 pr-3 pl-9.5"
 					>
-						<p class="text-xs leading-relaxed text-toned">
-							The API of
-							<span class="font-medium text-highlighted">{{ tableRef }}</span>
-							has
-							<span class="font-medium text-highlighted">{{
-								routeLabel(routeOf(action)!)
-							}}</span>
-							turned off, so {{ REFUSALS[routeOf(action)!] }}.
-						</p>
-						<div class="flex items-center gap-2">
+						<template #actions>
 							<UButton
 								size="xs"
 								color="warning"
-								:label="`Turn ${routeLabel(routeOf(action)!)} on`"
+								:label="`Turn ${row.refusal.label} on`"
 								:loading="writing"
-								:disabled="writing"
-								@click="serve(routeOf(action)!)"
+								@click="serve(row.refusal!.route)"
 							/>
-							<span
-								class="inline-flex h-4 items-center gap-0.5 rounded bg-primary/10 px-1 text-[10px] font-semibold text-primary"
+							<UBadge
+								color="primary"
+								variant="soft"
+								size="sm"
+								icon="i-ph-lightning-fill"
+								label="Now"
 								title="Applies now"
-							>
-								<UIcon name="i-ph-lightning-fill" class="size-2.5" />
-								Now
-							</span>
+							/>
 							<UButton
 								size="xs"
 								color="neutral"
 								variant="link"
-								:label="`Turn ${action.gerund} off`"
+								:label="`Turn ${row.gerund} off`"
 								class="ml-auto"
-								@click="set(action, false)"
+								@click="set(row.key, false)"
 							/>
-						</div>
-					</div>
-
-					<div
-						v-if="action.key === ARCHIVE && restoring"
-						class="flex h-10 items-center gap-2.5 border-t border-default py-1.5 pl-10 pr-3"
-					>
-						<UIcon
-							name="i-ph-arrow-counter-clockwise"
-							class="size-4 shrink-0"
-							:class="table.isOn(RESTORE) ? 'text-primary' : 'text-dimmed'"
-						/>
-						<span
-							class="min-w-0 flex-1 text-[13px]"
-							:class="table.isOn(RESTORE) ? 'text-default' : 'text-muted'"
-						>
-							Restore
-						</span>
-						<USwitch
-							:model-value="table.isOn(RESTORE)"
-							aria-label="Restore archived rows"
-							@update:model-value="table.setAction(RESTORE, $event === true)"
-						/>
-					</div>
-				</template>
+						</template>
+					</UAlert>
+				</div>
 			</template>
 		</div>
 	</div>

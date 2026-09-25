@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { dataTypeItem, dataTypeItems } from '../runtime/catalog'
+import { DEFAULT_DATA_TYPE } from '../runtime/constants'
 import { useFormBlock } from '../runtime/form-panel'
 import {
 	formRows,
@@ -24,7 +25,9 @@ import type { ResourceFieldStructure } from '../runtime/types'
 const props = defineProps<{ path: string }>()
 
 /** The types a field added by hand is most often, offered at a glance. */
-const QUICK_TYPES = ['string', 'number', 'date']
+const QUICK_TYPES = [DEFAULT_DATA_TYPE, 'number', 'date']
+/** The tile beside them that opens the full list of types. */
+const MORE_TILE = { value: 'more', label: 'More', icon: 'i-ph-dots-three' }
 
 const builder = useBuilder()
 const session = builder.session
@@ -34,16 +37,8 @@ const form = useFormBlock(() => props.path)
 const open = ref<string | null>(null)
 const adding = ref(false)
 const newLabel = ref('')
-const newType = ref('string')
+const newType = ref(DEFAULT_DATA_TYPE)
 const moreTypes = ref(false)
-
-watch(
-	() => props.path,
-	() => {
-		open.value = null
-		adding.value = false
-	},
-)
 
 const rows = computed(() => formRows(form.config.value.fields))
 const fieldCount = computed(() => rows.value.filter((row) => !row.group).length)
@@ -62,11 +57,12 @@ const unasked = computed(() =>
 const needed = form.needed
 const neededNames = computed(() => needed.value.map(columnLabel).join(', '))
 const served = computed(() => dataTypeItems(session.value.catalog))
-const quickTypes = computed(() =>
-	QUICK_TYPES.map((id) => served.value.find((item) => item.value === id)).filter(
+const typeTiles = computed(() => [
+	...QUICK_TYPES.map((id) => served.value.find((item) => item.value === id)).filter(
 		(item) => item !== undefined,
 	),
-)
+	MORE_TILE,
+])
 
 function key(path: number[]): string {
 	return path.join('.')
@@ -121,13 +117,26 @@ function toggle(row: FormRow): void {
 	open.value = open.value === key(row.path) ? null : key(row.path)
 }
 
+/**
+ * A move swaps two neighbours, and the line opened follows its field — or its
+ * group, when the group moves.
+ */
 function move(row: FormRow, delta: number): void {
+	const from = key(row.path)
+	const at = row.path[row.path.length - 1] ?? 0
+	const to = key([...row.path.slice(0, -1), at + delta])
 	form.setFields(withEntryMoved(form.config.value.fields, row.path, delta))
-	if (open.value === key(row.path)) {
-		const next = [...row.path]
-		next[next.length - 1] = (next[next.length - 1] ?? 0) + delta
-		open.value = key(next)
+	const line = open.value
+	if (line !== null) {
+		open.value = moved(line, from, to) ?? moved(line, to, from) ?? line
 	}
+}
+
+/** Where the line at `line` goes when the entry at `from` goes to `to`. */
+function moved(line: string, from: string, to: string): string | undefined {
+	return line === from || line.startsWith(`${from}.`)
+		? to + line.slice(from.length)
+		: undefined
 }
 
 function leave(row: FormRow): void {
@@ -143,10 +152,21 @@ function ask(columns: ResourceFieldStructure[]): void {
 	form.setFields(fields as unknown[])
 }
 
+function tileOn(value: string): boolean {
+	return value === MORE_TILE.value
+		? moreTypes.value
+		: !moreTypes.value && newType.value === value
+}
+
+function pickTile(value: string): void {
+	moreTypes.value = value === MORE_TILE.value
+	if (!moreTypes.value) newType.value = value
+}
+
 function startAdding(): void {
 	adding.value = true
 	newLabel.value = ''
-	newType.value = 'string'
+	newType.value = DEFAULT_DATA_TYPE
 	moreTypes.value = false
 }
 
@@ -169,45 +189,42 @@ function addField(): void {
 		<div class="flex items-center justify-between">
 			<p class="flex items-center gap-1.5 text-xs font-semibold text-toned">
 				Fields
-				<span
+				<UBadge
 					v-if="fieldCount"
-					class="rounded-full bg-primary/15 px-1.5 text-[11px] font-medium text-primary"
-				>
-					{{ fieldCount }}
-				</span>
+					:label="fieldCount"
+					color="primary"
+					variant="soft"
+					size="sm"
+				/>
 			</p>
 			<span v-if="rows.length > 1" class="text-xs text-dimmed">
 				In the form's order
 			</span>
 		</div>
 
-		<div
+		<UAlert
 			v-if="needed.length"
 			role="alert"
-			class="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/5 p-2.5"
+			color="warning"
+			variant="subtle"
+			icon="i-ph-warning"
+			:actions="[
+				{
+					icon: 'i-ph-plus',
+					color: 'warning',
+					label:
+						needed.length === 1
+							? `Add ${neededNames} to the form`
+							: 'Add them to the form',
+					onClick: () => ask(needed),
+				},
+			]"
 		>
-			<div class="flex gap-2">
-				<UIcon name="i-ph-warning" class="mt-0.5 size-3.5 shrink-0 text-warning" />
-				<p class="text-xs leading-relaxed text-toned">
-					The table can't save a row without
-					<span class="font-medium text-highlighted">{{ neededNames }}</span>:
-					every submit will fail until
-					{{ needed.length === 1 ? 'it is' : 'they are' }} in the form.
-				</p>
-			</div>
-			<UButton
-				icon="i-ph-plus"
-				size="xs"
-				color="warning"
-				:label="
-					needed.length === 1
-						? `Add ${neededNames} to the form`
-						: 'Add them to the form'
-				"
-				class="self-start"
-				@click="ask(needed)"
-			/>
-		</div>
+			<template #description>
+				The table can't save a row without {{ neededNames }}: every submit will
+				fail until {{ needed.length === 1 ? 'it is' : 'they are' }} in the form.
+			</template>
+		</UAlert>
 
 		<div
 			v-if="!bound && !manual"
@@ -233,7 +250,7 @@ function addField(): void {
 				<div class="flex h-12 items-center" :class="row.path.length > 1 ? 'pl-5' : ''">
 					<div
 						v-if="row.group"
-						class="flex h-full min-w-0 flex-1 items-center gap-2.5 pl-3"
+						class="flex h-full min-w-0 flex-1 items-center gap-1.5 pl-2.5"
 					>
 						<span
 							class="flex size-7 shrink-0 items-center justify-center rounded-md border border-default bg-accented text-muted"
@@ -247,36 +264,35 @@ function addField(): void {
 							<span class="truncate text-xs text-dimmed">{{ subtitleOf(row) }}</span>
 						</span>
 					</div>
-					<button
+					<UButton
 						v-else
-						type="button"
-						class="flex h-full min-w-0 flex-1 items-center gap-2.5 pl-3 text-left"
+						color="neutral"
+						variant="ghost"
+						class="h-full min-w-0 flex-1 rounded-none"
 						:aria-expanded="open === key(row.path)"
 						@click="toggle(row)"
 					>
-						<span
-							class="flex size-7 shrink-0 items-center justify-center rounded-md border"
-							:class="
-								open === key(row.path)
-									? 'border-primary/35 bg-primary/10 text-primary'
-									: 'border-default bg-accented text-muted'
-							"
-						>
-							<UIcon :name="typeOf(row.entry).icon" class="size-4" />
-						</span>
-						<span class="flex min-w-0 flex-col">
+						<template #leading>
 							<span
-								class="truncate text-sm"
+								class="flex size-7 shrink-0 items-center justify-center rounded-md border"
 								:class="
 									open === key(row.path)
-										? 'font-medium text-highlighted'
-										: 'text-default'
+										? 'border-primary/35 bg-primary/10 text-primary'
+										: 'border-default bg-accented text-muted'
 								"
+							>
+								<UIcon :name="typeOf(row.entry).icon" class="size-4" />
+							</span>
+						</template>
+						<span class="flex min-w-0 flex-col text-left">
+							<span
+								class="truncate"
+								:class="open === key(row.path) ? 'text-highlighted' : 'font-normal'"
 							>
 								{{ titleOf(row) }}
 							</span>
 							<span
-								class="truncate text-xs"
+								class="truncate text-xs font-normal"
 								:class="stray(row) ? 'text-warning' : 'text-dimmed'"
 							>
 								{{
@@ -286,7 +302,7 @@ function addField(): void {
 								}}
 							</span>
 						</span>
-					</button>
+					</UButton>
 					<div
 						class="flex items-center transition-opacity"
 						:class="
@@ -351,57 +367,57 @@ function addField(): void {
 
 			<template v-if="unasked.length">
 				<p
-					class="flex h-7 items-center bg-elevated px-3 text-[11px] font-medium text-dimmed"
+					class="flex h-7 items-center bg-elevated px-2.5 text-xs font-medium text-dimmed"
 					:class="rows.length ? 'border-t border-default' : ''"
 				>
 					Not in the form
 				</p>
-				<button
+				<UButton
 					v-for="column in unasked"
 					:key="column.name"
-					type="button"
-					class="flex h-11 w-full items-center gap-2.5 border-t border-default pl-3 text-left transition-colors hover:bg-elevated"
+					color="neutral"
+					variant="ghost"
+					trailing-icon="i-ph-plus"
+					block
+					class="justify-start rounded-none border-t border-default"
 					:aria-label="`Add ${columnLabel(column)} to the form`"
 					title="Add to the form"
 					@click="ask([column])"
 				>
-					<span
-						class="flex size-7 shrink-0 items-center justify-center rounded-md border border-dashed"
-						:class="
-							column.required
-								? 'border-warning/55 text-warning'
-								: 'border-accented text-dimmed'
-						"
-					>
-						<UIcon
-							:name="dataTypeItem(column.dataType?.$dataType ?? 'string').icon"
-							class="size-4"
-						/>
-					</span>
-					<span class="flex min-w-0 flex-1 flex-col">
+					<template #leading>
 						<span
-							class="flex min-w-0 items-center gap-1.5 text-sm"
-							:class="column.required ? 'text-default' : 'text-muted'"
+							class="flex size-7 shrink-0 items-center justify-center rounded-md border border-dashed"
+							:class="
+								column.required
+									? 'border-warning/55 text-warning'
+									: 'border-accented text-dimmed'
+							"
+						>
+							<UIcon
+								:name="dataTypeItem(column.dataType?.$dataType).icon"
+								class="size-4"
+							/>
+						</span>
+					</template>
+					<span class="flex min-w-0 flex-1 flex-col text-left">
+						<span
+							class="flex min-w-0 items-center gap-1.5 font-normal"
+							:class="column.required ? '' : 'text-muted'"
 						>
 							<span class="truncate">{{ columnLabel(column) }}</span>
-							<span
+							<UBadge
 								v-if="column.required"
-								class="inline-flex h-4 shrink-0 items-center rounded bg-warning/15 px-1 text-[10px] font-semibold text-warning"
-							>
-								Needed
-							</span>
+								label="Needed"
+								color="warning"
+								variant="soft"
+								size="sm"
+							/>
 						</span>
-						<span class="truncate text-xs text-dimmed">
-							{{ dataTypeItem(column.dataType?.$dataType ?? 'string').label }}
+						<span class="truncate text-xs font-normal text-dimmed">
+							{{ dataTypeItem(column.dataType?.$dataType).label }}
 						</span>
 					</span>
-					<span
-						class="flex w-8 shrink-0 justify-center"
-						:class="column.required ? 'text-warning' : 'text-muted'"
-					>
-						<UIcon name="i-ph-plus" class="size-4" />
-					</span>
-				</button>
+				</UButton>
 			</template>
 
 			<template v-if="manual">
@@ -410,49 +426,29 @@ function addField(): void {
 					class="flex flex-col gap-2.5 bg-elevated p-3"
 					:class="rows.length ? 'border-t border-default' : ''"
 				>
-					<div class="flex flex-col gap-1.5">
-						<label for="form-new-field" class="text-xs font-medium text-toned">
-							New field
-						</label>
+					<UFormField label="New field">
 						<UInput
-							id="form-new-field"
+							class="w-full"
 							v-model="newLabel"
 							placeholder="Email"
 							autofocus
 							@keydown.enter="addField"
 						/>
-					</div>
+					</UFormField>
 					<div role="group" aria-label="Type" class="grid grid-cols-4 gap-1">
-						<button
-							v-for="item in quickTypes"
+						<UButton
+							v-for="item in typeTiles"
 							:key="item.value"
-							type="button"
-							class="flex h-11 flex-col items-center justify-center gap-0.5 rounded-md border text-[11px] transition-colors"
-							:class="
-								newType === item.value && !moreTypes
-									? 'border-primary/45 bg-primary/10 text-primary'
-									: 'border-accented bg-default text-muted hover:border-primary/40'
-							"
-							:aria-pressed="newType === item.value && !moreTypes"
-							@click="newType = item.value; moreTypes = false"
-						>
-							<UIcon :name="item.icon" class="size-[15px]" />
-							{{ item.label }}
-						</button>
-						<button
-							type="button"
-							class="flex h-11 flex-col items-center justify-center gap-0.5 rounded-md border text-[11px] transition-colors"
-							:class="
-								moreTypes
-									? 'border-primary/45 bg-primary/10 text-primary'
-									: 'border-accented bg-default text-muted hover:border-primary/40'
-							"
-							:aria-pressed="moreTypes"
-							@click="moreTypes = true"
-						>
-							<UIcon name="i-ph-dots-three" class="size-[15px]" />
-							More
-						</button>
+							:icon="item.icon"
+							:label="item.label"
+							size="xs"
+							:color="tileOn(item.value) ? 'primary' : 'neutral'"
+							:variant="tileOn(item.value) ? 'soft' : 'outline'"
+							block
+							class="flex-col"
+							:aria-pressed="tileOn(item.value)"
+							@click="pickTile(item.value)"
+						/>
 					</div>
 					<USelectMenu
 						v-if="moreTypes"
@@ -485,7 +481,7 @@ function addField(): void {
 					label="Add field"
 					variant="ghost"
 					block
-					class="h-10 justify-start rounded-none px-3"
+					class="h-10 justify-start rounded-none"
 					:class="rows.length ? 'border-t border-default' : ''"
 					@click="startAdding"
 				/>

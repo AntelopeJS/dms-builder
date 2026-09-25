@@ -6,6 +6,7 @@ import TableActions from '../app/components/TableActions.vue'
 import TableColumns from '../app/components/TableColumns.vue'
 import TablePanel from '../app/components/TablePanel.vue'
 import TableSource from '../app/components/TableSource.vue'
+import TablePicker from '../app/components/TablePicker.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	fakeEvent,
@@ -99,6 +100,7 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderOption: Option as Component,
 	DmsBuilderTablePanel: TablePanel as Component,
 	DmsBuilderTableSource: TableSource as Component,
+	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderTableColumns: TableColumns as Component,
 	DmsBuilderTableActions: TableActions as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
@@ -186,17 +188,42 @@ function button(root: TestNode, name: string): TestNode {
 	return match
 }
 
+/** Whether anything the panel shows is named `name`: a button, a switch… */
 function has(root: TestNode, name: string): boolean {
-	try {
-		button(root, name)
-		return true
-	} catch {
-		return false
-	}
+	return (
+		findAll(
+			root,
+			(candidate) =>
+				candidate.props['aria-label'] === name || candidate.props.label === name,
+		).length > 0
+	)
 }
 
 function toggle(root: TestNode, name: string): TestNode {
 	return control(root, 'USwitch', name)
+}
+
+function checkbox(root: TestNode, name: string): TestNode {
+	return control(root, 'UCheckbox', name)
+}
+
+/** The labels a segmented control offers, and the one it shows picked. */
+function segments(target: TestNode): { labels: string[]; picked?: string } {
+	const items = target.props.items as Array<{ label: string; value: unknown }>
+	return {
+		labels: items.map((item) => item.label),
+		picked: items.find((item) => item.value === target.props['model-value'])?.label,
+	}
+}
+
+/** Pick the segment labelled `label`, the way a click on it does. */
+function pick(target: TestNode, label: string): void {
+	const items = target.props.items as Array<{ label: string; value: unknown }>
+	const item = items.find((entry) => entry.label === label)
+	if (!item) {
+		throw new Error(`no segment ${label}`)
+	}
+	write(target, item.value)
 }
 
 /** Fire a control's own `update:modelValue`, the way a user's input does. */
@@ -208,7 +235,7 @@ function write(target: TestNode, value: unknown): void {
 	;(handler as (value: unknown) => void)(value)
 }
 
-/** The rows of the column grid, which each carry a column's switches. */
+/** The rows of the column grid, which each carry a column's checkboxes. */
 function columnRows(root: TestNode): TestNode[] {
 	return findAll(root, (candidate) => candidate.props.draggable !== undefined)
 }
@@ -275,12 +302,12 @@ describe('the columns of the table it lists', () => {
 	it('shows whether each shows, is searched and filtered, and writes it at once', async () => {
 		const root = await tablePanel({ controller: 'order' })
 
-		expect(toggle(root, 'Show Amount').props['model-value']).toBe(true)
-		expect(toggle(root, 'Show Note').props['model-value']).toBe(false)
-		expect(toggle(root, 'Filters offer Status').props['model-value']).toBe(true)
-		expect(toggle(root, 'Search reads Status').props['model-value']).toBe(false)
+		expect(checkbox(root, 'Amount: Shown').props['model-value']).toBe(true)
+		expect(checkbox(root, 'Note: Shown').props['model-value']).toBe(false)
+		expect(checkbox(root, 'Status: Filter').props['model-value']).toBe(true)
+		expect(checkbox(root, 'Status: Search').props['model-value']).toBe(false)
 
-		write(toggle(root, 'Search reads Status'), true)
+		write(checkbox(root, 'Status: Search'), true)
 		await settle()
 		expect(fieldWrites()).toEqual([
 			{ path: 'order#status', patch: { searchable: true } },
@@ -347,7 +374,7 @@ describe('how its rows come and are called', () => {
 		await nextTick()
 		expect(config().defaultSort).toEqual({ field: 'created', desc: true })
 
-		fire(button(root, 'Oldest first'), 'click')
+		pick(control(root, 'DmsSegmented', 'Order'), 'Oldest first')
 		await nextTick()
 		expect(config().defaultSort).toEqual({ field: 'created' })
 
@@ -361,8 +388,10 @@ describe('how its rows come and are called', () => {
 			controller: 'order',
 			config: { defaultSort: { field: 'amount', desc: true } },
 		})
-		expect(button(root, 'Largest first').props['aria-pressed']).toBe(true)
-		expect(button(root, 'Smallest first').props['aria-pressed']).toBe(false)
+		expect(segments(control(root, 'DmsSegmented', 'Order'))).toEqual({
+			labels: ['Largest first', 'Smallest first'],
+			picked: 'Largest first',
+		})
 	})
 
 	it('names a row by a column it shows', async () => {
@@ -469,7 +498,7 @@ describe('what people can do', () => {
 		)
 		const alerts = findAll(root, (candidate) => candidate.props.role === 'alert')
 		expect(alerts).toHaveLength(1)
-		expect(textOf(alerts[0]!)).toContain(
+		expect(alerts[0]!.props.description).toBe(
 			'The API of order has Update turned off, so every edit will be refused.',
 		)
 

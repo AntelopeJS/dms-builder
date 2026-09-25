@@ -7,7 +7,6 @@ import {
 	fillableColumns,
 	formRows,
 	formTableOf,
-	takesRows,
 	withColumn,
 	withEntryMoved,
 	withEntryPatched,
@@ -58,12 +57,6 @@ describe('the table a form saves into', () => {
 		expect(formTableOf({ submitUrl: '/api/order/new' }, [orders])).toBe(orders)
 		expect(formTableOf({ submitUrl: '/test' }, [orders])).toBe(undefined)
 		expect(formTableOf({}, [orders])).toBe(undefined)
-	})
-
-	it('takes rows unless its routes say it does not', () => {
-		expect(takesRows(structure())).toBe(true)
-		expect(takesRows({ ...structure(), routes: ['list'] })).toBe(false)
-		expect(takesRows({ ...structure(), routes: undefined })).toBe(true)
 	})
 })
 

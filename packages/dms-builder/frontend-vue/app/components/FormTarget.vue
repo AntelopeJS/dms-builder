@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { TABLE_ROUTES } from '../runtime/constants'
+import { computed, ref } from 'vue'
 import { useFormBlock } from '../runtime/form-panel'
-import { fillableColumns, takesRows } from '../runtime/form-table'
+import { fillableColumns } from '../runtime/form-table'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
+import { servedWith, serves } from '../runtime/table-routes'
+import type { ResourceStructure } from '../runtime/types'
 
 /**
  * Where a form's values go: a row of the table picked, or an address someone
@@ -12,11 +13,6 @@ import { useBuilder } from '../runtime/session'
  * the tables to pick from are the first thing it shows.
  */
 const props = defineProps<{ path: string }>()
-
-/** Past this many tables, the list takes a search. */
-const SEARCH_FROM = 7
-/** The route a table creates a row through, as its API lists it. */
-const CREATE_ROUTE = 'create'
 
 const builder = useBuilder()
 const session = builder.session
@@ -27,50 +23,22 @@ const destination = form.destination
 const table = form.table
 /** Whether the list of tables is open over a destination already chosen. */
 const choosing = ref(false)
-const query = ref('')
 
 const listing = computed(
 	() => destination.value.kind === 'none' || choosing.value,
 )
 
-watch(
-	() => props.path,
-	() => {
-		choosing.value = false
-		query.value = ''
-	},
-)
+function refusal(structure: ResourceStructure): string | undefined {
+	return serves(structure, 'create') ? undefined : 'Takes no new rows'
+}
 
-/** A table's columns and routes, read as the list opens. */
-watch(
-	listing,
-	(open) => {
-		if (!open) return
-		for (const entry of session.value.resources) {
-			void builder.loadResource(entry.ref)
-		}
-	},
-	{ immediate: true },
-)
-
-const tables = computed(() => {
-	const text = query.value.trim().toLowerCase()
-	return [...session.value.resources]
-		.filter((entry) => !text || entry.ref.toLowerCase().includes(text))
-		.sort((a, b) => a.ref.localeCompare(b.ref))
-		.map((entry) => {
-			const structure = session.value.resourceStructures[entry.ref]
-			return {
-				ref: entry.ref,
-				columns: structure ? fillableColumns(structure).length : undefined,
-				takes: structure ? takesRows(structure) : true,
-			}
-		})
-})
+function fillable(structure: ResourceStructure): number {
+	return fillableColumns(structure).length
+}
 
 /** The table picked, when its API no longer creates rows. */
 const refuses = computed(
-	() => !!form.structure.value && !takesRows(form.structure.value),
+	() => !!form.structure.value && !serves(form.structure.value, 'create'),
 )
 const writing = computed(
 	() => !!table.value && session.value.pending.includes(table.value.ref),
@@ -83,16 +51,13 @@ const askedCount = computed(
 async function choose(ref: string): Promise<void> {
 	await form.bindTo(ref)
 	choosing.value = false
-	query.value = ''
 }
 
 /** Written straight to the table, as its API tab would. */
 function turnCreateOn(): void {
 	const current = table.value
 	if (!current) return
-	const served =
-		form.structure.value?.routes ?? TABLE_ROUTES.map((entry) => entry.key)
-	void builder.configureResource(current.ref, [...new Set([...served, CREATE_ROUTE])])
+	void builder.configureResource(current.ref, servedWith(form.structure.value, 'create'))
 }
 
 function columnsLabel(count: number | undefined): string {
@@ -108,59 +73,43 @@ function columnsLabel(count: number | undefined): string {
 		</p>
 
 		<template v-if="destination.kind === 'table'">
-			<button
-				type="button"
-				class="flex h-12 items-center gap-2.5 rounded-lg border bg-elevated px-2.5 text-left transition-colors"
-				:class="
-					refuses
-						? 'border-warning/55'
-						: choosing
-							? 'border-primary'
-							: 'border-accented hover:border-primary/40'
-				"
+			<UButton
+				:color="refuses ? 'warning' : 'neutral'"
+				variant="outline"
+				block
+				:trailing-icon="choosing ? 'i-ph-caret-up' : 'i-ph-caret-down'"
 				:aria-expanded="choosing"
 				:aria-label="`Table the form saves into: ${destination.table.ref}`"
 				@click="choosing = !choosing"
 			>
-				<span
-					class="flex size-[30px] shrink-0 items-center justify-center rounded-md border"
-					:class="
-						refuses
-							? 'border-warning/40 bg-warning/10 text-warning'
-							: 'border-primary/35 bg-primary/10 text-primary'
-					"
-				>
-					<UIcon name="i-ph-table" class="size-4" />
-				</span>
-				<span class="flex min-w-0 flex-1 flex-col">
-					<span class="truncate text-sm font-medium text-highlighted">
-						{{ destination.table.ref }}
+				<template #leading>
+					<span
+						class="flex size-8 shrink-0 items-center justify-center rounded-md"
+						:class="refuses ? 'bg-warning/10' : 'bg-primary/10 text-primary'"
+					>
+						<UIcon name="i-ph-table" class="size-4" />
 					</span>
-					<span class="text-xs" :class="refuses ? 'text-warning' : 'text-muted'">
+				</template>
+				<span class="flex min-w-0 flex-1 flex-col text-left">
+					<span class="truncate text-highlighted">{{ destination.table.ref }}</span>
+					<span class="text-xs font-normal" :class="refuses ? '' : 'text-muted'">
 						{{ refuses ? 'Takes no new rows' : 'Each submit adds a row' }}
 					</span>
 				</span>
-				<UIcon
-					:name="choosing ? 'i-ph-caret-up' : 'i-ph-caret-down'"
-					class="size-3.5 text-dimmed"
-				/>
-			</button>
+			</UButton>
 
-			<div
+			<UAlert
 				v-if="refuses && !choosing"
 				role="alert"
-				class="flex flex-col gap-2.5 rounded-lg border border-warning/40 bg-warning/5 p-2.5"
+				color="warning"
+				variant="subtle"
+				icon="i-ph-warning"
 			>
-				<div class="flex gap-2">
-					<UIcon name="i-ph-warning" class="mt-0.5 size-3.5 shrink-0 text-warning" />
-					<p class="text-xs leading-relaxed text-toned">
-						The API of
-						<span class="font-medium text-highlighted">{{ destination.table.ref }}</span>
-						has <span class="font-medium text-highlighted">Create</span> turned
-						off, so every submit will be refused.
-					</p>
-				</div>
-				<div class="flex items-center gap-2">
+				<template #description>
+					The API of {{ destination.table.ref }} has Create turned off, so every
+					submit will be refused.
+				</template>
+				<template #actions>
 					<UButton
 						size="xs"
 						color="warning"
@@ -169,13 +118,15 @@ function columnsLabel(count: number | undefined): string {
 						:disabled="writing"
 						@click="turnCreateOn"
 					/>
-					<span
-						class="inline-flex h-4 items-center gap-0.5 rounded bg-primary/10 px-1 text-[10px] font-semibold text-primary"
+					<UBadge
+						color="primary"
+						variant="soft"
+						size="sm"
+						icon="i-ph-lightning-fill"
+						label="Now"
 						title="Applies now"
-					>
-						<UIcon name="i-ph-lightning-fill" class="size-2.5" />
-						Now
-					</span>
+						class="self-center"
+					/>
 					<UButton
 						size="xs"
 						color="neutral"
@@ -184,8 +135,8 @@ function columnsLabel(count: number | undefined): string {
 						class="ml-auto"
 						@click="choosing = true"
 					/>
-				</div>
-			</div>
+				</template>
+			</UAlert>
 			<div
 				v-else-if="!choosing && form.structure.value"
 				class="flex items-center justify-between gap-2 text-xs text-muted"
@@ -211,12 +162,12 @@ function columnsLabel(count: number | undefined): string {
 		>
 			<div class="flex items-center gap-2.5">
 				<span
-					class="flex size-[30px] shrink-0 items-center justify-center rounded-md bg-accented text-muted"
+					class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accented text-muted"
 				>
 					<UIcon name="i-ph-globe-simple" class="size-4" />
 				</span>
 				<span class="flex min-w-0 flex-1 flex-col">
-					<code class="truncate font-mono text-[13px] text-highlighted">
+					<code class="truncate font-mono text-sm text-highlighted">
 						{{ destination.method ?? 'POST' }} {{ destination.url }}
 					</code>
 					<span class="text-xs text-muted">An address set in the Advanced view</span>
@@ -240,7 +191,7 @@ function columnsLabel(count: number | undefined): string {
 			:class="destination.kind === 'none' ? 'border-primary/35' : 'border-accented'"
 		>
 			<div v-if="destination.kind === 'none'" class="flex flex-col gap-1">
-				<p class="text-[13px] font-semibold text-highlighted">
+				<p class="text-sm font-semibold text-highlighted">
 					Pick the table it fills
 				</p>
 				<p class="text-xs leading-relaxed text-muted">
@@ -248,62 +199,12 @@ function columnsLabel(count: number | undefined): string {
 					any it shouldn't ask.
 				</p>
 			</div>
-			<UInput
-				v-if="session.resources.length >= SEARCH_FROM"
-				v-model="query"
-				icon="i-ph-magnifying-glass"
-				size="sm"
-				placeholder="Find a table"
-				aria-label="Find a table"
+			<DmsBuilderTablePicker
+				:model-value="table?.ref"
+				:refusal="refusal"
+				:columns="fillable"
+				@update:model-value="choose"
 			/>
-			<div role="listbox" aria-label="Tables" class="flex flex-col gap-1">
-				<button
-					v-for="entry in tables"
-					:key="entry.ref"
-					type="button"
-					role="option"
-					:aria-selected="entry.ref === table?.ref"
-					:disabled="!entry.takes"
-					class="flex h-11 items-center gap-2.5 rounded-md border px-2.5 text-left transition-colors"
-					:class="
-						!entry.takes
-							? 'cursor-not-allowed border-dashed border-accented'
-							: entry.ref === table?.ref
-								? 'border-primary/45 bg-primary/10'
-								: 'border-accented bg-default hover:border-primary/40'
-					"
-					@click="choose(entry.ref)"
-				>
-					<span
-						class="flex size-[26px] shrink-0 items-center justify-center rounded-md bg-accented"
-						:class="entry.takes ? 'text-muted' : 'text-dimmed'"
-					>
-						<UIcon name="i-ph-table" class="size-[15px]" />
-					</span>
-					<span
-						class="min-w-0 flex-1 truncate text-[13px]"
-						:class="entry.takes ? 'text-default' : 'text-dimmed'"
-					>
-						{{ entry.ref }}
-					</span>
-					<span class="shrink-0 text-xs text-dimmed">
-						{{ entry.takes ? columnsLabel(entry.columns) : 'Takes no new rows' }}
-					</span>
-				</button>
-				<p v-if="!session.resources.length" class="py-1 text-xs text-muted">
-					No table yet.
-					<UButton
-						size="xs"
-						variant="link"
-						label="Create one in Tables"
-						class="px-0"
-						@click="builder.setView('resource')"
-					/>
-				</p>
-				<p v-else-if="!tables.length" class="py-1 text-xs text-muted">
-					No table matches.
-				</p>
-			</div>
 			<UButton
 				v-if="choosing"
 				size="xs"

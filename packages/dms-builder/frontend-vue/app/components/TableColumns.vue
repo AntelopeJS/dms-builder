@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { dataTypeItem } from '../runtime/catalog'
+import { fieldFlags } from '../runtime/constants'
 import { useBuilder } from '../runtime/session'
 import { useTableBlock } from '../runtime/table-panel'
-import type { ResourceFieldStructure } from '../runtime/types'
-
-type Aspect = 'listable' | 'searchable' | 'filterable'
+import type { FieldFlag, ResourceFieldStructure } from '../runtime/types'
 
 /**
  * The columns of the table a table block lists, left to right: whether each
@@ -14,11 +13,7 @@ type Aspect = 'listable' | 'searchable' | 'filterable'
  */
 const props = defineProps<{ path: string }>()
 
-const ASPECTS: { key: Aspect; label: string; aria: string }[] = [
-	{ key: 'listable', label: 'Shown', aria: 'Show' },
-	{ key: 'searchable', label: 'Search', aria: 'Search reads' },
-	{ key: 'filterable', label: 'Filter', aria: 'Filters offer' },
-]
+const ASPECTS = fieldFlags('listable', 'searchable', 'filterable')
 
 const builder = useBuilder()
 const session = builder.session
@@ -43,7 +38,7 @@ function writing(column: ResourceFieldStructure): boolean {
 	)
 }
 
-function toggle(column: ResourceFieldStructure, key: Aspect, on: boolean): void {
+function toggle(column: ResourceFieldStructure, key: FieldFlag, on: boolean): void {
 	void builder.configureField(`${tableRef.value}#${column.name}`, { [key]: on })
 }
 
@@ -101,13 +96,14 @@ function onDragEnd(): void {
 		<div class="flex items-center justify-between gap-2">
 			<p class="flex items-center gap-1.5 text-xs font-medium text-toned">
 				Columns
-				<span
-					class="inline-flex h-4 items-center gap-0.5 rounded bg-primary/10 px-1 text-[10px] font-semibold text-primary"
+				<UBadge
+					color="primary"
+					variant="soft"
+					size="sm"
+					icon="i-ph-lightning-fill"
+					label="Now"
 					title="Changes the table at once, on every page listing it"
-				>
-					<UIcon name="i-ph-lightning-fill" class="size-2.5" />
-					Now
-				</span>
+				/>
 			</p>
 			<UButton
 				size="xs"
@@ -120,20 +116,16 @@ function onDragEnd(): void {
 		</div>
 
 		<div class="overflow-hidden rounded-lg border border-default">
-			<div class="flex h-7 items-center bg-elevated px-2.5 text-[11px] font-medium text-muted">
-				<span class="flex-1 pl-4">Column</span>
-				<span
-					v-for="aspect in ASPECTS"
-					:key="aspect.key"
-					class="w-[50px] text-center"
-				>
+			<div class="flex h-7 items-center bg-elevated px-2.5 text-xs font-medium text-muted">
+				<span class="flex-1 pl-7.5">Column</span>
+				<span v-for="aspect in ASPECTS" :key="aspect.key" class="w-12 text-center">
 					{{ aspect.label }}
 				</span>
 			</div>
 			<div
 				v-for="column in columns"
 				:key="column.name"
-				class="group flex h-10 items-center border-t px-2.5 transition-colors"
+				class="flex h-10 items-center border-t px-2.5 transition-colors"
 				:class="[
 					over === column.name && dragged !== column.name
 						? 'border-t-primary'
@@ -147,24 +139,25 @@ function onDragEnd(): void {
 				@dragend="onDragEnd"
 			>
 				<span class="flex min-w-0 flex-1 items-center gap-1.5">
-					<button
-						type="button"
-						class="flex h-6 w-3 shrink-0 items-center justify-center text-dimmed transition-colors group-hover:text-toned disabled:opacity-40"
-						:class="column.opaque || moving ? 'cursor-not-allowed' : 'cursor-grab'"
+					<UButton
+						icon="i-ph-dots-six-vertical"
+						color="neutral"
+						variant="ghost"
+						size="xs"
+						square
+						class="cursor-grab text-dimmed"
 						:aria-label="`Move ${labelOf(column)}`"
 						title="Drag to move, or use the arrow keys"
 						:disabled="column.opaque || moving"
 						@keydown="onKey($event, column)"
-					>
-						<UIcon name="i-ph-dots-six-vertical" class="size-3.5" />
-					</button>
+					/>
 					<UIcon
-						:name="dataTypeItem(column.dataType?.$dataType ?? 'string').icon"
+						:name="dataTypeItem(column.dataType?.$dataType).icon"
 						class="size-4 shrink-0"
 						:class="column.listable ? 'text-muted' : 'text-dimmed'"
 					/>
 					<span
-						class="truncate text-[13px]"
+						class="truncate text-sm"
 						:class="column.listable ? 'text-default' : 'text-dimmed'"
 					>
 						{{ labelOf(column) }}
@@ -179,13 +172,12 @@ function onDragEnd(): void {
 				<span
 					v-for="aspect in ASPECTS"
 					:key="aspect.key"
-					class="flex w-[50px] justify-center"
+					class="flex w-12 justify-center"
 				>
-					<USwitch
-						size="xs"
+					<UCheckbox
 						:model-value="column[aspect.key] === true"
 						:disabled="column.opaque || writing(column)"
-						:aria-label="`${aspect.aria} ${labelOf(column)}`"
+						:aria-label="`${labelOf(column)}: ${aspect.label}`"
 						@update:model-value="toggle(column, aspect.key, $event === true)"
 					/>
 				</span>

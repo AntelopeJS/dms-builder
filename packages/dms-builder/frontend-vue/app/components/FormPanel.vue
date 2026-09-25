@@ -30,16 +30,7 @@ const SUBMIT_TEXTS = ['submitLabel', 'successMessage', 'errorMessage'] as const
  */
 const STAY = 'stay'
 
-const config = form.config
-
-function text(key: string): string {
-	const value = config.value[key]
-	return typeof value === 'string' ? value : ''
-}
-
-function write(key: string, value: string | undefined): void {
-	form.patch({ [key]: value === '' ? undefined : value })
-}
+const { config, text, write } = form
 
 function placeholder(key: string): string | undefined {
 	return form.options.value[key]?.ui?.placeholder
@@ -98,15 +89,13 @@ const thenIcon = computed(() =>
 /* ---- its own words ------------------------------------------------------ */
 
 /**
- * The forms whose switch is on with nothing written yet: an author who turns
- * it on and clears what it seeded is still looking at the boxes.
+ * Whether the switch is on with nothing written yet: an author who turns it on
+ * and clears what it seeded is still looking at the boxes.
  */
-const opened = ref(new Set<string>())
+const opened = ref(false)
 
 const customized = computed(
-	() =>
-		opened.value.has(props.path) ||
-		SUBMIT_TEXTS.some((key) => config.value[key] !== undefined),
+	() => opened.value || SUBMIT_TEXTS.some((key) => config.value[key] !== undefined),
 )
 const offersSubmitTexts = computed(() => SUBMIT_TEXTS.some((key) => form.has(key)))
 
@@ -115,13 +104,7 @@ const offersSubmitTexts = computed(() => SUBMIT_TEXTS.some((key) => form.has(key
  * off, all three go and the form says its own again. One edit either way.
  */
 function customize(on: boolean): void {
-	const next = new Set(opened.value)
-	if (on) {
-		next.add(props.path)
-	} else {
-		next.delete(props.path)
-	}
-	opened.value = next
+	opened.value = on
 	const values: Record<string, unknown> = {}
 	for (const key of SUBMIT_TEXTS) {
 		if (form.has(key)) {
@@ -133,33 +116,29 @@ function customize(on: boolean): void {
 </script>
 
 <template>
-	<div class="flex flex-col gap-[22px]">
+	<div class="flex flex-col gap-6">
 		<div
 			v-if="form.has('title') || form.has('description')"
 			class="flex flex-col gap-3"
 		>
-			<div v-if="form.has('title')" class="flex flex-col gap-1.5">
-				<label for="form-title" class="text-xs font-medium text-toned">Title</label>
+			<UFormField v-if="form.has('title')" label="Title">
 				<UInput
-					id="form-title"
+					class="w-full"
 					:model-value="text('title')"
 					size="lg"
 					placeholder="Shown above the fields — optional"
 					@update:model-value="write('title', String($event))"
 				/>
-			</div>
-			<div v-if="form.has('description')" class="flex flex-col gap-1.5">
-				<label for="form-description" class="text-xs font-medium text-toned">
-					Description
-				</label>
+			</UFormField>
+			<UFormField v-if="form.has('description')" label="Description">
 				<UTextarea
-					id="form-description"
+					class="w-full"
 					:model-value="text('description')"
 					:rows="2"
 					placeholder="Shown under the title — optional"
 					@update:model-value="write('description', String($event))"
 				/>
-			</div>
+			</UFormField>
 		</div>
 
 		<DmsBuilderFormTarget :path="path" />
@@ -167,37 +146,14 @@ function customize(on: boolean): void {
 
 		<div v-if="form.has('fieldsOrientation')" class="flex flex-col gap-3">
 			<p class="text-xs font-semibold text-toned">Layout</p>
-			<div class="flex flex-col gap-1.5">
-				<p class="text-xs font-medium text-toned">Labels</p>
-				<div
-					role="group"
+			<UFormField label="Labels">
+				<DmsSegmented
+					:model-value="text('fieldsOrientation') || ORIENTATION_DEFAULT"
+					:items="ORIENTATIONS"
 					aria-label="Labels"
-					class="flex rounded-md border border-accented bg-default p-0.5"
-				>
-					<UButton
-						v-for="entry in ORIENTATIONS"
-						:key="entry.value"
-						:icon="entry.icon"
-						:label="entry.label"
-						size="xs"
-						:color="
-							(text('fieldsOrientation') || ORIENTATION_DEFAULT) === entry.value
-								? 'primary'
-								: 'neutral'
-						"
-						:variant="
-							(text('fieldsOrientation') || ORIENTATION_DEFAULT) === entry.value
-								? 'soft'
-								: 'ghost'
-						"
-						:aria-pressed="
-							(text('fieldsOrientation') || ORIENTATION_DEFAULT) === entry.value
-						"
-						class="flex-1 justify-center"
-						@click="form.patch({ fieldsOrientation: entry.value })"
-					/>
-				</div>
-			</div>
+					@update:model-value="write('fieldsOrientation', $event)"
+				/>
+			</UFormField>
 		</div>
 
 		<div
@@ -205,87 +161,65 @@ function customize(on: boolean): void {
 			class="flex flex-col gap-3"
 		>
 			<p class="text-xs font-semibold text-toned">Submit</p>
-			<div v-if="form.has('redirectOnSuccess')" class="flex flex-col gap-1.5">
-				<label class="text-xs font-medium text-toned">Then</label>
+			<UFormField v-if="form.has('redirectOnSuccess')" label="Then">
 				<USelectMenu
+					class="w-full"
 					:model-value="redirect || STAY"
 					:items="thenItems"
 					value-key="value"
 					:icon="thenIcon"
-					aria-label="Then"
 					:search-input="{ placeholder: 'Find a page…', icon: 'i-ph-magnifying-glass' }"
 					@update:model-value="
 						write('redirectOnSuccess', $event === STAY ? undefined : String($event))
 					"
 				/>
-			</div>
+			</UFormField>
 			<template v-if="offersSubmitTexts">
-				<div class="flex items-center gap-4">
-					<div class="min-w-0 flex-1">
-						<p class="text-[13px] text-default">Customize submit</p>
-						<p class="text-xs text-muted">
-							The button's text, and the notices once it's sent. Off, the form
-							says its own.
-						</p>
-					</div>
+				<UFormField
+					label="Customize submit"
+					description="The button's text, and the notices once it's sent. Off, the form says its own."
+					orientation="horizontal"
+				>
 					<USwitch
 						:model-value="customized"
-						aria-label="Customize submit"
 						@update:model-value="customize($event === true)"
 					/>
-				</div>
+				</UFormField>
 				<div
 					v-if="customized"
 					class="flex flex-col gap-3 border-l border-default pl-3"
 				>
-					<div v-if="form.has('submitLabel')" class="flex flex-col gap-1.5">
-						<label
-							for="form-submit-label"
-							class="flex items-center gap-1.5 text-xs font-medium text-toned"
-						>
-							<UIcon name="i-ph-cursor-click" class="size-3.5 text-muted" />
-							Button
-						</label>
+					<UFormField v-if="form.has('submitLabel')" label="Button">
 						<UInput
-							id="form-submit-label"
+							class="w-full"
 							:model-value="text('submitLabel')"
+							icon="i-ph-cursor-click"
 							placeholder="Submit"
 							@update:model-value="write('submitLabel', String($event))"
 						/>
-					</div>
-					<div v-if="form.has('successMessage')" class="flex flex-col gap-1.5">
-						<label
-							for="form-success"
-							class="flex items-center gap-1.5 text-xs font-medium text-toned"
-						>
-							<UIcon name="i-ph-check-circle" class="size-3.5 text-primary" />
-							Once saved
-						</label>
+					</UFormField>
+					<UFormField v-if="form.has('successMessage')" label="Once saved">
 						<UInput
-							id="form-success"
+							class="w-full"
 							:model-value="text('successMessage')"
+							icon="i-ph-check-circle"
 							:placeholder="placeholder('successMessage')"
 							@update:model-value="write('successMessage', String($event))"
 						/>
-					</div>
-					<div v-if="form.has('errorMessage')" class="flex flex-col gap-1.5">
-						<label
-							for="form-error"
-							class="flex items-center gap-1.5 text-xs font-medium text-toned"
-						>
-							<UIcon name="i-ph-warning-circle" class="size-3.5 text-error" />
-							When it fails
-						</label>
+					</UFormField>
+					<UFormField
+						v-if="form.has('errorMessage')"
+						label="When it fails"
+						help="Left empty, the form shows what the server answered."
+					>
 						<UInput
-							id="form-error"
+							class="w-full"
 							:model-value="text('errorMessage')"
+							icon="i-ph-warning-circle"
 							:placeholder="placeholder('errorMessage')"
 							@update:model-value="write('errorMessage', String($event))"
 						/>
-						<p class="text-xs text-muted">
-							Left empty, the form shows what the server answered.
-						</p>
-					</div>
+					</UFormField>
 				</div>
 			</template>
 		</div>

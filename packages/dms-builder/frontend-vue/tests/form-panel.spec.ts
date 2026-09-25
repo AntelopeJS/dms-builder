@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, type Component } from 'vue'
+import { h, nextTick, type Component } from 'vue'
 import Config from '../app/components/Config.vue'
 import FormFieldDetail from '../app/components/FormFieldDetail.vue'
 import FormFields from '../app/components/FormFields.vue'
 import FormPanel from '../app/components/FormPanel.vue'
 import FormTarget from '../app/components/FormTarget.vue'
+import TablePicker from '../app/components/TablePicker.vue'
 import Option from '../app/components/Option.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
@@ -91,10 +92,30 @@ const BOUND = {
 	],
 }
 
+/**
+ * `UAlert`, its `actions` drawn as the buttons they are: the default stand-in
+ * keeps them as a prop, where no click reaches them.
+ */
+const alert: Component = {
+	name: 'UAlert',
+	inheritAttrs: false,
+	setup(_props, { attrs, slots }) {
+		return () =>
+			h('UAlert', attrs, [
+				...Object.entries(slots).map(([id, render]) => h(`slot:${id}`, render?.() ?? [])),
+				...((attrs.actions ?? []) as Array<Record<string, unknown>>).map((action) =>
+					h('UButton', action),
+				),
+			])
+	},
+}
+
 const parts = (): Record<string, Component> => ({
+	UAlert: alert,
 	DmsBuilderOption: Option as Component,
 	DmsBuilderFormPanel: FormPanel as Component,
 	DmsBuilderFormTarget: FormTarget as Component,
+	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderFormFields: FormFields as Component,
 	DmsBuilderFormFieldDetail: FormFieldDetail as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
@@ -151,9 +172,13 @@ function keys(): unknown[] {
 	return fields().map((field) => field.id)
 }
 
+/** The labels on show: a form field's, or a bare `<label>`'s. */
 function labels(root: TestNode): string[] {
-	return findAll(root, (node) => node.tag === 'label').map((node) =>
-		textOf(node).replace('*', '').trim(),
+	return findAll(root, (node) => node.tag === 'UFormField' || node.tag === 'label').map(
+		(node) =>
+			node.tag === 'UFormField'
+				? String(node.props.label ?? '')
+				: textOf(node).replace('*', '').trim(),
 	)
 }
 
@@ -180,15 +205,22 @@ function has(root: TestNode, name: string): boolean {
 	}
 }
 
-function control(root: TestNode, tag: string, name: string): TestNode {
+function formField(root: TestNode, label: string): TestNode {
 	const match = findAll(
 		root,
-		(node) =>
-			node.tag === tag &&
-			(node.props['aria-label'] === name || node.props.id === name),
+		(node) => node.tag === 'UFormField' && node.props.label === label,
 	)[0]
 	if (!match) {
-		throw new Error(`no ${tag} ${name}`)
+		throw new Error(`no field ${label}`)
+	}
+	return match
+}
+
+/** The control a form field holds, found the way a user finds it: by its label. */
+function field(root: TestNode, label: string, tag = 'UInput'): TestNode {
+	const match = findAll(formField(root, label), (node) => node.tag === tag)[0]
+	if (!match) {
+		throw new Error(`no ${tag} in the field ${label}`)
 	}
 	return match
 }
@@ -198,16 +230,20 @@ function lines(root: TestNode): TestNode[] {
 	return findAll(
 		root,
 		(node) =>
-			node.tag === 'button' &&
+			node.tag === 'UButton' &&
 			node.props['aria-expanded'] !== undefined &&
 			!String(node.props['aria-label'] ?? '').startsWith('Table'),
 	)
 }
 
-/** The field lines, by the title each shows: its tile, then title and type. */
+/** The field lines, by the title each shows: the first of its words, over its type. */
 function rows(root: TestNode): string[] {
 	return lines(root).map((line) => {
-		const title = findAll(line, (node) => node.tag === 'span')[2]
+		const title = findAll(
+			line,
+			(node) =>
+				node.tag === 'span' && !node.children.some((child) => child.kind === 'element'),
+		)[0]
 		return title ? textOf(title).trim() : ''
 	})
 }
@@ -297,6 +333,17 @@ describe('a form saving into a table', () => {
 		expect(keys()).toEqual(['amount', 'status', 'note'])
 	})
 
+	it('keeps its fields when its own table is picked again', async () => {
+		const root = await formPanel(BOUND)
+		fire(button(root, 'Table the form saves into: order'), 'click')
+		await settle()
+		const [order] = findAll(root, (node) => node.props.role === 'option')
+		fire(order!, 'click')
+		await settle()
+
+		expect(keys(), 'what the author left out stays out').toEqual(['amount', 'status'])
+	})
+
 	it('moves a field within the form', async () => {
 		const root = await formPanel(BOUND)
 		fire(button(root, 'Move Status up'), 'click')
@@ -308,6 +355,18 @@ describe('a form saving into a table', () => {
 		expect(keys()).toEqual(['amount', 'status'])
 	})
 
+	it('keeps the field it has open when another moves past it', async () => {
+		const root = await formPanel(BOUND)
+		openRow(root, 1)
+		await nextTick()
+
+		fire(button(root, 'Move Amount down'), 'click')
+		await nextTick()
+		expect(keys()).toEqual(['status', 'amount'])
+		expect(lines(root).map((line) => line.props['aria-expanded'])).toEqual([true, false])
+		expect(field(root, 'Label').props['model-value']).toBe('Status')
+	})
+
 	it('says when a column the table needs is left out, and puts it back', async () => {
 		const root = await formPanel(BOUND)
 		expect(textOf(root)).not.toContain("The table can't save a row without")
@@ -315,11 +374,12 @@ describe('a form saving into a table', () => {
 		fire(button(root, 'Leave Amount out of the form'), 'click')
 		await nextTick()
 		expect(keys()).toEqual(['status'])
-		expect(textOf(root).replace(/\s+/g, ' ')).toContain(
+		const [warning] = findAll(root, (node) => node.tag === 'UAlert')
+		expect(textOf(warning!)).toContain(
 			"The table can't save a row without Amount: every submit will fail until it is in the form.",
 		)
 
-		fire(button(root, 'Add Amount to the form'), 'click')
+		fire(button(warning!, 'Add Amount to the form'), 'click')
 		await nextTick()
 		expect(keys()).toEqual(['status', 'amount'])
 		expect(textOf(root)).not.toContain("The table can't save a row without")
@@ -330,7 +390,7 @@ describe('a form saving into a table', () => {
 		openRow(root, 1)
 		await nextTick()
 
-		write(control(root, 'UInput', 'form-field-1-label'), 'Order state')
+		write(field(root, 'Label'), 'Order state')
 		await nextTick()
 		expect(fields()[1]).toMatchObject({ id: 'status', label: 'Order state' })
 		expect(textOf(root)).toContain('Saved in the column Status')
@@ -346,10 +406,12 @@ describe('a form saving into a table', () => {
 		await nextTick()
 
 		expect(labels(root), 'the column says what type it is').not.toContain('Type')
-		const required = control(root, 'USwitch', 'Required')
+		const required = field(root, 'Required', 'USwitch')
 		expect(required.props['model-value']).toBe(true)
 		expect(required.props.disabled).toBe(true)
-		expect(textOf(root)).toContain("The table can't save a row without it.")
+		expect(formField(root, 'Required').props.description).toBe(
+			"The table can't save a row without it.",
+		)
 	})
 
 	it('leaves the opened field out from its own line', async () => {
@@ -422,7 +484,7 @@ describe('a form sending to an address', () => {
 		fire(button(root, 'Add field'), 'click')
 		await nextTick()
 
-		write(control(root, 'UInput', 'form-new-field'), 'Delivery date')
+		write(field(root, 'New field'), 'Delivery date')
 		await nextTick()
 		fire(button(root, 'Add the field'), 'click')
 		await nextTick()
@@ -477,7 +539,7 @@ describe('a field opened', () => {
 describe('what a form says and does once it is sent', () => {
 	it('says its own words until it is told otherwise, behind one switch', async () => {
 		const root = await formPanel(BOUND)
-		const toggle = control(root, 'USwitch', 'Customize submit')
+		const toggle = field(root, 'Customize submit', 'USwitch')
 		expect(toggle.props['model-value']).toBe(false)
 		expect(labels(root)).not.toContain('Once saved')
 
@@ -492,9 +554,9 @@ describe('what a form says and does once it is sent', () => {
 			expect.arrayContaining(['Button', 'Once saved', 'When it fails']),
 		)
 
-		write(control(root, 'UInput', 'form-submit-label'), 'Create the order')
+		write(field(root, 'Button'), 'Create the order')
 		await nextTick()
-		write(control(root, 'USwitch', 'Customize submit'), false)
+		write(field(root, 'Customize submit', 'USwitch'), false)
 		await nextTick()
 		for (const key of ['submitLabel', 'successMessage', 'errorMessage']) {
 			expect(config()).not.toHaveProperty(key)
@@ -504,8 +566,8 @@ describe('what a form says and does once it is sent', () => {
 
 	it('is on for a form that already says something of its own', async () => {
 		const root = await formPanel({ ...BOUND, submitLabel: 'Send' })
-		expect(control(root, 'USwitch', 'Customize submit').props['model-value']).toBe(true)
-		expect(control(root, 'UInput', 'form-submit-label').props['model-value']).toBe('Send')
+		expect(field(root, 'Customize submit', 'USwitch').props['model-value']).toBe(true)
+		expect(field(root, 'Button').props['model-value']).toBe('Send')
 	})
 
 	it('stays on the page, or goes to one picked among the pages', async () => {
@@ -522,7 +584,7 @@ describe('what a form says and does once it is sent', () => {
 			{ ref: 'pages.shop', displayName: 'Shop' },
 		]
 		const root = await formPanel(BOUND)
-		const then = control(root, 'USelectMenu', 'Then')
+		const then = field(root, 'Then', 'USelectMenu')
 		expect(then.props['model-value']).toBe('stay')
 		const items = then.props.items as Array<Record<string, unknown>>
 		expect(items.map((item) => item.label)).toEqual([
@@ -535,16 +597,19 @@ describe('what a form says and does once it is sent', () => {
 		await nextTick()
 		expect(config().redirectOnSuccess).toBe('/shop/orders')
 
-		write(control(root, 'USelectMenu', 'Then'), 'stay')
+		write(field(root, 'Then', 'USelectMenu'), 'stay')
 		await nextTick()
 		expect(config()).not.toHaveProperty('redirectOnSuccess')
 	})
 
 	it('puts its labels beside the fields until they are asked above', async () => {
 		const root = await formPanel(BOUND)
-		expect(button(root, 'Beside the field').props['aria-pressed']).toBe(true)
+		const choice = field(root, 'Labels', 'DmsSegmented')
+		const items = choice.props.items as Array<{ label: string; value: string }>
+		const picked = items.find((item) => item.value === choice.props['model-value'])
+		expect(picked?.label).toBe('Beside the field')
 
-		fire(button(root, 'Above it'), 'click')
+		write(choice, items.find((item) => item.label === 'Above it')?.value)
 		await nextTick()
 		expect(config().fieldsOrientation).toBe('vertical')
 	})

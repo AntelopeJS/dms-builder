@@ -90,7 +90,7 @@ const heading = computed<Heading>(() => {
 <template>
 	<aside
 		class="flex shrink-0 flex-col border-l border-default bg-default transition-[width]"
-		:class="wide ? 'w-[620px]' : 'w-[340px]'"
+		:class="wide ? 'w-155' : 'w-85'"
 	>
 		<div class="flex items-center gap-2 border-b border-default px-3 py-3">
 			<UButton

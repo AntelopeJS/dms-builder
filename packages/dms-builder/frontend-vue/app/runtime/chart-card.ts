@@ -55,17 +55,6 @@ export const LOOK_SWITCHES = [
 /** The chart option holding its colour, which the Look card sets as swatches. */
 export const COLOUR_OPTION = 'color'
 
-/** The colours of the theme, each a swatch, by the name a chart takes. */
-export const THEME_COLOURS = [
-	{ name: 'primary', swatch: 'bg-primary' },
-	{ name: 'secondary', swatch: 'bg-secondary' },
-	{ name: 'success', swatch: 'bg-success' },
-	{ name: 'info', swatch: 'bg-info' },
-	{ name: 'warning', swatch: 'bg-warning' },
-	{ name: 'error', swatch: 'bg-error' },
-	{ name: 'neutral', swatch: 'bg-neutral-400' },
-]
-
 /** The headline's formats, as an author reads them. */
 export const FORMAT_LABELS: Record<string, string> = {
 	number: 'Number',

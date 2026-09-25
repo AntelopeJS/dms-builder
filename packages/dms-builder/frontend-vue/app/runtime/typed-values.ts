@@ -7,6 +7,7 @@
  * word. The data types the builder has an input for get that input; the others
  * keep the JSON box.
  */
+import { DATA_TYPES } from './constants'
 
 export type TypedKind =
 	| 'text'
@@ -25,23 +26,6 @@ export interface TypedEditor {
 	multiple?: boolean
 }
 
-const KIND_OF: Record<string, TypedKind> = {
-	string: 'text',
-	email: 'text',
-	phone: 'text',
-	url: 'text',
-	color: 'text',
-	rich_text: 'longText',
-	number: 'number',
-	price: 'number',
-	percentage: 'number',
-	boolean: 'switch',
-	date: 'date',
-	string_time: 'time',
-	select: 'select',
-	status: 'select',
-}
-
 const DATE = /^\d{4}-\d{2}-\d{2}/
 const TIME = /^\d{2}:\d{2}/
 
@@ -53,7 +37,7 @@ export function typedEditor(typed: unknown): TypedEditor | undefined {
 	if (!isRecord(typed) || typeof typed.$dataType !== 'string') {
 		return undefined
 	}
-	const kind = KIND_OF[typed.$dataType]
+	const kind = DATA_TYPES[typed.$dataType]?.input
 	const config = isRecord(typed.config) ? typed.config : {}
 	if (!kind) {
 		return undefined

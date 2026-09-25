@@ -43,6 +43,9 @@ export interface OptionUi {
 
 export type FieldAspect = 'listable' | 'searchable' | 'sortable' | 'filterable'
 
+/** A yes or no a table's field carries, each set on its own. */
+export type FieldFlag = FieldAspect | 'selectable' | 'required' | 'exported'
+
 export interface OptionSchema {
 	type: string
 	optional?: boolean

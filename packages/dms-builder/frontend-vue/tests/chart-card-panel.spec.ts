@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, type Component } from 'vue'
+import { cloneVNode, h, nextTick, type Component } from 'vue'
 import ChartCardPanel from '../app/components/ChartCardPanel.vue'
 import Config from '../app/components/Config.vue'
 import DataSource from '../app/components/DataSource.vue'
@@ -110,7 +110,8 @@ function chartCatalog(catalog: BlockCatalog): BlockCatalog {
 			},
 			currencyCode: { type: 'string', optional: true, ui: { label: 'Currency', group: 'appearance' } },
 			showDelta: switchOption('Show variation'),
-			showLegend: switchOption('Show legend'),
+			// What the card draws with the option unset.
+			showLegend: { ...switchOption('Show legend'), default: true },
 			primaryLabel: { type: 'string', optional: true, ui: { label: 'Series label', group: 'content' } },
 			comparisonLabel: { type: 'string', optional: true, ui: { label: 'Comparison label', group: 'content' } },
 		} as Record<string, OptionSchema>,
@@ -148,12 +149,36 @@ function orders(): ResourceStructure {
 	}
 }
 
+/**
+ * `UCollapsible` as the panel leans on it: its trigger says whether it is open
+ * and turns it, and what it holds is there only while it is.
+ */
+const collapsible: Component = {
+	name: 'UCollapsible',
+	inheritAttrs: false,
+	setup(_props, { slots, attrs }) {
+		return () => {
+			const open = attrs.open === true
+			const turn = attrs['onUpdate:open'] as (open: boolean) => void
+			const [trigger] = slots.default?.({ open }) ?? []
+			return h('UCollapsible', attrs, [
+				...(trigger
+					? [cloneVNode(trigger, { 'aria-expanded': open, onClick: () => turn(!open) })]
+					: []),
+				...(open ? (slots.content?.() ?? []) : []),
+			])
+		}
+	},
+}
+
 const parts = (): Record<string, Component> => ({
 	DmsBuilderOption: Option as Component,
 	DmsBuilderChartCardPanel: ChartCardPanel as Component,
 	DmsBuilderFoldCard: FoldCard as Component,
 	DmsBuilderDataSource: DataSource as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+	UCollapsible: collapsible,
+	UChip: stub('UChip'),
 	USelectMenu: stub('USelectMenu'),
 	USwitch: stub('USwitch'),
 	UTextarea: stub('UTextarea'),
@@ -208,10 +233,15 @@ function button(root: TestNode, name: string): TestNode {
 	return match
 }
 
+/** A control by its name: its own label, or the one of the field holding it. */
 function control(root: TestNode, tag: string, name: string): TestNode {
 	const match = findAll(
 		root,
-		(node) => node.tag === tag && (node.props['aria-label'] === name || node.props.id === name),
+		(node) =>
+			node.tag === tag &&
+			(node.props['aria-label'] === name ||
+				node.props.label === name ||
+				(node.parent?.tag === 'UFormField' && node.parent.props.label === name)),
 	)[0]
 	if (!match) {
 		throw new Error(`no ${tag} ${name}`)
@@ -219,12 +249,19 @@ function control(root: TestNode, tag: string, name: string): TestNode {
 	return match
 }
 
+/** What the panel's fields are called. */
+function labels(root: TestNode): string[] {
+	return findAll(root, (node) => node.tag === 'UFormField').map((node) =>
+		String(node.props.label),
+	)
+}
+
 /** A part of the panel that folds, by its title: the button, then what it says. */
 function fold(root: TestNode, title: string): TestNode {
 	const match = findAll(
 		root,
 		(node) =>
-			node.tag === 'button' &&
+			node.tag === 'UButton' &&
 			node.props['aria-expanded'] !== undefined &&
 			textOf(node).startsWith(title),
 	)[0]
@@ -236,7 +273,7 @@ function fold(root: TestNode, title: string): TestNode {
 
 function tiles(root: TestNode): TestNode[] {
 	const group = findAll(root, (node) => node.props['aria-label'] === 'How it draws')[0]
-	return group ? findAll(group, (node) => node.tag === 'button') : []
+	return group ? findAll(group, (node) => node.tag === 'UButton') : []
 }
 
 function write(target: TestNode, value: unknown): void {
@@ -267,11 +304,11 @@ describe('the chart a card draws with', () => {
 	it('is picked by how it draws, the common ones first', async () => {
 		const root = await panel()
 
-		expect(tiles(root).map(textOf)).toEqual(['Column', 'Line'])
+		expect(tiles(root).map((tile) => tile.props.label)).toEqual(['Column', 'Line'])
 		expect(textOf(root), 'what the old menu called it').not.toContain('ChartColumn')
 		fire(button(root, 'More types: scatter…'), 'click')
 		await nextTick()
-		expect(tiles(root).map(textOf)).toEqual(['Column', 'Line', 'Scatter'])
+		expect(tiles(root).map((tile) => tile.props.label)).toEqual(['Column', 'Line', 'Scatter'])
 
 		fire(tiles(root)[1]!, 'click')
 		await nextTick()
@@ -333,7 +370,7 @@ describe('what a card measures', () => {
 		write(control(root, 'USelectMenu', 'Split by'), 'status')
 		await settle()
 
-		fire(button(root, 'Period'), 'click')
+		write(control(root, 'UCheckbox', 'Period'), true)
 		await settle()
 		expect(
 			control(root, 'USelectMenu', 'Column the period bounds').props['model-value'],
@@ -359,7 +396,7 @@ describe('what a card measures', () => {
 		).toHaveProperty('compareFrom')
 		expect(textOf(fold(root, 'Data'))).toContain("on the page's period, against the one before")
 
-		fire(button(root, 'Period'), 'click')
+		write(control(root, 'UCheckbox', 'Period'), false)
 		await settle()
 		expect(draftQuery()?.compare, 'unticked, the period and its comparison go').toBeUndefined()
 		expect(config().periodScope).toBeUndefined()
@@ -397,7 +434,7 @@ describe('the headline figure', () => {
 
 		expect(control(root, 'USwitch', 'Show the variation').props.disabled).toBe(true)
 		expect(textOf(root)).toContain('Needs the comparison with the previous period, in Data.')
-		expect(textOf(root)).not.toContain('Previous period')
+		expect(labels(root)).not.toContain('Previous period')
 
 		builder.setDraftQuery({ ...draftQuery()!, compare: true })
 		await nextTick()
@@ -405,8 +442,8 @@ describe('the headline figure', () => {
 		write(control(root, 'USwitch', 'Show the variation'), true)
 		await nextTick()
 		expect(config().showDelta).toBe(true)
-		expect(textOf(root)).toContain('This period')
-		expect(textOf(root)).toContain('Previous period')
+		expect(labels(root)).toContain('This period')
+		expect(labels(root)).toContain('Previous period')
 		expect(textOf(fold(root, 'Headline'))).toContain('variation shown')
 	})
 
@@ -414,17 +451,24 @@ describe('the headline figure', () => {
 		const root = await panel()
 		fire(fold(root, 'Headline'), 'click')
 		await nextTick()
-		expect(findAll(root, (node) => node.props.id === 'chart-currency')).toHaveLength(0)
+		expect(labels(root)).not.toContain('In')
+		const shownAs = control(root, 'DmsSegmented', 'Shown as')
+		expect((shownAs.props.items as { label: string }[]).map((item) => item.label)).toEqual([
+			'Number',
+			'Currency',
+			'Percent',
+			'Compact',
+		])
 
-		fire(button(root, 'Currency'), 'click')
+		write(shownAs, 'currency')
 		await nextTick()
 		expect(config().valueFormat).toBe('currency')
-		write(control(root, 'UInput', 'chart-currency'), 'eur')
+		write(control(root, 'UInput', 'In'), 'eur')
 		await nextTick()
 		expect(config().currencyCode).toBe('EUR')
 		expect(textOf(fold(root, 'Headline'))).toContain('Currency in EUR')
 
-		fire(button(root, 'Number'), 'click')
+		write(control(root, 'DmsSegmented', 'Shown as'), 'number')
 		await nextTick()
 		expect(config().valueFormat, 'the default is left unwritten').toBeUndefined()
 	})
@@ -443,10 +487,12 @@ describe('how a card looks', () => {
 		expect(config().chart).toEqual({ $block: { type: 'ChartColumn', config: { color: 'success' } } })
 		expect(textOf(fold(root, 'Look'))).toContain('success')
 
-		write(control(root, 'USwitch', 'Legend'), true)
+		expect(control(root, 'USwitch', 'Legend').props['model-value'], 'unset, as the card draws it').toBe(true)
+		write(control(root, 'USwitch', 'Legend'), false)
 		write(control(root, 'USwitch', 'Grid lines'), true)
 		await nextTick()
-		expect(config().showLegend).toBe(true)
+		expect(config().showLegend, 'turned off for good, not back to the default').toBe(false)
+		expect(control(root, 'USwitch', 'Legend').props['model-value']).toBe(false)
 		expect(config().chart).toEqual({
 			$block: { type: 'ChartColumn', config: { color: 'success', showGrid: true } },
 		})

@@ -1,8 +1,7 @@
 import {
 	BLOCK_GROUP_LABELS,
-	DATA_TYPE_GROUPS,
-	DATA_TYPE_ICONS,
-	DATA_TYPE_LABELS,
+	DATA_TYPE_FAMILIES,
+	DATA_TYPES,
 	DEFAULT_DATA_TYPE,
 	LAYOUT_BLOCKS,
 	OPTION_GROUPS,
@@ -203,11 +202,18 @@ export function heldBlockOptions(
 		([key, schema]) =>
 			!schema.ui?.hidden &&
 			!supplied.has(key) &&
-			(advanced ||
-				(schema.ui?.group !== ADVANCED_OPTION_GROUP &&
-					!schema.ui?.advanced &&
-					!schema.ui?.derivedFrom)),
+			offeredIn(schema, advanced) &&
+			(advanced || schema.ui?.group !== ADVANCED_OPTION_GROUP),
 	)
+}
+
+/**
+ * Whether an option is offered in this mode. The simple mode leaves out what
+ * the builder writes itself — a key, following the label it is derived from —
+ * and what only code reads, which the block marks advanced.
+ */
+export function offeredIn(schema: OptionSchema, advanced: boolean): boolean {
+	return advanced || (!schema.ui?.derivedFrom && !schema.ui?.advanced)
 }
 
 export function optionLabel(key: string, schema: OptionSchema): string {
@@ -220,6 +226,17 @@ export function optionLabel(key: string, schema: OptionSchema): string {
 	}
 	const spaced = key.replace(/([A-Z])/g, ' $1').toLowerCase()
 	return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/**
+ * Whether a switch reads on. Left unset, it reads what the block does without
+ * it, its schema's default: a table offers deleting rows unless it is turned
+ * off, and a switch showing that off tells its author the table is safe when
+ * it is not. Turned off, it is written `false`, never left unset: unset is
+ * whatever that default is.
+ */
+export function switchOn(value: unknown, schema: OptionSchema | undefined): boolean {
+	return value === undefined ? schema?.default === true : value === true
 }
 
 /** A required option is one with no default the caller can fall back to. */
@@ -426,6 +443,12 @@ function collectMissing(
  * option left empty, however deep, plus the resource a controller-leading block
  * reads from.
  */
+/**
+ * The setting naming the table a block reads. Not one of its options: the
+ * block's controller, which a missing setting and a panel name all the same.
+ */
+export const CONTROLLER_SETTING = 'controller'
+
 export function missingSettings(
 	descriptor: BlockTypeDescriptor | undefined,
 	block: BlockDraft,
@@ -442,7 +465,7 @@ export function missingSettings(
 		collectMissing(schema, config[key], [key], [optionLabel(key, schema)], found)
 	}
 	if (descriptor.controllerArg && !block.controller) {
-		found.push({ path: ['controller'], label: 'Database table' })
+		found.push({ path: [CONTROLLER_SETTING], label: 'Database table' })
 	}
 	return found
 }
@@ -476,12 +499,15 @@ function spelledOut(id: string): string {
 	return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/** A DataType as a menu shows it: its name and its icon. */
-export function dataTypeItem(id: string): DataTypeItem {
+/**
+ * A DataType as a menu shows it: its name and its icon. A field that names none
+ * holds the one a new field starts as.
+ */
+export function dataTypeItem(id: string = DEFAULT_DATA_TYPE): DataTypeItem {
 	return {
-		label: DATA_TYPE_LABELS[id] ?? spelledOut(id),
+		label: DATA_TYPES[id]?.label ?? spelledOut(id),
 		value: id,
-		icon: DATA_TYPE_ICONS[id] ?? OTHER_DATA_TYPE_ICON,
+		icon: DATA_TYPES[id]?.icon ?? OTHER_DATA_TYPE_ICON,
 	}
 }
 
@@ -490,7 +516,7 @@ export function dataTypeItem(id: string): DataTypeItem {
  * the names are listed in — the ones a project registered itself follow.
  */
 export function dataTypeItems(catalog: BlockCatalog | null): DataTypeItem[] {
-	const known = Object.keys(DATA_TYPE_LABELS)
+	const known = Object.keys(DATA_TYPES)
 	const rank = (id: string): number => {
 		const at = known.indexOf(id)
 		return at === -1 ? known.length : at
@@ -502,20 +528,44 @@ export function dataTypeItems(catalog: BlockCatalog | null): DataTypeItem[] {
 }
 
 /**
+ * The two ways a column of this DataType is sorted, in the words its values
+ * read in, the way people want it first leading: the newest date or time, the
+ * largest number, and text from A.
+ */
+export function sortDirections(
+	id: string | undefined,
+): Array<{ desc: boolean; label: string }> {
+	const input = DATA_TYPES[id ?? DEFAULT_DATA_TYPE]?.input
+	if (input === 'date' || input === 'time') {
+		return [
+			{ desc: true, label: 'Newest first' },
+			{ desc: false, label: 'Oldest first' },
+		]
+	}
+	if (input === 'number') {
+		return [
+			{ desc: true, label: 'Largest first' },
+			{ desc: false, label: 'Smallest first' },
+		]
+	}
+	return [
+		{ desc: false, label: 'A to Z' },
+		{ desc: true, label: 'Z to A' },
+	]
+}
+
+/**
  * The same DataTypes, by family. Only the ones the catalog serves are offered,
  * a family left with none is dropped, and a type no family names joins the
  * last one.
  */
 export function dataTypeGroups(catalog: BlockCatalog | null): DataTypeGroup[] {
 	const served = dataTypeItems(catalog)
-	const named = new Set(DATA_TYPE_GROUPS.flatMap((group) => group.types))
-	const last = DATA_TYPE_GROUPS.length - 1
-	return DATA_TYPE_GROUPS.map((group, at) => ({
-		label: group.label,
+	const last = DATA_TYPE_FAMILIES.at(-1)?.id
+	return DATA_TYPE_FAMILIES.map((family) => ({
+		label: family.label,
 		items: served.filter(
-			(item) =>
-				group.types.includes(item.value) ||
-				(at === last && !named.has(item.value)),
+			(item) => (DATA_TYPES[item.value]?.family ?? last) === family.id,
 		),
 	})).filter((group) => group.items.length > 0)
 }
