@@ -5,8 +5,9 @@
  * Someone building a page names the field — its label — and the key follows
  * from that: `Delivery date` is sent as `deliveryDate`, kept unique within the
  * block, and renamed with the label for as long as it is the key the label
- * gave. A key that says anything else was chosen by someone, in the advanced
- * view or in the code, and is never touched.
+ * gave and the saved page does not send it yet. A key that says anything else
+ * was chosen by someone, in the advanced view or in the code, and a key the
+ * saved page sends may already be read by code: neither is ever touched.
  */
 import { branchOf, descriptorOf } from './catalog'
 import { findNode, walkDraft } from './draft'
@@ -26,29 +27,69 @@ interface DerivedKey {
 /** The name an entry nobody named is known by. */
 const FALLBACK_KEY = 'entry'
 
-/**
- * `locked` names the blocks whose keys are not the builder's to write even so:
- * a form saving into a table sends each field under its column's name, and a
- * key following the label would stop filling the column.
- */
+interface DeriveOptions {
+	/** The page as last saved: the keys it sends are kept whatever the label. */
+	saved?: PageDraft | null
+	/**
+	 * The blocks whose keys are not the builder's to write even so: a form
+	 * saving into a table sends each field under its column's name, and a key
+	 * following the label would stop filling the column.
+	 */
+	locked?: (block: BlockDraft) => boolean
+}
+
 export function deriveKeys(
 	draft: PageDraft,
 	previous: PageDraft | null,
 	catalog: BlockCatalog | null,
-	locked: (block: BlockDraft) => boolean = () => false,
+	{ saved = null, locked = () => false }: DeriveOptions = {},
 ): void {
+	const sent = saved ? sentKeys(saved, catalog) : new Set<string>()
 	walkDraft(draft.blocks, (block, path) => {
-		const descriptor = descriptorOf(catalog, block.type)
-		if (!descriptor || block.preserve || !block.config || locked(block)) {
+		if (locked(block)) {
 			return
 		}
 		const before = previous ? findNode(previous, path)?.config : undefined
-		const found: DerivedKey[] = []
-		for (const [key, schema] of Object.entries(descriptor.config)) {
-			collect(block.config[key], schema, before?.[key], found)
-		}
-		writeKeys(found)
+		const found = keysOf(block, before, catalog)
+		writeKeys(
+			found,
+			found.filter((entry) => isDerived(entry, sent)),
+		)
 	})
+}
+
+/**
+ * Every key a page sends a field under. Walked over the whole page rather than
+ * block by block: laying a block out can move it, and a key the saved code
+ * sends must stay put wherever its block went.
+ */
+function sentKeys(page: PageDraft, catalog: BlockCatalog | null): Set<string> {
+	const sent = new Set<string>()
+	walkDraft(page.blocks, (block) => {
+		for (const entry of keysOf(block, undefined, catalog)) {
+			const key = entry.holder[entry.key]
+			if (typeof key === 'string') {
+				sent.add(key)
+			}
+		}
+	})
+	return sent
+}
+
+function keysOf(
+	block: BlockDraft,
+	before: Record<string, unknown> | undefined,
+	catalog: BlockCatalog | null,
+): DerivedKey[] {
+	const descriptor = descriptorOf(catalog, block.type)
+	if (!descriptor || block.preserve || !block.config) {
+		return []
+	}
+	const found: DerivedKey[] = []
+	for (const [key, schema] of Object.entries(descriptor.config)) {
+		collect(block.config[key], schema, before?.[key], found)
+	}
+	return found
 }
 
 /** A key the label gives, camel-cased and stripped to letters and digits. */
@@ -110,8 +151,7 @@ function collect(
  * side, groups or not — so the ones kept are claimed first, and each written
  * one takes the first spelling nothing else holds.
  */
-function writeKeys(found: DerivedKey[]): void {
-	const written = found.filter(isDerived)
+function writeKeys(found: DerivedKey[], written: DerivedKey[]): void {
 	const taken = new Set(
 		found
 			.filter((entry) => !written.includes(entry))
@@ -131,16 +171,21 @@ function writeKeys(found: DerivedKey[]): void {
  * Whether the builder wrote this key and may write it again.
  *
  * Nothing written yet is the builder's to write. A key that is still what it
- * was, and was what the label gave, is the builder's too; anything else was
- * chosen by someone.
+ * was, and was what the label gave, is the builder's too — until the page is
+ * saved sending it; anything else was chosen by someone.
  */
-function isDerived(entry: DerivedKey): boolean {
+function isDerived(entry: DerivedKey, sent: ReadonlySet<string>): boolean {
 	const key = entry.holder[entry.key]
 	if (key === undefined || key === '') {
 		return true
 	}
 	const previous = entry.previous
-	if (typeof key !== 'string' || !previous || previous[entry.key] !== key) {
+	if (
+		typeof key !== 'string' ||
+		sent.has(key) ||
+		!previous ||
+		previous[entry.key] !== key
+	) {
 		return false
 	}
 	const base =

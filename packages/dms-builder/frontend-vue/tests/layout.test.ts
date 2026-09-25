@@ -190,3 +190,29 @@ describe('the path a block sits at', () => {
 		expect(pathOfNode(draft, text('elsewhere'))).toBe(undefined)
 	})
 })
+
+describe('an edit', () => {
+	function edited(before: BlockDraft[], after: BlockDraft[]): PageDraft {
+		const draft: PageDraft = { blocks: after }
+		tidyLayout(draft, catalog, { blocks: structuredClone(before) })
+		return draft
+	}
+
+	it('leaves the layout it did not reach as it was written', () => {
+		const written = () => [
+			grid('grid', [gridRow('row', [text('a')])]),
+			{ name: 'hStack', type: 'HStack', config: {}, children: [] },
+			text('b'),
+		]
+		const after = written()
+		after[2] = text('b', { config: { content: 'changed' } })
+		const draft = edited(written(), after)
+		expect(shape(draft.blocks)).toEqual([{ grid: [{ row: ['a'] }] }, 'hStack', 'b'])
+	})
+
+	it('takes back the layout it emptied, up through what that emptied in turn', () => {
+		const before = [grid('grid', [gridRow('row', [text('a'), column('col', [text('b')])])])]
+		const after = [grid('grid', [gridRow('row', [text('a'), column('col', [])])])]
+		expect(shape(edited(before, after).blocks)).toEqual(['a'])
+	})
+})

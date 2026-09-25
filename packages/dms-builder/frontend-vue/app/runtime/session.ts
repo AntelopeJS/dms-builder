@@ -668,18 +668,17 @@ export function useBuilder(): BuilderController {
 		// The keys the simple mode hides are the builder's to write, from the
 		// labels they follow.
 		if (!useBuilderMode().advanced.value) {
-			deriveKeys(
-				next,
-				current,
-				session.value.catalog,
-				(block) => formTableOf(block.config, session.value.resources) !== undefined,
-			)
+			deriveKeys(next, current, session.value.catalog, {
+				saved: session.value.baseline,
+				locked: (block) =>
+					formTableOf(block.config, session.value.resources) !== undefined,
+			})
 		}
 		// And the one place the layout the editor wrote is taken back to what
 		// the page still needs. That can move a block up a level, so whatever
 		// the editor holds by path follows the block rather than the path.
 		const followed = followedBlocks(next)
-		tidyLayout(next, session.value.catalog)
+		tidyLayout(next, session.value.catalog, current)
 		pushHistory()
 		session.value.draft = next
 		refollow(next, followed)

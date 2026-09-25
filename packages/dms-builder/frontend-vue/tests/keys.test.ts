@@ -106,3 +106,27 @@ describe('a key someone else wrote', () => {
 		expect(draft.blocks[0]).toEqual({ name: 'form', preserve: true })
 	})
 })
+
+describe('a key the saved page sends', () => {
+	it('is kept when the label changes, code may already read it', () => {
+		const saved = form([{ id: 'email', label: 'Email', type: text }])
+		const before = [{ id: 'email', label: 'Email', type: text }]
+		const draft = form([{ id: 'email', label: 'Work email', type: text }])
+		deriveKeys(draft, form(before), catalog, { saved })
+		expect(keysOf(draft)).toEqual(['email'])
+	})
+
+	it('does not keep a new field from following its label', () => {
+		const saved = form([{ id: 'email', label: 'Email', type: text }])
+		const before = [
+			{ id: 'email', label: 'Email', type: text },
+			{ id: 'phone', label: 'Phone', type: text },
+		]
+		const draft = form([
+			{ id: 'email', label: 'Email', type: text },
+			{ id: 'phone', label: 'Mobile', type: text },
+		])
+		deriveKeys(draft, form(before), catalog, { saved })
+		expect(keysOf(draft)).toEqual(['email', 'mobile'])
+	})
+})
