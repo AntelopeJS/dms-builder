@@ -10,6 +10,34 @@ import { findResourceBySymbol } from "./resource-index";
 export interface LiteralResult {
   value: unknown;
   fullyLiteral: boolean;
+  /**
+   * The named constants the value was read from, each with where it sits in
+   * it: a writer puts a name back at that place, never wherever the same value
+   * happens to turn up.
+   */
+  constants?: NamedConstant[];
+}
+
+/** A value a `const` can hold that the writer can put back as its name. */
+type ConstantValue = string | number | boolean | null;
+
+/** A named constant a value was read from. */
+export interface NamedConstant {
+  /** The keys and indexes leading to it from the top of the value read. */
+  path: (string | number)[];
+  name: string;
+  value: ConstantValue;
+}
+
+/** The constants of a value read inside another, placed within that other. */
+function nestedConstants(
+  inner: LiteralResult | undefined,
+  ...keys: (string | number)[]
+): NamedConstant[] {
+  return (inner?.constants ?? []).map((constant) => ({
+    ...constant,
+    path: [...keys, ...constant.path],
+  }));
 }
 
 function opaqueExpr(node: Node): LiteralResult {
@@ -62,7 +90,11 @@ function dataTypeCall(node: Node): LiteralResult | undefined {
   if (config && Object.keys(config.value as object).length > 0) {
     value.config = config.value;
   }
-  return { value, fullyLiteral: config ? config.fullyLiteral : true };
+  return {
+    value,
+    fullyLiteral: config ? config.fullyLiteral : true,
+    constants: nestedConstants(config, "config"),
+  };
 }
 
 /**
@@ -99,6 +131,7 @@ function blockCall(node: Node): LiteralResult | undefined {
       },
     },
     fullyLiteral: config ? config.fullyLiteral : true,
+    constants: nestedConstants(config, "$block", "config"),
   };
 }
 
@@ -119,9 +152,6 @@ function resourceRef(node: Node): LiteralResult | undefined {
   return { value: { $ref: { resource: found.ref } }, fullyLiteral: true };
 }
 
-/** A value a `const` can hold that the writer can put back as its name. */
-export type ConstantValue = string | number | boolean | null;
-
 /**
  * The value of a `const` declared in the same file with a plain value —
  * `id: PERIOD_SCOPE` — or `undefined` for anything else.
@@ -131,9 +161,7 @@ export type ConstantValue = string | number | boolean | null;
  * the same file, so the name the writer puts back never depends on an import it
  * does not manage.
  */
-export function constantValue(
-  node: Node,
-): { value: ConstantValue } | undefined {
+function constantValue(node: Node): { value: ConstantValue } | undefined {
   if (!Node.isIdentifier(node)) {
     return undefined;
   }
@@ -163,12 +191,20 @@ export function constantValue(
 
 /**
  * A constant inside a config value, read as the value it holds, so one named
- * string does not lock the whole block. The page writer puts the name back
- * wherever the value is unchanged.
+ * string does not lock the whole block. It is reported with its name, and the
+ * page writer puts that back where it stood while the value there is unchanged.
  */
 function constantRef(node: Node): LiteralResult | undefined {
   const constant = constantValue(node);
-  return constant && { value: constant.value, fullyLiteral: true };
+  if (!constant) {
+    return undefined;
+  }
+  const { value } = constant;
+  return {
+    value,
+    fullyLiteral: true,
+    constants: [{ path: [], name: node.getText(), value }],
+  };
 }
 
 function propertyName(prop: PropertyAssignment): string {
@@ -238,17 +274,20 @@ export function objectLiteralToValue(node: Node): LiteralResult {
     return opaqueExpr(node);
   }
   const result: Record<string, unknown> = {};
+  const constants: NamedConstant[] = [];
   let fullyLiteral = true;
   for (const prop of node.getProperties()) {
     if (!Node.isPropertyAssignment(prop)) {
       fullyLiteral = false;
       continue;
     }
+    const key = propertyName(prop);
     const child = literalToValue(prop.getInitializer());
-    result[propertyName(prop)] = child.value;
+    result[key] = child.value;
+    constants.push(...nestedConstants(child, key));
     fullyLiteral = fullyLiteral && child.fullyLiteral;
   }
-  return { value: result, fullyLiteral };
+  return { value: result, fullyLiteral, constants };
 }
 
 function arrayLiteralToValue(node: Node): LiteralResult {
@@ -256,11 +295,13 @@ function arrayLiteralToValue(node: Node): LiteralResult {
     return opaqueExpr(node);
   }
   const items: unknown[] = [];
+  const constants: NamedConstant[] = [];
   let fullyLiteral = true;
-  for (const element of node.getElements()) {
+  for (const [index, element] of node.getElements().entries()) {
     const child = literalToValue(element);
     items.push(child.value);
+    constants.push(...nestedConstants(child, index));
     fullyLiteral = fullyLiteral && child.fullyLiteral;
   }
-  return { value: items, fullyLiteral };
+  return { value: items, fullyLiteral, constants };
 }

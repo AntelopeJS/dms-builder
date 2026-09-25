@@ -11,11 +11,6 @@ export interface EmitContext {
   addImport(ref: ImportRef): void;
   /** Resolves a `$ref` to a class identifier + its import. Absent outside a resource-aware op. */
   resolveRef?(ref: RefValue["$ref"]): RefResolution;
-  /**
-   * The constant a plain value was read from, to write back in its place.
-   * Absent, or `undefined`, and the value is written as a literal.
-   */
-  constantFor?(value: unknown): string | undefined;
 }
 
 export class UnknownDataTypeError extends Error {
@@ -201,5 +196,5 @@ export function serializeValue(value: unknown, ctx: EmitContext): string {
       "]",
     );
   }
-  return ctx.constantFor?.(value) ?? JSON.stringify(value);
+  return JSON.stringify(value);
 }

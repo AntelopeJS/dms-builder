@@ -278,9 +278,31 @@ describe("the page draft", () => {
   });
 
   describe("a block whose author named one of its values", () => {
-    const revenueKpi = (title: string) => ({
-      blocks: [{ name: "revenueKpi", type: "KpiCard", config: { title } }],
+    const revenueKpi = (config: Record<string, unknown>) => ({
+      blocks: [{ name: "revenueKpi", type: "KpiCard", config }],
     });
+
+    /** Write the block's options by hand, the way its author would. */
+    function handWrite(options: string): void {
+      const page = app.read(PAGE_FILE);
+      const written = page.replace(
+        /static revenueKpi = KpiCard\([^;]*\);/,
+        `static revenueKpi = KpiCard({ ${options} });`,
+      );
+      expect(written, "the fixture holds the block").to.not.equal(page);
+      app.write(PAGE_FILE, written);
+    }
+
+    async function save(config: Record<string, unknown>): Promise<string> {
+      const current = await structure();
+      expectOk(
+        await SetPageBlocks(PAGE, revenueKpi(config), {
+          expectedVersion: current.version,
+        }),
+        "SetPageBlocks",
+      );
+      return app.read(PAGE_FILE);
+    }
 
     before(() => {
       const named = app
@@ -288,7 +310,13 @@ describe("the page draft", () => {
         .replace('title: "Revenue"', "title: REVENUE_TITLE")
         .replace(
           "@RegisterPage(",
-          'const REVENUE_TITLE = "Revenue";\n\n@RegisterPage(',
+          [
+            'const REVENUE_TITLE = "Revenue";',
+            "const SHOW_DELTA = true;",
+            "const PEAK = 5;",
+            "",
+            "@RegisterPage(",
+          ].join("\n"),
         );
       expect(named, "the fixture holds the constant").to.contain(
         "const REVENUE_TITLE",
@@ -306,30 +334,54 @@ describe("the page draft", () => {
 
     it("keeps the name through a save that did not change the value", async function () {
       this.timeout(OP_TIMEOUT);
-      const current = await structure();
-      expectOk(
-        await SetPageBlocks(PAGE, revenueKpi("Revenue"), {
-          expectedVersion: current.version,
-        }),
-        "SetPageBlocks",
-      );
+      const written = await save({ title: "Revenue" });
 
-      expect(app.read(PAGE_FILE)).to.contain("title: REVENUE_TITLE");
+      expect(written).to.contain("title: REVENUE_TITLE");
     });
 
     it("writes the value out once the author changes it", async function () {
       this.timeout(OP_TIMEOUT);
-      const current = await structure();
-      expectOk(
-        await SetPageBlocks(PAGE, revenueKpi("Income"), {
-          expectedVersion: current.version,
-        }),
-        "SetPageBlocks",
-      );
+      const written = await save({ title: "Income" });
 
-      const written = app.read(PAGE_FILE);
       expect(written).to.contain('title: "Income"');
       expect(written).to.not.contain("title: REVENUE_TITLE");
+    });
+
+    it("leaves a value that only equals the constant's as the literal it was", async function () {
+      this.timeout(OP_TIMEOUT);
+      handWrite('title: REVENUE_TITLE, description: "Revenue"');
+      const written = await save({ title: "Revenue", description: "Revenue" });
+
+      expect(written).to.contain("title: REVENUE_TITLE");
+      expect(written, "the author typed this one out").to.contain(
+        'description: "Revenue"',
+      );
+    });
+
+    it("puts the name back where it was written and nowhere else", async function () {
+      this.timeout(OP_TIMEOUT);
+      handWrite('title: "Revenue", showDelta: SHOW_DELTA');
+      const written = await save({
+        title: "Revenue",
+        showDelta: true,
+        invert: true,
+      });
+
+      expect(written).to.contain("showDelta: SHOW_DELTA");
+      expect(written, "a switch turned on in the builder").to.contain(
+        "invert: true",
+      );
+    });
+
+    it("finds a constant in a list by its place there", async function () {
+      this.timeout(OP_TIMEOUT);
+      handWrite('title: "Revenue", staticSparkline: [PEAK, 3, 5]');
+      const written = await save({
+        title: "Revenue",
+        staticSparkline: [5, 3, 5],
+      });
+
+      expect(written).to.contain("staticSparkline: [PEAK, 3, 5]");
     });
   });
 });

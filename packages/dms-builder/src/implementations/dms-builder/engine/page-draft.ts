@@ -12,11 +12,10 @@ import {
   type PropertyDeclaration,
   type PropertyDeclarationStructure,
   type SourceFile,
-  SyntaxKind,
 } from "ts-morph";
-import { blockDescriptor } from "./catalog";
+import { blockDescriptor, isControllerLeadingBlock } from "./catalog";
 import { resolveAndUnwrap, resolveExpr, unwrapBuilderChain } from "./chain";
-import { constantValue } from "./config-literal";
+import { type NamedConstant, objectLiteralToValue } from "./config-literal";
 import { applyImportRef, blockCallText, childArgText } from "./emit";
 import { getExtendsCall, stringLiteralValue } from "./literals";
 import {
@@ -54,123 +53,111 @@ type OriginalTexts = Map<string, string>;
 /** The declaration a top-level block was written as, so a rewrite keeps it. */
 type OriginalStatics = Map<string, PropertyDeclarationStructure>;
 
-/**
- * The constants each block's own options were written with, keyed by its draft
- * path, then by the value each holds. `null` marks a value two constants hold,
- * which a write can no longer attribute to either.
- */
-type OriginalConstants = Map<string, Map<string, string | null>>;
+/** Named constants by where each sits, its path as `JSON.stringify` writes it. */
+type ConstantsByPath = Map<string, NamedConstant>;
 
-function constantKey(value: unknown): string | undefined {
-  return JSON.stringify(value);
+/**
+ * The named constants a block was written with: in its own options, and in the
+ * third argument of the `.child()` call placing it.
+ */
+interface BlockConstants {
+  config: ConstantsByPath;
+  meta: ConstantsByPath;
 }
 
-function collectChildTexts(
-  expr: Expression,
-  parentPath: string,
-  texts: OriginalTexts,
-): void {
-  const unwrapped = resolveAndUnwrap(expr);
-  if (!unwrapped.chain) {
-    return;
-  }
-  for (const call of unwrapped.chain.childCalls) {
-    const [idArg, valueArg] = call.getArguments();
-    const id = stringLiteralValue(idArg);
-    if (!id || !valueArg || !Node.isExpression(valueArg)) {
-      continue;
-    }
-    const path = `${parentPath}/${id}`;
-    texts.set(path, valueArg.getText());
-    collectChildTexts(valueArg, path, texts);
-  }
+/** What every block already on the page was written as, by its draft path. */
+interface Originals {
+  texts: OriginalTexts;
+  constants: Map<string, BlockConstants>;
 }
 
 /**
- * Note the constants among a block's option values: exactly the places the
- * reader takes a constant's value from, an option or an item of a list — never
- * a key, a factory or a table.
+ * Note what a block was written as, then the same for each of its children:
+ * its text, so a draft can preserve it, and the constants it named, so a
+ * rewrite can put them back.
  */
-function noteConstants(
-  node: Node | undefined,
-  names: Map<string, string | null>,
-): void {
-  for (const identifier of node?.getDescendantsOfKind(SyntaxKind.Identifier) ??
-    []) {
-    const parent = identifier.getParent();
-    const isValue =
-      (Node.isPropertyAssignment(parent) &&
-        parent.getInitializer() === identifier) ||
-      Node.isArrayLiteralExpression(parent);
-    const constant = isValue ? constantValue(identifier) : undefined;
-    const key = constant && constantKey(constant.value);
-    if (key === undefined) {
-      continue;
-    }
-    const name = identifier.getText();
-    const known = names.get(key);
-    names.set(key, known === undefined || known === name ? name : null);
-  }
-}
-
-function collectChildConstants(
+function collectBlock(
   expr: Expression,
   path: string,
-  found: OriginalConstants,
+  originals: Originals,
   metaArg?: Node,
 ): void {
-  const unwrapped = resolveAndUnwrap(expr);
-  if (!unwrapped.chain?.factoryCall) {
+  originals.texts.set(path, expr.getText());
+  const { chain } = resolveAndUnwrap(expr);
+  if (!chain) {
     return;
   }
-  const names = new Map<string, string | null>();
-  for (const arg of unwrapped.chain.factoryCall.getArguments()) {
-    noteConstants(arg, names);
+  if (chain.factory && chain.factoryCall) {
+    const args = chain.factoryCall.getArguments();
+    originals.constants.set(path, {
+      config: constantsIn(
+        args[isControllerLeadingBlock(chain.factory) ? 1 : 0],
+      ),
+      meta: constantsIn(metaArg),
+    });
   }
-  noteConstants(metaArg, names);
-  found.set(path, names);
-  for (const call of unwrapped.chain.childCalls) {
+  for (const call of chain.childCalls) {
     const [idArg, valueArg, childMeta] = call.getArguments();
     const id = stringLiteralValue(idArg);
     if (!id || !valueArg || !Node.isExpression(valueArg)) {
       continue;
     }
-    collectChildConstants(valueArg, `${path}/${id}`, found, childMeta);
+    collectBlock(valueArg, `${path}/${id}`, originals, childMeta);
   }
+}
+
+/** The constants among options, found where the reader resolves them. */
+function constantsIn(options: Node | undefined): ConstantsByPath {
+  const read =
+    options && Node.isObjectLiteralExpression(options)
+      ? objectLiteralToValue(options).constants
+      : undefined;
+  return new Map(
+    (read ?? []).map((constant) => [JSON.stringify(constant.path), constant]),
+  );
 }
 
 /**
- * Every constant the page's blocks were written with, so a rewrite puts each
- * back by name instead of spelling out the value the builder read from it — a
- * page whose author named a value keeps the name through every save that did
- * not change it.
+ * Options with each constant they were read from put back by name, as the
+ * source text the emitter writes verbatim — so a page whose author named a
+ * value keeps the name through every save that did not change it.
+ *
+ * Only where the author wrote it, and only while the value there is still the
+ * one it holds. The same value anywhere else was typed out, or set in the
+ * builder, and naming it would tie it to a constant it never used.
  */
-function collectConstants(cls: ClassDeclaration): OriginalConstants {
-  const found: OriginalConstants = new Map();
-  for (const prop of blockStatics(cls)) {
-    const init = prop.getInitializer();
-    if (init) {
-      collectChildConstants(init, prop.getName(), found);
-    }
-  }
-  return found;
+function withConstants(
+  options: Record<string, unknown>,
+  constants: ConstantsByPath | undefined,
+): Record<string, unknown> {
+  return constants?.size
+    ? (namedAt(options, [], constants) as Record<string, unknown>)
+    : options;
 }
 
-/** The context a block's own values are written in. */
-function withConstants(
-  ctx: EmitContext,
-  names: Map<string, string | null> | undefined,
-): EmitContext {
-  if (!names?.size) {
-    return ctx;
+function namedAt(
+  value: unknown,
+  path: (string | number)[],
+  constants: ConstantsByPath,
+): unknown {
+  const constant = constants.get(JSON.stringify(path));
+  if (constant && constant.value === value) {
+    return { $expr: constant.name };
   }
-  return {
-    ...ctx,
-    constantFor: (value) => {
-      const key = constantKey(value);
-      return (key === undefined ? undefined : names.get(key)) ?? undefined;
-    },
-  };
+  if (Array.isArray(value)) {
+    return value.map((item, index) =>
+      namedAt(item, [...path, index], constants),
+    );
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        namedAt(item, [...path, key], constants),
+      ]),
+    );
+  }
+  return value;
 }
 
 /**
@@ -229,27 +216,24 @@ function collectStatics(cls: ClassDeclaration): OriginalStatics {
   return statics;
 }
 
-function collectOriginals(cls: ClassDeclaration): OriginalTexts {
-  const texts: OriginalTexts = new Map();
+function collectOriginals(cls: ClassDeclaration): Originals {
+  const originals: Originals = { texts: new Map(), constants: new Map() };
   for (const prop of blockStatics(cls)) {
     const init = prop.getInitializer();
-    if (!init) {
-      continue;
+    if (init) {
+      collectBlock(init, prop.getName(), originals);
     }
-    texts.set(prop.getName(), init.getText());
-    collectChildTexts(init, prop.getName(), texts);
   }
-  return texts;
+  return originals;
 }
 
 function draftText(
   block: BlockDraft,
   path: string,
-  originals: OriginalTexts,
-  constants: OriginalConstants,
+  originals: Originals,
   ctx: EmitContext,
 ): string {
-  const preserved = originals.get(path);
+  const preserved = originals.texts.get(path);
   if (block.preserve && preserved !== undefined) {
     return preserved;
   }
@@ -258,8 +242,8 @@ function draftText(
     : undefined;
   const base = blockCallText(
     block.type ?? "",
-    block.config ?? {},
-    withConstants(ctx, constants.get(path)),
+    withConstants(block.config ?? {}, originals.constants.get(path)?.config),
+    ctx,
     controllerText,
   );
   const children = block.children ?? [];
@@ -268,9 +252,14 @@ function draftText(
     children
       .map((child) => {
         const childPath = `${path}/${child.name}`;
-        const value = draftText(child, childPath, originals, constants, ctx);
-        const own = withConstants(ctx, constants.get(childPath));
-        return `.child(${childArgText(child.name, value, own, child.slot, child.meta)})`;
+        const value = draftText(child, childPath, originals, ctx);
+        // The `.child()` options as the one object they were read as, `slot`
+        // and all, so a constant naming the slot goes back like any other.
+        const meta = withConstants(
+          { slot: child.slot, ...child.meta },
+          originals.constants.get(childPath)?.meta,
+        );
+        return `.child(${childArgText(child.name, value, ctx, undefined, meta)})`;
       })
       .join("")
   );
@@ -331,14 +320,13 @@ function applyPageMeta(
 function rewriteStatics(
   cls: ClassDeclaration,
   draft: PageDraft,
-  originals: OriginalTexts,
+  originals: Originals,
   ctx: EmitContext,
 ): void {
   const statics = collectStatics(cls);
-  const constants = collectConstants(cls);
   const texts = draft.blocks.map((block) => ({
     name: block.name,
-    initializer: draftText(block, block.name, originals, constants, ctx),
+    initializer: draftText(block, block.name, originals, ctx),
   }));
   const anchor = blockStatics(cls)[0];
   const position = anchor
@@ -428,7 +416,7 @@ export function setPageBlocks(
   // call's, and removing it would put a change they never asked for in the
   // diff of a save.
   const referencedNames = referencedImportNames(context.sourceFile);
-  const issues = validateDraft(draft, originals);
+  const issues = validateDraft(draft, originals.texts);
   if (issues.length > 0) {
     return { ok: false, error: { code: "invalid_config", issues } };
   }
