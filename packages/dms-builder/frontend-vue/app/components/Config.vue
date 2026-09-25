@@ -12,6 +12,7 @@ import { FORM_BLOCK, FORM_PANEL_OPTIONS } from '../runtime/form-panel'
 import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
 import { parentPath, useBuilder } from '../runtime/session'
+import { TABLE_BLOCK, TABLE_PANEL_OPTIONS } from '../runtime/table-panel'
 import type { OptionSchema } from '../runtime/types'
 
 interface RenderedOption {
@@ -41,7 +42,7 @@ interface RenderedGroup {
  * fields, but a form over one has nothing to search, and a picker there would
  * rewrite the table's search for a setting that block never reads.
  */
-const SEARCH_BAR_BLOCK = 'TableView'
+const SEARCH_BAR_BLOCK = TABLE_BLOCK
 const builder = useBuilder()
 const session = builder.session
 
@@ -93,16 +94,31 @@ const formPanel = computed(
 	() => !advancedMode.value && block.value?.type === FORM_BLOCK,
 )
 
-/** Whether the form's own panel edits this option rather than the list below. */
-function inFormPanel(key: unknown): boolean {
-	return formPanel.value && FORM_PANEL_OPTIONS.has(String(key))
+/**
+ * A table has one too: the table it lists is picked from the tables there
+ * are, and their columns are set beside it.
+ */
+const tablePanel = computed(
+	() => !advancedMode.value && block.value?.type === TABLE_BLOCK,
+)
+
+/** The table it reads, which the table's panel picks itself. */
+const CONTROLLER = 'controller'
+
+/** Whether a block's own panel edits this option rather than the list below. */
+function inPanel(key: unknown): boolean {
+	return (
+		(formPanel.value && FORM_PANEL_OPTIONS.has(String(key))) ||
+		(tablePanel.value &&
+			(TABLE_PANEL_OPTIONS.has(String(key)) || key === CONTROLLER))
+	)
 }
 
-// What the form's panel edits, it says is missing in its own words.
+// What a block's panel edits, it says is missing in its own words.
 const missing = computed(() =>
 	block.value
 		? missingSettings(descriptor.value, block.value)
-				.filter((entry) => !inFormPanel(entry.path[0]))
+				.filter((entry) => !inPanel(entry.path[0]))
 				.map((entry) => entry.label)
 		: [],
 )
@@ -191,7 +207,7 @@ const groups = computed<RenderedGroup[]>(() =>
 						(option) =>
 							(advancedMode.value ||
 								(!option.schema.ui?.derivedFrom && !option.schema.ui?.advanced)) &&
-							!inFormPanel(option.id.split('.')[0]),
+							!inPanel(option.id.split('.')[0]),
 					),
 			),
 		}))
@@ -352,7 +368,10 @@ async function setSearchField(name: string): Promise<void> {
 				</ul>
 			</div>
 
-			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-1.5">
+			<div
+				v-if="descriptor?.controllerArg && !tablePanel"
+				class="flex flex-col gap-1.5"
+			>
 				<label class="text-sm font-medium text-default">
 					Database table
 				</label>
@@ -374,6 +393,7 @@ async function setSearchField(name: string): Promise<void> {
 			</div>
 
 			<DmsBuilderFormPanel v-if="formPanel" :path="path" />
+			<DmsBuilderTablePanel v-if="tablePanel" :path="path" />
 
 			<div
 				v-for="group in plainGroups"
@@ -424,7 +444,10 @@ async function setSearchField(name: string): Promise<void> {
 				</template>
 			</div>
 
-			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-3">
+			<div
+				v-if="descriptor?.controllerArg && !tablePanel"
+				class="flex flex-col gap-3"
+			>
 				<p class="text-sm font-semibold text-highlighted">Fields</p>
 				<UButton
 					color="neutral"

@@ -320,6 +320,8 @@ export interface BuilderController {
 	deletePage: (ref: string) => Promise<boolean>
 	deleteCategory: (ref: string) => Promise<void>
 	configureField: (path: string, patch: Record<string, unknown>) => Promise<void>
+	/** Lay a table's columns out in the order of `names`, left to right. */
+	orderFields: (resource: string, names: string[]) => Promise<void>
 	configureResource: (resource: string, routes: string[]) => Promise<void>
 	removeField: (path: string) => Promise<void>
 	addQuery: (input: AddQueryInput) => Promise<void>
@@ -1695,6 +1697,44 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
+	/**
+	 * A column's place is its rank, written on each column whose rank changes.
+	 * They are shown in their new places at once, written one after the other
+	 * — each rewrites the same file — and the table is read once they all are.
+	 */
+	async function orderFields(resource: string, names: string[]): Promise<void> {
+		const known = session.value.resourceStructures[resource]
+		if (!known || session.value.pending.includes(resource)) {
+			return
+		}
+		const moved = names.flatMap((name, index) => {
+			const field = known.fields.find((entry) => entry.name === name)
+			return field && !field.opaque && field.order !== index + 1
+				? [{ name, order: index + 1 }]
+				: []
+		})
+		if (!moved.length) {
+			return
+		}
+		for (const entry of moved) {
+			applyLocally(resource, entry.name, { order: entry.order })
+		}
+		startPending(resource)
+		try {
+			for (const entry of moved) {
+				const result = await api.configureField(`${resource}#${entry.name}`, {
+					order: entry.order,
+				})
+				if (!report(result, 'Columns moved')) {
+					break
+				}
+			}
+			await loadResource(resource, true)
+		} finally {
+			endPending(resource)
+		}
+	}
+
 	async function removeField(path: string): Promise<void> {
 		const result = await api.removeField(path)
 		if (!report(result, 'Field removed')) {
@@ -1908,6 +1948,7 @@ export function useBuilder(): BuilderController {
 		deletePage,
 		deleteCategory,
 		configureField,
+		orderFields,
 		configureResource,
 		removeField,
 		addQuery,

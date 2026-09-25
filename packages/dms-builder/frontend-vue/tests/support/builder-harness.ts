@@ -148,10 +148,95 @@ export function testCatalog(): BlockCatalog {
 					},
 				},
 			}),
+			// Mirrors `TableViewSchema`: row actions offered unless turned off,
+			// flattened into one list, and the forms and displays left to code.
 			block('TableView', {
 				label: 'Table',
 				group: 'data',
 				controllerArg: true,
+				config: {
+					caption: {
+						type: 'string',
+						optional: true,
+						ui: { label: 'Table title', order: 1, group: 'content' },
+					},
+					labelKey: {
+						type: 'string',
+						optional: true,
+						ui: {
+							label: 'Label field',
+							order: 2,
+							group: 'content',
+							widget: 'field',
+							fieldAspect: 'listable',
+						},
+					},
+					rowActions: {
+						type: 'object',
+						optional: true,
+						ui: { label: 'Features', group: 'features', flatten: true },
+						properties: {
+							...Object.fromEntries(
+								(
+									[
+										['add', 'Adding data', true],
+										['edit', 'Editing data', true],
+										['delete', 'Deleting data', true],
+										['details', 'View details', false],
+										['duplicate', 'Duplicate', true],
+										['archive', 'Archive', true],
+										['restore', 'Restore', true],
+										['copyLink', 'Copy link', true],
+									] as const
+								).map(([key, label, offered], order) => [
+									key,
+									{
+										type: 'union',
+										...(offered ? { default: true } : { optional: true }),
+										oneOf: [
+											{ type: 'boolean' },
+											{
+												type: 'object',
+												properties: {
+													isEnabled: { type: 'boolean', optional: true },
+													rule: { type: 'unknown', optional: true },
+												},
+											},
+										],
+										ui: { label, order, group: 'features', widget: 'switch' },
+									},
+								]),
+							),
+							hasSelection: {
+								type: 'boolean',
+								optional: true,
+								ui: { label: 'Row selection', order: 11, group: 'features', widget: 'switch' },
+							},
+						},
+					},
+					archiveMode: {
+						type: 'boolean',
+						optional: true,
+						ui: { label: 'Ghost delete', order: 4, group: 'features', widget: 'switch' },
+					},
+					defaultSort: {
+						type: 'object',
+						optional: true,
+						ui: { label: 'Default sort', group: 'data' },
+						properties: {
+							field: {
+								type: 'string',
+								ui: { widget: 'field', fieldAspect: 'sortable' },
+							},
+							desc: { type: 'boolean', optional: true },
+						},
+					},
+					realtime: {
+						type: 'boolean',
+						default: true,
+						ui: { label: 'Realtime updates', group: 'advanced', widget: 'switch' },
+					},
+				},
 			}),
 			// What `FormSchema` declares its fields as: an entry is a field or a
 			// group of them — two branches of one kind, with no tag to tell them

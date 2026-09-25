@@ -20,6 +20,7 @@ import {
 	textOf,
 	type TestNode,
 } from './support/render'
+import { useBuilderMode } from '../app/runtime/mode'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockNode, ResourceStructure } from '../app/runtime/types'
 
@@ -157,6 +158,7 @@ afterEach(() => {
 	for (const unmount of mounted) unmount()
 	mounted = []
 	builder.close()
+	useBuilderMode().setMode('simple')
 	vi.useRealTimers()
 })
 
@@ -544,7 +546,10 @@ describe('a block that reads a table', () => {
 		return root
 	}
 
+	// The simple view sets a table's search on its columns, in the table's own
+	// panel; the advanced one keeps the picker.
 	it('offers the search bar only on the table that has one', async () => {
+		useBuilderMode().setMode('advanced')
 		const table = await selected('TableView')
 		expect(findAll(table, (node) => node.tag === 'label').map(textOf)).toContain(
 			'Search field',
