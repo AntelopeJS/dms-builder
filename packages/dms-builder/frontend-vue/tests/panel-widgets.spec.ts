@@ -136,24 +136,29 @@ describe('a ranking read from a table', () => {
 		})
 		await nextTick()
 
-		const pickers = () => findAll(root, (node) => node.tag === 'USelectMenu')
-		write(pickers()[0]!, 'order')
+		const picker = (name: string) =>
+			findAll(
+				root,
+				(node) => node.tag === 'USelectMenu' && node.props['aria-label'] === name,
+			)[0]!
+		const pill = (name: string) =>
+			findAll(
+				root,
+				(node) =>
+					node.tag === 'button' &&
+					node.props['aria-pressed'] !== undefined &&
+					textOf(node) === name,
+			)[0]!
+		write(picker('From'), 'order')
 		await settle()
-		write(
-			pickers().find((node) => node.props.placeholder === 'Grouped by…')!,
-			'country',
-		)
+		write(picker('Split by'), 'country')
 		await settle()
 
-		const [sortedBy, direction] = pickers().filter((node) =>
-			['Sorted by group', 'Ascending'].includes(
-				String(
-					(node.props.items as { label: string }[] | undefined)?.[0]?.label,
-				),
-			),
-		)
-		write(sortedBy!, 'measure')
-		write(direction!, 'desc')
+		// Ranking and keeping a few are refinements, ticked to be set.
+		fire(pill('Sort'), 'click')
+		fire(pill('Top groups'), 'click')
+		await settle()
+		write(picker('Sorted'), 'measure:desc')
 		write(
 			findAll(
 				root,

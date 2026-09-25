@@ -1,5 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import {
+	COMPARED_SHAPES,
+	DATE_TYPES,
+	describeSource,
+	FILTER_WORDS,
+	isBound,
+	MEASURE_WORDS,
+	sourceQuery,
+	variationText,
+} from '../runtime/data-source'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 import type {
@@ -18,6 +28,8 @@ const props = defineProps<{
 	periodOption?: string
 	/** The block being configured, used to name the query it reads. */
 	blockName: string
+	/** How the preview draws the points: along a line, or as columns. */
+	draw?: 'columns' | 'line'
 }>()
 
 const emit = defineEmits<{
@@ -31,29 +43,28 @@ const session = builder.session
 const { advanced } = useBuilderMode()
 
 /** Measures a source can take, in the order someone reaches for them. */
-const MEASURES = [
-	{ label: 'Count of rows', value: 'count' },
-	{ label: 'Sum', value: 'sum' },
-	{ label: 'Average', value: 'avg' },
-	{ label: 'Minimum', value: 'min' },
-	{ label: 'Maximum', value: 'max' },
-]
+const MEASURES = Object.entries(MEASURE_WORDS).map(([value, label]) => ({
+	label,
+	value,
+}))
 
 const BUCKETS = [
-	{ label: 'Day', value: 'day' },
-	{ label: 'Month', value: 'month' },
-	{ label: 'Quarter', value: 'quarter' },
-	{ label: 'Year', value: 'year' },
+	{ label: 'by Day', value: 'day' },
+	{ label: 'by Month', value: 'month' },
+	{ label: 'by Quarter', value: 'quarter' },
+	{ label: 'by Year', value: 'year' },
 ]
 
-/** How the groups are ranked: along their own axis, or by what was measured. */
-const DIRECTIONS = [
-	{ label: 'Ascending', value: 'asc' },
-	{ label: 'Descending', value: 'desc' },
-]
+const FILTER_OPS = Object.entries(FILTER_WORDS).map(([value, label]) => ({
+	label,
+	value,
+}))
 
 /** The most groups a series keeps, as the engine bounds it. */
 const MAX_LIMIT = 1000
+
+/** How many points the preview draws before saying how many more there are. */
+const PREVIEW_POINTS = 8
 
 /**
  * The scope a card bound to a period follows: the one a period selector drives
@@ -61,13 +72,17 @@ const MAX_LIMIT = 1000
  */
 const PAGE_PERIOD_SCOPE = 'page'
 
-const FILTER_OPS = [
-	{ label: 'is', value: 'eq' },
-	{ label: 'is not', value: 'ne' },
-	{ label: 'is more than', value: 'gt' },
-	{ label: 'is at least', value: 'ge' },
-	{ label: 'is less than', value: 'lt' },
-	{ label: 'is at most', value: 'le' },
+/**
+ * What a source may be refined by beyond what it measures. Each is off until
+ * ticked, and unticking one puts it back as the source is without it.
+ */
+type Refinement = 'sort' | 'top' | 'conditions' | 'period'
+
+const REFINEMENTS: { kind: Refinement; label: string; icon: string }[] = [
+	{ kind: 'sort', label: 'Sort', icon: 'i-ph-sort-ascending' },
+	{ kind: 'top', label: 'Top groups', icon: 'i-ph-list-numbers' },
+	{ kind: 'conditions', label: 'Conditions', icon: 'i-ph-funnel' },
+	{ kind: 'period', label: 'Period', icon: 'i-ph-calendar-blank' },
 ]
 
 interface DraftFilter {
@@ -99,8 +114,15 @@ const orderBy = ref<'group' | 'measure'>('group')
 const direction = ref<'asc' | 'desc'>('asc')
 const limit = ref<number | undefined>(undefined)
 const followPeriod = ref(false)
+/** The date column a period bounds, when the groups are not dates themselves. */
+const periodField = ref<string | undefined>(undefined)
+const compare = ref(false)
 const preview = ref<QueryPreview | null>(null)
 const previewing = ref(false)
+/** The refinements ticked and not set yet, which keep their row open. */
+const opened = ref(new Set<Refinement>())
+/** Whether someone chose to build here a source the page's code answered. */
+const building = ref(false)
 
 /** One number, or one point per group: what the block declared it reads. */
 const wantsSeries = computed(() => props.responseShape !== 'value')
@@ -126,8 +148,25 @@ const responseShape = computed(() =>
 	RESPONSE_SHAPES.find((shape) => shape === props.responseShape),
 )
 
+/** Whether the block's arrangement has somewhere to put the period before. */
+const comparable = computed(
+	() => !!responseShape.value && COMPARED_SHAPES.includes(responseShape.value),
+)
+
 /** A query named after the block that reads it, so the two stay recognizable. */
 const queryName = computed(() => props.blockName)
+
+/**
+ * A block pointed at a route this editor did not write — one in the page's
+ * code, or one it cannot read back — until someone chooses to build it here.
+ */
+const coded = computed(
+	() =>
+		!building.value &&
+		typeof props.modelValue === 'string' &&
+		props.modelValue !== '' &&
+		!sourceQuery(session.value.draft, session.value.structure, queryName.value),
+)
 
 const fields = computed(
 	() => session.value.resourceStructures[resource.value ?? '']?.fields ?? [],
@@ -142,7 +181,7 @@ function fieldsOfType(types: string[]) {
 const numericFields = computed(() =>
 	fieldsOfType(['number', 'price', 'percentage']),
 )
-const dateFields = computed(() => fieldsOfType(['date']))
+const dateFields = computed(() => fieldsOfType(DATE_TYPES))
 const groupableFields = computed(() => [
 	...fieldsOfType(['string', 'select', 'number', 'price', 'percentage']),
 	...dateFields.value,
@@ -154,11 +193,47 @@ const filterableFields = computed(() =>
 	})),
 )
 
-/** A timeline reads along its dates; a ranking reads by what was measured. */
-const orderItems = computed(() => [
-	{ label: groupsByDate.value ? 'Sorted by date' : 'Sorted by group', value: 'group' },
-	{ label: 'Sorted by value', value: 'measure' },
+/** Whether the chosen grouping is a date, which is what a period bucket needs. */
+const groupsByDate = computed(() =>
+	dateFields.value.some((field) => field.value === groupBy.value),
+)
+
+/** The column the page's period bounds: the dates grouped by, or the one picked. */
+const boundField = computed(() =>
+	groupsByDate.value
+		? groupBy.value
+		: (periodField.value ?? dateFields.value[0]?.value),
+)
+
+const groupLabel = computed(
+	() =>
+		groupableFields.value.find((field) => field.value === groupBy.value)?.label ??
+		'Group',
+)
+
+/**
+ * How the groups come, as one choice: along their own axis — dates oldest or
+ * newest first, names from A or from Z — or by what was measured.
+ */
+const sortItems = computed(() => [
+	...(groupsByDate.value
+		? [
+				{ label: 'Oldest first', value: 'group:asc' },
+				{ label: 'Newest first', value: 'group:desc' },
+			]
+		: [
+				{ label: `${groupLabel.value}, A to Z`, value: 'group:asc' },
+				{ label: `${groupLabel.value}, Z to A`, value: 'group:desc' },
+			]),
+	{ label: 'Largest first', value: 'measure:desc' },
+	{ label: 'Smallest first', value: 'measure:asc' },
 ])
+
+function setSort(value: unknown): void {
+	const [by, way] = String(value).split(':')
+	orderBy.value = by === 'measure' ? 'measure' : 'group'
+	direction.value = way === 'desc' ? 'desc' : 'asc'
+}
 
 /** A whole number of groups the engine accepts, or none: keep every group. */
 function setLimit(value: string | number): void {
@@ -168,11 +243,6 @@ function setLimit(value: string | number): void {
 			? undefined
 			: Math.min(count, MAX_LIMIT)
 }
-
-/** Whether the chosen grouping is a date, which is what a period bucket needs. */
-const groupsByDate = computed(() =>
-	dateFields.value.some((field) => field.value === groupBy.value),
-)
 
 const needsMeasureField = computed(() => measure.value !== 'count')
 
@@ -186,6 +256,74 @@ const ready = computed(() => {
 	return !wantsSeries.value || Boolean(groupBy.value)
 })
 
+/* ---- refining it -------------------------------------------------------- */
+
+const refinements = computed(() =>
+	REFINEMENTS.filter((entry) => {
+		if (entry.kind === 'sort' || entry.kind === 'top') {
+			return wantsSeries.value && !!groupBy.value
+		}
+		if (entry.kind === 'period') {
+			return !!props.periodOption && dateFields.value.length > 0
+		}
+		return filterableFields.value.length > 0
+	}),
+)
+
+/** Ticked while its row is open, or while what it sets differs from without it. */
+function refined(kind: Refinement): boolean {
+	if (opened.value.has(kind)) {
+		return true
+	}
+	switch (kind) {
+		case 'sort':
+			return orderBy.value !== 'group' || direction.value !== 'asc'
+		case 'top':
+			return limit.value !== undefined
+		case 'conditions':
+			return filters.value.length > 0
+		case 'period':
+			return followPeriod.value
+	}
+}
+
+function refine(kind: Refinement, on: boolean): void {
+	const next = new Set(opened.value)
+	if (on) {
+		next.add(kind)
+	} else {
+		next.delete(kind)
+	}
+	opened.value = next
+	if (kind === 'sort' && !on) {
+		orderBy.value = 'group'
+		direction.value = 'asc'
+	}
+	if (kind === 'top' && !on) {
+		limit.value = undefined
+	}
+	if (kind === 'conditions') {
+		if (on && !filters.value.length) {
+			addFilter()
+		}
+		if (!on) {
+			filters.value = []
+		}
+	}
+	if (kind === 'period') {
+		followPeriod.value = on
+		if (!on) {
+			compare.value = false
+		}
+	}
+}
+
+const shownRefinements = computed(() =>
+	refinements.value.filter((entry) => refined(entry.kind)),
+)
+
+/* ---- the query ---------------------------------------------------------- */
+
 /** The parameters the engine compiles, assembled from the choices above. */
 function queryParams(): Record<string, unknown> {
 	const where: QueryFilter[] = filters.value
@@ -195,12 +333,12 @@ function queryParams(): Record<string, unknown> {
 			op: filter.op,
 			value: filter.value,
 		}))
-	if (followPeriod.value && groupsByDate.value && groupBy.value) {
+	if (followPeriod.value && boundField.value) {
 		// A period is two bounds the route reads per request, which is what the
 		// page's period selector already sends.
 		where.push(
-			{ field: groupBy.value, op: 'ge', value: { $param: { name: 'from' } } },
-			{ field: groupBy.value, op: 'le', value: { $param: { name: 'to' } } },
+			{ field: boundField.value, op: 'ge', value: { $param: { name: 'from' } } },
+			{ field: boundField.value, op: 'le', value: { $param: { name: 'to' } } },
 		)
 	}
 	const params: Record<string, unknown> = {}
@@ -232,6 +370,11 @@ function queryParams(): Record<string, unknown> {
 	return params
 }
 
+/** Whether the route answers the period before too: bound, and asked to. */
+const compares = computed(
+	() => comparable.value && followPeriod.value && compare.value,
+)
+
 function queryInput(): AddQueryInput {
 	return {
 		name: queryName.value,
@@ -243,8 +386,22 @@ function queryInput(): AddQueryInput {
 				: 'aggregate',
 		params: queryParams(),
 		response: responseShape.value,
+		...(compares.value ? { compare: true } : {}),
 	}
 }
+
+/** What the source measures, in the words the block's panel folds it under. */
+const summary = computed(() =>
+	describeSource(
+		{
+			name: queryName.value,
+			resource: resource.value,
+			params: queryParams(),
+			compare: compares.value,
+		},
+		fields.value,
+	),
+)
 
 /** The URL the generated route will answer at, which is what the block reads. */
 const endpoint = computed(
@@ -280,7 +437,10 @@ async function readPreview(): Promise<void> {
 	}
 }
 
-/** Stand-in bounds for the preview, since no period selector is running here. */
+/**
+ * Stand-in bounds for the preview, since no period selector is running here:
+ * the last twelve months, and the twelve before them for a comparison.
+ */
 function periodArgs(): Record<string, unknown> {
 	if (!followPeriod.value) {
 		return {}
@@ -288,9 +448,18 @@ function periodArgs(): Record<string, unknown> {
 	const to = new Date()
 	const from = new Date(to)
 	from.setFullYear(from.getFullYear() - 1)
-	return { from: from.toISOString(), to: to.toISOString() }
+	const args: Record<string, unknown> = {
+		from: from.toISOString(),
+		to: to.toISOString(),
+	}
+	if (compares.value) {
+		const before = new Date(from)
+		before.setFullYear(before.getFullYear() - 1)
+		args.compareFrom = before.toISOString()
+		args.compareTo = from.toISOString()
+	}
+	return args
 }
-
 
 function addFilter(): void {
 	filters.value = [
@@ -301,15 +470,21 @@ function addFilter(): void {
 
 function removeFilter(index: number): void {
 	filters.value = filters.value.filter((_, at) => at !== index)
+	if (!filters.value.length) {
+		refine('conditions', false)
+	}
 }
 
 function pickResource(value: string): void {
 	resource.value = value
 	measureField.value = undefined
 	groupBy.value = undefined
+	periodField.value = undefined
 	filters.value = []
 	void builder.loadResource(value)
 }
+
+/* ---- what it answers ---------------------------------------------------- */
 
 /** A point as either arrangement writes one; a card's `y` may be unmeasured. */
 function asPoint(entry: unknown): QueryPoint | undefined {
@@ -323,18 +498,8 @@ function asPoint(entry: unknown): QueryPoint | undefined {
 	}
 }
 
-/** The headline figure the body carries, for the arrangements that have one. */
-const previewValue = computed(() => {
-	const value = preview.value?.body.value
-	return typeof value === 'number' ? value : undefined
-})
-
-/**
- * The points behind the body, wherever its arrangement put them: a plain route
- * answers them directly, a card hands them over inside a chart series.
- */
-const previewPoints = computed<QueryPoint[]>(() => {
-	const series = preview.value?.body.series
+/** The points of a series, whether handed bare or inside a named chart series. */
+function pointsOf(series: unknown): QueryPoint[] {
 	if (!Array.isArray(series)) {
 		return []
 	}
@@ -346,21 +511,64 @@ const previewPoints = computed<QueryPoint[]>(() => {
 	return Array.isArray(data)
 		? (data.map(asPoint).filter((point) => point !== undefined) as QueryPoint[])
 		: []
+}
+
+/** The headline figure the body carries, for the arrangements that have one. */
+const previewValue = computed(() => {
+	const value = preview.value?.body?.value
+	return typeof value === 'number' ? value : undefined
 })
+
+const previewDelta = computed(() => {
+	const delta = preview.value?.body?.delta
+	return typeof delta === 'number' ? delta : undefined
+})
+
+/**
+ * The points behind the body, wherever its arrangement put them: a plain route
+ * answers them directly, a card hands them over inside a chart series.
+ */
+const previewPoints = computed(() => pointsOf(preview.value?.body?.series))
+const previousPoints = computed(() =>
+	pointsOf(preview.value?.body?.comparisonSeries),
+)
+
+const shownPoints = computed(() => previewPoints.value.slice(0, PREVIEW_POINTS))
+const tallest = computed(() =>
+	Math.max(1, ...shownPoints.value.map((point) => point.y)),
+)
+
+/** A line through the points, in a box 100 wide and 40 high. */
+function lineOf(points: QueryPoint[], top: number): string {
+	if (!points.length) {
+		return ''
+	}
+	const step = points.length > 1 ? 100 / (points.length - 1) : 0
+	return points
+		.map((point, index) => `${index * step},${40 - (point.y / top) * 36}`)
+		.join(' ')
+}
+
+const lineTop = computed(() =>
+	Math.max(
+		1,
+		...previewPoints.value.map((point) => point.y),
+		...previousPoints.value.map((point) => point.y),
+	),
+)
+
+/* ---- reopened ----------------------------------------------------------- */
 
 /**
  * Fill the editor from the source the block already reads, so reopening a page
  * shows what was configured rather than an empty form that would overwrite it.
- *
- * Read from the draft first, then from what the page serves: the draft is where
- * an unsaved edit lives.
  */
 function hydrate(): void {
-	const written =
-		session.value.draft?.queries?.find((query) => query.name === queryName.value) ??
-		session.value.structure?.queries?.find(
-			(query) => query.name === queryName.value && !query.opaque,
-		)
+	const written = sourceQuery(
+		session.value.draft,
+		session.value.structure,
+		queryName.value,
+	)
 	if (!written?.resource) {
 		return
 	}
@@ -374,31 +582,29 @@ function hydrate(): void {
 	orderBy.value = params.orderBy === 'measure' ? 'measure' : 'group'
 	direction.value = params.direction === 'desc' ? 'desc' : 'asc'
 	limit.value = typeof params.limit === 'number' ? params.limit : undefined
-	const where = Array.isArray(params.where) ? params.where : []
+	const where = Array.isArray(params.where)
+		? (params.where as QueryFilter[])
+		: []
 	filters.value = where
-		.filter(
-			(entry) =>
-				typeof (entry as { value?: unknown }).value !== 'object' ||
-				(entry as { value?: unknown }).value === null,
-		)
-		.map((entry) => {
-			const filter = entry as { field: string; op: string; value: unknown }
-			return { field: filter.field, op: filter.op, value: String(filter.value) }
-		})
+		.filter((entry) => !isBound(entry.value))
+		.map((entry) => ({
+			field: entry.field,
+			op: entry.op,
+			value: String(entry.value),
+		}))
 	// A bound value is how a period is written, so finding one is how the editor
-	// knows the source follows the page's period.
-	followPeriod.value = where.some(
-		(entry) =>
-			typeof (entry as { value?: unknown }).value === 'object' &&
-			(entry as { value?: { $param?: unknown } }).value?.$param !== undefined,
-	)
+	// knows the source follows the page's period — and on which column.
+	const bound = where.find((entry) => isBound(entry.value))
+	followPeriod.value = bound !== undefined
+	periodField.value = bound && bound.field !== groupBy.value ? bound.field : undefined
+	compare.value = written.compare === true
 }
 
 hydrate()
 // Read what the source already answers: reopened, the editor otherwise said "No
 // rows match." over a table it had not asked anything yet. Only read — the
 // source is what the block holds, and writing it back would be an edit.
-if (ready.value) {
+if (ready.value && !coded.value) {
 	void readPreview()
 }
 
@@ -415,6 +621,8 @@ watch(
 		direction,
 		limit,
 		followPeriod,
+		periodField,
+		compare,
 		filters,
 	],
 	() => {
@@ -422,169 +630,370 @@ watch(
 	},
 	{ deep: true },
 )
+
 </script>
 
 <template>
 	<div class="flex flex-col gap-3">
-		<USelectMenu
-			:model-value="resource"
-			:items="
-				session.resources.map((entry) => ({
-					label: entry.ref,
-					value: entry.ref,
-				}))
-			"
-			value-key="value"
-			placeholder="Which data?"
-			@update:model-value="pickResource($event)"
-		/>
-
-		<template v-if="resource">
-			<div class="flex items-center gap-2">
-				<USelectMenu
-					v-model="measure"
-					:items="MEASURES"
-					value-key="value"
-					class="flex-1"
-				/>
-				<USelectMenu
-					v-if="needsMeasureField"
-					:model-value="measureField"
-					:items="numericFields"
-					value-key="value"
-					placeholder="of…"
-					class="flex-1"
-					@update:model-value="measureField = $event"
-				/>
-			</div>
-
-			<div v-if="wantsSeries" class="flex items-center gap-2">
-				<USelectMenu
-					:model-value="groupBy"
-					:items="groupableFields"
-					value-key="value"
-					placeholder="Grouped by…"
-					class="flex-1"
-					@update:model-value="groupBy = $event"
-				/>
-				<USelectMenu
-					v-if="groupsByDate"
-					v-model="bucket"
-					:items="BUCKETS"
-					value-key="value"
-					class="w-32"
-				/>
-			</div>
-
-			<!-- What makes a top N: the groups ranked by what was measured, and only
-			the first few of them kept. -->
-			<template v-if="wantsSeries && groupBy">
-				<div class="flex items-center gap-2">
-					<USelectMenu
-						v-model="orderBy"
-						:items="orderItems"
-						value-key="value"
-						class="flex-1"
-					/>
-					<USelectMenu
-						v-model="direction"
-						:items="DIRECTIONS"
-						value-key="value"
-						class="w-32"
-					/>
-				</div>
-				<div class="flex items-center gap-2 text-xs text-dimmed">
-					<span>Keep the first</span>
-					<UInput
-						type="number"
-						size="sm"
-						class="w-20"
-						:min="1"
-						:max="MAX_LIMIT"
-						placeholder="all"
-						:model-value="limit"
-						@update:model-value="setLimit($event)"
-					/>
-					<span>{{ groupsByDate ? 'periods' : 'groups' }}</span>
-				</div>
-			</template>
-
-			<div class="flex flex-col gap-2">
-				<div
-					v-for="(filter, index) in filters"
-					:key="index"
-					class="flex items-center gap-1.5"
+		<div
+			v-if="coded"
+			class="flex flex-col gap-2.5 rounded-lg border border-accented bg-elevated p-2.5"
+		>
+			<div class="flex items-center gap-2.5">
+				<span
+					class="flex size-[30px] shrink-0 items-center justify-center rounded-md bg-accented text-muted"
 				>
-					<USelectMenu
-						v-model="filter.field"
-						:items="filterableFields"
-						value-key="value"
-						class="flex-1"
-					/>
-					<USelectMenu
-						v-model="filter.op"
-						:items="FILTER_OPS"
-						value-key="value"
-						class="w-32"
-					/>
-					<UInput v-model="filter.value" size="sm" class="flex-1" />
-					<UButton
-						icon="i-ph-x"
-						size="xs"
-						color="neutral"
-						variant="ghost"
-						aria-label="Remove this filter"
-						@click="removeFilter(index)"
-					/>
-				</div>
-				<UButton
-					icon="i-ph-funnel"
-					size="xs"
-					color="neutral"
-					variant="link"
-					class="self-start"
-					label="Add a filter"
-					@click="addFilter"
-				/>
+					<UIcon name="i-ph-code" class="size-4" />
+				</span>
+				<span class="flex min-w-0 flex-1 flex-col">
+					<code class="truncate font-mono text-xs text-highlighted">
+						GET {{ modelValue }}
+					</code>
+					<span class="text-xs text-muted">Answered by the page's code</span>
+				</span>
 			</div>
-
-			<USwitch
-				v-if="groupsByDate && periodOption"
-				v-model="followPeriod"
-				label="Follow the page's period"
+			<UButton
+				icon="i-ph-table"
+				size="xs"
+				color="neutral"
+				variant="outline"
+				label="Build it here instead"
+				class="self-start"
+				@click="building = true"
 			/>
+			<p class="text-xs leading-relaxed text-dimmed">
+				Its figures come as the code computes them. Built here instead, it
+				reads a table you pick, and the route in the code is left as it is.
+			</p>
+		</div>
 
-			<div class="rounded-md border border-default p-2.5">
-				<p class="text-xs font-semibold text-highlighted">Preview</p>
-				<p v-if="previewing" class="text-xs text-dimmed">Reading…</p>
-				<template v-else>
-					<!-- A card answers a figure and its points; laid out the way the
-					     block lays them out, so this reads as what the page will show. -->
-					<p
-						v-if="previewValue !== undefined"
-						class="font-mono text-sm tabular-nums"
+		<template v-else>
+			<div
+				v-if="resource"
+				class="flex flex-col gap-2.5 rounded-lg border border-default bg-elevated/60 p-3"
+			>
+				<div class="flex items-start justify-between gap-2">
+					<p class="text-[13px] text-default">{{ summary }}</p>
+					<span class="shrink-0 text-[11px] text-dimmed">
+						{{ previewing ? 'Reading…' : 'Preview' }}
+					</span>
+				</div>
+				<div
+					v-if="previewValue !== undefined"
+					class="flex items-baseline gap-2"
+				>
+					<span class="text-2xl font-semibold tabular-nums text-highlighted">
+						{{ previewValue.toLocaleString() }}
+					</span>
+					<span
+						v-if="previewDelta !== undefined"
+						class="inline-flex h-5 items-center rounded-full px-1.5 text-xs font-medium"
+						:class="
+							previewDelta < 0
+								? 'bg-error/10 text-error'
+								: 'bg-success/10 text-success'
+						"
 					>
-						{{ previewValue }}
-					</p>
-					<div v-if="previewPoints.length" class="flex flex-col gap-0.5">
-						<p
-							v-for="point in previewPoints.slice(0, 5)"
+						{{ variationText(previewDelta) }}
+					</span>
+				</div>
+
+				<template v-if="previewPoints.length">
+					<svg
+						v-if="draw === 'line'"
+						viewBox="0 0 100 40"
+						preserveAspectRatio="none"
+						class="h-20 w-full overflow-visible"
+						role="img"
+						aria-label="What it answers, drawn as a line"
+					>
+						<polyline
+							v-if="previousPoints.length"
+							:points="lineOf(previousPoints, lineTop)"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1"
+							stroke-dasharray="3 3"
+							vector-effect="non-scaling-stroke"
+							class="text-dimmed"
+						/>
+						<polyline
+							:points="lineOf(previewPoints, lineTop)"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							vector-effect="non-scaling-stroke"
+							class="text-primary"
+						/>
+					</svg>
+					<div
+						v-else
+						class="flex h-[100px] items-end gap-1.5 border-b border-default"
+					>
+						<div
+							v-for="point in shownPoints"
 							:key="String(point.x)"
-							class="flex justify-between font-mono text-xs tabular-nums"
+							class="flex min-w-0 flex-1 flex-col items-center gap-1"
 						>
-							<span class="text-dimmed">{{ point.x }}</span>
-							<span>{{ point.y }}</span>
-						</p>
-						<p v-if="previewPoints.length > 5" class="text-xs text-dimmed">
-							and {{ previewPoints.length - 5 }} more
-						</p>
+							<span class="text-[10px] tabular-nums text-muted">{{ point.y }}</span>
+							<span
+								class="w-full max-w-[30px] rounded-t-[3px] bg-primary"
+								:style="{ height: `${Math.max(3, (point.y / tallest) * 64)}px` }"
+							/>
+							<span class="w-full truncate text-center text-[10px] text-dimmed">
+								{{ point.x }}
+							</span>
+						</div>
 					</div>
 					<p
-						v-else-if="previewValue === undefined"
+						v-if="previewPoints.length > PREVIEW_POINTS"
 						class="text-xs text-dimmed"
 					>
-						{{ ready ? 'No rows match.' : 'Choose what to measure.' }}
+						and {{ previewPoints.length - PREVIEW_POINTS }} more
 					</p>
+				</template>
+				<p
+					v-else-if="previewValue === undefined && !previewing"
+					class="text-xs text-dimmed"
+				>
+					{{ ready ? 'No rows match.' : 'Choose what to measure.' }}
+				</p>
+			</div>
+
+			<div class="overflow-hidden rounded-lg border border-default">
+				<div class="flex items-center gap-2 px-2.5 py-1.5">
+					<span class="w-[70px] shrink-0 text-xs text-muted">From</span>
+					<USelectMenu
+						:model-value="resource"
+						:items="
+							session.resources.map((entry) => ({
+								label: entry.ref,
+								value: entry.ref,
+								icon: 'i-ph-table',
+							}))
+						"
+						value-key="value"
+						placeholder="Which table?"
+						aria-label="From"
+						class="min-w-0 flex-1"
+						@update:model-value="pickResource($event)"
+					/>
+				</div>
+				<template v-if="resource">
+					<div class="flex items-center gap-2 border-t border-default px-2.5 py-1.5">
+						<span class="w-[70px] shrink-0 text-xs text-muted">Measure</span>
+						<USelectMenu
+							v-model="measure"
+							:items="MEASURES"
+							value-key="value"
+							aria-label="Measure"
+							class="min-w-0 flex-1"
+						/>
+						<USelectMenu
+							v-if="needsMeasureField"
+							:model-value="measureField"
+							:items="numericFields"
+							value-key="value"
+							placeholder="of…"
+							aria-label="Measured column"
+							class="min-w-0 flex-1"
+							@update:model-value="measureField = $event"
+						/>
+					</div>
+					<div
+						v-if="wantsSeries"
+						class="flex items-center gap-2 border-t border-default px-2.5 py-1.5"
+					>
+						<span class="w-[70px] shrink-0 text-xs text-muted">Split by</span>
+						<USelectMenu
+							:model-value="groupBy"
+							:items="groupableFields"
+							value-key="value"
+							placeholder="Grouped by…"
+							aria-label="Split by"
+							class="min-w-0 flex-1"
+							@update:model-value="groupBy = $event"
+						/>
+						<USelectMenu
+							v-if="groupsByDate"
+							v-model="bucket"
+							:items="BUCKETS"
+							value-key="value"
+							aria-label="Period of each group"
+							class="w-28 shrink-0"
+						/>
+					</div>
+				</template>
+			</div>
+
+			<div v-if="resource && refinements.length" class="flex flex-col gap-1.5">
+				<p class="text-xs text-muted">Refine it</p>
+				<div role="group" aria-label="Refine it" class="flex flex-wrap gap-1.5">
+					<button
+						v-for="entry in refinements"
+						:key="entry.kind"
+						type="button"
+						class="flex h-[30px] items-center gap-1.5 rounded-lg border pl-2 pr-2.5 text-xs font-medium transition-colors"
+						:class="
+							refined(entry.kind)
+								? 'border-primary/45 bg-primary/8 text-primary'
+								: 'border-accented text-toned hover:border-primary/40'
+						"
+						:aria-pressed="refined(entry.kind)"
+						@click="refine(entry.kind, !refined(entry.kind))"
+					>
+						<span
+							class="flex size-3.5 shrink-0 items-center justify-center rounded-[4px]"
+							:class="
+								refined(entry.kind)
+									? 'bg-primary text-inverted'
+									: 'border-[1.5px] border-accented'
+							"
+						>
+							<UIcon
+								v-if="refined(entry.kind)"
+								name="i-ph-check-bold"
+								class="size-2.5"
+							/>
+						</span>
+						<UIcon :name="entry.icon" class="size-3.5" />
+						{{ entry.label }}
+					</button>
+				</div>
+			</div>
+
+			<div
+				v-if="resource && shownRefinements.length"
+				class="overflow-hidden rounded-lg border border-default"
+			>
+				<template v-for="(entry, index) in shownRefinements" :key="entry.kind">
+					<div
+						v-if="entry.kind === 'sort'"
+						class="flex items-center gap-2 px-2.5 py-1.5"
+						:class="index ? 'border-t border-default' : ''"
+					>
+						<span class="w-[70px] shrink-0 text-xs text-muted">Sorted</span>
+						<USelectMenu
+							:model-value="`${orderBy}:${direction}`"
+							:items="sortItems"
+							value-key="value"
+							aria-label="Sorted"
+							class="min-w-0 flex-1"
+							@update:model-value="setSort($event)"
+						/>
+					</div>
+
+					<div
+						v-else-if="entry.kind === 'top'"
+						class="flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted"
+						:class="index ? 'border-t border-default' : ''"
+					>
+						<span class="w-[70px] shrink-0">Keep</span>
+						<span>the first</span>
+						<UInput
+							type="number"
+							size="sm"
+							class="w-20"
+							:min="1"
+							:max="MAX_LIMIT"
+							placeholder="all"
+							aria-label="How many groups to keep"
+							:model-value="limit"
+							@update:model-value="setLimit($event)"
+						/>
+						<span>{{ groupsByDate ? 'periods' : 'groups' }}</span>
+					</div>
+
+					<div
+						v-else-if="entry.kind === 'conditions'"
+						class="flex flex-col gap-1.5 px-2.5 py-1.5"
+						:class="index ? 'border-t border-default' : ''"
+					>
+						<div
+							v-for="(filter, at) in filters"
+							:key="at"
+							class="flex items-center gap-1.5"
+						>
+							<span class="w-[70px] shrink-0 text-xs text-muted">
+								{{ at ? 'and' : 'Where' }}
+							</span>
+							<USelectMenu
+								v-model="filter.field"
+								:items="filterableFields"
+								value-key="value"
+								aria-label="Condition column"
+								class="min-w-0 flex-1"
+							/>
+							<USelectMenu
+								v-model="filter.op"
+								:items="FILTER_OPS"
+								value-key="value"
+								aria-label="Condition test"
+								class="w-24 shrink-0"
+							/>
+							<UInput
+								v-model="filter.value"
+								size="sm"
+								aria-label="Condition value"
+								class="min-w-0 flex-1"
+							/>
+							<UButton
+								icon="i-ph-x"
+								size="xs"
+								color="neutral"
+								variant="ghost"
+								aria-label="Remove this condition"
+								@click="removeFilter(at)"
+							/>
+						</div>
+						<UButton
+							icon="i-ph-plus"
+							size="xs"
+							variant="link"
+							label="Add a condition"
+							class="ml-[78px] self-start px-0"
+							@click="addFilter"
+						/>
+					</div>
+
+					<div
+						v-else-if="entry.kind === 'period'"
+						class="flex flex-col gap-2 px-2.5 py-2"
+						:class="index ? 'border-t border-default' : ''"
+					>
+						<div class="flex items-center gap-2">
+							<span class="w-[70px] shrink-0 text-xs text-muted">Period</span>
+							<span class="text-[13px] text-default">The page's period</span>
+							<template v-if="!groupsByDate">
+								<span class="text-xs text-muted">on</span>
+								<USelectMenu
+									:model-value="boundField"
+									:items="dateFields"
+									value-key="value"
+									aria-label="Column the period bounds"
+									class="min-w-0 flex-1"
+									@update:model-value="periodField = $event"
+								/>
+							</template>
+						</div>
+						<p class="pl-[78px] text-xs leading-relaxed text-dimmed">
+							Its figures change with the period chosen on the page.
+						</p>
+						<div v-if="comparable" class="flex items-start gap-2.5 pl-[78px]">
+							<USwitch
+								v-model="compare"
+								aria-label="Compare with the previous period"
+							/>
+							<div class="flex min-w-0 flex-col">
+								<span class="text-[13px] text-default">
+									Compare with the previous period
+								</span>
+								<span class="text-xs leading-relaxed text-dimmed">
+									Drawn dashed beside it, and gives the variation.
+								</span>
+							</div>
+						</div>
+					</div>
 				</template>
 			</div>
 

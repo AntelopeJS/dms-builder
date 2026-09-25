@@ -370,6 +370,8 @@ export interface QueryStructure {
 	params?: Record<string, unknown>
 	/** How the route arranges its answer, read off what it returns. */
 	response?: QueryResponseShape
+	/** Whether the route answers the preceding period too. */
+	compare?: boolean
 	opaque?: boolean
 	opaqueReason?: string
 }
@@ -384,6 +386,11 @@ export interface AddQueryInput {
 	 * its bare points, which only a chart can read.
 	 */
 	response?: QueryResponseShape
+	/**
+	 * Answer the preceding period beside the current one, so a card can show
+	 * how far it moved. Only a query bound to the page's period can.
+	 */
+	compare?: boolean
 	endpoint?: string
 }
 

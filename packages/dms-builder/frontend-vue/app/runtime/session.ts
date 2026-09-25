@@ -1215,6 +1215,8 @@ export function useBuilder(): BuilderController {
 				template: query.template as string,
 				params: query.params ?? {},
 				...(query.response ? { response: query.response } : {}),
+				// Carried over, or the next save writes the route without it.
+				...(query.compare ? { compare: true } : {}),
 				endpoint: query.endpoint,
 			}))
 	}

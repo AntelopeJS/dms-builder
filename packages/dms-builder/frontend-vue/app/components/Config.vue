@@ -7,6 +7,7 @@ import {
 	optionGroups,
 	slotsOf,
 } from '../runtime/catalog'
+import { CHART_CARD_BLOCK, CHART_CARD_PANEL_OPTIONS } from '../runtime/chart-card'
 import { findNode } from '../runtime/draft'
 import { FORM_BLOCK, FORM_PANEL_OPTIONS } from '../runtime/form-panel'
 import { useBuilderMode } from '../runtime/mode'
@@ -102,6 +103,14 @@ const tablePanel = computed(
 	() => !advancedMode.value && block.value?.type === TABLE_BLOCK,
 )
 
+/**
+ * And a chart card: its chart picked by how it draws, what it measures built
+ * from a table, and the rest folded away behind a line each.
+ */
+const chartCardPanel = computed(
+	() => !advancedMode.value && block.value?.type === CHART_CARD_BLOCK,
+)
+
 /** The table it reads, which the table's panel picks itself. */
 const CONTROLLER = 'controller'
 
@@ -110,7 +119,8 @@ function inPanel(key: unknown): boolean {
 	return (
 		(formPanel.value && FORM_PANEL_OPTIONS.has(String(key))) ||
 		(tablePanel.value &&
-			(TABLE_PANEL_OPTIONS.has(String(key)) || key === CONTROLLER))
+			(TABLE_PANEL_OPTIONS.has(String(key)) || key === CONTROLLER)) ||
+		(chartCardPanel.value && CHART_CARD_PANEL_OPTIONS.has(String(key)))
 	)
 }
 
@@ -394,6 +404,7 @@ async function setSearchField(name: string): Promise<void> {
 
 			<DmsBuilderFormPanel v-if="formPanel" :path="path" />
 			<DmsBuilderTablePanel v-if="tablePanel" :path="path" />
+			<DmsBuilderChartCardPanel v-if="chartCardPanel" :key="path" :path="path" />
 
 			<div
 				v-for="group in plainGroups"

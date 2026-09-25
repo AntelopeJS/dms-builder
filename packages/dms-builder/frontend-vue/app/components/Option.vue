@@ -783,8 +783,11 @@ const nestedProperties = computed(() =>
 			@update:model-value="set($event)"
 		/>
 
+		<!-- Keyed by the block, whose source it reads once: shared between two
+		blocks, it would show the first one's source on the second. -->
 		<DmsBuilderDataSource
 			v-else-if="widget === 'dataSource'"
+			:key="blockName ?? name"
 			:model-value="modelValue"
 			:response-shape="ui.responseShape"
 			:period-option="ui.periodOption"
