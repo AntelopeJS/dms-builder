@@ -46,7 +46,7 @@ describe("the block catalog", () => {
     expect(blockNamed("ChartCard").componentName).to.equal("dms-chart-card");
   });
 
-  it("describes the data-source option of every card that fetches one", function () {
+  it("describes the data-source option of every card that fetches one", () => {
     const cards = ["KpiCard", "ChartCard", "TopListCard"];
     for (const type of cards) {
       const option = blockNamed(type).config.fetchUrl;
@@ -54,12 +54,7 @@ describe("the block catalog", () => {
       expect(option?.ui?.group).to.equal("data");
     }
     // The widget names which editor the option opens, and it is the source
-    // editor these cards are for. A DMS older than the rename still declares
-    // the raw-endpoint `query` widget, and pinning the new name against it
-    // would report the version gap as a defect in this engine.
-    if (blockNamed("ChartCard").config.fetchUrl?.ui?.widget === "query") {
-      this.skip();
-    }
+    // editor these cards are for.
     for (const type of cards) {
       expect(
         blockNamed(type).config.fetchUrl?.ui?.widget,

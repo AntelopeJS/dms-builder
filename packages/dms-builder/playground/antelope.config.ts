@@ -5,11 +5,8 @@ const CLIENT_URL = process.env.DMS_CLIENT_BASE_URL ?? "http://localhost:3001";
 
 /**
  * A local checkout of `AntelopeJS/dms` to load instead of the published
- * package. The four data blocks only declare `widget: "dataSource"` from
- * AntelopeJS/dms#15 onwards; against a published `@antelopejs/dms` their
- * `fetchUrl` still asks for the old `query` widget, and the source editor this
- * playground exists to exercise never appears. Point `DMS_MODULE_PATH` at that
- * checkout until the PR ships.
+ * package, for trying the builder against DMS changes that are not released
+ * yet.
  */
 const DMS_MODULE_PATH = process.env.DMS_MODULE_PATH;
 
@@ -27,10 +24,10 @@ const dmsSource = DMS_MODULE_PATH
       type: "package" as const,
       // Single-bound on purpose: the CLI passes this range to `npm pack`
       // through a shell without quoting it, so a range containing a space
-      // ("\u003e=0.4.2 <1.0.0") is split into two arguments and the module fails
+      // ("\u003e=0.4.4 <1.0.0") is split into two arguments and the module fails
       // to load. Same resolution, one word.
       package: "@antelopejs/dms",
-      version: "^0.4.2",
+      version: "^0.4.4",
     };
 
 export default defineConfig({

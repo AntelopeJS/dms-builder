@@ -133,10 +133,7 @@ describe("previewing a query", () => {
     }
   });
 
-  it("arranges the points the way the route would, when asked for a card", async function () {
-    if (!arrangementsAvailable()) {
-      this.skip();
-    }
+  it("arranges the points the way the route would, when asked for a card", async () => {
     const rows = [
       { x: 202601, y: 150 },
       { x: 202602, y: 30 },
@@ -160,10 +157,7 @@ describe("previewing a query", () => {
     }
   });
 
-  it("answers the period before too, when the card compares against it", async function () {
-    if (!arrangementsAvailable()) {
-      this.skip();
-    }
+  it("answers the period before too, when the card compares against it", async () => {
     const rows = [
       { x: 202601, y: 150 },
       { x: 202602, y: 30 },

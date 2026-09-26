@@ -45,25 +45,6 @@ async function queryNamed(name: string) {
 }
 
 /**
- * Whether the installed DMS publishes the helpers a generated route imports.
- *
- * The arrangements are built by `@antelopejs/interface-dms/base`, so emitting one
- * against a DMS that predates them writes a route that cannot compile. The suite
- * says so and steps aside rather than failing on a version mismatch it cannot fix.
- */
-function helpersAvailable(): boolean {
-  try {
-    const base = require("@antelopejs/interface-dms/base") as Record<
-      string,
-      unknown
-    >;
-    return typeof base.chartCardData === "function";
-  } catch {
-    return false;
-  }
-}
-
-/**
  * One calculation, arranged for whichever block reads it.
  *
  * A chart wants the points, a card wants a figure above them, a ranked list
@@ -73,9 +54,6 @@ function helpersAvailable(): boolean {
 describe("how a query's answer is arranged", () => {
   before(async function () {
     this.timeout(120_000);
-    if (!helpersAvailable()) {
-      this.skip();
-    }
     app = createFixture();
     expectOk(
       await CreateCategory({ name: "shop", displayName: "Shop" }),
