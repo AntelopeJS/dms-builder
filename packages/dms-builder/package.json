@@ -49,7 +49,7 @@
     "@antelopejs/interface-core": ">=0.1.1 <1.0.0",
     "@antelopejs/interface-database": "0.1.7",
     "@antelopejs/interface-dms": ">=0.2.3 <1.0.0",
-    "@antelopejs/interface-dms-builder": ">=0.1.0 <1.0.0",
+    "@antelopejs/interface-dms-builder": ">=0.1.2 <1.0.0",
     "ts-morph": "^23.0.0"
   },
   "devDependencies": {
