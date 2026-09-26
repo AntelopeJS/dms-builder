@@ -62,7 +62,9 @@ export default defineDmsPlugin(() => {
   registerAction(
     () => {
       if (builder.session.value.active) {
-        builder.close()
+        // The same button opens and closes it, so closing it is a way out like
+        // any other: it asks before dropping a draft nobody saved.
+        builder.leave()
         return
       }
       void builder.open(route.path)

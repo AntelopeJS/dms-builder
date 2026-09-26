@@ -4,9 +4,9 @@ const { test } = require("node:test");
 const { Project } = require("ts-morph");
 
 /**
- * The count and aggregate templates register themselves from a side-effect
- * module; loading the implementation entry is what must pull it in, or
- * `ListQueryTemplates` comes back empty and every `AddQuery` is rejected.
+ * The built-in templates are registered by the implementation entry as it
+ * loads; loading it is what must fill the registry, or `ListQueryTemplates`
+ * comes back empty and every `AddQuery` is rejected.
  */
 const builder = require(
   path.resolve(__dirname, "../dist/implementations/dms-builder/index.js"),
@@ -32,19 +32,20 @@ function emptyResource() {
   };
 }
 
-test("lists the count and aggregate templates", async () => {
+test("lists the count, aggregate and series templates", async () => {
   const ids = (await builder.ListQueryTemplates()).map(
     (template) => template.id,
   );
   assert.ok(ids.includes("count"));
   assert.ok(ids.includes("aggregate"));
+  assert.ok(ids.includes("series"));
 });
 
 test("filters the templates by resource type", async () => {
   const ids = (await builder.ListQueryTemplates("database-table")).map(
     (template) => template.id,
   );
-  assert.deepEqual(ids.sort(), ["aggregate", "count"]);
+  assert.deepEqual(ids.sort(), ["aggregate", "count", "series"]);
 });
 
 test("resolves a registered template when compiling a query", () => {
@@ -54,7 +55,7 @@ test("resolves a registered template when compiling a query", () => {
   );
   assert.equal(compiled.ok, undefined, JSON.stringify(compiled));
   assert.equal(compiled.template, "count");
-  assert.equal(compiled.chain.body, "{\n\treturn this.table.count();\n}");
+  assert.equal(compiled.chain.body, "{\n  return this.table.count();\n}");
 });
 
 test("still rejects an unknown template", () => {

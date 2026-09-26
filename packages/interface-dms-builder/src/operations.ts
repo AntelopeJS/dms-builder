@@ -1,6 +1,6 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { BlockPath, CategoryRef, PageRef } from "./addressing";
-import type { BlockCatalog } from "./catalog";
+import type { BlockCatalog, DataSourceDescriptor } from "./catalog";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type {
@@ -94,6 +94,18 @@ export const ListPages = InterfaceFunction<() => Promise<PageSummary[]>>();
 export const ListCategories =
   InterfaceFunction<() => Promise<CategorySummary[]>>();
 export const GetCatalog = InterfaceFunction<() => Promise<BlockCatalog>>();
+
+/**
+ * The sources a developer declared beside their own routes, optionally narrowed
+ * to those a given block can read.
+ *
+ * Separate from the catalog because they come and go with module loads, and a
+ * caller asking for them wants what is registered now.
+ */
+export const ListDataSources =
+  InterfaceFunction<
+    (responseShape?: string) => Promise<DataSourceDescriptor[]>
+  >();
 export const GetPageStructure =
   InterfaceFunction<(ref: PageRef) => Promise<OpResult<PageStructure>>>();
 

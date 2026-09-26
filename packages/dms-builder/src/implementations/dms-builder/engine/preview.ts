@@ -1,18 +1,36 @@
+import path from "node:path";
+import {
+  type ControllerClass,
+  ControllerMeta,
+} from "@antelopejs/interface-api";
+import { GetMetadata } from "@antelopejs/interface-core";
 import type {
   BlockDraft,
   BlockPath,
   ComponentPreview,
+  ConfigSchema,
   OpResult,
+  OptionSchema,
   PageDraft,
   PageLayoutPreview,
 } from "@antelopejs/interface-dms-builder";
 import { blockDescriptor, buildCatalog } from "./catalog";
 import { notFound } from "./ops";
+import { resolveProjectRoot } from "./project";
+import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
 const PLACEHOLDER_TYPE = "Placeholder";
 const PLACEHOLDER_HEIGHT = "96px";
+
+/**
+ * The blocks over a table whose factory only reads the controller, so building
+ * one for the preview leaves the running app as it found it. A TableView is not
+ * one: it writes its options, guards and gate flag onto the controller's own
+ * metadata, which every page mounting that table shares.
+ */
+const READ_ONLY_CONTROLLER_BLOCKS = new Set(["ResourceForm"]);
 
 /** The subset of `ComponentBuilder` the preview drives. */
 interface PreviewBuilder {
@@ -44,6 +62,40 @@ function factoryFor(type: string): BlockFactory {
   return factory as BlockFactory;
 }
 
+/**
+ * A resource's DataAPI class as the running app loaded it, or `undefined`.
+ *
+ * Read off the require cache, never required: loading the file from here would
+ * run its decorators a second time. The core drops a module's files from that
+ * cache when it reloads the module, so what is found is the live class — and a
+ * table created a moment ago, which the app has not reloaded under yet, is
+ * simply not there.
+ */
+function loadedController(ref: string | undefined): unknown {
+  const record = ref ? findResourceRecord(ref) : undefined;
+  if (!record) {
+    return undefined;
+  }
+  const root = `${resolveProjectRoot()}${path.sep}`;
+  const dependencies = `${path.sep}node_modules${path.sep}`;
+  for (const [file, entry] of Object.entries(require.cache)) {
+    if (!file.startsWith(root) || file.includes(dependencies)) {
+      continue;
+    }
+    const exported = (entry?.exports as Record<string, unknown> | undefined)?.[
+      record.apiName
+    ];
+    if (
+      typeof exported === "function" &&
+      GetMetadata(exported as ControllerClass, ControllerMeta).location ===
+        record.route
+    ) {
+      return exported;
+    }
+  }
+  return undefined;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -72,7 +124,29 @@ function instantiateDataType(value: Record<string, unknown>): unknown {
     throw new DegradedBlockError(`dataType "${id}" is not constructible`);
   }
   const Ctor = exported as new (config?: unknown) => unknown;
-  return new Ctor(value.config);
+  // Materialized like any other option: a relation's config names its table.
+  return new Ctor(
+    value.config === undefined ? undefined : materialize(value.config),
+  );
+}
+
+/**
+ * The DataAPI class a `$ref` in a config names — the table a relation field
+ * points at — as the running app loaded it.
+ *
+ * Only read, as a table form's own class is: the DataType looks the table's
+ * routes up on it, which is what the saved page would do when served.
+ */
+function referencedController(ref: Record<string, unknown>): unknown {
+  const dataApi = ref.as === undefined || ref.as === "dataApi";
+  const controller =
+    dataApi && typeof ref.resource === "string"
+      ? loadedController(ref.resource)
+      : undefined;
+  if (!controller) {
+    throw new DegradedBlockError("a table it reads needs the running page");
+  }
+  return controller;
 }
 
 /** Resolves the sentinels a config may carry into the values a factory expects. */
@@ -87,7 +161,7 @@ function materialize(value: unknown): unknown {
     throw new DegradedBlockError("$expr cannot be previewed");
   }
   if (isPlainObject(value.$ref)) {
-    throw new DegradedBlockError("a resource reference cannot be previewed");
+    return referencedController(value.$ref);
   }
   if (typeof value.$dataType === "string") {
     return instantiateDataType(value);
@@ -105,6 +179,97 @@ function materialize(value: unknown): unknown {
     materialized[key] = materialize(entry);
   }
   return materialized;
+}
+
+/** A value still missing an option its schema requires. */
+const UNFINISHED = Symbol("unfinished");
+
+function isEmpty(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+function isRequired(schema: OptionSchema): boolean {
+  return !schema.optional && schema.default === undefined;
+}
+
+/**
+ * `value` without the list entries it holds that are still being filled in, or
+ * `UNFINISHED` when `value` is one of them: a required option left empty,
+ * however deep. Hidden options are not the author's to fill, so they are not
+ * counted — the same reading the panel's "Waiting on" makes.
+ */
+function finished(schema: OptionSchema, value: unknown): unknown {
+  if (isEmpty(value)) {
+    return isRequired(schema) ? UNFINISHED : value;
+  }
+  if (schema.oneOf?.length) {
+    for (const branch of schema.oneOf) {
+      const kept = finished(branch, value);
+      if (kept !== UNFINISHED) {
+        return kept;
+      }
+    }
+    return UNFINISHED;
+  }
+  if (schema.properties && isPlainObject(value)) {
+    const kept: Record<string, unknown> = { ...value };
+    for (const [key, nested] of Object.entries(schema.properties)) {
+      if (nested.ui?.hidden) {
+        continue;
+      }
+      const entry = finished(nested, value[key]);
+      if (entry === UNFINISHED) {
+        return UNFINISHED;
+      }
+      if (key in value) {
+        kept[key] = entry;
+      }
+    }
+    return kept;
+  }
+  if (schema.items && Array.isArray(value)) {
+    const items = schema.items;
+    return value
+      .map((entry) => finished(items, entry))
+      .filter((entry) => entry !== UNFINISHED);
+  }
+  if (schema.values && isPlainObject(value)) {
+    const values = schema.values;
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, entry]) => [key, finished(values, entry)] as const)
+        .filter(([, entry]) => entry !== UNFINISHED),
+    );
+  }
+  return value;
+}
+
+/**
+ * A block's options as the preview builds it: the list entries the author has
+ * only begun left out.
+ *
+ * A form's field arrives with a label and nothing else, and the factory reads
+ * its type the moment it is called — so one field just added took the whole
+ * form down to a placeholder, until a type was chosen. The block previews as it
+ * stood before the entry, and the entry joins it once it is filled in. An
+ * option of the block itself left empty is kept as it is: that is the block
+ * being unfinished, and the placeholder is the right answer to it.
+ */
+function withoutUnfinishedEntries(
+  schema: ConfigSchema,
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const kept: Record<string, unknown> = { ...config };
+  for (const [key, option] of Object.entries(schema)) {
+    if (!(key in config)) {
+      continue;
+    }
+    const entry = finished(option, config[key]);
+    if (entry !== UNFINISHED) {
+      kept[key] = entry;
+    }
+  }
+  return kept;
 }
 
 /** What the preview walks: the paths it had to stand in for. */
@@ -152,13 +317,24 @@ function buildBlock(block: BlockDraft): unknown {
   if (!descriptor) {
     throw new DegradedBlockError(`unknown block type "${block.type}"`);
   }
-  if (descriptor.controllerArg) {
-    throw new DegradedBlockError(
-      `${descriptor.label ?? descriptor.type} — needs the running page`,
-    );
+  const label = descriptor.label ?? descriptor.type;
+  if (descriptor.controllerArg && !block.controller) {
+    throw new DegradedBlockError(`${label} — choose its table`);
   }
-  const config = materialize(block.config ?? {}) as Record<string, unknown>;
-  return factoryFor(descriptor.type)({ ...descriptor.defaults, ...config });
+  const controller =
+    descriptor.controllerArg && READ_ONLY_CONTROLLER_BLOCKS.has(descriptor.type)
+      ? loadedController(block.controller)
+      : undefined;
+  if (descriptor.controllerArg && !controller) {
+    throw new DegradedBlockError(`${label} — needs the running page`);
+  }
+  const config = materialize(
+    withoutUnfinishedEntries(descriptor.config, block.config ?? {}),
+  ) as Record<string, unknown>;
+  const options = { ...descriptor.defaults, ...config };
+  return controller
+    ? factoryFor(descriptor.type)(controller, options)
+    : factoryFor(descriptor.type)(options);
 }
 
 function instantiateBlock(

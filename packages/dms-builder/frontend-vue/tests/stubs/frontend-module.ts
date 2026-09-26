@@ -38,3 +38,15 @@ export function useDmsState<T>(key: string, init: () => T): Ref<T> {
 export function useDmsRoute(): { path: string } {
   return { path: '/' }
 }
+
+/** Every route pushed through `useDmsRouter()`, oldest first. */
+export const pushedRoutes: string[] = []
+
+export function useDmsRouter(): { push: (route: string) => Promise<void> } {
+  return {
+    push: (route) => {
+      pushedRoutes.push(route)
+      return Promise.resolve()
+    },
+  }
+}

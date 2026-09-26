@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDmsRoute as useRoute } from '#dms/frontend-module'
 import { useContentAnchor } from '../runtime/anchor'
+import { describeError, errorDetail } from '../runtime/errors'
 import { useBuilder } from '../runtime/session'
-import type { BuilderError } from '../runtime/types'
 
 const builder = useBuilder()
 const session = builder.session
@@ -22,29 +22,22 @@ const style = computed(() => ({
 	height: `${anchor.value.height}px`,
 }))
 
-function describe(error: BuilderError): string {
-	const messages: Record<string, () => string> = {
-		not_found: () => 'This page is not one the builder can edit.',
-		stale: () =>
-			'The page changed on disk since it was opened. Reload it to keep going.',
-		invalid_config: () =>
-			'issues' in error
-				? error.issues.map((issue) => `${issue.pointer} ${issue.message}`).join(' · ')
-				: 'Invalid configuration.',
-		typecheck_failed: () =>
-			'diagnostics' in error
-				? error.diagnostics
-						.map((entry) => `${entry.line}: ${entry.message}`)
-						.join(' · ')
-				: 'The generated source does not compile.',
-		unsupported: () => ('detail' in error ? error.detail : 'Unsupported.'),
-		duplicate_name: () =>
-			'name' in error ? `The name "${error.name}" is already taken.` : 'Duplicate name.',
-		opaque_target: () => 'That block cannot be rewritten by the builder.',
-		referential_integrity: () => 'Something still depends on this.',
-	}
-	return (messages[error.code] ?? (() => 'The operation failed.'))()
-}
+const message = computed(() =>
+	session.value.error
+		? describeError(session.value.error, session.value.draft)
+		: '',
+)
+/** The module's own wording, folded away until someone asks for it. */
+const detail = computed(() =>
+	session.value.error ? errorDetail(session.value.error) : [],
+)
+const detailOpen = ref(false)
+watch(
+	() => session.value.error,
+	() => {
+		detailOpen.value = false
+	},
+)
 
 const isTyping = (target: EventTarget | null): boolean => {
 	const element = target as HTMLElement | null
@@ -74,7 +67,7 @@ function onKeydown(event: KeyboardEvent): void {
 			builder.select(null)
 			return
 		}
-		builder.close()
+		builder.leave()
 		return
 	}
 	if (modifier && event.key.toLowerCase() === 'z') {
@@ -106,8 +99,26 @@ function onKeydown(event: KeyboardEvent): void {
 	}
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown))
-onUnmounted(() => document.removeEventListener('keydown', onKeydown))
+/**
+ * The draft lives in this page and nowhere else, so reloading or closing the
+ * tab drops it as surely as leaving the editor does. The browser asks its own
+ * question for that one; this only says there is something to lose.
+ */
+function onBeforeUnload(event: BeforeUnloadEvent): void {
+	if (!session.value.active || !builder.dirty.value) {
+		return
+	}
+	event.preventDefault()
+}
+
+onMounted(() => {
+	document.addEventListener('keydown', onKeydown)
+	window.addEventListener('beforeunload', onBeforeUnload)
+})
+onUnmounted(() => {
+	document.removeEventListener('keydown', onKeydown)
+	window.removeEventListener('beforeunload', onBeforeUnload)
+})
 </script>
 
 <template>
@@ -118,8 +129,43 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 	>
 		<DmsBuilderBar />
 
+		<!-- Leaving drops the draft, so it is asked before it happens rather than
+		reported after. -->
 		<div
-			v-if="session.pendingRoute"
+			v-if="session.pendingClose"
+			class="flex flex-wrap items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
+		>
+			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
+			<span class="flex-1">
+				{{ session.pageRef }} has changes nobody has saved. Leaving the editor
+				drops them.
+			</span>
+			<UButton
+				size="xs"
+				color="warning"
+				variant="soft"
+				label="Save and leave"
+				:loading="session.saving"
+				@click="builder.resolveClose(true)"
+			/>
+			<UButton
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				label="Leave without saving"
+				@click="builder.resolveClose(false)"
+			/>
+			<UButton
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				label="Stay"
+				@click="builder.stayOpen()"
+			/>
+		</div>
+
+		<div
+			v-else-if="session.pendingRoute"
 			class="flex items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
 		>
 			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
@@ -166,7 +212,20 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 			class="flex items-start gap-3 border-b border-error bg-error/10 px-4 py-2 text-xs text-error"
 		>
 			<UIcon name="i-ph-x-circle" class="mt-0.5 size-4 shrink-0" />
-			<span class="flex-1">{{ describe(session.error) }}</span>
+			<div class="flex min-w-0 flex-1 flex-col gap-1">
+				<span>{{ message }}</span>
+				<button
+					v-if="detail.length"
+					type="button"
+					class="self-start underline decoration-dotted underline-offset-2 opacity-80 hover:opacity-100"
+					@click="detailOpen = !detailOpen"
+				>
+					{{ detailOpen ? 'Hide the details' : 'Details' }}
+				</button>
+				<ul v-if="detailOpen" class="flex flex-col gap-0.5 font-mono opacity-80">
+					<li v-for="line in detail" :key="line">{{ line }}</li>
+				</ul>
+			</div>
 			<UButton
 				icon="i-ph-x"
 				size="xs"
@@ -176,6 +235,27 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 				@click="session.error = null"
 			/>
 		</div>
+
+		<!-- A write that went through can still have had to settle for less —
+		a column stored as a string, a query kept alive. Outside the chain above:
+		it stays true whatever else is being asked. -->
+		<UAlert
+			v-if="session.warnings.length"
+			color="warning"
+			variant="subtle"
+			icon="i-ph-warning"
+			:close="{ 'aria-label': 'Dismiss the warnings' }"
+			class="rounded-none py-2"
+			@update:open="session.warnings = []"
+		>
+			<template #description>
+				<ul class="flex flex-col gap-0.5">
+					<li v-for="entry in session.warnings" :key="entry.message">
+						{{ entry.message }}
+					</li>
+				</ul>
+			</template>
+		</UAlert>
 
 		<div v-if="session.loading" class="flex flex-1 items-center justify-center">
 			<UIcon name="i-ph-circle-notch" class="size-6 animate-spin text-dimmed" />

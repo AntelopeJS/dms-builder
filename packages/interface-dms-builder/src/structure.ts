@@ -83,6 +83,12 @@ export interface PageSummary {
   category: CategoryRef;
   moduleId?: string;
   filepath: string;
+  /** The icon the menu shows beside the page. */
+  icon?: string;
+  /** Sorts the page among the others of its category. */
+  order?: number;
+  /** Whether the menu leaves the page out; its route still answers. */
+  hidden?: boolean;
 }
 
 /** A lightweight category listing entry. */

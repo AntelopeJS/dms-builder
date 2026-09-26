@@ -112,10 +112,18 @@ chrome — sidebar, header, breadcrumb — usable behind it.
   `PreviewLayout`, so a card fetches its real data and a grid lays itself out
   exactly as it will once saved. Blocks the preview cannot build faithfully
   (a `TableView`, whose DataAPI class only the running page holds) render as a
-  labelled placeholder rather than a lie.
+  labelled placeholder rather than a lie. A drop is aimed at a block that is
+  already there, and every block of a grid answers on all four of its sides:
+  its left and right quarters place the block in the column before or after it,
+  the bands across its top and bottom above or below it, and the middle of a
+  container inside it. The rows and columns those readings need are the
+  editor's to write — composing a grid never asks anyone to place one.
 - **Library** — the catalog, grouped and searchable. Drag onto the page to place
   a block, or click to append it. Placement follows the catalog:
-  `allowedChildren` refuses a block a container will not take.
+  `allowedChildren` refuses a block a container will not take. A type named as a
+  container's *one* allowed child is left out of the palette entirely — that
+  container writes it around whatever is dropped in, so it is structure rather
+  than a component (`Grid` and its `GridRow`).
 - **Settings** — a panel generated from the block's schema. Every option gets
   the control its declaration asks for, with its label, help text, default and
   bounds; nested objects, arrays, unions, DataTypes and nested blocks all

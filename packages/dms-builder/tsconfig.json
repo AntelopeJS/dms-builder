@@ -1,6 +1,8 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    // The engine suites are plain mocha specs; only this package compiles them.
+    "types": ["node", "mocha"],
     "lib": ["esnext", "dom"],
     "allowJs": true,
     "incremental": true,

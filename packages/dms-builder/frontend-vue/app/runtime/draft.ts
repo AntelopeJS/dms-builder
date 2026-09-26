@@ -1,4 +1,11 @@
-import type { BlockDraft, BlockNode, PageDraft, PageStructure } from './types'
+import { descriptorOf, isStructural, slotIdFor, suggestedName } from './catalog'
+import type {
+	BlockCatalog,
+	BlockDraft,
+	BlockNode,
+	PageDraft,
+	PageStructure,
+} from './types'
 
 /** A block's address inside a draft: the `.child()` ids joined by `/`. */
 export function joinPath(parent: string | null, name: string): string {
@@ -32,6 +39,7 @@ function nodeToDraft(node: BlockNode): BlockDraft {
 			preserve: true,
 			...(node.slot ? { slot: node.slot } : {}),
 			...(node.meta ? { meta: node.meta } : {}),
+			...(node.opaqueReason ? { opaqueReason: node.opaqueReason } : {}),
 		}
 	}
 	return {
@@ -80,6 +88,42 @@ export function findNode(
 		list = current.children
 	}
 	return current
+}
+
+/**
+ * The block a validation pointer addresses, as a draft path:
+ * `/blocks/0/children/1/type` answers `grid/text`.
+ *
+ * The module reports where an issue sits by index into the draft it was sent;
+ * the editor never shows those indexes, and the block's name is what the user
+ * can act on. Anything past the last block — `/type`, `/config/…` — belongs to
+ * the block resolved so far, so the walk stops there.
+ */
+export function pathForPointer(
+	draft: PageDraft,
+	pointer: string,
+): string | undefined {
+	const parts = pointer.split('/').filter((part) => part.length > 0)
+	if (parts.shift() !== 'blocks') {
+		return undefined
+	}
+	let siblings: BlockDraft[] | undefined = draft.blocks
+	let path: string | null = null
+	while (siblings) {
+		const index = Number(parts.shift())
+		const block: BlockDraft | undefined = Number.isInteger(index)
+			? siblings[index]
+			: undefined
+		if (!block) {
+			return path ?? undefined
+		}
+		path = joinPath(path, block.name)
+		if (parts.shift() !== 'children') {
+			return path
+		}
+		siblings = block.children
+	}
+	return path ?? undefined
 }
 
 export function uniqueName(siblings: BlockDraft[], base: string): string {
@@ -209,10 +253,88 @@ export function walkDraft(
 	}
 }
 
-export function countBlocks(draft: PageDraft): number {
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * A value the engine hands over to be written back exactly as it read it — a
+ * reference it cannot inline, a data type. Naming anything inside one would
+ * change what it re-emits, so it is left alone whatever it is missing.
+ */
+function isSentinel(entry: Record<string, unknown>): boolean {
+	return Object.keys(entry).some((key) => key.startsWith('$'))
+}
+
+/**
+ * Name the regions of every container that holds its children through its own
+ * options, for the ones nobody has named.
+ *
+ * Adding a tab is giving it a title, and that is all an author should have to
+ * do; the id its children attach to is the editor's, the way the name of a
+ * block is. Left out, it reaches the engine as a page whose own type refuses to
+ * compile, and the author is answered with a compiler error about a property no
+ * panel ever showed them.
+ *
+ * Only a region that has never been named is given one: an author clearing a
+ * title to type another must not have one written back under their cursor, and
+ * an id that already exists is what the children are attached by.
+ */
+export function nameSlots(draft: PageDraft, catalog: BlockCatalog | null): void {
+	if (!catalog) {
+		return
+	}
+	walkDraft(draft.blocks, (block) => {
+		const dynamic = descriptorOf(catalog, block.type)?.dynamicSlots
+		const entries = dynamic
+			? (block.config ?? {})[dynamic.optionPath]
+			: undefined
+		if (!dynamic || !Array.isArray(entries)) {
+			return
+		}
+		const taken = new Set(
+			entries
+				.filter(isRecord)
+				.map((entry) => entry[dynamic.idKey])
+				.filter((id): id is string => typeof id === 'string' && id !== ''),
+		)
+		const kind = block.type ?? 'slot'
+		entries.forEach((entry, index) => {
+			const current = isRecord(entry) ? entry[dynamic.idKey] : undefined
+			if (
+				!isRecord(entry) ||
+				isSentinel(entry) ||
+				(typeof current === 'string' && current !== '')
+			) {
+				return
+			}
+			const rank = index + 1
+			const labelKey = dynamic.labelKey
+			// The id follows the title the author gave. One the editor invented
+			// says nothing worth reading back, so that case takes the plain rank.
+			const authored = labelKey ? entry[labelKey] : undefined
+			if (labelKey && !authored) {
+				entry[labelKey] = `${kind} ${rank}`
+			}
+			const id = slotIdFor(authored, `${suggestedName(kind)}${rank}`, taken)
+			entry[dynamic.idKey] = id
+			taken.add(id)
+		})
+	})
+}
+
+/**
+ * How many blocks the page holds, as its author counts them.
+ *
+ * The layout the editor writes is not counted: nobody placed it, and a page of
+ * two cards side by side is two blocks, not four.
+ */
+export function countBlocks(draft: PageDraft, catalog: BlockCatalog | null): number {
 	let total = 0
-	walkDraft(draft.blocks, () => {
-		total += 1
+	walkDraft(draft.blocks, (block) => {
+		if (!isStructural(catalog, block.type)) {
+			total += 1
+		}
 	})
 	return total
 }

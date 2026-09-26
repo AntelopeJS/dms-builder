@@ -1,5 +1,6 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { BlockPath, PageRef } from "./addressing";
+import type { AddQueryInput, QueryPreview } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
@@ -35,6 +36,16 @@ export interface PageDraft {
   /** Metadata to patch alongside the blocks; omit to leave it alone. */
   page?: Partial<EditablePageMeta>;
   blocks: BlockDraft[];
+  /**
+   * The queries the page should serve, written in the same transaction as the
+   * blocks — a block and the data it reads are one edit.
+   *
+   * Omit to leave the page's queries untouched. An empty array is not the same
+   * thing: it says the page should serve none, and removes the generated ones.
+   * A query a human has taken over is never rewritten or removed; it comes back
+   * as a warning instead.
+   */
+  queries?: AddQueryInput[];
 }
 
 /** A component tree in the shape the DMS frontend consumes. */
@@ -88,3 +99,25 @@ export const PreviewLayout =
   InterfaceFunction<
     (page: PageRef, draft: PageDraft) => Promise<OpResult<PageLayoutPreview>>
   >();
+
+/**
+ * Run a query that has not been written, and answer what its route would.
+ *
+ * The other half of previewing a draft: `PreviewLayout` says what the page will
+ * look like, this says what its blocks will be showing. Read-only, and limited to
+ * a page of points — a preview that returned a million rows would be answering a
+ * different question.
+ */
+export const PreviewQuery =
+  InterfaceFunction<
+    (request: QueryPreviewRequest) => Promise<OpResult<QueryPreview>>
+  >();
+
+/** What to run, and what the route would have been handed. */
+export interface QueryPreviewRequest {
+  query: AddQueryInput;
+  /** Values the route would receive, by the name it exposes them under. */
+  args?: Record<string, unknown>;
+  /** The tenant whose rows to read, for a resource in a per-tenant schema. */
+  tenant?: string;
+}

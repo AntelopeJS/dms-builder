@@ -236,3 +236,42 @@ export function indentationText(rootDir: string): string {
       ? "    "
       : "  ";
 }
+
+/**
+ * When each of the project's own files was last written.
+ *
+ * An index built from a project is a parse, and a parse only describes the
+ * disk it was read from. Taking this alongside one is what lets the next
+ * lookup tell a file that has moved on — an editor, a formatter, a
+ * `git checkout` — from one the engine wrote itself.
+ */
+export function stampSources(project: Project): Map<string, number> {
+  const stamps = new Map<string, number>();
+  for (const sourceFile of project.getSourceFiles()) {
+    if (sourceFile.isInNodeModules()) {
+      continue;
+    }
+    const filepath = sourceFile.getFilePath();
+    stamps.set(filepath, modifiedAt(filepath));
+  }
+  return stamps;
+}
+
+/** Whether any of the stamped files has been written since. */
+export function sourcesChanged(stamps: Map<string, number>): boolean {
+  for (const [filepath, stamped] of stamps) {
+    if (modifiedAt(filepath) !== stamped) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** A file nobody can read is reported as absent rather than as an error. */
+function modifiedAt(filepath: string): number {
+  try {
+    return fs.statSync(filepath).mtimeMs;
+  } catch {
+    return -1;
+  }
+}

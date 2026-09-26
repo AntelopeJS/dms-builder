@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { descriptorOf, missingConfig, servedNodeAt } from '../runtime/catalog'
+import { computed, ref, watchEffect } from 'vue'
+import {
+	descriptorOf,
+	isStructural,
+	missingConfig,
+	servedNodeAt,
+	slotsOf,
+} from '../runtime/catalog'
+import {
+	effectOfDrag,
+	isRowContainer,
+	namedHost,
+	spansFullWidth,
+} from '../runtime/dropping'
 import { joinPath, useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
@@ -27,18 +39,45 @@ const degraded = computed(() => {
 	)
 })
 
-// A block the preview stood in for renders from what the DMS served, so a table
-// shows its real columns instead of a placeholder. Anything the server does not
-// know — a block just added — keeps the stand-in.
+/**
+ * A block the preview stood in for renders from what the DMS served, so a table
+ * shows its real columns instead of a placeholder.
+ *
+ * Only while the served node is this block, though. A page never compiled with
+ * a required setting left empty, so a block that still has one was never the
+ * one the server is serving — it is a block being built at a path something
+ * else was saved at, and rendering what was saved there shows an author
+ * content their draft no longer holds. Looking the path up is what could not
+ * tell the two apart: re-adding a block under the name of the one it replaced
+ * finds the old one every time.
+ */
 const served = computed(() =>
-	degraded.value ? servedNodeAt(session.value.served, props.path) : undefined,
+	degraded.value && !missing.value.length
+		? servedNodeAt(session.value.served, props.path)
+		: undefined,
 )
-const rendered = computed(() => served.value ?? props.preview)
+/**
+ * A block the builder cannot rewrite still shows the way the page shows it,
+ * from what the DMS served, and never as the preview's stand-in, which only
+ * knows it could not build it. That holds only while the block contains nothing.
+ * The draft does not carry its contents, so a container would render empty.
+ */
+const rendered = computed(() => {
+	if (props.block.preserve) {
+		return served.value?.children?.length ? undefined : served.value
+	}
+	return served.value ?? props.preview
+})
 const resolved = computed(() =>
 	rendered.value ? resolveDmsComponent(rendered.value.componentName) : undefined,
 )
 const label = computed(
 	() => descriptor.value?.label ?? props.block.type ?? 'Block',
+)
+const standInNote = computed(() =>
+	missing.value.length
+		? `Waiting on ${missing.value.join(', ')}`
+		: 'Renders once saved — this block needs the running page',
 )
 
 const children = computed(() =>
@@ -50,24 +89,173 @@ const children = computed(() =>
 	})),
 )
 const slotted = computed(() => children.value.filter((child) => child.block.slot))
-// A drop zone addresses `children`, the list the draft splices into, so each
-// unslotted child carries the index it holds there rather than its rank among
-// its unslotted peers.
-const plain = computed(() =>
-	children.value
-		.map((child, index) => ({ ...child, index }))
-		.filter((child) => !child.block.slot),
+const plain = computed(() => children.value.filter((child) => !child.block.slot))
+/**
+ * The region the rendered block is showing, reported as it changes.
+ *
+ * A tab set is the one container that hides part of what it holds, and it is
+ * the only thing that knows which part: it exposes the tab it has open, as an
+ * index into the regions its own options declare. Without this the editor would
+ * go on dropping into the first tab while the author is looking at another.
+ */
+const instance = ref<{ activeTab?: string } | null>(null)
+watchEffect(() => {
+	const open = instance.value?.activeTab
+	if (open === undefined) {
+		return
+	}
+	const region = slotsOf(descriptor.value, props.block)[Number(open)]
+	if (region) {
+		builder.openRegion(props.path, region.id)
+	}
+})
+
+/**
+ * The regions the block declares, each with what is attached to it.
+ *
+ * A stand-in has to answer for them itself: a container the preview has not
+ * built lays no slotted child out at all, and a block just attached to a tab
+ * would be missing from the canvas until the page compiles again — which is
+ * exactly when a tab set stands in for itself.
+ */
+const regions = computed(() =>
+	slotsOf(descriptor.value, props.block).map((slot) => ({
+		...slot,
+		children: slotted.value.filter((child) => child.block.slot === slot.id),
+	})),
+)
+/** Whether this block lays its own children out side by side. */
+const inner = computed(() => isRowContainer(props.block.type))
+/** Whether the editor wrote this block itself, rather than the user placing it. */
+const structural = computed(() =>
+	isStructural(session.value.catalog, props.block.type),
 )
 
+const dragging = computed(() => session.value.dragging !== null)
+const target = computed(() => session.value.dropTarget)
+/**
+ * Whether the block being dragged would land in this one, as far as the user is
+ * concerned: a row it would really land in belongs to the grid that wrote it,
+ * and the grid is what the user put on the page.
+ */
+const receiving = computed(() => {
+	const aimed = target.value
+	if (!aimed) {
+		return false
+	}
+	return (
+		namedHost(session.value.catalog, session.value.draft, aimed.parent) ===
+		props.path
+	)
+})
+const refused = computed(() => target.value?.refusal !== undefined)
+/**
+ * Where the room opens when the drop is what builds the column holding it.
+ *
+ * A cell of a row has no place above or below it to open — that is what the
+ * column is for — so the block shows the two of them inside itself, and the
+ * column the drop writes is the one the user is already looking at.
+ *
+ * A refused target opens nothing: the border and its reason are the whole
+ * answer, and room made for a block would say the drop is going to happen.
+ */
+const wrapGap = computed(() => {
+	const wrap = refused.value ? undefined : target.value?.wrap
+	if (wrap?.around !== props.path) {
+		return undefined
+	}
+	return wrap.index === 0 ? 'before' : 'after'
+})
+/**
+ * The way that room runs: a band above or below the block for a column, a
+ * column beside it for the row a drop at its flank builds — the block giving up
+ * half its width, the way it will once the row is written.
+ */
+const wrapAxis = computed(() => target.value?.axis ?? 'horizontal')
+
+/**
+ * Structure answers for nothing a pointer does to it: it is what the canvas
+ * shows as nothing but what it holds. A click or a hover on it is one on
+ * whatever holds it, and there is nothing of it to carry.
+ */
+function onClick(event: MouseEvent): void {
+	if (structural.value) {
+		return
+	}
+	event.stopPropagation()
+	builder.select(props.path)
+}
+
+function onMouseEnter(event: MouseEvent): void {
+	if (structural.value) {
+		return
+	}
+	event.stopPropagation()
+	builder.hover(props.path)
+}
+/** Whether this block is the one being carried, and so no longer quite here. */
+const lifted = computed(() => session.value.dragging?.path === props.path)
+
+/**
+ * What the block's own border says, in the order the states matter: where a drop
+ * would land first, then what is selected, then what the pointer is over.
+ *
+ * Nothing else is drawn during a drag — an outline left over from before it
+ * would compete with the one target the user is aiming at.
+ */
+const frame = computed(() => {
+	if (receiving.value) {
+		// Dashed, so a refusal reads as one at a glance rather than as a target
+		// drawn in another colour.
+		return refused.value
+			? 'outline outline-2 outline-dashed outline-error'
+			: 'outline outline-2 outline-primary'
+	}
+	if (selected.value) {
+		return 'outline outline-2 outline-primary'
+	}
+	if (dragging.value) {
+		return ''
+	}
+	if (hovered.value) {
+		return 'outline outline-1 outline-primary/40'
+	}
+	return missing.value.length
+		? 'outline outline-1 outline-dashed outline-warning'
+		: ''
+})
+
 // The renderer sizes a grid from the spans its children declare, the same way
-// the host's recursive renderer does.
-const childCount = computed(() =>
-	children.value.reduce(
-		(total, child) => total + (Number(child.block.meta?.colSpan) || 1),
-		0,
-	),
+// the host's recursive renderer does — and room opened among them is one more
+// column it has to divide its width by, or the block would land in a row that
+// has no column for it and the others would not give any width up.
+const childCount = computed(
+	() =>
+		children.value.reduce(
+			(total, child) => total + (Number(child.block.meta?.colSpan) || 1),
+			0,
+		) + (gapInside.value ? 1 : 0),
 )
+/** Whether the room for the drop opens among this block's own children. */
+const gapInside = computed(() => {
+	const aimed = target.value
+	return (
+		aimed !== null &&
+		!aimed.refusal &&
+		!aimed.wrap &&
+		aimed.parent === props.path
+	)
+})
+/**
+ * Placement the wrapper has to carry itself. The canvas wraps every block in a
+ * div of its own for selection and outlines, so that div — not the block — is
+ * what a grid lays out; a row's own `1 / -1` then applies inside the wrapper
+ * and the row ends up squeezed into a single column.
+ */
 const spanStyle = computed(() => {
+	if (spansFullWidth(props.block.type)) {
+		return { gridColumn: '1 / -1' }
+	}
 	const span = Number(props.block.meta?.colSpan)
 	return span > 1 ? { gridColumn: `span ${span}` } : undefined
 })
@@ -76,39 +264,120 @@ const pageId = computed(() => session.value.structure?.page.id ?? '')
 
 function onDragStart(event: DragEvent): void {
 	event.dataTransfer?.setData('text/plain', props.path)
-	builder.beginDrag({ path: props.path })
+	// See Library.vue: without an allowed effect the browser turns every drop
+	// down before the page is asked. This one is a move, and saying `copyMove`
+	// while the target answered `copy` had it drawing a copy that never happens.
+	if (event.dataTransfer) {
+		event.dataTransfer.effectAllowed = 'move'
+	}
+	// Measured now, while the block is still standing where it was: the room
+	// opened for it wherever it is aimed is the room it actually takes up.
+	const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+	builder.beginDrag({ path: props.path, height: box.height })
+}
+
+/**
+ * Read the pointer against the block it is over, on both axes.
+ *
+ * What each axis means is the module's to decide from the page's own shape — a
+ * cell of a row answers on all four of its sides, a block the page stacks only
+ * above and below — so the same gesture has to carry both. The innermost block
+ * under the pointer is the one that answers, hence the stopped propagation on
+ * the template's handler.
+ */
+function onDragOver(event: DragEvent): void {
+	const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+	builder.aimAt(props.path, {
+		x: { start: box.left, size: box.width, at: event.clientX },
+		y: { start: box.top, size: box.height, at: event.clientY },
+	})
+	answerCursor(event)
+}
+
+/**
+ * The cursor is the only refusal an author sees before letting go, so it has to
+ * say what the aim just decided rather than the browser's default — and it has
+ * to say it on `dragenter` too, which is where the browser first decides what
+ * to draw over an element it has just moved onto.
+ */
+function answerCursor(event: DragEvent): void {
+	if (event.dataTransfer) {
+		event.dataTransfer.dropEffect = refused.value
+			? 'none'
+			: effectOfDrag(session.value.dragging)
+	}
 }
 </script>
 
 <template>
+	<!-- Laid out as a grid of one cell, for the same reason `spanStyle` exists:
+	a row makes its cells as tall as the tallest, and what it stretches is this
+	wrapper. The block inside would keep its own height and sit in a box it does
+	not fill — a page the canvas shows and the page itself never renders. -->
 	<div
-		class="relative min-w-0 rounded-lg outline-offset-4 transition-[outline-color]"
+		class="relative grid min-w-0 rounded-lg outline-offset-4 transition-[outline-color]"
 		:class="[
 			// A block that renders to nothing yet — a tab set with no tabs, an
 			// empty stack — would be a hairline nobody can click, and so could
 			// neither be configured nor removed. Give it something to aim at
-			// until it has content of its own.
-			'min-h-6',
-			selected ? 'outline outline-2 outline-primary' : '',
-			!selected && hovered ? 'outline outline-1 outline-primary/40' : '',
-			!selected && missing.length ? 'outline outline-1 outline-dashed outline-warning' : '',
+			// until it has content of its own. Structure is not something to
+			// aim at: holding nothing, it is gone on the next edit.
+			structural ? '' : 'min-h-6',
+			// Room opened above or below it is a second row of this grid, and
+			// the two want telling apart; room opened beside it is a second
+			// column, as wide as the block.
+			wrapGap ? 'gap-2' : '',
+			wrapGap && wrapAxis === 'vertical' ? 'grid-flow-col auto-cols-fr' : '',
+			// The block is on the pointer; what is left here is the hole it
+			// came out of, which the drop is about to fill from somewhere else.
+			lifted ? 'opacity-40' : '',
+			frame,
 		]"
 		:style="spanStyle"
-		draggable="true"
-		@click.stop="builder.select(path)"
-		@mouseenter.stop="builder.hover(path)"
+		:data-path="path"
+		:draggable="!structural"
+		@click="onClick"
+		@mouseenter="onMouseEnter"
 		@mouseleave="builder.hover(null)"
 		@dragstart.stop="onDragStart"
 		@dragend="builder.endDrag()"
+		@dragenter.prevent.stop="answerCursor"
+		@dragover.prevent.stop="onDragOver"
+		@drop.prevent.stop="builder.drop()"
 	>
+		<!-- What is being aimed at, named: which container receives, and why it
+		would not. -->
 		<div
-			v-if="selected || hovered"
-			class="absolute -top-6 left-0 z-10 flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-inverted"
+			v-if="receiving"
+			class="absolute -top-6 left-0 z-20 flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-inverted"
+			:class="refused ? 'bg-error' : 'bg-primary'"
+			:data-drop-into="path"
 		>
 			<UIcon v-if="descriptor?.icon" :name="descriptor.icon" class="size-3" />
 			<span>{{ block.name }}</span>
 			<span class="opacity-70">· {{ label }}</span>
-			<span v-if="served" class="opacity-70">· as saved</span>
+			<span v-if="target?.refusal" class="font-normal">
+				· {{ target.refusal }}
+			</span>
+		</div>
+
+		<div
+			v-if="(selected || hovered) && !dragging"
+			class="absolute -top-6 left-0 z-10 flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-inverted"
+		>
+			<UIcon v-if="descriptor?.icon" :name="descriptor.icon" class="size-3" />
+			<span>{{ block.name }}</span>
+			<!-- A block the builder cannot rewrite carries no type in the draft,
+			so its label would only say "Block". -->
+			<template v-if="block.preserve">
+				<span class="opacity-70">·</span>
+				<UIcon name="i-ph-lock-simple" class="size-3 opacity-70" />
+				<span class="opacity-70">set up in code</span>
+			</template>
+			<template v-else>
+				<span class="opacity-70">· {{ label }}</span>
+				<span v-if="served" class="opacity-70">· as saved</span>
+			</template>
 			<UIcon
 				v-if="missing.length"
 				name="i-ph-warning"
@@ -131,12 +400,65 @@ function onDragStart(event: DragEvent): void {
 			</button>
 		</div>
 
+		<DmsBuilderPlaceholder v-if="wrapGap === 'before'" :axis="wrapAxis" />
+
+		<!-- Said for whoever is building the page: why the code cannot be
+		rewritten, and where it lives, are for the panel's developer notes. -->
 		<div
-			v-if="block.preserve"
+			v-if="block.preserve && !resolved"
 			class="flex items-center gap-2 rounded-lg border border-dashed border-default bg-elevated p-4 text-sm text-dimmed"
 		>
 			<UIcon name="i-ph-lock-simple" class="size-4" />
-			<span>{{ block.name }} — written by hand, kept as is</span>
+			<span>{{ block.name }} is set up in code and can't be changed here</span>
+		</div>
+
+		<!-- Structure the editor wrote for itself stands in as nothing but what
+		it holds, laid out the way it lays it out: naming it would teach the user
+		the one word the gesture that built it exists to spare them. -->
+		<div
+			v-else-if="!resolved && structural"
+			class="flex gap-2"
+			:class="inner ? 'flex-row' : 'flex-col'"
+		>
+			<!-- No way in: structure holding nothing is removed on the next edit,
+			and a box offering to be filled would be the one thing it shows. -->
+			<DmsBuilderChildren :path="path" :children="plain" />
+		</div>
+
+		<!-- A container the preview has not answered for yet — a stack just
+		added — still has to be fillable, so it stands in for itself and keeps
+		holding its children. -->
+		<div
+			v-else-if="!resolved && descriptor?.container"
+			class="flex flex-col gap-2 rounded-lg border border-dashed border-default bg-elevated p-4"
+		>
+			<span class="text-xs text-dimmed">
+				<span class="font-medium text-default">{{ label }}</span>
+				— {{ standInNote }}
+			</span>
+			<div class="flex flex-col gap-2">
+				<!-- Named, so the tabs of a set the preview cannot build are told
+				apart by what the author called them. -->
+				<div
+					v-for="region in regions"
+					:key="region.id"
+					class="flex flex-col gap-1"
+					:data-region="region.id"
+				>
+					<span class="text-xs font-medium text-dimmed">{{ region.label }}</span>
+					<DmsBuilderChildren
+						:path="path"
+						:children="region.children"
+						:empty="!region.children.length"
+						:region="region.id"
+					/>
+				</div>
+				<DmsBuilderChildren
+					:path="path"
+					:children="plain"
+					:empty="!children.length && !regions.length"
+				/>
+			</div>
 		</div>
 
 		<div
@@ -144,61 +466,49 @@ function onDragStart(event: DragEvent): void {
 			class="flex flex-col gap-1 rounded-lg border border-dashed border-default bg-elevated p-6 text-center text-sm text-dimmed"
 		>
 			<span class="font-medium text-default">{{ label }}</span>
-			<span>{{
-				missing.length
-					? `Waiting on ${missing.join(', ')}`
-					: 'Renders once saved — this block needs the running page'
-			}}</span>
+			<span>{{ standInNote }}</span>
 		</div>
 
-		<DmsBuilderBoundary
-			v-else
-			:label="label"
-			:reset-key="rendered?.options"
-		>
-			<component
-				:is="resolved"
-				v-bind="rendered?.options"
-				:page-id="pageId"
-				:component-id="path"
-				:child-count="childCount"
-			>
-				<template
-					v-for="child in slotted"
-					:key="child.path"
-					#[child.block.slot!]
+		<DmsBuilderBoundary v-else :label="label" :reset-key="rendered?.options">
+			<!-- A DMS component may await in its own setup — a form asks for its
+			values before it can render a field, a table for its rows — and Vue
+			refuses to mount an async setup that has no Suspense above it: it warns
+			once per render and mounts nothing, which takes the editor down with
+			it. A page is rendered inside one; the canvas renders the same
+			components itself, so it carries its own. -->
+			<Suspense>
+				<component
+					:is="resolved"
+					ref="instance"
+					v-bind="rendered?.options"
+					:page-id="pageId"
+					:component-id="path"
+					:child-count="childCount"
 				>
-					<DmsBuilderNode
-						:block="child.block"
-						:path="child.path"
-						:preview="child.preview"
-					/>
-				</template>
-				<template #default>
-					<template v-for="child in plain" :key="child.path">
-						<DmsBuilderDropZone :parent="path" :index="child.index" />
-						<DmsBuilderNode
-							:block="child.block"
-							:path="child.path"
-							:preview="child.preview"
+					<template v-for="region in regions" :key="region.id" #[region.id]>
+						<DmsBuilderChildren
+							:path="path"
+							:children="region.children"
+							:empty="!region.children.length"
+							:region="region.id"
 						/>
 					</template>
-					<DmsBuilderDropZone
-						v-if="descriptor?.container"
-						:parent="path"
-						:index="children.length"
-					/>
-					<button
-						v-if="descriptor?.container && !plain.length && !session.dragging"
-						type="button"
-						class="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-default p-4 text-xs text-dimmed hover:border-primary hover:text-primary"
-						@click.stop="builder.select(path, 'library')"
-					>
-						<UIcon name="i-ph-plus" class="size-4" />
-						Empty container — add a block
-					</button>
-				</template>
-			</component>
+					<template #default>
+						<DmsBuilderChildren
+							:path="path"
+							:children="plain"
+							:empty="
+								!structural &&
+								descriptor?.container === true &&
+								!children.length &&
+								!regions.length
+							"
+						/>
+					</template>
+				</component>
+			</Suspense>
 		</DmsBuilderBoundary>
+
+		<DmsBuilderPlaceholder v-if="wrapGap === 'after'" :axis="wrapAxis" />
 	</div>
 </template>

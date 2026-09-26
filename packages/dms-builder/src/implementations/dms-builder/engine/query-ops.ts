@@ -12,18 +12,18 @@ import {
 } from "ts-morph";
 import { duplicate, invalidConfig, opaque } from "./ops";
 import { isIdentifier } from "./paths";
-import { canonicalChain } from "./query-chain";
+import { canonicalBody } from "./query-chain";
+import { emitPlan } from "./query-plan";
 import {
   type CompiledQuery,
   defaultEndpoint,
   type ModelTarget,
+  seriesNaming,
 } from "./query-emit";
 import {
   findQueryRoutes,
   pageRoutePaths,
-  parseQueryRouteCall,
-  routeModelMethodNames,
-  routeResourceRef,
+  routeModelBinding,
   unknownParamKeys,
 } from "./query-structure";
 import {
@@ -99,6 +99,13 @@ function resourceFields(record: ResourceRecord): ResourceFieldStructure[] {
 function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
   const names = new Set(PAGE_RESERVED_MEMBERS);
   for (const member of pageClass.getMembers()) {
+    // A block is a static field, read off the class itself; a route is a
+    // method on its prototype. The two never meet — and a block's own data is
+    // the query the editor names after it, so counting the block as taken made
+    // a card placed on the page unable to read anything.
+    if ("isStatic" in member && member.isStatic()) {
+      continue;
+    }
     const name = "getName" in member ? member.getName() : undefined;
     if (typeof name === "string") {
       names.add(name);
@@ -109,12 +116,17 @@ function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
 
 /** Whether a model method computes exactly the chain `spec` describes. */
 function bodyMatches(method: MethodDeclaration, spec: CompiledQuery): boolean {
-  const parsed = parseModelMethod(method);
+  const body = method.getBody();
+  const names = method.getParameters().map((parameter) => parameter.getName());
+  if (!body || names.length !== spec.chain.parameters.length) {
+    return false;
+  }
   return (
-    parsed !== undefined &&
-    parsed.template === spec.template &&
-    canonicalChain(parsed.template, parsed.params) ===
-      canonicalChain(spec.template, spec.params)
+    canonicalBody(body.getText(), names) ===
+    canonicalBody(
+      spec.chain.body,
+      spec.chain.parameters.map((parameter) => parameter.name),
+    )
   );
 }
 
@@ -215,14 +227,15 @@ function resourceQueryRoutes(resource: string): RouteMethodBinding[] {
       continue;
     }
     for (const route of findQueryRoutes(pageClass)) {
-      if (routeResourceRef(route.method) !== resource) {
+      const binding = routeModelBinding(route.method);
+      if (binding?.resource !== resource) {
         continue;
       }
-      const call = parseQueryRouteCall(route.method);
-      const methods = call
-        ? [call.modelMethod]
-        : routeModelMethodNames(route.method, resource);
-      bindings.push({ page: record.ref, route: route.name, methods });
+      bindings.push({
+        page: record.ref,
+        route: route.name,
+        methods: binding.methods,
+      });
     }
   }
   return bindings;
@@ -307,7 +320,7 @@ export function compileQuery(
   if (issues.length > 0) {
     return invalidIssues<never>(issues);
   }
-  const chain = template.compile(params, fields);
+  const chain = emitPlan(template.plan(params, fields), fields);
   const segmentIssues = checkParamSegments(endpoint, chain.parameters);
   if (segmentIssues.length > 0) {
     return invalidIssues<never>(segmentIssues);
@@ -318,6 +331,9 @@ export function compileQuery(
     template: input.template,
     params,
     chain,
+    naming: seriesNaming(params, fields, input.resource),
+    response: input.response,
+    compare: input.compare,
   };
 }
 

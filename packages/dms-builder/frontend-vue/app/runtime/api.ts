@@ -14,6 +14,8 @@ import type {
 	PageLayoutPayload,
 	PageStructure,
 	PageSummary,
+	DataSourceDescriptor,
+	QueryPreview,
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
@@ -115,6 +117,17 @@ export function useBuilderApi() {
 			remove<OpResult<void>>('/resource/fields', { path }),
 		queryTemplates: () =>
 			get<QueryTemplateDescriptor[]>('/query-templates'),
+		dataSources: (responseShape?: string) =>
+			get<DataSourceDescriptor[]>(
+				responseShape
+					? `/data-sources?responseShape=${encodeURIComponent(responseShape)}`
+					: '/data-sources',
+			),
+		previewQuery: (query: AddQueryInput, args?: Record<string, unknown>) =>
+			post<OpResult<QueryPreview>>('/query-preview', {
+				query: query as unknown as Record<string, unknown>,
+				args: args ?? {},
+			}),
 		addQuery: (page: string, input: AddQueryInput) =>
 			post<OpResult<{ query: string; route: string }>>('/queries', {
 				page,

@@ -1,4 +1,5 @@
 import type {
+  OpWarning,
   BlockDraft,
   MutationOpts,
   OpResult,
@@ -12,10 +13,11 @@ import {
   type PropertyDeclarationStructure,
   type SourceFile,
 } from "ts-morph";
-import { blockDescriptor } from "./catalog";
+import { blockDescriptor, isControllerLeadingBlock } from "./catalog";
 import { resolveAndUnwrap, resolveExpr, unwrapBuilderChain } from "./chain";
+import { type NamedConstant, objectLiteralToValue } from "./config-literal";
 import { applyImportRef, blockCallText, childArgText } from "./emit";
-import { stringLiteralValue } from "./literals";
+import { getExtendsCall, stringLiteralValue } from "./literals";
 import {
   applyPatch,
   checkVersion,
@@ -27,9 +29,9 @@ import {
   unsupported,
 } from "./ops";
 import { contentVersion } from "./page-structure";
+import { syncQueries } from "./query-sync";
 import { validateDraft } from "./page-draft-validation";
 import { resourceRefResolver } from "./resource-index";
-import { getExtendsCall } from "./scan";
 import {
   createImportCollector,
   type EmitContext,
@@ -51,25 +53,111 @@ type OriginalTexts = Map<string, string>;
 /** The declaration a top-level block was written as, so a rewrite keeps it. */
 type OriginalStatics = Map<string, PropertyDeclarationStructure>;
 
-function collectChildTexts(
+/** Named constants by where each sits, its path as `JSON.stringify` writes it. */
+type ConstantsByPath = Map<string, NamedConstant>;
+
+/**
+ * The named constants a block was written with: in its own options, and in the
+ * third argument of the `.child()` call placing it.
+ */
+interface BlockConstants {
+  config: ConstantsByPath;
+  meta: ConstantsByPath;
+}
+
+/** What every block already on the page was written as, by its draft path. */
+interface Originals {
+  texts: OriginalTexts;
+  constants: Map<string, BlockConstants>;
+}
+
+/**
+ * Note what a block was written as, then the same for each of its children:
+ * its text, so a draft can preserve it, and the constants it named, so a
+ * rewrite can put them back.
+ */
+function collectBlock(
   expr: Expression,
-  parentPath: string,
-  texts: OriginalTexts,
+  path: string,
+  originals: Originals,
+  metaArg?: Node,
 ): void {
-  const unwrapped = resolveAndUnwrap(expr);
-  if (!unwrapped.chain) {
+  originals.texts.set(path, expr.getText());
+  const { chain } = resolveAndUnwrap(expr);
+  if (!chain) {
     return;
   }
-  for (const call of unwrapped.chain.childCalls) {
-    const [idArg, valueArg] = call.getArguments();
+  if (chain.factory && chain.factoryCall) {
+    const args = chain.factoryCall.getArguments();
+    originals.constants.set(path, {
+      config: constantsIn(
+        args[isControllerLeadingBlock(chain.factory) ? 1 : 0],
+      ),
+      meta: constantsIn(metaArg),
+    });
+  }
+  for (const call of chain.childCalls) {
+    const [idArg, valueArg, childMeta] = call.getArguments();
     const id = stringLiteralValue(idArg);
     if (!id || !valueArg || !Node.isExpression(valueArg)) {
       continue;
     }
-    const path = `${parentPath}/${id}`;
-    texts.set(path, valueArg.getText());
-    collectChildTexts(valueArg, path, texts);
+    collectBlock(valueArg, `${path}/${id}`, originals, childMeta);
   }
+}
+
+/** The constants among options, found where the reader resolves them. */
+function constantsIn(options: Node | undefined): ConstantsByPath {
+  const read =
+    options && Node.isObjectLiteralExpression(options)
+      ? objectLiteralToValue(options).constants
+      : undefined;
+  return new Map(
+    (read ?? []).map((constant) => [JSON.stringify(constant.path), constant]),
+  );
+}
+
+/**
+ * Options with each constant they were read from put back by name, as the
+ * source text the emitter writes verbatim — so a page whose author named a
+ * value keeps the name through every save that did not change it.
+ *
+ * Only where the author wrote it, and only while the value there is still the
+ * one it holds. The same value anywhere else was typed out, or set in the
+ * builder, and naming it would tie it to a constant it never used.
+ */
+function withConstants(
+  options: Record<string, unknown>,
+  constants: ConstantsByPath | undefined,
+): Record<string, unknown> {
+  return constants?.size
+    ? (namedAt(options, [], constants) as Record<string, unknown>)
+    : options;
+}
+
+function namedAt(
+  value: unknown,
+  path: (string | number)[],
+  constants: ConstantsByPath,
+): unknown {
+  const constant = constants.get(JSON.stringify(path));
+  if (constant && constant.value === value) {
+    return { $expr: constant.name };
+  }
+  if (Array.isArray(value)) {
+    return value.map((item, index) =>
+      namedAt(item, [...path, index], constants),
+    );
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        namedAt(item, [...path, key], constants),
+      ]),
+    );
+  }
+  return value;
 }
 
 /**
@@ -128,26 +216,24 @@ function collectStatics(cls: ClassDeclaration): OriginalStatics {
   return statics;
 }
 
-function collectOriginals(cls: ClassDeclaration): OriginalTexts {
-  const texts: OriginalTexts = new Map();
+function collectOriginals(cls: ClassDeclaration): Originals {
+  const originals: Originals = { texts: new Map(), constants: new Map() };
   for (const prop of blockStatics(cls)) {
     const init = prop.getInitializer();
-    if (!init) {
-      continue;
+    if (init) {
+      collectBlock(init, prop.getName(), originals);
     }
-    texts.set(prop.getName(), init.getText());
-    collectChildTexts(init, prop.getName(), texts);
   }
-  return texts;
+  return originals;
 }
 
 function draftText(
   block: BlockDraft,
   path: string,
-  originals: OriginalTexts,
+  originals: Originals,
   ctx: EmitContext,
 ): string {
-  const preserved = originals.get(path);
+  const preserved = originals.texts.get(path);
   if (block.preserve && preserved !== undefined) {
     return preserved;
   }
@@ -156,7 +242,7 @@ function draftText(
     : undefined;
   const base = blockCallText(
     block.type ?? "",
-    block.config ?? {},
+    withConstants(block.config ?? {}, originals.constants.get(path)?.config),
     ctx,
     controllerText,
   );
@@ -167,7 +253,13 @@ function draftText(
       .map((child) => {
         const childPath = `${path}/${child.name}`;
         const value = draftText(child, childPath, originals, ctx);
-        return `.child(${childArgText(child.name, value, ctx, child.slot, child.meta)})`;
+        // The `.child()` options as the one object they were read as, `slot`
+        // and all, so a constant naming the slot goes back like any other.
+        const meta = withConstants(
+          { slot: child.slot, ...child.meta },
+          originals.constants.get(childPath)?.meta,
+        );
+        return `.child(${childArgText(child.name, value, ctx, undefined, meta)})`;
       })
       .join("")
   );
@@ -228,7 +320,7 @@ function applyPageMeta(
 function rewriteStatics(
   cls: ClassDeclaration,
   draft: PageDraft,
-  originals: OriginalTexts,
+  originals: Originals,
   ctx: EmitContext,
 ): void {
   const statics = collectStatics(cls);
@@ -324,7 +416,7 @@ export function setPageBlocks(
   // call's, and removing it would put a change they never asked for in the
   // diff of a save.
   const referencedNames = referencedImportNames(context.sourceFile);
-  const issues = validateDraft(draft, originals);
+  const issues = validateDraft(draft, originals.texts);
   if (issues.length > 0) {
     return { ok: false, error: { code: "invalid_config", issues } };
   }
@@ -364,10 +456,40 @@ export function setPageBlocks(
   for (const importRef of imports) {
     applyImportRef(context.sourceFile, importRef);
   }
+  // The queries go in before the commit, so a block and the data it reads are
+  // one write and one typecheck. An absent `queries` leaves them alone; an empty
+  // one says the page serves none.
+  let warnings: OpWarning[] = [];
+  if (draft.queries) {
+    // Re-resolved rather than reused: rewriting the statics replaces nodes, and
+    // the class captured before that is a node ts-morph has forgotten.
+    const written = findPageClass(context.sourceFile, context.page.id);
+    if (!written) {
+      transaction.rollback();
+      return notFound<{ version: string }>(ref);
+    }
+    const synced = syncQueries(
+      {
+        page: ref,
+        pageFile: context.sourceFile,
+        pageClass: written,
+        transaction,
+        blocks: draft.blocks,
+      },
+      draft.queries,
+    );
+    if ("ok" in synced) {
+      transaction.rollback();
+      return synced;
+    }
+    warnings = synced;
+  }
   pruneUnusedImports(context.sourceFile, referencedNames);
   // Read after every edit: the version has to describe the file the caller
   // will hold, or the next conditional write fails as stale against itself.
-  return commit(transaction, {
-    version: contentVersion(context.sourceFile.getFullText()),
-  });
+  return commit(
+    transaction,
+    { version: contentVersion(context.sourceFile.getFullText()) },
+    warnings,
+  );
 }

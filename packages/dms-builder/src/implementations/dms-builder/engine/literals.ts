@@ -1,4 +1,10 @@
-import { type Identifier, Node, type ObjectLiteralExpression } from "ts-morph";
+import {
+  type CallExpression,
+  type ClassDeclaration,
+  type Identifier,
+  Node,
+  type ObjectLiteralExpression,
+} from "ts-morph";
 
 export function stringLiteralValue(node: Node | undefined): string | undefined {
   if (!node) {
@@ -65,4 +71,20 @@ export function getIdentifierProperty(
 ): Identifier | undefined {
   const init = getObjectProperty(obj, name);
   return init && Node.isIdentifier(init) ? init : undefined;
+}
+
+export function getCalleeName(call: CallExpression): string | undefined {
+  const expr = call.getExpression();
+  return Node.isIdentifier(expr) ? expr.getText() : undefined;
+}
+
+export function getExtendsCall(
+  cls: ClassDeclaration,
+): CallExpression | undefined {
+  const ext = cls.getExtends();
+  if (!ext) {
+    return undefined;
+  }
+  const expr = ext.getExpression();
+  return Node.isCallExpression(expr) ? expr : undefined;
 }

@@ -1,5 +1,5 @@
-// Deleting and reconfiguring blocks, then the page lifecycle: creation,
-// deletion, configuration.
+// Deleting and reconfiguring blocks, then the page lifecycle: creation and
+// configuration. Deletion is in page-delete.ts.
 //
 // Split out of ops.ts to stay under the size the linter allows.
 
@@ -15,8 +15,13 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { Node, type SourceFile } from "ts-morph";
 import { resolveBlockTarget } from "./block-target";
-import { applyImportRef, pascalCase, relativeModule } from "./emit";
-import { stringLiteralValue } from "./literals";
+import {
+  applyImportRef,
+  importStatement,
+  pascalCase,
+  relativeModule,
+} from "./emit";
+import { getExtendsCall, stringLiteralValue } from "./literals";
 import { parseBlockPath, valueToText } from "./paths";
 import { indentationText, resolveProjectRoot } from "./project";
 import {
@@ -32,7 +37,7 @@ import {
   planCategoryMove,
 } from "./page-category-move";
 import { resourceRefResolver } from "./resource-index";
-import { type CategoryRecord, getExtendsCall, joinSlug } from "./scan";
+import { type CategoryRecord, joinSlug } from "./scan";
 import {
   findCategoryRecord,
   findPageRecord,
@@ -44,7 +49,6 @@ import {
   UnknownReferenceError,
 } from "./value";
 import {
-  findImporters,
   findPageClass,
   getWritableProject,
   refreshFromDisk,
@@ -303,29 +307,6 @@ function resolvePagePlacement(
   };
 }
 
-/** Past this, a formatter breaks an import across lines; so does the builder. */
-const IMPORT_LINE_LIMIT = 80;
-
-/**
- * An import statement written the way the project's formatter would write it:
- * on one line while it fits, one name per line once it does not.
- */
-export function importStatement(
-  names: string[],
-  specifier: string,
-  indent: string,
-): string {
-  const inline = `import { ${names.join(", ")} } from ${JSON.stringify(specifier)};`;
-  // A single name is never broken out, however long the line: there is nothing
-  // to gain by it, and formatters leave it alone — so breaking it would be a
-  // change the next `format` undoes.
-  if (names.length < 2 || inline.length <= IMPORT_LINE_LIMIT) {
-    return inline;
-  }
-  const lines = names.map((name) => `${indent}${name},`).join("\n");
-  return `import {\n${lines}\n} from ${JSON.stringify(specifier)};`;
-}
-
 /**
  * A name that can safely be a directory, a URL segment and part of a class
  * name. It is all three at once, so a space or a slash in it produces a folder
@@ -393,30 +374,6 @@ export function createPage(
   transaction.track(sourceFile, true);
   placement.wire();
   return commit(transaction, { ref, filepath: placement.filepath });
-}
-
-export function deletePage(ref: string, opts?: MutationOpts): OpResult {
-  const page = findPageRecord(ref);
-  if (!page) {
-    return notFound(ref);
-  }
-  const project = getWritableProject();
-  refreshFromDisk(project);
-  const sourceFile = project.getSourceFile(page.filepath);
-  if (!sourceFile) {
-    return notFound(page.filepath);
-  }
-  const stale = checkVersion(sourceFile, opts);
-  if (stale) {
-    return stale;
-  }
-  const transaction = new Transaction(project);
-  for (const importer of findImporters(project, page.filepath)) {
-    transaction.track(importer.getSourceFile());
-    importer.remove();
-  }
-  transaction.trackDelete(sourceFile);
-  return commit(transaction, undefined);
 }
 
 export function configurePage(

@@ -4,6 +4,7 @@
 // Split out of resource-emit.ts to stay under the size the linter allows.
 
 import type {
+  DataTypeValue,
   FieldSpec,
   ImportRef,
   OpWarning,
@@ -21,15 +22,15 @@ import {
   DATA_API_MODULE_ORDER,
   DATABASE_LOCAL,
   DATABASE_MODULE_ORDER,
-  DB_TYPE_MAP,
   DbType,
   DECORATOR_IMPORTS,
+  mappedDbType,
   ResourceNames,
   routeMapExpr,
 } from "./resource-emit";
 import { CORE_SCHEMA_IDENTIFIER } from "./resource-index";
-export function dbTypeFor(dataTypeId: string): DbType {
-  const known = DB_TYPE_MAP[dataTypeId];
+export function dbTypeFor(dataType: DataTypeValue): DbType {
+  const known = mappedDbType(dataType);
   if (known) {
     return { ...known, field: JSON.stringify(known.field), fallback: false };
   }
@@ -128,7 +129,7 @@ function coerceSeeds(
 ): Record<string, unknown>[] {
   const dateFields = new Set(
     fields
-      .filter((field) => dbTypeFor(field.dataType.$dataType).ts === "Date")
+      .filter((field) => dbTypeFor(field.dataType).ts === "Date")
       .map((field) => field.name),
   );
   if (dateFields.size === 0) {
@@ -269,7 +270,7 @@ export function tableFieldText(field: FieldSpec): {
   // change the schema behind the author's back.
   const db = field.dbField
     ? { ...field.dbField, fallback: false }
-    : dbTypeFor(field.dataType.$dataType);
+    : dbTypeFor(field.dataType);
   decorators.push(`@Field(${db.field})`);
   const optional = field.dbField?.optional ? "?" : "";
   return {
@@ -343,7 +344,7 @@ export function dataApiFieldText(
   // mapping instead would narrow a hand-written column to the `string`
   // fallback here while the table keeps its real type — the two classes would
   // then declare different types for one column.
-  const ts = field.dbField?.ts ?? dbTypeFor(field.dataType.$dataType).ts;
+  const ts = field.dbField?.ts ?? dbTypeFor(field.dataType).ts;
   return {
     text: fieldDeclaration(decorators, `${field.name}: ${ts}`),
     symbols,
