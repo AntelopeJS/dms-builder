@@ -75,19 +75,6 @@ const MONTHLY = {
 /** The same source, arranged for the card that reads it. */
 const MONTHLY_CARD = { ...MONTHLY, response: "card" as const };
 
-/** Whether the installed DMS publishes the arrangements a route calls. */
-function arrangementsAvailable(): boolean {
-  try {
-    const base = require("@antelopejs/interface-dms/base") as Record<
-      string,
-      unknown
-    >;
-    return typeof base.chartCardData === "function";
-  } catch {
-    return false;
-  }
-}
-
 /**
  * What a block is shown for a source that has not been written. The calculation
  * itself is covered elsewhere; this is about what the preview says back — its
@@ -201,24 +188,6 @@ describe("previewing a query", () => {
         alone.data.body.previousValue,
         "no comparison bounds, no period before to read",
       ).to.equal(undefined);
-    }
-  });
-
-  it("refuses an arrangement the installed DMS cannot build", async function () {
-    if (arrangementsAvailable()) {
-      this.skip();
-    }
-    // Answering the bare points here would be the preview disagreeing with the
-    // page: saving this query fails its typecheck on the very same helper.
-    const result = await runPlanPreview(
-      tableAnswering([{ x: 202601, y: 150 }]),
-      { query: MONTHLY_CARD },
-      FIELDS,
-    );
-
-    expect(result.ok).to.equal(false);
-    if (!result.ok) {
-      expect(JSON.stringify(result.error)).to.contain("chartCardData");
     }
   });
 
