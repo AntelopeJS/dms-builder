@@ -8,6 +8,7 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import type { MethodDeclaration } from "ts-morph";
+import type { QueryPlan } from "./query-plan";
 import { isIdentifier } from "./paths";
 import { FILTER_OPS } from "./query-chain";
 import { describeValue } from "./describe-value";
@@ -39,12 +40,17 @@ export interface QueryTemplate {
     params: Record<string, unknown>,
     fields: ResourceFieldStructure[],
   ): ValidationIssue[];
-  compile(
+  /**
+   * The calculation these parameters describe. Every backend reads this one
+   * description — the emitter that writes it into a model, the executor that
+   * runs it for a preview, and nothing else may render a chain of its own.
+   */
+  plan(
     params: Record<string, unknown>,
     fields: ResourceFieldStructure[],
-  ): CompiledChain;
+  ): QueryPlan;
   /**
-   * The inverse of {@link compile}: reads a model method back into the params
+   * The inverse of {@link plan}: reads a model method back into the params
    * that would produce it, or returns `undefined` when the body is not a chain
    * this template shaped. Bound filter values come back as a `$bind` sentinel
    * naming the model parameter; read-back resolves those against the route.
@@ -156,12 +162,16 @@ interface FieldTypes {
 }
 
 function fieldTypes(field: ResourceFieldStructure): FieldTypes | undefined {
-  const id = field.dataType?.$dataType;
-  if (!id) {
+  const dataType = field.dataType;
+  if (!dataType?.$dataType) {
     return undefined;
   }
-  const dbType = dbTypeFor(id);
-  return { ts: dbType.ts, dataType: id, fallback: dbType.fallback };
+  const dbType = dbTypeFor(dataType);
+  return {
+    ts: dbType.ts,
+    dataType: dataType.$dataType,
+    fallback: dbType.fallback,
+  };
 }
 
 export function fallbackTypeWarning(

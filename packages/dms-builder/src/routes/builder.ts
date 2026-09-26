@@ -1,4 +1,5 @@
 import {
+  Context,
   Controller,
   Delete,
   Get,
@@ -6,8 +7,10 @@ import {
   Parameter,
   Post,
   Put,
+  type RequestContext,
 } from "@antelopejs/interface-api";
 import { AuthTenantOwner } from "@antelopejs/interface-dms/guards";
+import { getRequestTenantId } from "@antelopejs/interface-dms/request-tenant";
 import type { User } from "@antelopejs/interface-dms/auth/db";
 import type {
   AddQueryInput,
@@ -60,6 +63,12 @@ interface ConfigureFieldBody {
   path: string;
   patch: Partial<FieldAspects>;
   expectedVersion?: string;
+}
+
+interface QueryPreviewBody {
+  query: AddQueryInput;
+  /** Values the route would receive, by the name it exposes them under. */
+  args?: Record<string, unknown>;
 }
 
 interface QueryBody {
@@ -238,6 +247,29 @@ export class BuilderController extends Controller(getRoutePrefix()) {
     @Parameter("path", "query") path: string,
   ) {
     return engine.RemoveField(path);
+  }
+
+  @Post(ROUTES.queryPreview)
+  async queryPreview(
+    @AuthTenantOwner() _user: User,
+    @Context() context: RequestContext,
+    @JSONBody() body: QueryPreviewBody,
+  ) {
+    // The tenant comes from the request rather than from the body: a caller that
+    // could name the tenant to read could name someone else's.
+    return engine.PreviewQuery({
+      query: body.query,
+      args: body.args,
+      tenant: getRequestTenantId(context),
+    });
+  }
+
+  @Get(ROUTES.dataSources)
+  async dataSources(
+    @AuthTenantOwner() _user: User,
+    @Parameter("responseShape", "query") responseShape?: string,
+  ) {
+    return engine.ListDataSources(responseShape);
   }
 
   @Get(ROUTES.queryTemplates)

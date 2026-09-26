@@ -9,12 +9,8 @@ import {
 import { ensureNamedImport, relativeModule } from "./emit";
 import { duplicate, notFound, unsupported } from "./ops";
 import { addSortedExport } from "./placement";
-import {
-  type CategoryRecord,
-  type PageRecord,
-  getExtendsCall,
-  joinSlug,
-} from "./scan";
+import { getExtendsCall } from "./literals";
+import { type CategoryRecord, type PageRecord, joinSlug } from "./scan";
 import { findCategoryRecord, findPageRecord } from "./source-index";
 import {
   findImporters,

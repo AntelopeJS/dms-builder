@@ -43,7 +43,11 @@ export type OptionWidget =
   | "resource"
   | "field"
   | "dataType"
+  // `query` is the pre-rename spelling the same option carried; a DMS older
+  // than the source editor still declares it, and its catalog has to keep
+  // reading as a catalog.
   | "query"
+  | "dataSource"
   | "permission"
   | "json"
   | "block";
@@ -69,6 +73,11 @@ export interface OptionUi {
   /** Block types a `block` widget accepts. */
   blockTypes?: string[];
   /**
+   * The options of the block a `block` widget holds that the block holding it
+   * supplies itself: a card fetches and heads the chart it wraps.
+   */
+  supplies?: string[];
+  /**
    * The aspect, or aspects, a `field` widget's value must carry on the
    * resource. Naming a field that lacks one is written and then ignored at
    * runtime, so it is refused instead.
@@ -79,6 +88,30 @@ export interface OptionUi {
    * under its label — a set of switches that reads as one list of features.
    */
   flatten?: boolean;
+  /**
+   * What to call each value of an enum, keyed by the value: `Last 30 days`
+   * rather than `last-30-days`.
+   */
+  valueLabels?: Record<string, string>;
+  /**
+   * The sibling option this one's value can be derived from — a field's key
+   * from its label. The builder writes it itself in its simple mode.
+   */
+  derivedFrom?: string;
+  /**
+   * The switch this option sits behind, by its label: offered once an author
+   * turns it on, left out while it is off.
+   */
+  optIn?: string;
+  /**
+   * The sibling option holding the data type this value is one of: a field's
+   * default takes the input its type calls for.
+   */
+  typedBy?: string;
+  /** Offered in the builder's advanced view only. */
+  advanced?: boolean;
+  /** What the builder places a new block with, when not the option's default. */
+  initial?: unknown;
 }
 
 /** The primitive kinds a described option reduces to. */
@@ -112,6 +145,11 @@ export interface OptionSchema {
   items?: OptionSchema;
   /** Record value shape. */
   values?: OptionSchema;
+  /**
+   * Record key shape. A key drawn from a closed set carries it as `enum`, so
+   * an editor can offer one entry per key.
+   */
+  keys?: OptionSchema;
   /** Union branches, in declaration order. */
   oneOf?: OptionSchema[];
   /** Property carrying the branch tag of a discriminated union. */
@@ -128,6 +166,11 @@ export interface OptionSchema {
   ui?: OptionUi;
   "x-dataType"?: boolean;
   "x-component"?: boolean;
+  /**
+   * The option is handed a table's DataAPI class — a relation's
+   * `dataApiController`. Its value is a `$ref` to a resource.
+   */
+  "x-controller"?: boolean;
   [key: string]: unknown;
 }
 
@@ -214,4 +257,26 @@ export interface BlockCatalog {
   reservedFieldNames: string[];
   /** Cache key; invalidated on module-source change. */
   generatedAt: string;
+}
+
+/**
+ * A route a developer declared as something a block may read.
+ *
+ * Listed beside the calculations the builder generates, so a source editor
+ * offers both in one place. The builder never reads or rewrites the code behind
+ * one: it knows only what the declaration says.
+ */
+export interface DataSourceDescriptor {
+  id: string;
+  title: string;
+  description?: string;
+  /** The shape it answers with, matched against what a block can read. */
+  responseShape: string;
+  /** The path a block fetches, as declared. */
+  path: string;
+  method?: string;
+  /** Parameters it takes, in the same vocabulary as a block's options. */
+  params?: ConfigSchema;
+  /** The query parameters it reads a period from, when it takes one. */
+  period?: { from: string; to: string };
 }

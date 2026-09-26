@@ -23,6 +23,10 @@ export interface TypecheckError {
 /** A non-fatal advisory attached to an otherwise successful operation. */
 export interface OpWarning {
   code:
+    /** A query on the page was taken over by hand, so the draft left it alone. */
+    | "query_opaque"
+    /** A query the draft dropped is still read by a block, so it was kept. */
+    | "query_kept"
     | "index_clamped"
     | "datatype_fallback"
     | "data_not_dropped"

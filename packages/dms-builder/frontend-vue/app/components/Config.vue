@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
+	ADVANCED_OPTION_GROUP,
+	CONTROLLER_SETTING,
 	descriptorOf,
-	missingConfig,
+	missingSettings,
+	offeredIn,
 	optionGroups,
 	slotsOf,
 } from '../runtime/catalog'
+import { CHART_CARD_BLOCK, CHART_CARD_PANEL_OPTIONS } from '../runtime/chart-card'
 import { findNode } from '../runtime/draft'
+import { FORM_BLOCK, FORM_PANEL_OPTIONS } from '../runtime/form-panel'
+import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
 import { parentPath, useBuilder } from '../runtime/session'
+import { TABLE_BLOCK, TABLE_PANEL_OPTIONS } from '../runtime/table-panel'
 import type { OptionSchema } from '../runtime/types'
 
 interface RenderedOption {
@@ -20,15 +27,25 @@ interface RenderedOption {
 	separated?: boolean
 }
 
+/** Options offered together behind one switch, by the switch's label. */
+interface RenderedOptIn {
+	id: string
+	optIn: string
+	options: RenderedOption[]
+}
+
 interface RenderedGroup {
 	id: string
 	label: string
 	options: RenderedOption[]
 }
 
-const ADVANCED_GROUP = 'advanced'
-const EXPORT_ROUTE = 'export'
-
+/**
+ * The block that has a search bar. Every block reading a table shares its
+ * fields, but a form over one has nothing to search, and a picker there would
+ * rewrite the table's search for a setting that block never reads.
+ */
+const SEARCH_BAR_BLOCK = TABLE_BLOCK
 const builder = useBuilder()
 const session = builder.session
 
@@ -36,6 +53,16 @@ const path = computed(() => session.value.selection)
 const block = builder.selected
 const descriptor = builder.selectedDescriptor
 const showAdvanced = ref(false)
+// The simple mode leaves out what only a developer reads: the settings a
+// block files under "Advanced", and why a block is locked, and where.
+const { advanced: advancedMode } = useBuilderMode()
+// The engine words a reason as a lower-case fragment; here it opens a sentence.
+const opaqueReason = computed(() => {
+	const reason = block.value?.opaqueReason
+	return reason
+		? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`
+		: undefined
+})
 
 function parentType(parent: string): string | undefined {
 	const draft = session.value.draft
@@ -62,11 +89,48 @@ const parentBlock = computed(() => {
 		: undefined
 })
 
+/**
+ * The blocks with a panel of their own in the simple mode, and the options
+ * each panel edits; whatever else a block declares is offered below it.
+ *
+ * - a form saves into a table its author picks, not into an endpoint typed;
+ * - a table lists one picked from the tables there are, their columns beside;
+ * - a chart card draws a chart picked by how it draws, measuring what is
+ *   built from a table, the rest folded away behind a line each.
+ */
+const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
+	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
+	[TABLE_BLOCK]: { component: 'DmsBuilderTablePanel', options: TABLE_PANEL_OPTIONS },
+	[CHART_CARD_BLOCK]: {
+		component: 'DmsBuilderChartCardPanel',
+		options: CHART_CARD_PANEL_OPTIONS,
+	},
+}
+
+const panel = computed(() =>
+	advancedMode.value ? undefined : PANELS[block.value?.type ?? ''],
+)
+
+/** Whether a block's own panel edits this option rather than the list below. */
+function inPanel(key: unknown): boolean {
+	return panel.value?.options.has(String(key)) === true
+}
+
+// What a block's panel edits, it says is missing in its own words.
 const missing = computed(() =>
-	block.value ? missingConfig(descriptor.value, block.value) : [],
+	block.value
+		? missingSettings(descriptor.value, block.value)
+				.filter((entry) => !inPanel(entry.path[0]))
+				.map((entry) => entry.label)
+		: [],
 )
 const childMeta = computed(() => parentDescriptor.value?.childMeta ?? {})
 const slots = computed(() => slotsOf(parentDescriptor.value, parentBlock.value))
+const regionLabel = computed(() =>
+	parentDescriptor.value?.label
+		? `Inside ${parentDescriptor.value.label}`
+		: 'Where it shows',
+)
 
 function config(): Record<string, unknown> {
 	return block.value?.config ?? {}
@@ -132,19 +196,106 @@ function withSeparators(options: RenderedOption[]): RenderedOption[] {
 }
 
 const groups = computed<RenderedGroup[]>(() =>
-	optionGroups(descriptor.value).map((group) => ({
-		id: group.id,
-		label: group.label,
-		options: withSeparators(
-			group.options.flatMap((option) => expand(option.key, option.schema)),
-		),
-	})),
+	optionGroups(descriptor.value)
+		.map((group) => ({
+			id: group.id,
+			label: group.label,
+			options: withSeparators(
+				group.options
+					.flatMap((option) => expand(option.key, option.schema))
+					// What the simple mode writes itself — a key from the label it
+					// follows, an address from the table picked — or leaves to code.
+					.filter(
+						(option) =>
+							offeredIn(option.schema, advancedMode.value) &&
+							!inPanel(option.id.split('.')[0]),
+					),
+			),
+		}))
+		.filter((group) => group.options.length > 0),
 )
+/**
+ * A group's options, those behind a switch gathered where the first of them
+ * stood, so the switch sits where the options did.
+ */
+function entriesOf(
+	options: RenderedOption[],
+): Array<RenderedOption | RenderedOptIn> {
+	const entries: Array<RenderedOption | RenderedOptIn> = []
+	const behind = new Map<string, RenderedOptIn>()
+	for (const option of options) {
+		const label = option.schema.ui?.optIn
+		// Only an option of the block's own: one flattened out of another is
+		// written through that other, not on its own.
+		if (!label || option.id !== option.name) {
+			entries.push(option)
+			continue
+		}
+		let entry = behind.get(label)
+		if (!entry) {
+			entry = { id: `optIn:${label}`, optIn: label, options: [] }
+			behind.set(label, entry)
+			entries.push(entry)
+		}
+		entry.options.push(option)
+	}
+	return entries
+}
+
+function isOptIn(entry: RenderedOption | RenderedOptIn): entry is RenderedOptIn {
+	return 'optIn' in entry
+}
+
+/**
+ * The switches turned on and not yet filled in, by block and label: an author
+ * who turns one on and clears what it seeded is still looking at the options.
+ */
+const openedOptIns = ref(new Set<string>())
+
+function optInKey(entry: RenderedOptIn): string {
+	return `${path.value ?? ''}\u0000${entry.optIn}`
+}
+
+/** On while any option behind it is set, or while the author has it open. */
+function optInOn(entry: RenderedOptIn): boolean {
+	return (
+		openedOptIns.value.has(optInKey(entry)) ||
+		entry.options.some((option) => option.value !== undefined)
+	)
+}
+
+/**
+ * Turned on, the options start from what they suggest — the block's own
+ * wording — rather than from nothing. Turned off, they are dropped, and the
+ * block falls back on what it says by itself. One edit either way.
+ */
+function setOptIn(entry: RenderedOptIn, on: boolean): void {
+	const opened = new Set(openedOptIns.value)
+	if (on) {
+		opened.add(optInKey(entry))
+	} else {
+		opened.delete(optInKey(entry))
+	}
+	openedOptIns.value = opened
+	if (!path.value) {
+		return
+	}
+	const values: Record<string, unknown> = {}
+	for (const option of entry.options) {
+		values[option.id] = on
+			? (option.value ?? option.schema.ui?.placeholder)
+			: undefined
+	}
+	builder.patchConfig(path.value, values)
+}
+
 const plainGroups = computed(() =>
-	groups.value.filter((group) => group.id !== ADVANCED_GROUP),
+	groups.value.filter((group) => group.id !== ADVANCED_OPTION_GROUP),
 )
 const advanced = computed(() =>
-	groups.value.find((group) => group.id === ADVANCED_GROUP),
+	advancedMode.value
+		? groups.value.find((group) => group.id === ADVANCED_OPTION_GROUP)
+		: undefined,
 )
 
 /* ---- what lives on the resource rather than on the block ---------------- */
@@ -155,9 +306,6 @@ const resource = computed(() =>
 		: undefined,
 )
 const fieldCount = computed(() => resource.value?.fields.length ?? 0)
-const exported = computed(
-	() => !resource.value?.routes || resource.value.routes.includes(EXPORT_ROUTE),
-)
 const searchField = computed(
 	() => resource.value?.fields.find((field) => field.searchable)?.name,
 )
@@ -169,27 +317,6 @@ watch(
 	},
 	{ immediate: true },
 )
-
-function toggleExport(on: boolean): void {
-	const current = resource.value
-	if (!current || !block.value?.controller) {
-		return
-	}
-	const all = current.routes ?? [
-		'list',
-		'get',
-		'create',
-		'edit',
-		'delete',
-		'select',
-		'archive',
-		EXPORT_ROUTE,
-	]
-	const routes = on
-		? [...new Set([...all, EXPORT_ROUTE])]
-		: all.filter((route) => route !== EXPORT_ROUTE)
-	void builder.configureResource(block.value.controller, routes)
-}
 
 /** One searchable field at a time here; the DMS itself allows several. */
 async function setSearchField(name: string): Promise<void> {
@@ -217,21 +344,35 @@ async function setSearchField(name: string): Promise<void> {
 	<div v-else class="flex flex-col gap-5">
 		<div
 			v-if="block.preserve"
-			class="rounded-md border border-default bg-elevated p-3 text-sm text-dimmed"
+			class="flex flex-col gap-2 rounded-md border border-default bg-elevated p-3 text-sm text-dimmed"
 		>
-			This block is written by hand and kept exactly as it is. Edit it in
-			<code class="text-xs">{{ session.structure?.page.filepath }}</code>.
+			<p>
+				This block is set up in code, so its settings can't be changed here.
+			</p>
+			<!-- Said in the advanced view only: someone building the page has no
+			use for a file path, and a developer wants to know what to change. -->
+			<p v-if="advancedMode" class="text-xs">
+				<span v-if="opaqueReason">{{ opaqueReason }} </span>
+				Edit it in
+				<code class="text-xs">{{ session.structure?.page.filepath }}</code>.
+			</p>
 		</div>
 
 		<template v-else>
 			<div
 				v-if="missing.length"
-				class="rounded-md border border-warning bg-warning/10 p-3 text-xs text-warning"
+				class="flex flex-col gap-1 rounded-md border border-warning bg-warning/10 p-3 text-xs text-warning"
 			>
-				Still to fill in: {{ missing.join(', ') }}
+				<span class="font-medium">Still to fill in</span>
+				<ul class="flex flex-col gap-0.5">
+					<li v-for="entry in missing" :key="entry">{{ entry }}</li>
+				</ul>
 			</div>
 
-			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-1.5">
+			<div
+				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
+				class="flex flex-col gap-1.5"
+			>
 				<label class="text-sm font-medium text-default">
 					Database table
 				</label>
@@ -252,6 +393,8 @@ async function setSearchField(name: string): Promise<void> {
 				</p>
 			</div>
 
+			<component :is="panel.component" v-if="panel" :key="path" :path="path" />
+
 			<div
 				v-for="group in plainGroups"
 				:key="group.id"
@@ -260,37 +403,51 @@ async function setSearchField(name: string): Promise<void> {
 				<p class="text-sm font-semibold text-highlighted">
 					{{ group.label }}
 				</p>
-				<DmsBuilderOption
-					v-for="option in group.options"
-					:key="option.id"
-					:name="option.name"
-					:schema="option.schema"
-					:model-value="option.value"
-					:resource="block.controller"
-					:separated="option.separated"
-					@update:model-value="option.update($event)"
-				/>
-
-				<div
-					v-if="group.id === 'features' && descriptor?.controllerArg"
-					class="flex items-start gap-3 border-t border-default py-2.5"
-				>
-					<USwitch
-						:model-value="exported"
-						:disabled="!resource"
-						class="mt-0.5 shrink-0"
-						@update:model-value="toggleExport($event)"
-					/>
-					<div class="min-w-0 flex-1">
-						<p class="text-sm text-default">Data export</p>
-						<p class="mt-0.5 text-xs text-dimmed">
-							Serves the resource's export endpoints.
-						</p>
+				<template v-for="entry in entriesOf(group.options)" :key="entry.id">
+					<div v-if="isOptIn(entry)" class="flex flex-col gap-3">
+						<div class="flex items-center gap-3">
+							<USwitch
+								:model-value="optInOn(entry)"
+								:aria-label="entry.optIn"
+								@update:model-value="setOptIn(entry, $event === true)"
+							/>
+							<span class="text-sm text-default">{{ entry.optIn }}</span>
+						</div>
+						<div
+							v-if="optInOn(entry)"
+							class="flex flex-col gap-3 border-l border-default pl-3"
+						>
+							<DmsBuilderOption
+								v-for="option in entry.options"
+								:key="option.id"
+								:name="option.name"
+								:schema="option.schema"
+								:model-value="option.value"
+								:resource="block.controller"
+								:block-name="block.name"
+								@update:model-value="option.update($event)"
+								@patch="builder.patchConfig(path, $event)"
+							/>
+						</div>
 					</div>
-				</div>
+					<DmsBuilderOption
+						v-else
+						:name="entry.name"
+						:schema="entry.schema"
+						:model-value="entry.value"
+						:resource="block.controller"
+						:block-name="block.name"
+						:separated="entry.separated"
+						@update:model-value="entry.update($event)"
+						@patch="builder.patchConfig(path, $event)"
+					/>
+				</template>
 			</div>
 
-			<div v-if="descriptor?.controllerArg" class="flex flex-col gap-3">
+			<div
+				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
+				class="flex flex-col gap-3"
+			>
 				<p class="text-sm font-semibold text-highlighted">Fields</p>
 				<UButton
 					color="neutral"
@@ -312,7 +469,10 @@ async function setSearchField(name: string): Promise<void> {
 					belong to this page and wait for Save.
 				</p>
 
-				<div class="flex flex-col gap-1.5">
+				<div
+					v-if="block.type === SEARCH_BAR_BLOCK"
+					class="flex flex-col gap-1.5"
+				>
 					<label class="text-sm font-medium text-default">Search field</label>
 					<USelectMenu
 						:model-value="searchField"
@@ -334,13 +494,18 @@ async function setSearchField(name: string): Promise<void> {
 				</div>
 			</div>
 
+			<!-- A block dropped in lands in the region on screen; this is how it is
+			moved to another one afterwards. Named after the container rather than
+			called a slot, which is a word the gesture exists to spare anyone. -->
 			<div v-if="slots.length" class="flex flex-col gap-1.5">
-				<label class="text-sm font-medium text-default">Slot</label>
+				<label class="text-sm font-medium text-default">
+					{{ regionLabel }}
+				</label>
 				<USelectMenu
 					:model-value="block.slot"
 					:items="slots.map((slot) => ({ label: slot.label, value: slot.id }))"
 					value-key="value"
-					placeholder="Choose a region…"
+					placeholder="Choose where it shows…"
 					@update:model-value="builder.setSlot(path, $event)"
 				/>
 			</div>

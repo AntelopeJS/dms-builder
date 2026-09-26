@@ -1,4 +1,5 @@
 import type {
+  QueryOutputKind,
   QueryStructure,
   ResourceRef,
 } from "@antelopejs/interface-dms-builder";
@@ -14,6 +15,7 @@ import {
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
 import { bindName } from "./query-chain";
+import { outputForResponseKey, shapeForHelper } from "./query-emit";
 import {
   getQueryTemplate,
   parseModelMethod,
@@ -23,6 +25,9 @@ import { findResourceBySymbol, findResourceRecord } from "./resource-index";
 import { getWritableProject } from "./writable";
 
 export const MODEL_DECORATORS = ["Model", "TenantScopedModel"];
+
+/** What a generated query route imports beyond its model, for pruning. */
+export const ROUTE_GUARD_SYMBOLS = ["AuthUserWithPermission", "User"];
 const ROUTE_DECORATORS = ["Get", "Post", "Put", "Patch", "Delete"];
 const PARAM_SOURCES = new Set(["query", "param", "header"]);
 
@@ -34,6 +39,12 @@ type QueryArg =
 export interface QueryRouteCall {
   modelMethod: string;
   args: QueryArg[];
+  /** What the route answers, read from what its response is built out of. */
+  output: QueryOutputKind;
+  /** The arrangement a helper applied, when one did. */
+  response?: string;
+  /** Whether the helper is handed the preceding period too. */
+  compare?: boolean;
 }
 
 export interface QueryRoute {
@@ -155,6 +166,27 @@ export function routeModelMethodNames(
   return [...names];
 }
 
+/**
+ * The resource a query route reads and the model methods it calls: what is left
+ * without a caller once the route is gone. A route that drifted off-grammar has
+ * no parsed call, so its methods are recovered by scanning the body.
+ */
+export function routeModelBinding(
+  method: MethodDeclaration,
+): { resource: string; methods: string[] } | undefined {
+  const resource = routeResourceRef(method);
+  if (resource === undefined) {
+    return undefined;
+  }
+  const call = parseQueryRouteCall(method);
+  return {
+    resource,
+    methods: call
+      ? [call.modelMethod]
+      : routeModelMethodNames(method, resource),
+  };
+}
+
 function callsParseableModelMethod(
   method: MethodDeclaration,
   resource: string,
@@ -274,7 +306,13 @@ function unwrapReturnedCall(method: MethodDeclaration) {
     return undefined;
   }
   const returned = statement.getExpression();
-  if (!returned || !Node.isObjectLiteralExpression(returned)) {
+  if (!returned) {
+    return undefined;
+  }
+  if (Node.isCallExpression(returned)) {
+    return unwrapHelperCall(returned);
+  }
+  if (!Node.isObjectLiteralExpression(returned)) {
     return undefined;
   }
   const properties = returned.getProperties();
@@ -282,7 +320,11 @@ function unwrapReturnedCall(method: MethodDeclaration) {
     return undefined;
   }
   const [property] = properties;
-  if (!Node.isPropertyAssignment(property) || property.getName() !== "value") {
+  if (!Node.isPropertyAssignment(property)) {
+    return undefined;
+  }
+  const output = outputForResponseKey(property.getName());
+  if (!output) {
     return undefined;
   }
   const initializer = property.getInitializer();
@@ -290,7 +332,59 @@ function unwrapReturnedCall(method: MethodDeclaration) {
     return undefined;
   }
   const call = initializer.getExpression();
-  return Node.isCallExpression(call) ? call : undefined;
+  return Node.isCallExpression(call) ? { call, output } : undefined;
+}
+
+/** What unwrapping a route's return produced: the call, and how it was dressed. */
+interface UnwrappedResponse {
+  call: CallExpression;
+  output: QueryOutputKind;
+  response?: string;
+  compare?: boolean;
+}
+
+/** The option a helper is handed the preceding period's calculation under. */
+const PREVIOUS_OPTION = "previous";
+
+/** Whether a helper's options hand it the preceding period. */
+function comparesPrevious(options: Node | undefined): boolean {
+  return (
+    !!options &&
+    Node.isObjectLiteralExpression(options) &&
+    options.getProperty(PREVIOUS_OPTION) !== undefined
+  );
+}
+
+/**
+ * `return chartCardData(await model.m(...), { … })` — the arrangements a helper
+ * builds rather than a property name.
+ *
+ * Only the first argument is the calculation; the options that follow, including
+ * the preceding period's call, are read off the route separately.
+ */
+function unwrapHelperCall(call: CallExpression): UnwrappedResponse | undefined {
+  const callee = call.getExpression();
+  if (!Node.isIdentifier(callee)) {
+    return undefined;
+  }
+  const shape = shapeForHelper(callee.getText());
+  if (!shape) {
+    return undefined;
+  }
+  const [first, options] = call.getArguments();
+  if (!first || !Node.isAwaitExpression(first)) {
+    return undefined;
+  }
+  const inner = first.getExpression();
+  if (!Node.isCallExpression(inner)) {
+    return undefined;
+  }
+  return {
+    call: inner,
+    output: "series",
+    response: shape,
+    compare: comparesPrevious(options) || undefined,
+  };
 }
 
 /**
@@ -301,10 +395,11 @@ function unwrapReturnedCall(method: MethodDeclaration) {
 export function parseQueryRouteCall(
   method: MethodDeclaration,
 ): QueryRouteCall | undefined {
-  const call = unwrapReturnedCall(method);
-  if (!call) {
+  const unwrapped = unwrapReturnedCall(method);
+  if (!unwrapped) {
     return undefined;
   }
+  const { call, output, response, compare } = unwrapped;
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) {
     return undefined;
@@ -332,7 +427,13 @@ export function parseQueryRouteCall(
     }
     args.push(parsed);
   }
-  return { modelMethod: callee.getName(), args };
+  return {
+    modelMethod: callee.getName(),
+    args,
+    output,
+    response,
+    compare,
+  };
 }
 
 type ParamSource = "query" | "param" | "header";
@@ -465,6 +566,9 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     return { ...base, opaque: true, opaqueReason: "unparseable_route" };
   }
   base.modelMethod = call.modelMethod;
+  // From the route's own response, so a query whose calculation no longer parses
+  // still tells a caller what it answers with.
+  base.output = call.output;
   const method = findModelMethod(resource.ref, call.modelMethod);
   const parsed = method ? parseModelMethod(method) : undefined;
   if (!method || !parsed) {
@@ -474,10 +578,21 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
   if (!resolved) {
     return { ...base, opaque: true, opaqueReason: "unparseable_chain" };
   }
+  if (call.response) {
+    // The arrangement lives on the route rather than in the chain, so it reads
+    // back beside the parameters instead of among them.
+    base.response = call.response as QueryStructure["response"];
+  }
+  if (call.compare) {
+    // Read back, or the next save would write the route without it.
+    base.compare = true;
+  }
   return {
     ...base,
     template: parsed.template,
     params: resolved,
-    output: getQueryTemplate(parsed.template)?.descriptor.output,
+    // The route's own response wins: a body edited to answer something else is
+    // what a caller will actually receive, whatever its chain still parses as.
+    output: call.output ?? getQueryTemplate(parsed.template)?.descriptor.output,
   };
 }

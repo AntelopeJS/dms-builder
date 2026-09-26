@@ -283,19 +283,25 @@ interface FactoryShape {
   controllerArg: boolean;
 }
 
-function controllerLeading(
+/** The type parameters that stand for a table's DataAPI class. */
+function controllerParams(
   typeParameters: TypeParameterDeclaration[],
-  firstParamType: TypeNode | undefined,
-): boolean {
-  if (!firstParamType) return false;
-  const controllerParams = new Set(
+): Set<string> {
+  return new Set(
     typeParameters
       .filter((tp) =>
         /\bControllerClass\b/.test(tp.getConstraint()?.getText() ?? ""),
       )
       .map((tp) => tp.getName()),
   );
-  return controllerParams.has(firstParamType.getText().trim());
+}
+
+function controllerLeading(
+  typeParameters: TypeParameterDeclaration[],
+  firstParamType: TypeNode | undefined,
+): boolean {
+  if (!firstParamType) return false;
+  return controllerParams(typeParameters).has(firstParamType.getText().trim());
 }
 
 function factoryShape(
@@ -396,6 +402,37 @@ function readDataTypeIds(baseDir: string): Map<string, string> {
   return ids;
 }
 
+/**
+ * Marks the options a DataType is handed a table's DataAPI class in — a
+ * relation's `dataApiController`.
+ *
+ * Their type is the class's own parameter, `T`, and the text alone does not
+ * say what `T` is: read as an object, the option was offered as JSON to type
+ * in, for a value no one can write as JSON. The constraint on the parameter is
+ * what says it is a table.
+ */
+function markControllerOptions(
+  config: ConfigSchema,
+  optionsType: TypeNode | undefined,
+  controllers: Set<string>,
+): ConfigSchema {
+  if (!optionsType || !Node.isTypeLiteral(optionsType) || !controllers.size) {
+    return config;
+  }
+  const marked: ConfigSchema = { ...config };
+  for (const property of optionsType.getProperties()) {
+    const text = property.getTypeNode()?.getText().trim() ?? "";
+    if (controllers.has(text)) {
+      marked[property.getName()] = {
+        type: "unknown",
+        optional: property.hasQuestionToken(),
+        "x-controller": true,
+      };
+    }
+  }
+  return marked;
+}
+
 function discoverDataTypes(
   sourceFiles: SourceFile[],
   index: TypeIndex,
@@ -420,7 +457,11 @@ function discoverDataTypes(
           name: `${DATATYPE_ACCESSOR}.${cls.getName()}`,
           module: DATATYPE_MODULE,
         },
-        config: schemaFromTypeNode(optionsType, index, new Set()),
+        config: markControllerOptions(
+          schemaFromTypeNode(optionsType, index, new Set()),
+          optionsType,
+          controllerParams(cls.getTypeParameters()),
+        ),
       });
     }
   }

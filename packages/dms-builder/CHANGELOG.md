@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.2.2
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.1...v0.2.2)
+
+### 🚀 Enhancements
+
+- Configure a chart's data without writing a route ([#9](https://github.com/AntelopeJS/dms-builder/pull/9))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.1.2 ([3092f3d](https://github.com/AntelopeJS/dms-builder/commit/3092f3d))
+
+### ❤️ Contributors
+
+- Fabrice Cst <fabrice@altab.be>
+
 ## v0.2.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.0...v0.2.1)

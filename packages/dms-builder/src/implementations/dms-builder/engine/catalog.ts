@@ -1,5 +1,6 @@
 import type {
   BlockCatalog,
+  DataSourceDescriptor,
   BlockTypeDescriptor,
   ConfigSchema,
   DynamicSlots,
@@ -34,6 +35,7 @@ interface DeclaredBlockType {
 
 interface BlockTypesModule {
   ListBlockTypes: () => DeclaredBlockType[];
+  ListDataSources?: (responseShape?: string) => DataSourceDescriptor[];
 }
 
 let cached: BlockCatalog | undefined;
@@ -42,6 +44,19 @@ let cached: BlockCatalog | undefined;
 function loadDeclaredBlockTypes(): DeclaredBlockType[] {
   const module = require(BLOCK_TYPES_MODULE) as BlockTypesModule;
   return module.ListBlockTypes();
+}
+
+/**
+ * The sources developers have declared beside their own routes.
+ *
+ * Absent on a DMS that predates the registry, which is not an error: the builder
+ * offers the calculations it generates and simply has none of these to add.
+ */
+export function listDeclaredDataSources(
+  responseShape?: string,
+): DataSourceDescriptor[] {
+  const module = require(BLOCK_TYPES_MODULE) as BlockTypesModule;
+  return module.ListDataSources?.(responseShape) ?? [];
 }
 
 const WIDGET_MARKERS: Record<string, string> = {

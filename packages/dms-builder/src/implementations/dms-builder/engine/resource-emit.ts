@@ -1,4 +1,7 @@
-import type { ResourceRoute } from "@antelopejs/interface-dms-builder";
+import type {
+  DataTypeValue,
+  ResourceRoute,
+} from "@antelopejs/interface-dms-builder";
 import { pascalCase } from "./emit";
 
 export const CORE_SCHEMA_NAME_VALUE = "dms-core";
@@ -13,10 +16,12 @@ const DATATYPE_MODULE =
 const SEARCHABLE_MODULE = "@antelopejs/interface-dms/base/searchable";
 export const TABLE_VIEW_MODULE = "@antelopejs/interface-dms/base/table-view";
 const CONSTANTS_MODULE = "@antelopejs/interface-dms/constants";
+const GUARDS_MODULE = "@antelopejs/interface-dms/guards";
+const AUTH_DB_MODULE = "@antelopejs/interface-dms/auth/db";
 const TENANT_MODEL_MODULE = "@antelopejs/interface-dms/tenant-scoped-model";
 export const DATABASE_LOCAL = "./database";
 
-const RESOURCE_ROUTES: readonly ResourceRoute[] = [
+export const RESOURCE_ROUTES: readonly ResourceRoute[] = [
   "list",
   "get",
   "create",
@@ -28,11 +33,20 @@ const RESOURCE_ROUTES: readonly ResourceRoute[] = [
 ];
 
 const EXPORT_ROUTES_SPREAD = "...TableViewRoutes.ExportRoutes";
+const ALL_ROUTES_EXPR = "TableViewRoutes.All";
 
+/**
+ * The members of `TableViewRoutes` each route writes. Every key of
+ * `TableViewRoutes.All` has to be named here or under `KEY_TO_ROUTE`: a key the
+ * builder cannot name is dropped the first time it rewrites the map, and the
+ * route it served is gone from the resource for good.
+ */
 const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
   list: [
     ["list", "List"],
     ["count", "Count"],
+    // The tab counters of a table: served beside the list, never alone.
+    ["countBatch", "CountBatch"],
   ],
   get: [["get", "Get"]],
   create: [["new", "New"]],
@@ -48,6 +62,8 @@ const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
 
 const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
   list: "list",
+  count: "list",
+  countBatch: "list",
   get: "get",
   new: "create",
   edit: "edit",
@@ -55,19 +71,31 @@ const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
   select: "select",
   archive: "archive",
   restore: "archive",
+  // Written as the `ExportRoutes` spread, but a map that names them one by one
+  // serves the same export.
+  exportStart: "export",
+  exportStatus: "export",
+  exportDownload: "export",
 };
 
 export function isResourceRoute(value: string): value is ResourceRoute {
   return (RESOURCE_ROUTES as readonly string[]).includes(value);
 }
 
+/**
+ * The route map for a selection: `TableViewRoutes.All` for every route — so the
+ * next route the DMS adds to `All` is served without the builder knowing its
+ * name — and a literal naming each member otherwise.
+ */
 export function routeMapExpr(
   routes: readonly ResourceRoute[] | undefined,
 ): string {
-  if (!routes) {
-    return "TableViewRoutes.All";
+  const selected = RESOURCE_ROUTES.filter(
+    (route) => !routes || routes.includes(route),
+  );
+  if (selected.length === RESOURCE_ROUTES.length) {
+    return ALL_ROUTES_EXPR;
   }
-  const selected = RESOURCE_ROUTES.filter((route) => routes.includes(route));
   const parts: string[] = [];
   for (const route of selected) {
     if (route === "export") {
@@ -124,6 +152,8 @@ export const DECORATOR_IMPORTS: Record<string, string> = {
   Get: API_MODULE,
   Parameter: API_MODULE,
   TenantScopedModel: TENANT_MODEL_MODULE,
+  AuthUserWithPermission: GUARDS_MODULE,
+  User: AUTH_DB_MODULE,
   Searchable: SEARCHABLE_MODULE,
   Column: TABLE_VIEW_MODULE,
   Select: TABLE_VIEW_MODULE,
@@ -211,7 +241,16 @@ export interface DbType {
   fallback: boolean;
 }
 
-export const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
+/** A column the database stores as it is, for a value that is not a scalar. */
+const ANY_FIELD = "any";
+
+/**
+ * The column each built-in DataType is stored in, read off what the DataType
+ * validates: a status is a checkbox and a time of day a number of seconds, so
+ * neither is a string, whatever their names say. Only a DataType missing from
+ * here — one a project registered itself — falls back to a string column.
+ */
+const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
   string: { field: "string", ts: "string" },
   email: { field: "string", ts: "string" },
   url: { field: "string", ts: "string" },
@@ -223,6 +262,39 @@ export const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
   number: { field: "number", ts: "number" },
   price: { field: "number", ts: "number" },
   percentage: { field: "number", ts: "number" },
+  string_time: { field: "number", ts: "number" },
   date: { field: "date", ts: "Date" },
   boolean: { field: "boolean", ts: "boolean" },
+  status: { field: "boolean", ts: "boolean" },
+  // A relation holds the id of the row it points at.
+  relation: { field: "string", ts: "string" },
+  cascader_relation: { field: "string", ts: "string" },
+  tree: { field: "string", ts: "string" },
+  permissions: { field: ANY_FIELD, ts: "string[]" },
+  address: { field: ANY_FIELD, ts: "Record<string, string>" },
+  file: { field: ANY_FIELD, ts: "Record<string, unknown>" },
+  image: { field: ANY_FIELD, ts: "Record<string, unknown>" },
 };
+
+/** The DataTypes that hold a list of values once configured `multiple`. */
+const MULTIPLE_TYPES = new Set([
+  "relation",
+  "cascader_relation",
+  "tree",
+  "file",
+  "image",
+]);
+
+/** The column a DataType is stored in, as configured; `undefined` if unmapped. */
+export function mappedDbType(
+  dataType: DataTypeValue,
+): { field: string; ts: string } | undefined {
+  const known = DB_TYPE_MAP[dataType.$dataType];
+  if (!known) {
+    return undefined;
+  }
+  if (MULTIPLE_TYPES.has(dataType.$dataType) && dataType.config?.multiple) {
+    return { field: ANY_FIELD, ts: `${known.ts}[]` };
+  }
+  return known;
+}

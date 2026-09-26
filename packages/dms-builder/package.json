@@ -1,6 +1,6 @@
 {
   "name": "@antelopejs/dms-builder",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,6 +10,7 @@
     "LICENSE",
     "README.md",
     "dist",
+    "!dist/test",
     "!dist/.tsbuildinfo",
     "frontend-vue"
   ],
@@ -31,7 +32,7 @@
     "build": "pnpm --filter @antelopejs/interface-dms-builder build && rimraf dist && tsc",
     "generate": "ajs module exports generate",
     "typecheck": "pnpm --filter @antelopejs/interface-dms-builder build && tsc --noEmit",
-    "test": "pnpm run build && pnpm run test:package-contract && pnpm run test:builder-enabled && pnpm run test:query-templates && pnpm run test:frontend-registration && pnpm run test:frontend",
+    "test": "pnpm run build && pnpm run test:package-contract && pnpm run test:builder-enabled && pnpm run test:query-templates && pnpm run test:frontend-registration && pnpm run test:frontend && pnpm run test:unit",
     "test:builder-enabled": "node --test tests/builder-enabled.test.cjs",
     "test:frontend-registration": "node --test tests/frontend-registration.test.cjs",
     "test:query-templates": "node --test tests/query-templates.test.cjs",
@@ -40,21 +41,28 @@
     "release": "pnpm --filter @antelopejs/interface-dms-builder build && pnpm run test:package-contract && release-it",
     "prepack": "pnpm run build",
     "knip": "knip --dependencies",
-    "knip:all": "knip"
+    "knip:all": "knip",
+    "test:unit": "mocha \"dist/test/**/*.spec.js\""
   },
   "dependencies": {
     "@antelopejs/interface-api": ">=0.0.13 <1.0.0",
     "@antelopejs/interface-core": ">=0.1.1 <1.0.0",
     "@antelopejs/interface-database": "0.1.7",
-    "@antelopejs/interface-dms": ">=0.2.0 <1.0.0",
-    "@antelopejs/interface-dms-builder": ">=0.1.0 <1.0.0",
+    "@antelopejs/interface-dms": ">=0.2.3 <1.0.0",
+    "@antelopejs/interface-dms-builder": ">=0.1.2 <1.0.0",
     "ts-morph": "^23.0.0"
   },
   "devDependencies": {
     "@antelopejs/core": ">=1.9.1 <2",
+    "@antelopejs/interface-data-api": ">=0.1.9 <1.0.0",
+    "@antelopejs/interface-database-decorators": ">=0.1.6 <1.0.0",
     "@antelopejs/tooling-configs": ">=0.0.6 <1.0.0",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",
+    "chai": "^6.2.1",
     "knip": "^6.34.0",
+    "mocha": "^11.7.6",
     "release-it": "^19.2.4",
     "release-it-changelogen": "^0.1.0",
     "rimraf": "^6.1.3",

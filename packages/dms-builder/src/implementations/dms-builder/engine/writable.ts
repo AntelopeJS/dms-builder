@@ -8,15 +8,19 @@ import {
   type ClassDeclaration,
   type Diagnostic,
   type ExportDeclaration,
+  type FunctionDeclaration,
   type ImportDeclaration,
   type ImportSpecifier,
+  type InterfaceDeclaration,
+  Node,
   type Project,
   type SourceFile,
   SyntaxKind,
+  type TypeAliasDeclaration,
+  type VariableDeclaration,
 } from "ts-morph";
-import { stringLiteralValue } from "./literals";
+import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
 import { createProject, resolveProjectRoot } from "./project";
-import { getCalleeName, getExtendsCall } from "./scan";
 
 let writable: Project | undefined;
 
@@ -25,6 +29,16 @@ export function getWritableProject(): Project {
     writable = createProject(resolveProjectRoot());
   }
   return writable;
+}
+
+/**
+ * Drop the cached project so the next call builds one from the configured root
+ * again. The project is resolved once per process because an app's root does not
+ * move under a running server; a test suite pointing the engine at a fresh
+ * fixture is the case that does move it.
+ */
+export function resetWritableProject(): void {
+  writable = undefined;
 }
 
 export function refreshFromDisk(project: Project): void {
@@ -141,6 +155,109 @@ export function pruneUnusedImports(
       declaration.remove();
     }
   }
+}
+
+/** A top-level declaration the file keeps to itself: nothing else can reach it. */
+interface LocalDeclaration {
+  name: string;
+  node:
+    | VariableDeclaration
+    | FunctionDeclaration
+    | InterfaceDeclaration
+    | TypeAliasDeclaration;
+}
+
+function localDeclarations(sourceFile: SourceFile): LocalDeclaration[] {
+  const locals: LocalDeclaration[] = [];
+  for (const statement of sourceFile.getVariableStatements()) {
+    if (statement.isExported()) {
+      continue;
+    }
+    for (const node of statement.getDeclarations()) {
+      // A destructuring pattern names several bindings at once, and removing
+      // one of them is not a removal of the declaration.
+      if (Node.isIdentifier(node.getNameNode())) {
+        locals.push({ name: node.getName(), node });
+      }
+    }
+  }
+  for (const node of [
+    ...sourceFile.getFunctions(),
+    ...sourceFile.getInterfaces(),
+    ...sourceFile.getTypeAliases(),
+  ]) {
+    const name = node.getName();
+    if (!node.isExported() && name !== undefined) {
+      locals.push({ name, node });
+    }
+  }
+  return locals;
+}
+
+// Read off the identifiers rather than the language service: a name that only
+// looks used — a property of the same spelling — keeps a declaration that could
+// have gone, which is the safe way to be wrong.
+function isLocalReferenced(
+  sourceFile: SourceFile,
+  local: LocalDeclaration,
+): boolean {
+  return sourceFile
+    .getDescendantsOfKind(SyntaxKind.Identifier)
+    .some(
+      (identifier) =>
+        identifier.getText() === local.name &&
+        !local.node.containsRange(identifier.getPos(), identifier.getEnd()),
+    );
+}
+
+/**
+ * The file's own top-level declarations something in it still uses, before a
+ * removal. Pass the result back to {@link pruneUnusedLocals}.
+ */
+export function referencedLocalNames(sourceFile: SourceFile): Set<string> {
+  return new Set(
+    localDeclarations(sourceFile)
+      .filter((local) => isLocalReferenced(sourceFile, local))
+      .map((local) => local.name),
+  );
+}
+
+/**
+ * Drops the declarations a removal left without a user: the constant only a
+ * deleted page read, then whatever only that constant read. As with imports,
+ * one that was unused to begin with is the author's, and stays.
+ */
+export function pruneUnusedLocals(
+  sourceFile: SourceFile,
+  used: Set<string>,
+): void {
+  const pending = new Set(used);
+  let orphan = findOrphanedLocal(sourceFile, pending);
+  while (orphan) {
+    pending.delete(orphan.name);
+    orphan.node.remove();
+    orphan = findOrphanedLocal(sourceFile, pending);
+  }
+}
+
+function findOrphanedLocal(
+  sourceFile: SourceFile,
+  pending: Set<string>,
+): LocalDeclaration | undefined {
+  return localDeclarations(sourceFile).find(
+    (local) => pending.has(local.name) && !isLocalReferenced(sourceFile, local),
+  );
+}
+
+/**
+ * Whether nothing but imports is left in the file. Once its last declaration
+ * is gone a file is debris, to be deleted and unwired from its barrel rather
+ * than left as an empty module something still loads.
+ */
+export function holdsOnlyImports(sourceFile: SourceFile): boolean {
+  return sourceFile
+    .getStatements()
+    .every((statement) => Node.isImportDeclaration(statement));
 }
 
 export function findPageClass(

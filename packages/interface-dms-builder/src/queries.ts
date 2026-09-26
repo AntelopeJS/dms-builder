@@ -10,8 +10,21 @@ import type { MutationOpts, OpResult } from "./results";
  */
 export type QueryRef = string;
 
-/** The shape a query's route responds with. Scalar (`{ value }`) in v1. */
-export type QueryOutputKind = "scalar";
+/**
+ * The shape a query's route responds with: one number as `{ value }`, or one
+ * point per group as `{ series }`, each point carrying its group as `x` and what
+ * was measured as `y`.
+ */
+export type QueryOutputKind = "scalar" | "series";
+
+/**
+ * How a query's answer is arranged for the block that reads it.
+ *
+ * The calculation is the same either way — a measure, possibly per group. This
+ * says what the route wraps it in: the points themselves, a headline figure above
+ * them, that figure alone, or the points as a ranked list.
+ */
+export type QueryResponseShape = "series" | "card" | "value" | "items";
 
 /** The comparison operators a filter may use. */
 export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";
@@ -63,6 +76,46 @@ export interface QueryTemplateDescriptor {
   params: ConfigSchema;
 }
 
+/** One measured group, as a route answers it and a chart reads it. */
+export interface QueryPoint {
+  x: number | string;
+  y: number;
+}
+
+/**
+ * The body a query's route returns.
+ *
+ * `{ value }` for a scalar and `{ series }` for a plain grouped route; for an
+ * arranged one, whatever the DMS helper built — `ChartCardData`, `KpiCardData`,
+ * `TopListData`. Those types belong to `@antelopejs/interface-dms`, which this
+ * package deliberately does not depend on, so the body travels as the JSON the
+ * route serves it as.
+ */
+export type QueryResponseBody = Record<string, unknown>;
+
+/**
+ * What a draft query answers when run without being written.
+ *
+ * `body` is what the route would return, built by the same helper the route would
+ * call, so a block can be handed it directly; `output` and `response` report it
+ * the way {@link QueryStructure} reports the saved query, so a preview and the
+ * page it previews cannot disagree about what they show.
+ *
+ * `truncated` is the one thing the route has no equivalent of: a preview stops
+ * reading at some point, and a chart that silently lost its tail is worse than one
+ * that says so.
+ */
+export interface QueryPreview {
+  output: QueryOutputKind;
+  /**
+   * How the body is arranged, set only when a helper arranged it — the same
+   * condition under which read-back reports it.
+   */
+  response?: QueryResponseShape;
+  body: QueryResponseBody;
+  truncated: boolean;
+}
+
 /** Input for `AddQuery`. */
 export interface AddQueryInput {
   /**
@@ -78,6 +131,19 @@ export interface AddQueryInput {
   template: string;
   /** The template's parameters. */
   params?: Record<string, QueryParamValue>;
+  /**
+   * How the answer is arranged for the block reading it. Defaults to what the
+   * template computes: a number for a scalar, its points for a series.
+   *
+   * A grouped calculation feeds a bare chart, a card with a headline figure, or
+   * a ranked list without being described three times.
+   */
+  response?: QueryResponseShape;
+  /**
+   * Answer the preceding period alongside the current one, so a card can show a
+   * variation. Only meaningful when the query binds a period.
+   */
+  compare?: boolean;
   /**
    * The route path, relative to the page's slug. Defaults to
    * `/stats/<kebab-name>`; any path is allowed, since read-back identifies a
@@ -98,6 +164,8 @@ export interface AddQueryInput {
  */
 export interface QueryStructure {
   name: string;
+  /** How the answer is arranged, when the route wraps the calculation. */
+  response?: QueryResponseShape;
   /** The route path relative to the page's slug, as {@link AddQueryInput.endpoint} takes it. */
   endpoint: string;
   resource?: ResourceRef;
@@ -115,6 +183,11 @@ export interface QueryStructure {
    * one binds `$param` to `query` or `param`.
    */
   routeParams?: { name: string; in: "query" | "param" | "header" }[];
+  /**
+   * True when the route answers the preceding period beside the current one,
+   * as {@link AddQueryInput.compare} asked it to.
+   */
+  compare?: boolean;
   /** True when the query could not be reversed to an editable template. */
   opaque?: boolean;
   /**

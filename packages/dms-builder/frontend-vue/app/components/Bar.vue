@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
+
+const MODES: { label: string; value: BuilderMode }[] = [
+	{ label: 'Simple', value: 'simple' },
+	{ label: 'Advanced', value: 'advanced' },
+]
 
 const builder = useBuilder()
 const session = builder.session
+const { mode, setMode } = useBuilderMode()
 
 const problems = builder.problems
 const canUndo = computed(() => session.value.history.length > 0)
@@ -17,11 +24,26 @@ const canRedo = computed(() => session.value.future.length > 0)
 		<UButton
 			icon="i-ph-tree-view"
 			size="xs"
-			:color="session.view === 'pages' ? 'primary' : 'neutral'"
+			:color="
+				session.view === 'pages' || session.view === 'page'
+					? 'primary'
+					: 'neutral'
+			"
 			variant="ghost"
 			label="Pages"
 			title="Pages and categories of the project"
 			@click="builder.setView('pages')"
+		/>
+		<!-- The tables a page reads live beside its pages, not under a block: a
+		project with none yet has no block to reach them through. -->
+		<UButton
+			icon="i-ph-database"
+			size="xs"
+			:color="session.view === 'resource' ? 'primary' : 'neutral'"
+			variant="ghost"
+			label="Tables"
+			title="Tables of the project, their fields and their API"
+			@click="builder.setView('resource')"
 		/>
 
 		<span class="vsep h-4 w-px bg-default" />
@@ -37,19 +59,39 @@ const canRedo = computed(() => session.value.future.length > 0)
 			color="warning"
 			variant="soft"
 			class="cursor-pointer"
-			:label="`${problems.length} to configure`"
+			:label="`${problems.length} to fix`"
 			icon="i-ph-warning"
 			@click="builder.select(problems[0] ?? null)"
 		/>
 		<UBadge
-			v-else
+			v-else-if="session.previewState === 'valid'"
 			color="success"
 			variant="soft"
 			label="All blocks configured"
 			icon="i-ph-check"
 		/>
+		<!-- The green badge answers for the page the module last built; until it
+		has answered for the page as it now stands, this says so rather than
+		vouching for a draft nobody has checked. -->
+		<UBadge
+			v-else
+			color="neutral"
+			variant="soft"
+			label="Checking…"
+			icon="i-ph-circle-notch"
+		/>
 
 		<div class="ml-auto flex items-center gap-1">
+			<!-- Who the panel speaks to: someone building the page, or whoever
+			reads the code the builder writes. -->
+			<DmsSegmented
+				:model-value="mode"
+				:items="MODES"
+				size="xs"
+				aria-label="Builder mode"
+				class="mr-1"
+				@update:model-value="setMode($event as BuilderMode)"
+			/>
 			<UButton
 				icon="i-ph-arrow-counter-clockwise"
 				size="xs"
@@ -105,7 +147,7 @@ const canRedo = computed(() => session.value.future.length > 0)
 				color="neutral"
 				variant="ghost"
 				aria-label="Leave the builder"
-				@click="builder.close()"
+				@click="builder.leave()"
 			/>
 		</div>
 	</div>
