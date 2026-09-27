@@ -112,7 +112,10 @@ export function describeError(
 				? `The name "${error.name}" is already taken.`
 				: 'Duplicate name.',
 		opaque_target: () => 'That block cannot be rewritten by the builder.',
-		referential_integrity: () => 'Something still depends on this.',
+		referential_integrity: () =>
+			'blockedBy' in error && error.blockedBy.length > 0
+				? `Still used by ${error.blockedBy.join(', ')}. Remove those first.`
+				: 'Something still depends on this.',
 	}
 	return (messages[error.code] ?? (() => 'The operation failed.'))()
 }
