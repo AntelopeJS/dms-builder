@@ -181,13 +181,49 @@ function expand(open: string[]): void {
 }
 
 /**
+ * The page the tree is about to open, while the DMS does not serve it yet: a
+ * page just written is listed here seconds before its route answers.
+ */
+const opening = ref<string | null>(null)
+
+/**
+ * Open a page once the DMS serves it: navigating any sooner renders it bare,
+ * without the menu or the header, and it stays so. A served page opens at
+ * once. The last page asked for wins, so one clicked while another is still
+ * waiting is not snatched back when the first one lands.
+ */
+async function openPage(route: string): Promise<void> {
+	if (opening.value === route) {
+		return
+	}
+	opening.value = route
+	try {
+		await openWhenServed(
+			{
+				devReload,
+				router,
+				onWaitFailure: (failure) => {
+					session.value.error = failure
+				},
+				stillWanted: () => opening.value === route,
+			},
+			route,
+		)
+	} finally {
+		if (opening.value === route) {
+			opening.value = null
+		}
+	}
+}
+
+/**
  * A page picked in the tree opens, and a category picked only folds: what
  * shows selected is the open page, which the route decides, not the click.
  */
 function visit(event: Event, row: Row): void {
 	event.preventDefault()
 	if (row.kind === 'page') {
-		void router.push(row.ref)
+		void openPage(row.ref)
 	}
 }
 
@@ -312,19 +348,8 @@ async function write(): Promise<void> {
 	})
 	creating.value = null
 	if (ref) {
-		// Navigating to a route the DMS has not registered yet renders the page
-		// without its layout, so wait for the reload that brings it in. The
-		// route watcher then opens the builder on it.
-		await openWhenServed(
-			{
-				devReload,
-				router,
-				onWaitFailure: (failure) => {
-					session.value.error = failure
-				},
-			},
-			ref,
-		)
+		// The route watcher opens the builder on the new page once it is served.
+		await openPage(ref)
 	}
 }
 </script>
@@ -511,6 +536,12 @@ async function write(): Promise<void> {
 			<template #item-trailing="{ item }">
 				<div class="flex items-center" @click.stop>
 					<template v-if="item.kind === 'page'">
+						<UIcon
+							v-if="opening === item.ref"
+							name="i-ph-circle-notch"
+							class="size-4 animate-spin text-muted"
+							title="Opens once the app has reloaded"
+						/>
 						<UIcon
 							v-if="item.page.hidden"
 							name="i-ph-eye-slash"

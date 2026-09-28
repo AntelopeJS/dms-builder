@@ -278,6 +278,72 @@ describe('the pages, as a tree', () => {
 		})
 	})
 
+	describe('opening a page the DMS does not serve yet', () => {
+		// A page is listed as soon as its file is written, seconds before the
+		// reloaded module serves its route: these routes are held until told.
+		let held: Map<string, (served: boolean) => void>
+		const served = (route: string): void => held.get(route)?.(true)
+
+		beforeEach(() => {
+			held = new Map()
+			Object.assign(globalThis, {
+				useDmsDevReload: () => ({
+					awaitRoute: (route: string) =>
+						new Promise<boolean>((resolve) => held.set(route, resolve)),
+				}),
+			})
+		})
+
+		afterEach(() => {
+			Object.assign(globalThis, {
+				useDmsDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
+			})
+		})
+
+		function row(root: TestNode, route: string): TestNode {
+			return findAll(
+				root,
+				(node) => node.props.role === 'treeitem' && textOf(node).includes(route),
+			)[0]!
+		}
+
+		const spinning = (root: TestNode, route: string): boolean =>
+			findAll(row(root, route), (node) => node.props.name === 'i-ph-circle-notch')
+				.length > 0
+
+		it('waits for its route before going there, and says so on its row', async () => {
+			const root = await tree()
+
+			fire(row(root, '/shop/orders'), 'click')
+			await settle()
+			// Going now would render the page without the menu or the header.
+			expect(pushedRoutes).toEqual([])
+			expect(spinning(root, '/shop/orders')).toBe(true)
+
+			served('/shop/orders')
+			await settle()
+			expect(pushedRoutes).toEqual(['/shop/orders'])
+			expect(spinning(root, '/shop/orders')).toBe(false)
+		})
+
+		it('opens the last page asked for, not the first one to be served', async () => {
+			const root = await tree()
+
+			fire(row(root, '/shop/orders'), 'click')
+			await settle()
+			fire(row(root, '/reports/totals'), 'click')
+			await settle()
+
+			served('/shop/orders')
+			await settle()
+			expect(pushedRoutes, 'no longer wanted').toEqual([])
+
+			served('/reports/totals')
+			await settle()
+			expect(pushedRoutes).toEqual(['/reports/totals'])
+		})
+	})
+
 	it('renames a category where it stands', async () => {
 		const root = await tree()
 

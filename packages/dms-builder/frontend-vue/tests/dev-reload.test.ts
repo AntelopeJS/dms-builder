@@ -99,6 +99,26 @@ describe('openWhenServed', () => {
 		expect(push).toHaveBeenCalledExactlyOnceWith('/reports/broken')
 	})
 
+	it('drops the navigation once the user has asked for another page', async () => {
+		const push = vi.fn()
+		const { waiter, serve } = controlledWaiter()
+		let wanted = true
+		const opened = openWhenServed(
+			{
+				devReload: waiter,
+				router: { push },
+				onWaitFailure: vi.fn(),
+				stillWanted: () => wanted,
+			},
+			'/reports/new-page',
+		)
+
+		wanted = false
+		serve('/reports/new-page')
+		await opened
+		expect(push).not.toHaveBeenCalled()
+	})
+
 	it('describes a non-Error rejection without losing it', async () => {
 		const failures: WaitFailure[] = []
 		await openWhenServed(
