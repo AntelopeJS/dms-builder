@@ -93,6 +93,13 @@ export type RailView =
 	| 'query'
 	| 'theme'
 
+/**
+ * The views a discard leaves open. The others are about the selection the
+ * discard clears; the theme's is about nothing on the page, and closing it
+ * would take the author away from what they just put back.
+ */
+const VIEWS_KEPT_ON_DISCARD = new Set<RailView>(['theme'])
+
 export type TableTab = 'fields' | 'api' | 'settings'
 
 /** Where the Tables view stands inside a table: which tab, or a field being added. */
@@ -1352,7 +1359,9 @@ export function useBuilder(): BuilderController {
 		pushHistory()
 		session.value.draft = cloneDraft(session.value.baseline)
 		session.value.selection = null
-		session.value.view = 'library'
+		if (!VIEWS_KEPT_ON_DISCARD.has(session.value.view)) {
+			session.value.view = 'library'
+		}
 		session.value.error = null
 		schedulePreview()
 		notify('Changes discarded')
