@@ -7,8 +7,8 @@ const session = builder.session
 
 // A drawer that edits a table's fields or shows the whole page as JSON needs
 // room; the design gives those the wide rail.
-const WIDE_VIEWS = new Set(['resource', 'json'])
-const BACK_VIEWS = new Set(['resource', 'query', 'json', 'pages', 'page'])
+const WIDE_VIEWS = new Set(['resource', 'json', 'theme'])
+const BACK_VIEWS = new Set(['resource', 'query', 'json', 'pages', 'page', 'theme'])
 
 const wide = computed(() => WIDE_VIEWS.has(session.value.view))
 const canGoBack = computed(() => BACK_VIEWS.has(session.value.view))
@@ -82,6 +82,10 @@ const heading = computed<Heading>(() => {
 		resource: tableHeading.value,
 		query: { title: 'Queries', subtitle: session.value.pageRef ?? '' },
 		json: { title: 'Configuration', subtitle: 'Export and import the page' },
+		theme: {
+			title: 'Theme & branding',
+			subtitle: 'Colors, shape and logos, in light and dark',
+		},
 	}
 	return headings[session.value.view] ?? { title: '', subtitle: '' }
 })
@@ -132,6 +136,7 @@ const heading = computed<Heading>(() => {
 			<DmsBuilderResourcePanel v-else-if="session.view === 'resource'" />
 			<DmsBuilderQueryPanel v-else-if="session.view === 'query'" />
 			<DmsBuilderJsonPanel v-else-if="session.view === 'json'" />
+			<DmsBuilderThemePanel v-else-if="session.view === 'theme'" />
 		</div>
 	</aside>
 </template>

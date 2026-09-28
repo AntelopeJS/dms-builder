@@ -414,3 +414,56 @@ export interface DataSourceDescriptor {
 	params?: Record<string, OptionSchema>
 	period?: { from: string; to: string }
 }
+
+/** The two color modes every theme value is set for. */
+export type ThemeMode = 'light' | 'dark'
+
+/** CSS custom properties by name: `{ "--ui-primary": "#7c3aed" }`. */
+export type ThemeVariables = Record<string, string>
+
+/** The custom properties a theme overrides, one set per color mode. */
+export interface ThemeVariableSets {
+	light: ThemeVariables
+	dark: ThemeVariables
+}
+
+/** Where the dashboard shows a logo. */
+export type LogoSlot = 'default' | 'collapsed' | 'email' | 'favicon'
+
+/** One logo slot: the public path of its file in each color mode. */
+export type LogoSources = Partial<Record<ThemeMode, string>>
+
+export type ThemeLogos = Partial<Record<LogoSlot, LogoSources>>
+
+/** A logo file sent with a save, base64-encoded. */
+export interface LogoUpload {
+	slot: LogoSlot
+	mode: ThemeMode
+	contentType: string
+	data: string
+}
+
+export interface ThemeFiles {
+	stylesheet: string
+	appConfig: string
+	applier: string
+	entry: string
+	assets: string
+}
+
+/** The project's theme as its frontend layer holds it. */
+export interface ThemeStructure {
+	layer: { name: string; sourcePath: string }
+	variables: ThemeVariableSets
+	logos: ThemeLogos
+	files: ThemeFiles
+	applied: boolean
+	version: string
+}
+
+/** A theme as it should be written, the logos picked since the last save with it. */
+export interface ThemeDraft {
+	variables: ThemeVariableSets
+	logos: ThemeLogos
+	uploads?: LogoUpload[]
+}

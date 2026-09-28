@@ -19,11 +19,18 @@ import type {
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
+	ThemeDraft,
+	ThemeStructure,
 } from './types'
 
 interface SaveBody {
 	page: string
 	draft: PageDraft
+	expectedVersion?: string
+}
+
+interface ThemeSaveBody {
+	draft: ThemeDraft
 	expectedVersion?: string
 }
 
@@ -134,5 +141,11 @@ export function useBuilderApi() {
 				input,
 			}),
 		removeQuery: (ref: string) => remove<OpResult<void>>('/queries', { ref }),
+		theme: () => get<OpResult<ThemeStructure>>('/theme'),
+		saveTheme: (body: ThemeSaveBody) =>
+			post<OpResult<{ version: string }>>(
+				'/theme',
+				body as unknown as Record<string, unknown>,
+			),
 	}
 }

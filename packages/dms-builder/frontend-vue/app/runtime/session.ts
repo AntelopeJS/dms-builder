@@ -37,6 +37,7 @@ import { deriveKeys } from './keys'
 import { pathOfNode, tidyLayout } from './layout'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
+import { useThemeEditor } from './theme'
 import {
 	cloneDraft,
 	countBlocks,
@@ -90,6 +91,7 @@ export type RailView =
 	| 'json'
 	| 'resource'
 	| 'query'
+	| 'theme'
 
 export type TableTab = 'fields' | 'api' | 'settings'
 
@@ -232,7 +234,10 @@ let previewToken = 0
 
 export interface BuilderController {
 	session: Ref<BuilderSession>
+	/** Whether anything the Save button writes is unsaved: the page's draft or the theme's. */
 	dirty: ComputedRef<boolean>
+	/** Whether the page's own draft is unsaved, which is what holds a move to another page. */
+	pageDirty: ComputedRef<boolean>
 	blockCount: ComputedRef<number>
 	problems: ComputedRef<string[]>
 	selected: ComputedRef<BlockDraft | undefined>
@@ -347,12 +352,14 @@ export interface BuilderController {
 export function useBuilder(): BuilderController {
 	const session = useState<BuilderSession>(SESSION_STATE_KEY, emptySession)
 	const api = useBuilderApi()
+	const theme = useThemeEditor()
 
-	const dirty = computed(
+	const pageDirty = computed(
 		() =>
 			!!session.value.draft &&
 			JSON.stringify(session.value.draft) !== JSON.stringify(session.value.baseline),
 	)
+	const dirty = computed(() => pageDirty.value || theme.dirty.value)
 	const blockCount = computed(() =>
 		session.value.draft
 			? countBlocks(session.value.draft, session.value.catalog)
@@ -553,6 +560,7 @@ export function useBuilder(): BuilderController {
 
 	function close(): void {
 		clearTimeout(previewTimer)
+		theme.clear()
 		session.value = emptySession()
 	}
 
@@ -609,7 +617,7 @@ export function useBuilder(): BuilderController {
 		if (!session.value.active || session.value.pageRef === path) {
 			return
 		}
-		if (dirty.value) {
+		if (pageDirty.value) {
 			session.value.pendingRoute = path
 			return
 		}
@@ -735,6 +743,9 @@ export function useBuilder(): BuilderController {
 			const ref = selected.value?.controller
 			session.value.table = ref ? { ref, tab: 'fields', adding: false } : null
 		}
+		if (view === 'theme') {
+			void theme.load()
+		}
 		session.value.view = view
 		session.value.railOpen = true
 		session.value.menu = null
@@ -753,6 +764,7 @@ export function useBuilder(): BuilderController {
 		'json',
 		'pages',
 		'page',
+		'theme',
 	])
 
 	function back(): void {
@@ -1333,6 +1345,7 @@ export function useBuilder(): BuilderController {
 	}
 
 	function cancel(): void {
+		theme.discard()
 		if (!session.value.baseline) {
 			return
 		}
@@ -1345,7 +1358,56 @@ export function useBuilder(): BuilderController {
 		notify('Changes discarded')
 	}
 
+	/**
+	 * Write everything the editor holds unsaved, the page first: the theme is
+	 * saved only once the page has gone through, so one refusal is on screen at
+	 * a time. A page with nothing unsaved is left alone when the theme is what
+	 * changed — rewriting it would only give an unrelated gap on it a chance to
+	 * refuse the theme's save — and saved as before otherwise.
+	 */
 	async function save(): Promise<void> {
+		if (pageDirty.value || !theme.dirty.value) {
+			await savePage()
+			if (session.value.error) {
+				return
+			}
+		}
+		await saveTheme()
+	}
+
+	/**
+	 * A theme refusal worded for the theme: the page's own wording names a page
+	 * and its blocks, which a theme has neither of.
+	 */
+	function themeRefusal(error: BuilderError): BuilderError {
+		const details: Record<string, () => string> = {
+			stale: () =>
+				'The theme files changed on disk since the editor read them. Reopen Theme & branding to keep going.',
+			invalid_config: () =>
+				'issues' in error
+					? `The theme was not saved: ${error.issues.map((issue) => issue.message).join(' · ')}.`
+					: 'The theme was not saved.',
+		}
+		const detail = details[error.code]
+		return detail ? { code: 'unsupported', detail: detail() } : error
+	}
+
+	async function saveTheme(): Promise<void> {
+		if (!theme.dirty.value) {
+			return
+		}
+		session.value.saving = true
+		try {
+			const result = await theme.save()
+			if (result) {
+				report(result.ok ? result : { ok: false, error: themeRefusal(result.error) }, 'Theme saved')
+			}
+		} finally {
+			session.value.saving = false
+		}
+	}
+
+	async function savePage(): Promise<void> {
 		const { pageRef, draft, version } = session.value
 		if (!pageRef || !draft) {
 			return
@@ -1892,6 +1954,7 @@ export function useBuilder(): BuilderController {
 	return {
 		session,
 		dirty,
+		pageDirty,
 		blockCount,
 		problems,
 		selected,

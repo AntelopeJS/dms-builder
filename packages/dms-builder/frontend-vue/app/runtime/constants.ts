@@ -9,6 +9,18 @@ export const APP_OVERLAYS_STATE_KEY = 'dms-app-overlays'
 
 export const OVERLAY_COMPONENT_NAME = 'DmsBuilderOverlay'
 export const SESSION_STATE_KEY = 'dms-builder:session'
+export const THEME_STATE_KEY = 'dms-builder:theme'
+
+/** The style element the theme editor previews its draft through, last in `<head>`. */
+export const THEME_PREVIEW_STYLE_ID = 'dms-builder-theme-preview'
+/** The largest logo the module accepts, mirrored so a picker can say so before a save. */
+export const MAX_LOGO_BYTES = 512 * 1024
+export const LOGO_CONTENT_TYPES = [
+	'image/svg+xml',
+	'image/png',
+	'image/webp',
+	'image/x-icon',
+] as const
 
 export const ACTION_ID = 'dms-builder-edit'
 // The DMS renders this action on its own builder button, keyed by id; the

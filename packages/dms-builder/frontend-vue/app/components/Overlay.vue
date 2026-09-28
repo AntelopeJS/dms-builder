@@ -137,8 +137,8 @@ onUnmounted(() => {
 		>
 			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
 			<span class="flex-1">
-				{{ session.pageRef }} has changes nobody has saved. Leaving the editor
-				drops them.
+				{{ builder.pageDirty.value ? session.pageRef : 'The theme' }} has
+				changes nobody has saved. Leaving the editor drops them.
 			</span>
 			<UButton
 				size="xs"

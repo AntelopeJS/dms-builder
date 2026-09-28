@@ -45,6 +45,15 @@ const canRedo = computed(() => session.value.future.length > 0)
 			title="Tables of the project, their fields and their API"
 			@click="builder.setView('resource')"
 		/>
+		<UButton
+			icon="i-ph-palette"
+			size="xs"
+			:color="session.view === 'theme' ? 'primary' : 'neutral'"
+			variant="ghost"
+			label="Theme & branding"
+			title="Colors, shape and logos of the project, in light and dark"
+			@click="builder.setView('theme')"
+		/>
 
 		<span class="vsep h-4 w-px bg-default" />
 

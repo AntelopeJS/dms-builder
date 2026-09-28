@@ -4,7 +4,7 @@
  * exercised outside a generated Inertia workspace; only what this package
  * imports from the host is declared.
  */
-import { ref, type Ref } from 'vue'
+import { reactive, ref, type Ref } from 'vue'
 
 export interface DmsModuleOptions {
   public: Record<string, unknown>
@@ -49,4 +49,11 @@ export function useDmsRouter(): { push: (route: string) => Promise<void> } {
       return Promise.resolve()
     },
   }
+}
+
+const appConfig = reactive<Record<string, unknown>>({})
+
+/** The host's merged app config, as the logo preview reads and writes it. */
+export function useDmsAppConfig(): Record<string, unknown> {
+  return appConfig
 }
