@@ -18,6 +18,7 @@ export type {
   BuilderApiConfig,
   DmsBuilderConfig,
   FactoringConfig,
+  ThemeConfig,
 } from "./config";
 
 export async function construct(config?: DmsBuilderConfig): Promise<void> {

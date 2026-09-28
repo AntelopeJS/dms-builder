@@ -17,12 +17,23 @@ export interface BuilderApiConfig {
   enabled?: boolean;
 }
 
+/** Where the theme editor writes the project's theme. */
+export interface ThemeConfig {
+  /**
+   * The frontend layer holding the theme, relative to `projectRoot` or
+   * absolute. Unset, it is the highest-priority frontend module registered
+   * from inside the project root.
+   */
+  layer?: string;
+}
+
 /** Runtime configuration for the dms-builder engine. */
 export interface DmsBuilderConfig {
   /** Absolute path to the app source root where page files live. */
   projectRoot?: string;
   factoring?: FactoringConfig;
   api?: BuilderApiConfig;
+  theme?: ThemeConfig;
 }
 
 let moduleConfig: DmsBuilderConfig = {};

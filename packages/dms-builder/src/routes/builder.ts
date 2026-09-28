@@ -24,9 +24,10 @@ import type {
   FieldSpec,
   MutationOpts,
   PageDraft,
+  ThemeDraft,
 } from "@antelopejs/interface-dms-builder";
 import { getRoutePrefix } from "../config";
-import { ROUTES } from "../constants/routes";
+import { ROUTES, THEME_BODY_LIMIT_BYTES } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
 
@@ -80,6 +81,11 @@ interface QueryBody {
 interface ConfigureQueryBody {
   query: string;
   patch: Partial<AddQueryInput>;
+  expectedVersion?: string;
+}
+
+interface ThemeBody {
+  draft: ThemeDraft;
   expectedVersion?: string;
 }
 
@@ -306,5 +312,18 @@ export class BuilderController extends Controller(getRoutePrefix()) {
   async refresh(@AuthTenantOwner() _user: User) {
     await engine.RefreshSourceIndex();
     return { ok: true };
+  }
+
+  @Get(ROUTES.theme)
+  async theme(@AuthTenantOwner() _user: User) {
+    return engine.GetTheme();
+  }
+
+  @Post(ROUTES.theme)
+  async saveTheme(
+    @AuthTenantOwner() _user: User,
+    @JSONBody(THEME_BODY_LIMIT_BYTES) body: ThemeBody,
+  ) {
+    return engine.SetTheme(body.draft, opts(body.expectedVersion));
   }
 }

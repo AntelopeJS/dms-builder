@@ -19,7 +19,14 @@ export const ROUTES = {
   queryPreview: "/query-preview",
   dataSources: "/data-sources",
   refresh: "/refresh",
+  theme: "/theme",
 } as const;
+
+/**
+ * The body limit of a theme save. Its logos travel in it, base64-encoded: up
+ * to eight files of 512 KiB each, a third larger once encoded.
+ */
+export const THEME_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
 
 export const FRONTEND_MODULE_NAME = "@antelopejs/dms-builder-frontend-vue";
 export const FRONTEND_MODULE_CONFIG_KEY = "dmsBuilder";

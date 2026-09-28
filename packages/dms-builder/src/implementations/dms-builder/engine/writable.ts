@@ -295,7 +295,8 @@ function relevantDiagnostics(project: Project): TypecheckError[] {
     .map(diagnosticToError);
 }
 
-function diffText(before: string, after: string): string {
+/** A one-hunk textual diff: the lines between the common head and tail. */
+export function diffText(before: string, after: string): string {
   if (before === after) {
     return "";
   }
