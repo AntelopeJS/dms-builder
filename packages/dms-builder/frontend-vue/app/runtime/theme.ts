@@ -84,33 +84,68 @@ export function cloneTheme(draft: ThemeDraft): ThemeDraft {
 	return JSON.parse(JSON.stringify(draft)) as ThemeDraft
 }
 
-function previewRule(
-	mode: ThemeMode,
+/**
+ * What a theme value may not hold, as the module words it: anything that ends
+ * a declaration or a rule, a comment, an escape, markup, or a resource fetched
+ * from elsewhere. Checked here too, so a cell says so as it is typed.
+ */
+const UNSAFE_VALUE = /[;{}<>\\]|\/\*|\*\/|url\(|@import|!important/i
+const MAX_VALUE_LENGTH = 512
+
+/** Why a value cannot be written to the theme, if it cannot. */
+export function valueProblem(value: string): string | undefined {
+	if (value.length > MAX_VALUE_LENGTH) {
+		return `A value holds at most ${MAX_VALUE_LENGTH} characters.`
+	}
+	return UNSAFE_VALUE.test(value)
+		? 'A value cannot hold ; { } < > \\, a comment, url(), @import or !important.'
+		: undefined
+}
+
+/** One declaration of the preview: a custom property and the value it shows. */
+export type PreviewDeclaration = [name: string, value: string]
+
+/**
+ * What the preview declares in one mode: the draft's values, and the DMS
+ * default back for every saved override the draft dropped. A value the
+ * theme could not be saved with is left out rather than shown.
+ */
+export function previewDeclarations(
 	draft: ThemeVariables,
 	saved: ThemeVariables,
-): string {
-	const dropped = Object.keys(saved).filter((name) => !(name in draft))
-	const declarations = [
-		...dropped.map((name) => `${name}: ${DMS_DEFAULT};`),
-		...Object.entries(draft).map(([name, value]) => `${name}: ${value};`),
-	]
-	return declarations.length
-		? `${MODE_SELECTORS[mode]} { ${declarations.join(' ')} }`
-		: ''
+): PreviewDeclaration[] {
+	const dropped = Object.keys(saved)
+		.filter((name) => !(name in draft))
+		.map((name): PreviewDeclaration => [name, DMS_DEFAULT])
+	const kept = Object.entries(draft).filter(([, value]) => !valueProblem(value))
+	return [...dropped, ...kept]
 }
 
 /**
- * The stylesheet that shows a draft on the live page: its values, and the DMS
- * default back for every saved override it dropped. It goes last in `<head>`,
- * unlayered, so it wins over the saved theme without replacing it.
+ * Show a draft on the live page, through a style element kept last in
+ * `<head>`: unlayered, it wins over the saved theme without replacing it.
+ * The values go in through the CSSOM rather than as text, so no value can
+ * close its rule and open another.
  */
-export function previewStylesheet(
+function writePreview(
+	element: HTMLStyleElement,
 	draft: ThemeVariableSets,
 	saved: ThemeVariableSets,
-): string {
-	return THEME_MODES.map((mode) => previewRule(mode, draft[mode], saved[mode]))
-		.filter((rule) => rule !== '')
-		.join('\n')
+): void {
+	const sheet = element.sheet
+	if (!sheet) {
+		return
+	}
+	for (const mode of THEME_MODES) {
+		const index = sheet.insertRule(`${MODE_SELECTORS[mode]} {}`, sheet.cssRules.length)
+		const rule = sheet.cssRules[index]
+		if (!(rule instanceof CSSStyleRule)) {
+			continue
+		}
+		for (const [name, value] of previewDeclarations(draft[mode], saved[mode])) {
+			rule.style.setProperty(name, value)
+		}
+	}
 }
 
 /** Why a file cannot be a logo, before it is sent: the module checks again. */
@@ -182,12 +217,13 @@ export function useThemeEditor(): ThemeEditor {
 
 	function previewStyles(): void {
 		const { draft, baseline } = state.value
-		const existing = document.getElementById(THEME_PREVIEW_STYLE_ID)
-		const element = existing ?? document.createElement('style')
+		document.getElementById(THEME_PREVIEW_STYLE_ID)?.remove()
+		const element = document.createElement('style')
 		element.id = THEME_PREVIEW_STYLE_ID
-		element.textContent =
-			draft && baseline ? previewStylesheet(draft.variables, baseline.variables) : ''
 		document.head.appendChild(element)
+		if (draft && baseline) {
+			writePreview(element, draft.variables, baseline.variables)
+		}
 	}
 
 	function previewLogos(): void {

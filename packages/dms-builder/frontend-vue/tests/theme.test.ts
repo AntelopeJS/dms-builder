@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
 	logoRefusal,
+	previewDeclarations,
 	previewLogo,
-	previewStylesheet,
 	type ThemeEditorState,
+	valueProblem,
 } from '../app/runtime/theme'
 import { isVariableName, otherVariables } from '../app/runtime/theme-catalog'
 
@@ -25,25 +26,36 @@ function editorState(overrides: Partial<ThemeEditorState>): ThemeEditorState {
 	}
 }
 
-describe('the preview stylesheet', () => {
-	it('declares each mode under the selector the DMS keys it on', () => {
-		const css = previewStylesheet(
-			{ light: { '--ui-primary': '#7c3aed' }, dark: { '--ui-primary': '#a78bfa' } },
-			{ light: {}, dark: {} },
-		)
-		expect(css).toBe(':root { --ui-primary: #7c3aed; }\n.dark { --ui-primary: #a78bfa; }')
+describe('the preview', () => {
+	it("declares the draft's values", () => {
+		expect(previewDeclarations({ '--ui-primary': '#7c3aed' }, {})).toEqual([
+			['--ui-primary', '#7c3aed'],
+		])
 	})
 
 	it('hands a dropped saved override back to the DMS default', () => {
-		const css = previewStylesheet(
-			{ light: {}, dark: { '--ui-bg': '#000000' } },
-			{ light: { '--ui-radius': '1rem' }, dark: { '--ui-bg': '#111111' } },
-		)
-		expect(css).toBe(':root { --ui-radius: revert-layer; }\n.dark { --ui-bg: #000000; }')
+		expect(previewDeclarations({}, { '--ui-radius': '1rem' })).toEqual([
+			['--ui-radius', 'revert-layer'],
+		])
 	})
 
-	it('is empty for a theme that overrides nothing', () => {
-		expect(previewStylesheet({ light: {}, dark: {} }, { light: {}, dark: {} })).toBe('')
+	it('leaves out a value the theme could not be saved with', () => {
+		expect(
+			previewDeclarations({ '--ui-bg': 'white; } body { display: none' }, {}),
+		).toEqual([])
+	})
+})
+
+describe('a theme value', () => {
+	it('is refused when it could end its declaration or its rule', () => {
+		expect(valueProblem('red; }')).toMatch(/cannot hold/)
+		expect(valueProblem('url(https://example.test/x.png)')).toMatch(/cannot hold/)
+	})
+
+	it('is taken otherwise, whatever CSS it is', () => {
+		expect(valueProblem('oklch(55% 0.2 290)')).toBe(undefined)
+		expect(valueProblem('"Inter", ui-sans-serif, sans-serif')).toBe(undefined)
+		expect(valueProblem('0 1px 2px rgba(0, 0, 0, 0.4)')).toBe(undefined)
 	})
 })
 

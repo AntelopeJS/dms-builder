@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { THEME_MODES, useThemeEditor } from '../runtime/theme'
+import { THEME_MODES, useThemeEditor, valueProblem } from '../runtime/theme'
 import type { ThemeMode } from '../runtime/types'
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
@@ -27,6 +27,17 @@ const overridden = computed(() =>
 
 function draftValue(mode: ThemeMode): string {
 	return state.value.draft?.variables[mode]?.[props.name] ?? ''
+}
+
+const problems = computed(() =>
+	[...new Set(THEME_MODES.flatMap((mode) => valueProblem(draftValue(mode)) ?? []))],
+)
+
+function cellBorder(mode: ThemeMode): string {
+	if (valueProblem(draftValue(mode))) {
+		return 'border-error'
+	}
+	return isChanged(mode) ? 'border-primary' : 'border-default'
 }
 
 function isSaved(mode: ThemeMode): boolean {
@@ -67,7 +78,7 @@ function reset(): void {
 			v-for="mode in THEME_MODES"
 			:key="mode"
 			class="flex min-w-0 items-center gap-1.5 rounded-md border px-1.5 py-1"
-			:class="isChanged(mode) ? 'border-primary' : 'border-default'"
+			:class="cellBorder(mode)"
 			:data-theme-cell="`${name}:${mode}`"
 		>
 			<label
@@ -109,5 +120,8 @@ function reset(): void {
 			title="Back to the DMS default, in both modes"
 			@click="reset"
 		/>
+		<p v-if="problems.length" class="col-span-4 text-[11px] text-error">
+			{{ problems.join(' ') }} It shows nowhere, and the theme is not saved with it.
+		</p>
 	</div>
 </template>
