@@ -36,7 +36,7 @@ importers:
         specifier: '>=0.1.1 <1.0.0'
         version: 0.1.1
       '@antelopejs/interface-database':
-        specifier: 0.1.7
+        specifier: '>=0.1.7 <1.0.0'
         version: 0.1.7(@antelopejs/interface-core@0.1.1)
       '@antelopejs/interface-dms':
         specifier: '>=0.2.3 <1.0.0'
