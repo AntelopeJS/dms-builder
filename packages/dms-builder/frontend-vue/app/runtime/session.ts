@@ -542,8 +542,24 @@ export function useBuilder(): BuilderController {
 		return true
 	}
 
+	/**
+	 * The theme's view, kept when the builder follows the router to another
+	 * page: the theme is no page's, and seeing it on another page is a reason
+	 * to move there.
+	 */
+	function keptThemeView(): Pick<BuilderSession, 'view' | 'railOpen'> | undefined {
+		const { active, view, railOpen } = session.value
+		return active && view === 'theme' ? { view, railOpen } : undefined
+	}
+
 	async function open(pageRef: string): Promise<void> {
-		session.value = { ...emptySession(), active: true, loading: true, pageRef }
+		session.value = {
+			...emptySession(),
+			active: true,
+			loading: true,
+			pageRef,
+			...keptThemeView(),
+		}
 		try {
 			const [catalog, resources] = await Promise.all([
 				api.catalog(),

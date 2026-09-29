@@ -1134,6 +1134,22 @@ describe('undo, redo and discard', () => {
 		vi.unstubAllGlobals()
 	})
 
+	it('keeps the theme editor open when the builder follows the router to another page', async () => {
+		backend.answers['GET /api/builder/theme'] = {
+			ok: false,
+			error: { code: 'unsupported', detail: 'no layer' },
+		}
+		builder.setView('theme')
+		builder.followRoute('/reports/other')
+		await settle()
+		expect(builder.session.value.pageRef).toBe('/reports/other')
+		expect(builder.session.value.view).toBe('theme')
+		builder.select(null)
+		builder.followRoute('/reports/sales')
+		await settle()
+		expect(builder.session.value.view).toBe('library')
+	})
+
 	it('says nothing, and arms nothing, when a removal removed nothing', () => {
 		builder.remove('does-not-exist')
 		expect(names()).toEqual(['title', 'intro'])
