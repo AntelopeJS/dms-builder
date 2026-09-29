@@ -166,7 +166,7 @@ onUnmounted(() => {
 					:name="entry.name"
 					:label="entry.label"
 					:hint="entry.hint"
-					:color="entry.color"
+					:color="entry.kind === 'color'"
 					:observed="valuesOf(entry.name)"
 				/>
 			</section>

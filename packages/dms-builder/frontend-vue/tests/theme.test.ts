@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
 	logoRefusal,
 	previewDeclarations,
 	previewLogo,
 	type ThemeEditorState,
+	themeIssues,
 	trimmedVariables,
 	valueProblem,
 } from '../app/runtime/theme'
@@ -58,6 +59,47 @@ describe('a theme value', () => {
 		expect(valueProblem('oklch(55% 0.2 290)')).toBe(undefined)
 		expect(valueProblem('"Inter", ui-sans-serif, sans-serif')).toBe(undefined)
 		expect(valueProblem('0 1px 2px rgba(0, 0, 0, 0.4)')).toBe(undefined)
+	})
+})
+
+describe('a value of the wrong kind', () => {
+	/** The browser's answer, for the one value these tests call wrong. */
+	function stubBrowser(): void {
+		vi.stubGlobal('CSS', { supports: (_property: string, value: string) => value !== 'notacolor' })
+	}
+
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	it('is refused by the kind its row expects', () => {
+		stubBrowser()
+		expect(valueProblem('notacolor', 'color')).toBe('is not a color')
+		expect(valueProblem('#7c3aed', 'color')).toBe(undefined)
+	})
+
+	it('is not what an empty cell holds: it keeps the default', () => {
+		vi.stubGlobal('CSS', { supports: (_property: string, value: string) => value !== '' })
+		expect(valueProblem('', 'color')).toBe(undefined)
+	})
+
+	it('is left out of the preview', () => {
+		stubBrowser()
+		expect(previewDeclarations({ '--ui-primary': 'notacolor', '--brand': 'notacolor' }, {})).toEqual([
+			['--brand', 'notacolor'],
+		])
+	})
+
+	it('keeps the theme from being saved, named after its row and its mode', () => {
+		stubBrowser()
+		expect(
+			themeIssues({ light: { '--ui-primary': 'notacolor' }, dark: { '--brand': 'red; }' } }).map(
+				(issue) => issue.message,
+			),
+		).toEqual([
+			'Primary (light) is not a color',
+			'--brand (dark) cannot hold ; { } < > \\, a comment, url(), @import or !important',
+		])
 	})
 })
 

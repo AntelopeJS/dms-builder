@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { THEME_MODES, useThemeEditor, valueProblem } from '../runtime/theme'
+import { THEME_MODES, useThemeEditor, variableProblem } from '../runtime/theme'
 import type { ThemeMode } from '../runtime/types'
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
@@ -30,11 +30,19 @@ function draftValue(mode: ThemeMode): string {
 }
 
 const problems = computed(() =>
-	[...new Set(THEME_MODES.flatMap((mode) => valueProblem(draftValue(mode)) ?? []))],
+	THEME_MODES.flatMap((mode) => {
+		const problem = variableProblem(props.name, draftValue(mode))
+		return problem ? [`The ${mode} value ${problem}.`] : []
+	}),
+)
+const problemEffect = computed(() =>
+	problems.value.length > 1
+		? 'Neither shows on the page, and the theme cannot be saved with them.'
+		: 'It shows nowhere, and the theme cannot be saved with it.',
 )
 
 function cellBorder(mode: ThemeMode): string {
-	if (valueProblem(draftValue(mode))) {
+	if (variableProblem(props.name, draftValue(mode))) {
 		return 'border-error'
 	}
 	return isChanged(mode) ? 'border-primary' : 'border-default'
@@ -127,7 +135,7 @@ function reset(): void {
 			@click="reset"
 		/>
 		<p v-if="problems.length" class="col-span-4 text-[11px] text-error">
-			{{ problems.join(' ') }} It shows nowhere, and the theme is not saved with it.
+			{{ problems.join(' ') }} {{ problemEffect }}
 		</p>
 	</div>
 </template>

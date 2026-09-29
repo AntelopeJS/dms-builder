@@ -4,6 +4,7 @@ import {
 	useDmsState as useState,
 } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
+import { catalogEntry, type ThemeValueKind } from './theme-catalog'
 import {
 	LOGO_CONTENT_TYPES,
 	MAX_LOGO_BYTES,
@@ -22,6 +23,7 @@ import type {
 	ThemeStructure,
 	ThemeVariableSets,
 	ThemeVariables,
+	ValidationIssue,
 } from './types'
 
 export const THEME_MODES: ThemeMode[] = ['light', 'dark']
@@ -97,14 +99,51 @@ export function cloneTheme(draft: ThemeDraft): ThemeDraft {
 const UNSAFE_VALUE = /[;{}<>\\]|\/\*|\*\/|url\(|@import|!important/i
 const MAX_VALUE_LENGTH = 512
 
-/** Why a value cannot be written to the theme, if it cannot. */
-export function valueProblem(value: string): string | undefined {
+/** What a value of each kind is, as a refusal names it. */
+const KIND_NAMES: Record<ThemeValueKind, string> = {
+	color: 'a color',
+	'border-radius': 'a length such as 0.5rem',
+	'font-family': 'a list of fonts such as "Inter", sans-serif',
+}
+
+/**
+ * Whether the browser takes a value for a property of its kind. The module has
+ * no CSS engine to ask; where the editor runs, the browser is one.
+ */
+function isOfKind(value: string, kind: ThemeValueKind): boolean {
+	const css = globalThis.CSS
+	return value.trim() === '' || !css?.supports || css.supports(kind, value)
+}
+
+/**
+ * Why a value cannot be written to the theme, if it cannot, said of the value:
+ * "is not a color". A value of the wrong kind is refused here only: the module
+ * cannot tell, and the dashboard would draw it as nothing.
+ */
+export function valueProblem(value: string, kind?: ThemeValueKind): string | undefined {
 	if (value.length > MAX_VALUE_LENGTH) {
-		return `A value holds at most ${MAX_VALUE_LENGTH} characters.`
+		return `holds more than ${MAX_VALUE_LENGTH} characters`
 	}
-	return UNSAFE_VALUE.test(value)
-		? 'A value cannot hold ; { } < > \\, a comment, url(), @import or !important.'
-		: undefined
+	if (UNSAFE_VALUE.test(value)) {
+		return 'cannot hold ; { } < > \\, a comment, url(), @import or !important'
+	}
+	return kind && !isOfKind(value, kind) ? `is not ${KIND_NAMES[kind]}` : undefined
+}
+
+/** Why the theme's value for a variable cannot be written, the catalog telling its kind. */
+export function variableProblem(name: string, value: string): string | undefined {
+	return valueProblem(value, catalogEntry(name)?.kind)
+}
+
+/** Every value of a draft the theme could not be saved with, named after its row. */
+export function themeIssues(variables: ThemeVariableSets): ValidationIssue[] {
+	return THEME_MODES.flatMap((mode) =>
+		Object.entries(variables[mode]).flatMap(([name, value]) => {
+			const problem = variableProblem(name, value)
+			const label = catalogEntry(name)?.label ?? name
+			return problem ? [{ pointer: `/variables/${mode}/${name}`, message: `${label} (${mode}) ${problem}` }] : []
+		}),
+	)
 }
 
 /** One declaration of the preview: a custom property and the value it shows. */
@@ -122,7 +161,7 @@ export function previewDeclarations(
 	const dropped = Object.keys(saved)
 		.filter((name) => !(name in draft))
 		.map((name): PreviewDeclaration => [name, DMS_DEFAULT])
-	const kept = Object.entries(draft).filter(([, value]) => !valueProblem(value))
+	const kept = Object.entries(draft).filter(([name, value]) => !variableProblem(name, value))
 	return [...dropped, ...kept]
 }
 
@@ -366,6 +405,10 @@ export function useThemeEditor(): ThemeEditor {
 		const { draft, structure } = state.value
 		if (!draft || !dirty.value) {
 			return undefined
+		}
+		const issues = themeIssues(draft.variables)
+		if (issues.length > 0) {
+			return { ok: false, error: { code: 'invalid_config', issues } }
 		}
 		const uploads = Object.values(state.value.pending).map((entry) => entry.upload)
 		const result = await api.saveTheme({
