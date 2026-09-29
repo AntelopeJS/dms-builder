@@ -130,6 +130,37 @@ export function valueProblem(value: string, kind?: ThemeValueKind): string | und
 	return kind && !isOfKind(value, kind) ? `is not ${KIND_NAMES[kind]}` : undefined
 }
 
+/** A color set on the canvas before the one resolved, to tell whether the canvas took it. */
+const UNLIKELY_COLOR = '#fe01fd'
+
+/** The 2D context colors are resolved through, made on first use. */
+let colorContext: CanvasRenderingContext2D | null | undefined
+
+/**
+ * A CSS color as the `#rrggbb` a color input holds, if the browser can draw
+ * it: the input takes nothing else, and a picker opened on black for an
+ * `oklch()` or a named color loses the color the author started from. Alpha is
+ * dropped, as the input has none.
+ */
+export function hexOf(color: string): string | undefined {
+	if (typeof document === 'undefined' || color.trim() === '') {
+		return undefined
+	}
+	colorContext ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+	if (!colorContext) {
+		return undefined
+	}
+	colorContext.fillStyle = UNLIKELY_COLOR
+	colorContext.fillStyle = color
+	if (colorContext.fillStyle === UNLIKELY_COLOR) {
+		return undefined
+	}
+	colorContext.clearRect(0, 0, 1, 1)
+	colorContext.fillRect(0, 0, 1, 1)
+	const [red = 0, green = 0, blue = 0] = colorContext.getImageData(0, 0, 1, 1).data
+	return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
 /** Why the theme's value for a variable cannot be written, the catalog telling its kind. */
 export function variableProblem(name: string, value: string): string | undefined {
 	return valueProblem(value, catalogEntry(name)?.kind)

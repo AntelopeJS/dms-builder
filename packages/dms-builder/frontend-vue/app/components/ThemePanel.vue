@@ -7,14 +7,11 @@ import {
 	isVariableName,
 	otherVariables,
 	THEME_LOGO_SLOTS,
+	THEME_MODE_ENTRIES,
 	THEME_VARIABLE_GROUPS,
 } from '../runtime/theme-catalog'
 import type { ThemeMode, ThemeVariables } from '../runtime/types'
 
-const MODE_ITEMS = [
-	{ label: 'Light', value: 'light', icon: 'i-ph-sun' },
-	{ label: 'Dark', value: 'dark', icon: 'i-ph-moon' },
-]
 
 const editor = useThemeEditor()
 const state = editor.state
@@ -131,15 +128,16 @@ onUnmounted(() => {
 		/>
 
 		<template v-else-if="state.draft">
-			<div class="flex items-center gap-3">
-				<p class="flex-1 text-xs text-muted">
+			<div class="flex flex-wrap items-center gap-3">
+				<p class="min-w-48 flex-1 text-xs text-muted">
 					One theme for the whole project, written to
 					<span class="font-medium text-highlighted">{{ state.structure?.layer.name }}</span>
-					when you save. Changes show on the page as you make them.
+					when you save. Changes show on the page as you make them; an empty cell
+					keeps the DMS default, shown greyed.
 				</p>
 				<DmsSegmented
 					:model-value="shownMode"
-					:items="MODE_ITEMS"
+					:items="THEME_MODE_ENTRIES"
 					size="xs"
 					aria-label="Show the page in"
 					@update:model-value="showMode($event)"
@@ -151,15 +149,7 @@ onUnmounted(() => {
 				:key="group.label"
 				class="flex flex-col gap-2"
 			>
-				<div class="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,1fr)_1.75rem] gap-2">
-					<p class="text-xs font-semibold uppercase tracking-wide text-dimmed">{{ group.label }}</p>
-					<p class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-dimmed">
-						<UIcon name="i-ph-sun" class="size-3" /> Light
-					</p>
-					<p class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-dimmed">
-						<UIcon name="i-ph-moon" class="size-3" /> Dark
-					</p>
-				</div>
+				<DmsBuilderThemeModeHeading :label="group.label" />
 				<DmsBuilderThemeVariable
 					v-for="entry in group.variables"
 					:key="entry.name"
@@ -167,12 +157,13 @@ onUnmounted(() => {
 					:label="entry.label"
 					:hint="entry.hint"
 					:color="entry.kind === 'color'"
+					:wide="entry.wide"
 					:observed="valuesOf(entry.name)"
 				/>
 			</section>
 
 			<section class="flex flex-col gap-2">
-				<p class="text-xs font-semibold uppercase tracking-wide text-dimmed">Other variables</p>
+				<DmsBuilderThemeModeHeading label="Other variables" :modes="others.length > 0" />
 				<DmsBuilderThemeVariable
 					v-for="name in others"
 					:key="name"

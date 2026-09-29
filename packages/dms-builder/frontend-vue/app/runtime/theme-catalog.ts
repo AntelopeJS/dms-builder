@@ -1,4 +1,16 @@
-import type { LogoSlot } from './types'
+import type { LogoSlot, ThemeMode } from './types'
+
+/** How a color mode is named and drawn wherever the editor shows one. */
+export interface ThemeModeEntry {
+	value: ThemeMode
+	label: string
+	icon: string
+}
+
+export const THEME_MODE_ENTRIES: ThemeModeEntry[] = [
+	{ value: 'light', label: 'Light', icon: 'i-ph-sun' },
+	{ value: 'dark', label: 'Dark', icon: 'i-ph-moon' },
+]
 
 /**
  * What a variable's value has to be, named after a CSS property it would be a
@@ -14,6 +26,8 @@ export interface ThemeVariableEntry {
 	hint: string
 	/** A color gets a picker beside its text. */
 	kind: ThemeValueKind
+	/** A value too long for half a row, such as a font stack: each mode gets a line of its own. */
+	wide?: boolean
 }
 
 export interface ThemeVariableGroup {
@@ -51,7 +65,7 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 		label: 'Shape and type',
 		variables: [
 			{ name: '--ui-radius', label: 'Corner radius', hint: 'Buttons, inputs, cards, menus', kind: 'border-radius' },
-			{ name: '--font-sans', label: 'Font', hint: 'Every text of the dashboard', kind: 'font-family' },
+			{ name: '--font-sans', label: 'Font', hint: 'Every text of the dashboard', kind: 'font-family', wide: true },
 		],
 	},
 ]

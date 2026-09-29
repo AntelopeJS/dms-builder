@@ -8,9 +8,10 @@ interface BrandingConfig {
 	branding?: { logo?: ThemeLogos }
 }
 
+/** Each tile draws its logo on its own mode's ground, whatever mode the page shows. */
 const TILE_CLASSES: Record<ThemeMode, string> = {
-	light: 'bg-white text-neutral-500',
-	dark: 'bg-neutral-950 text-neutral-400',
+	light: 'bg-white text-neutral-600',
+	dark: 'bg-neutral-950 text-neutral-300',
 }
 
 const props = defineProps<{
@@ -69,7 +70,7 @@ function reset(): void {
 		<div class="flex items-center gap-2">
 			<div class="min-w-0 flex-1">
 				<p class="text-xs font-medium text-highlighted">{{ label }}</p>
-				<p class="text-[10px] text-dimmed">{{ hint }}</p>
+				<p class="text-[11px] text-muted">{{ hint }}</p>
 			</div>
 			<UButton
 				v-if="customized"
@@ -86,7 +87,7 @@ function reset(): void {
 			<label
 				v-for="mode in THEME_MODES"
 				:key="mode"
-				class="group relative flex h-20 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-default px-3"
+				class="group relative flex h-20 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-default px-3 focus-within:ring-2 focus-within:ring-primary"
 				:class="TILE_CLASSES[mode]"
 				:data-theme-logo="`${logoSlot}:${mode}`"
 				:title="`Upload the ${mode} ${label.toLowerCase()}`"
@@ -98,13 +99,21 @@ function reset(): void {
 					class="max-h-12 max-w-full object-contain"
 				/>
 				<UIcon v-else name="i-ph-image" class="size-6" />
-				<span class="absolute left-1.5 top-1 text-[10px] font-medium uppercase tracking-wide opacity-70">
+				<span class="absolute left-1.5 top-1 text-[10px] font-medium uppercase tracking-wide">
 					{{ mode }} · {{ status(mode) }}
 				</span>
-				<span class="absolute bottom-1 right-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-80">
-					Upload
+				<span
+					class="absolute bottom-1 right-1.5 flex items-center gap-1 text-[11px] font-medium opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+				>
+					<UIcon name="i-ph-upload-simple" class="size-3.5" /> Upload
 				</span>
-				<input type="file" class="sr-only" :accept="LOGO_ACCEPT" @change="pick(mode, $event)" />
+				<input
+					type="file"
+					class="sr-only"
+					:accept="LOGO_ACCEPT"
+					:aria-label="`Upload the ${mode} ${label.toLowerCase()}`"
+					@change="pick(mode, $event)"
+				/>
 			</label>
 		</div>
 		<p v-if="refusal" class="text-xs text-error">{{ refusal }}</p>
