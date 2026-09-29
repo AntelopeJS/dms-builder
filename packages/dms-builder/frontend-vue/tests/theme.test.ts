@@ -11,6 +11,7 @@ import {
 } from '../app/runtime/theme'
 import { isVariableName, otherVariables } from '../app/runtime/theme-catalog'
 import { sheetText } from '../app/runtime/theme-mirror'
+import { forgetThemeSave, rememberThemeSave, reloadsPage, takeThemeSave } from '../app/runtime/theme-reload'
 
 /**
  * The theme editor's live preview: what it puts on the page before anything is
@@ -208,5 +209,60 @@ describe('a stylesheet copied to read both modes', () => {
 			},
 		}
 		expect(sheetText(foreign)).toBe('')
+	})
+})
+
+describe('a theme save across the reload it causes', () => {
+	/** A tab's session storage, kept in a map. */
+	function stubStorage(): void {
+		const items = new Map<string, string>()
+		vi.stubGlobal('sessionStorage', {
+			getItem: (key: string) => items.get(key) ?? null,
+			setItem: (key: string, value: string) => items.set(key, value),
+			removeItem: (key: string) => items.delete(key),
+		})
+	}
+
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	it('is found by the page load that follows it, once', () => {
+		stubStorage()
+		rememberThemeSave('/shop/board', 'Theme saved', 1_000)
+		expect(takeThemeSave(3_000)).toEqual({ route: '/shop/board', message: 'Theme saved', at: 1_000 })
+		expect(takeThemeSave(3_000)).toBe(undefined)
+	})
+
+	it('is not found once the save answered, nor by a page load long after it', () => {
+		stubStorage()
+		rememberThemeSave('/shop/board', 'Theme saved', 1_000)
+		forgetThemeSave()
+		expect(takeThemeSave(2_000)).toBe(undefined)
+		rememberThemeSave('/shop/board', 'Theme saved', 1_000)
+		expect(takeThemeSave(1_000 + 60_000)).toBe(undefined)
+	})
+
+	it('reloads the page unless it wrote the stylesheet alone', () => {
+		const change = (path: string) => ({ path, kind: 'modify' as const, diff: '' })
+		expect(reloadsPage([change('/layer/app/assets/css/theme.css')])).toBe(false)
+		expect(reloadsPage([change('/layer/app/assets/css/theme.css'), change('/layer/app/app.config.ts')])).toBe(true)
+		expect(reloadsPage([change('/layer/public/branding/default-light-0a1b2c3d.svg')])).toBe(true)
+	})
+
+	it('is simply not remembered where the browser refuses storage', () => {
+		vi.stubGlobal('sessionStorage', {
+			getItem: () => {
+				throw new Error('SecurityError')
+			},
+			setItem: () => {
+				throw new Error('SecurityError')
+			},
+			removeItem: () => {
+				throw new Error('SecurityError')
+			},
+		})
+		expect(() => rememberThemeSave('/shop/board', 'Theme saved')).not.toThrow()
+		expect(takeThemeSave()).toBe(undefined)
 	})
 })

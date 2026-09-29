@@ -11,6 +11,14 @@ export const OVERLAY_COMPONENT_NAME = 'DmsBuilderOverlay'
 export const SESSION_STATE_KEY = 'dms-builder:session'
 export const THEME_STATE_KEY = 'dms-builder:theme'
 
+/** Where a tab remembers a theme save across the page reload the save causes. */
+export const THEME_SAVE_MARKER_KEY = 'dms-builder:theme-save'
+/**
+ * How long after a theme save a page load still counts as the reload it
+ * caused: the dev server reloads within a second or two of the write.
+ */
+export const THEME_SAVE_MARKER_MS = 30_000
+
 /** The style element the theme editor previews its draft through, last in `<head>`. */
 export const THEME_PREVIEW_STYLE_ID = 'dms-builder-theme-preview'
 /** The largest logo the module accepts, mirrored so a picker can say so before a save. */

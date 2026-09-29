@@ -38,6 +38,7 @@ import { pathOfNode, tidyLayout } from './layout'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
 import { useThemeEditor } from './theme'
+import { forgetThemeSave, rememberThemeSave, reloadsPage } from './theme-reload'
 import {
 	cloneDraft,
 	countBlocks,
@@ -1405,13 +1406,14 @@ export function useBuilder(): BuilderController {
 	 * refuse the theme's save — and saved as before otherwise.
 	 */
 	async function save(): Promise<void> {
-		if (pageDirty.value || !theme.dirty.value) {
+		const withPage = pageDirty.value
+		if (withPage || !theme.dirty.value) {
 			await savePage()
 			if (session.value.error) {
 				return
 			}
 		}
-		await saveTheme()
+		await saveTheme(withPage ? 'Page and theme saved' : 'Theme saved')
 	}
 
 	/**
@@ -1431,17 +1433,24 @@ export function useBuilder(): BuilderController {
 		return detail ? { code: 'unsupported', detail: detail() } : error
 	}
 
-	async function saveTheme(): Promise<void> {
+	async function saveTheme(message: string): Promise<void> {
 		if (!theme.dirty.value) {
 			return
 		}
 		session.value.saving = true
+		// Remembered before the request: the reload can beat the answer.
+		rememberThemeSave(session.value.pageRef ?? '', message)
+		let reloading = false
 		try {
 			const result = await theme.save()
+			reloading = result?.ok === true && reloadsPage(result.changes)
 			if (result) {
-				report(result.ok ? result : { ok: false, error: themeRefusal(result.error) }, 'Theme saved')
+				report(result.ok ? result : { ok: false, error: themeRefusal(result.error) }, message)
 			}
 		} finally {
+			if (!reloading) {
+				forgetThemeSave()
+			}
 			session.value.saving = false
 		}
 	}

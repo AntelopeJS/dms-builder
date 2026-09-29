@@ -13,6 +13,7 @@ import {
   OVERLAY_COMPONENT_NAME,
 } from '../runtime/constants'
 import { useBuilder } from '../runtime/session'
+import { takeThemeSave } from '../runtime/theme-reload'
 
 // Our view of the shared header-action shape the DMS core renders. Declared
 // locally so this layer has no build-time dependency on the core layer; the
@@ -52,12 +53,24 @@ function registerAction(onSelect: () => void, isActive: () => boolean): void {
   ]
 }
 
-export default defineDmsPlugin(() => {
+export default defineDmsPlugin((app) => {
   // Whether the builder is available at all is settled in `dms.frontend.ts`,
   // from the option the backend publishes: the Vite build mode of the frontend
   // says nothing about whether the backend runs in development.
   const builder = useBuilder()
   const route = useRoute()
+  // A theme save that rewrote the layer's entry, app config or logos reloads
+  // the page and the builder with it: the editor opens again where the save
+  // started, once the page is mounted, and says the save went through.
+  app.hook('app:mounted', async () => {
+    const saved = takeThemeSave()
+    if (!saved || saved.route !== route.path) {
+      return
+    }
+    await builder.open(route.path)
+    builder.setView('theme')
+    builder.notify(saved.message)
+  })
   registerOverlay()
   registerAction(
     () => {

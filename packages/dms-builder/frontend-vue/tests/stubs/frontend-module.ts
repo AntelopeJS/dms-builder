@@ -20,7 +20,12 @@ export interface DmsFrontendModule {
   setup(sdk: DmsFrontendSdk): void | Promise<void>
 }
 
-export type DmsPluginSetup = () => void
+/** The slice of the host's plugin context the builder uses. */
+export interface DmsAppContext {
+  hook(name: string, callback: () => void | Promise<void>): void
+}
+
+export type DmsPluginSetup = (context: DmsAppContext) => void | Promise<void>
 
 export function defineDmsPlugin(setup: DmsPluginSetup): DmsPluginSetup {
   return setup

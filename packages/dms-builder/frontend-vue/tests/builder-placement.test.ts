@@ -863,7 +863,7 @@ describe('leaving the editor', () => {
 	})
 
 	it('asks from the button that opened it, which is the same button', () => {
-		registerBuilder()
+		void registerBuilder({ hook: () => {} })
 		const actions = useDmsState<
 			Array<{ id: string; onSelect: () => void }>
 		>(HEADER_ACTIONS_STATE_KEY, () => [])
