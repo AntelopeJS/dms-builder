@@ -5,6 +5,9 @@
 	"type": "module",
 	"license": "Apache-2.0",
 	"packageManager": "pnpm@10.2.0",
+	"engines": {
+		"@antelopejs/dms-frontend": ">=0.2.8 <0.4.0"
+	},
 	"scripts": {
 		"typecheck": "ajs dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
 		"lint": "eslint .",

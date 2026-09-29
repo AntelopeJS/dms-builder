@@ -11,6 +11,18 @@ const interfacePackage = require(
 
 const PUBLIC_REGISTRY = "https://registry.npmjs.org/";
 const REPOSITORY = "git+https://github.com/AntelopeJS/dms-builder.git";
+const RENDERER_PACKAGE = "@antelopejs/dms-frontend";
+/**
+ * Where the renderer the layer runs on is locked: the layer's own lockfile,
+ * whose renderer `pnpm --dir frontend-vue typecheck` compiles it against, and
+ * the playground's, whose renderer serves it.
+ */
+const RENDERER_LOCKFILES = [
+  "frontend-vue/pnpm-lock.yaml",
+  "playground/pnpm-lock.yaml",
+];
+const LOCKED_RENDERER = /^ {2}'@antelopejs\/dms-frontend@([^'(]+)':$/gm;
+const ENGINE_RANGE = /^>=(\d+\.\d+\.\d+) <(\d+\.\d+\.\d+)$/;
 
 /**
  * The fleet shape is `>=<floor> <1.0.0`: the ceiling is out of reach for a 0.x
@@ -25,6 +37,31 @@ function compareVersions(a, b) {
 function satisfiesFleetRange(version, range) {
   const floor = /^>=(\d+\.\d+\.\d+) <1\.0\.0$/.exec(range ?? "")?.[1];
   return floor !== undefined && compareVersions(version, floor) >= 0;
+}
+
+/**
+ * The layer's engine shape is `>=<floor> <<ceiling>`, the ceiling being the
+ * next breaking loader release. A prerelease counts as the release it leads
+ * to, as the loader counts it.
+ */
+function satisfiesEngineRange(version, range) {
+  const bounds = ENGINE_RANGE.exec(range ?? "");
+  if (bounds === null) return false;
+  const [, floor, ceiling] = bounds;
+  return (
+    compareVersions(version, floor) >= 0 &&
+    compareVersions(version, ceiling) < 0
+  );
+}
+
+function declaredRendererRange() {
+  const layer = require(path.join(root, "frontend-vue/package.json"));
+  return layer.engines?.[RENDERER_PACKAGE];
+}
+
+function lockedRenderers(lockfile) {
+  const source = fs.readFileSync(path.join(root, lockfile), "utf8");
+  return [...source.matchAll(LOCKED_RENDERER)].map(([, version]) => version);
 }
 
 test("both packages publish publicly from this repository", () => {
@@ -143,4 +180,25 @@ test("DMS packages are depended on by range, not by patch", () => {
     ),
   );
   assert.deepEqual(wrong, []);
+});
+
+/**
+ * The loader refuses a frontend module whose range excludes its own release,
+ * and only warns about one that declares none (AntelopeJS/dms-frontend#46).
+ * The range names the lowest release the layer runs on and caps it below the
+ * next breaking one, so a loader that removes something the layer calls stops
+ * with a clear message instead of failing at render time.
+ */
+test("the frontend layer declares the loader releases it supports", () => {
+  assert.match(declaredRendererRange() ?? "", ENGINE_RANGE);
+});
+
+test("the frontend layer admits every loader release the repository locks", () => {
+  const range = declaredRendererRange();
+  const locked = RENDERER_LOCKFILES.flatMap(lockedRenderers);
+  assert.notDeepEqual(locked, []);
+  assert.deepEqual(
+    locked.filter((version) => !satisfiesEngineRange(version, range)),
+    [],
+  );
 });
