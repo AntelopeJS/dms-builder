@@ -19,8 +19,14 @@ const props = defineProps<{
 	color: boolean
 	/** Each mode on a line of its own, for values too long for half a row. */
 	wide?: boolean
+	/** A row the author added and left empty, which can leave the list. */
+	removable?: boolean
 	/** What each mode shows on the page now, the draft included. */
 	observed: Partial<Record<ThemeMode, string>>
+}>()
+
+const emit = defineEmits<{
+	remove: []
 }>()
 
 const editor = useThemeEditor()
@@ -116,6 +122,17 @@ function reset(): void {
 				:aria-label="`Reset ${title} to the DMS default`"
 				title="Back to the DMS default, in both modes"
 				@click="reset"
+			/>
+			<UButton
+				v-else-if="removable"
+				icon="i-ph-x"
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				class="ml-auto"
+				:aria-label="`Remove ${title} from the list`"
+				title="Take this variable off the list"
+				@click="emit('remove')"
 			/>
 		</div>
 		<div class="grid gap-2" :class="wide ? 'grid-cols-1' : 'grid-cols-2'">

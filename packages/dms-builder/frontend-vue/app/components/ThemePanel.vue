@@ -4,6 +4,7 @@ import { describeError } from '../runtime/errors'
 import { THEME_MODES, useThemeEditor } from '../runtime/theme'
 import { DARK_CLASS, ModeMirror } from '../runtime/theme-mirror'
 import {
+	catalogEntry,
 	isVariableName,
 	otherVariables,
 	THEME_LOGO_SLOTS,
@@ -21,6 +22,8 @@ const shownMode = ref<ThemeMode>('light')
 const observed = ref<Record<ThemeMode, ThemeVariables>>({ light: {}, dark: {} })
 const added = ref<string[]>([])
 const newName = ref('')
+/** Why the name typed was not added, said until it changes. */
+const addRefusal = ref<string | null>(null)
 let mirror: ModeMirror | undefined
 let observers: MutationObserver[] = []
 let pendingFrame = 0
@@ -84,15 +87,45 @@ function showMode(mode: string | number): void {
 	colorMode.value = mode === 'dark' ? 'dark' : 'light'
 }
 
+/** Why a name cannot join the list: the catalog or the list already has it. */
+function listedAs(name: string): string | undefined {
+	const entry = catalogEntry(name)
+	if (entry) {
+		return `${name} is already listed above, as ${entry.label}.`
+	}
+	return others.value.includes(name) ? `${name} is already listed.` : undefined
+}
+
 function addVariable(): void {
 	const name = newName.value.trim()
 	if (!isVariableName(name)) {
 		return
 	}
-	added.value = [...new Set([...added.value, name])]
+	const listed = listedAs(name)
+	if (listed) {
+		addRefusal.value = listed
+		return
+	}
+	added.value = [...added.value, name]
 	newName.value = ''
 }
 
+/** Whether the theme holds a value for a variable, saved or not. */
+function inTheme(name: string): boolean {
+	return THEME_MODES.some(
+		(mode) =>
+			name in (state.value.draft?.variables[mode] ?? {}) ||
+			name in (state.value.baseline?.variables[mode] ?? {}),
+	)
+}
+
+function removeAdded(name: string): void {
+	added.value = added.value.filter((entry) => entry !== name)
+}
+
+watch(newName, () => {
+	addRefusal.value = null
+})
 watch(() => state.value.draft, scheduleObserve, { deep: true, flush: 'post' })
 watch(variableNames, scheduleObserve, { flush: 'post' })
 
@@ -170,6 +203,8 @@ onUnmounted(() => {
 					:name="name"
 					:color="false"
 					:observed="valuesOf(name)"
+					:removable="added.includes(name) && !inTheme(name)"
+					@remove="removeAdded(name)"
 				/>
 				<form class="flex items-center gap-2" @submit.prevent="addVariable">
 					<UInput
@@ -189,6 +224,7 @@ onUnmounted(() => {
 						:disabled="!isVariableName(newName.trim())"
 					/>
 				</form>
+				<p v-if="addRefusal" class="text-xs text-warning" role="status">{{ addRefusal }}</p>
 			</section>
 
 			<section class="flex flex-col gap-3">
