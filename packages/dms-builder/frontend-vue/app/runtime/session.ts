@@ -1351,8 +1351,24 @@ export function useBuilder(): BuilderController {
 		schedulePreview()
 	}
 
+	/**
+	 * Put back what is saved: the page when its draft changed, the theme when
+	 * it did. A page with nothing to discard keeps its history — a discard
+	 * pushed there would be an undo step that changes nothing, and would drop
+	 * the steps the author could still redo.
+	 */
 	function cancel(): void {
-		theme.discard()
+		if (theme.dirty.value) {
+			theme.discard()
+		}
+		if (pageDirty.value) {
+			discardPage()
+		}
+		session.value.error = null
+		notify('Changes discarded')
+	}
+
+	function discardPage(): void {
 		if (!session.value.baseline) {
 			return
 		}
@@ -1362,9 +1378,7 @@ export function useBuilder(): BuilderController {
 		if (!VIEWS_KEPT_ON_DISCARD.has(session.value.view)) {
 			session.value.view = 'library'
 		}
-		session.value.error = null
 		schedulePreview()
-		notify('Changes discarded')
 	}
 
 	/**

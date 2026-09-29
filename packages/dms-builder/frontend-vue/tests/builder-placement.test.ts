@@ -6,6 +6,7 @@ import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import { findNode } from '../app/runtime/draft'
 import { describeError } from '../app/runtime/errors'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
+import { useThemeEditor } from '../app/runtime/theme'
 import type { BlockDraft } from '../app/runtime/types'
 
 /**
@@ -1111,6 +1112,26 @@ describe('undo, redo and discard', () => {
 		expect(builder.dirty.value).toBe(false)
 		builder.undo()
 		expect(names()).toEqual(['title', 'intro', 'text'])
+	})
+
+	it('leaves the page and its history alone when only the theme is discarded', () => {
+		// The theme previews through a style element; nothing here renders one.
+		vi.stubGlobal('document', {
+			getElementById: () => null,
+			createElement: () => ({ sheet: null }),
+			head: { appendChild: () => {} },
+		})
+		const theme = useThemeEditor()
+		theme.state.value.baseline = { variables: { light: {}, dark: {} }, logos: {} }
+		theme.state.value.draft = { variables: { light: { '--ui-primary': '#7c3aed' }, dark: {} }, logos: {} }
+		builder.addBlock('Text')
+		builder.undo()
+		builder.cancel()
+		expect(theme.dirty.value).toBe(false)
+		expect(builder.session.value.history).toHaveLength(0)
+		expect(builder.session.value.future).toHaveLength(1)
+		theme.state.value.draft = null
+		vi.unstubAllGlobals()
 	})
 
 	it('says nothing, and arms nothing, when a removal removed nothing', () => {
