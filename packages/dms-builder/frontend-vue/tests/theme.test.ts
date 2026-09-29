@@ -4,6 +4,7 @@ import {
 	previewDeclarations,
 	previewLogo,
 	type ThemeEditorState,
+	trimmedVariables,
 	valueProblem,
 } from '../app/runtime/theme'
 import { isVariableName, otherVariables } from '../app/runtime/theme-catalog'
@@ -57,6 +58,14 @@ describe('a theme value', () => {
 		expect(valueProblem('oklch(55% 0.2 290)')).toBe(undefined)
 		expect(valueProblem('"Inter", ui-sans-serif, sans-serif')).toBe(undefined)
 		expect(valueProblem('0 1px 2px rgba(0, 0, 0, 0.4)')).toBe(undefined)
+	})
+})
+
+describe('a theme sent to the module', () => {
+	it('carries its values without the spaces typed around them', () => {
+		expect(
+			trimmedVariables({ light: { '--ui-primary': ' #7c3aed ' }, dark: { '--font-sans': '"Inter", sans-serif ' } }),
+		).toEqual({ light: { '--ui-primary': '#7c3aed' }, dark: { '--font-sans': '"Inter", sans-serif' } })
 	})
 })
 

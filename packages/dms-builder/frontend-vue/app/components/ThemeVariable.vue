@@ -61,6 +61,11 @@ function set(mode: ThemeMode, event: Event): void {
 	editor.setVariable(mode, props.name, (event.target as HTMLInputElement).value)
 }
 
+/** Once the author moves on, the cell shows the value the save will write. */
+function settle(mode: ThemeMode, event: Event): void {
+	editor.setVariable(mode, props.name, (event.target as HTMLInputElement).value.trim())
+}
+
 function reset(): void {
 	for (const mode of THEME_MODES) {
 		editor.resetVariable(mode, props.name)
@@ -91,7 +96,7 @@ function reset(): void {
 					type="color"
 					class="absolute inset-0 size-full cursor-pointer opacity-0"
 					:value="pickerValue(mode)"
-					@change="set(mode, $event)"
+					@input="set(mode, $event)"
 				/>
 			</label>
 			<UIcon v-else :name="MODE_ICONS[mode]" class="size-3.5 shrink-0 text-dimmed" />
@@ -100,7 +105,8 @@ function reset(): void {
 				:value="draftValue(mode)"
 				:placeholder="observed[mode] ? `${observed[mode]} · default` : 'default'"
 				:aria-label="`${label ?? name}, ${mode}`"
-				@change="set(mode, $event)"
+				@input="set(mode, $event)"
+				@change="settle(mode, $event)"
 			/>
 			<span
 				v-if="isSaved(mode) && !isChanged(mode)"

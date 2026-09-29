@@ -187,6 +187,13 @@ function toBase64(buffer: ArrayBuffer): string {
 	return btoa(binary)
 }
 
+/** The values as the stylesheet holds them, without the spaces typed around them. */
+export function trimmedVariables(variables: ThemeVariableSets): ThemeVariableSets {
+	const trim = (values: ThemeVariables): ThemeVariables =>
+		Object.fromEntries(Object.entries(values).map(([name, value]) => [name, value.trim()]))
+	return { light: trim(variables.light), dark: trim(variables.dark) }
+}
+
 function draftOf(structure: ThemeStructure): ThemeDraft {
 	return cloneTheme({ variables: structure.variables, logos: structure.logos })
 }
@@ -280,14 +287,17 @@ export function useThemeEditor(): ThemeEditor {
 		preview()
 	}
 
+	/**
+	 * Set a value as it is typed, spaces and all: trimming it here would take
+	 * the space away from under the caret. The save sends it trimmed.
+	 */
 	function setVariable(mode: ThemeMode, name: string, value: string): void {
-		const trimmed = value.trim()
 		edit((draft) => {
-			if (trimmed === '') {
+			if (value.trim() === '') {
 				delete draft.variables[mode][name]
 				return
 			}
-			draft.variables[mode][name] = trimmed
+			draft.variables[mode][name] = value
 		})
 	}
 
@@ -359,7 +369,7 @@ export function useThemeEditor(): ThemeEditor {
 		}
 		const uploads = Object.values(state.value.pending).map((entry) => entry.upload)
 		const result = await api.saveTheme({
-			draft: { ...draft, uploads },
+			draft: { variables: trimmedVariables(draft.variables), logos: draft.logos, uploads },
 			expectedVersion: structure?.version,
 		})
 		if (result.ok) {
