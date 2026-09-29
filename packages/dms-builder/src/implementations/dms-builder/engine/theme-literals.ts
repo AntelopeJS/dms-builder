@@ -118,12 +118,23 @@ export function setStringProperty(
   parent.addPropertyAssignment({ name: key, initializer });
 }
 
-/** Drop a property whose object literal a removal has left empty. */
+const WHITESPACE = /\s/g;
+const EMPTY_OBJECT = "{}";
+
+/**
+ * Drop a property whose object literal a removal has left empty. An object
+ * the drop leaves with nothing inside, not even a comment, is written `{}`:
+ * ts-morph keeps the line breaks the property sat between.
+ */
 export function removeIfEmpty(
   parent: ObjectLiteralExpression,
   key: string,
 ): void {
-  if (objectProperty(parent, key)?.getProperties().length === 0) {
-    findProperty(parent, key)?.remove();
+  if (objectProperty(parent, key)?.getProperties().length !== 0) {
+    return;
+  }
+  findProperty(parent, key)?.remove();
+  if (parent.getText().replace(WHITESPACE, "") === EMPTY_OBJECT) {
+    parent.replaceWithText(EMPTY_OBJECT);
   }
 }

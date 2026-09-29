@@ -177,6 +177,12 @@ describe("theme", function () {
     expect(theme.variables.dark).to.deep.equal({ "--ui-primary": "#a78bfa" });
   });
 
+  it("writes the app config it creates for a theme without logos as {}", async () => {
+    fs.rmSync(layerPath("app/app.config.ts"));
+    expectOk(await SetTheme(draft()), "SetTheme");
+    expect(readLayerFile("app/app.config.ts")).to.equal("export default {};\n");
+  });
+
   it("puts the call on a line of its own in an empty setup", async () => {
     writeLayerFile(
       "dms.frontend.ts",
