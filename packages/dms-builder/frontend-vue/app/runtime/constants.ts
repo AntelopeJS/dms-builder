@@ -15,12 +15,17 @@ export const THEME_STATE_KEY = 'dms-builder:theme'
 export const THEME_PREVIEW_STYLE_ID = 'dms-builder-theme-preview'
 /** The largest logo the module accepts, mirrored so a picker can say so before a save. */
 export const MAX_LOGO_BYTES = 512 * 1024
-export const LOGO_CONTENT_TYPES = [
-	'image/svg+xml',
-	'image/png',
-	'image/webp',
-	'image/x-icon',
-] as const
+/**
+ * The logo types the module accepts, by the extension they are picked by. An
+ * icon has two names: Chrome on macOS types an `.ico` file
+ * `image/vnd.microsoft.icon`, other browsers `image/x-icon`.
+ */
+export const LOGO_TYPES_BY_EXTENSION: Record<string, readonly string[]> = {
+	svg: ['image/svg+xml'],
+	png: ['image/png'],
+	webp: ['image/webp'],
+	ico: ['image/x-icon', 'image/vnd.microsoft.icon'],
+}
 
 export const ACTION_ID = 'dms-builder-edit'
 // The DMS renders this action on its own builder button, keyed by id; the

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+	logoContentType,
 	logoRefusal,
 	previewDeclarations,
 	previewLogo,
@@ -140,15 +141,26 @@ describe('the logo a slot previews', () => {
 
 describe('a logo file', () => {
 	it('is refused before the save when it is not an image the module takes', () => {
-		expect(logoRefusal({ type: 'image/gif', size: 10 })).toMatch(/SVG, PNG, WebP or ICO/)
+		expect(logoRefusal({ name: 'logo.gif', type: 'image/gif', size: 10 })).toMatch(/SVG, PNG, WebP or ICO/)
 	})
 
 	it('is refused when it is larger than the module accepts', () => {
-		expect(logoRefusal({ type: 'image/png', size: 600 * 1024 })).toMatch(/512 KiB/)
+		expect(logoRefusal({ name: 'logo.png', type: 'image/png', size: 600 * 1024 })).toMatch(/512 KiB/)
 	})
 
 	it('is accepted otherwise', () => {
-		expect(logoRefusal({ type: 'image/svg+xml', size: 2048 })).toBe(undefined)
+		expect(logoRefusal({ name: 'logo.svg', type: 'image/svg+xml', size: 2048 })).toBe(undefined)
+	})
+
+	it('is taken as an icon under either name browsers give one', () => {
+		expect(logoRefusal({ name: 'logo.ico', type: 'image/vnd.microsoft.icon', size: 2048 })).toBe(undefined)
+		expect(logoRefusal({ name: 'logo.ico', type: 'image/x-icon', size: 2048 })).toBe(undefined)
+	})
+
+	it('is typed after its extension when the browser gives no type', () => {
+		expect(logoContentType({ name: 'Logo.ICO', type: '', size: 10 })).toBe('image/x-icon')
+		expect(logoContentType({ name: 'logo.webp', type: '', size: 10 })).toBe('image/webp')
+		expect(logoContentType({ name: 'logo.jpg', type: '', size: 10 })).toBe(undefined)
 	})
 })
 

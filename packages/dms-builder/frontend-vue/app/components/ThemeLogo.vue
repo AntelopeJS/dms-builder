@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useDmsAppConfig } from '#dms/frontend-module'
-import { LOGO_CONTENT_TYPES } from '../runtime/constants'
-import { THEME_MODES, logoKey, previewLogo, useThemeEditor } from '../runtime/theme'
+import { LOGO_ACCEPT, THEME_MODES, logoKey, previewLogo, useThemeEditor } from '../runtime/theme'
 import type { LogoSlot, ThemeLogos, ThemeMode } from '../runtime/types'
 
 interface BrandingConfig {
@@ -13,7 +12,6 @@ const TILE_CLASSES: Record<ThemeMode, string> = {
 	light: 'bg-white text-neutral-500',
 	dark: 'bg-neutral-950 text-neutral-400',
 }
-const ACCEPT = LOGO_CONTENT_TYPES.join(',')
 
 const props = defineProps<{
 	logoSlot: LogoSlot
@@ -106,7 +104,7 @@ function reset(): void {
 				<span class="absolute bottom-1 right-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-80">
 					Upload
 				</span>
-				<input type="file" class="sr-only" :accept="ACCEPT" @change="pick(mode, $event)" />
+				<input type="file" class="sr-only" :accept="LOGO_ACCEPT" @change="pick(mode, $event)" />
 			</label>
 		</div>
 		<p v-if="refusal" class="text-xs text-error">{{ refusal }}</p>

@@ -6,7 +6,7 @@ import {
 import { useBuilderApi } from './api'
 import { catalogEntry, type ThemeValueKind } from './theme-catalog'
 import {
-	LOGO_CONTENT_TYPES,
+	LOGO_TYPES_BY_EXTENSION,
 	MAX_LOGO_BYTES,
 	THEME_PREVIEW_STYLE_ID,
 	THEME_STATE_KEY,
@@ -192,9 +192,31 @@ function writePreview(
 	}
 }
 
+/** What the editor knows of a file picked as a logo. */
+export type PickedFile = Pick<File, 'name' | 'type' | 'size'>
+
+/** Every type a logo may be sent as, and what the file chooser offers. */
+export const LOGO_ACCEPT = [
+	...Object.values(LOGO_TYPES_BY_EXTENSION).flat(),
+	...Object.keys(LOGO_TYPES_BY_EXTENSION).map((extension) => `.${extension}`),
+].join(',')
+
+/**
+ * The type a logo is sent as: the one the browser gives, or, when it gives
+ * none, the one its extension names. The module checks the bytes either way.
+ */
+export function logoContentType(file: PickedFile): string | undefined {
+	const accepted = Object.values(LOGO_TYPES_BY_EXTENSION).flat()
+	if (file.type !== '') {
+		return accepted.includes(file.type) ? file.type : undefined
+	}
+	const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+	return LOGO_TYPES_BY_EXTENSION[extension]?.[0]
+}
+
 /** Why a file cannot be a logo, before it is sent: the module checks again. */
-export function logoRefusal(file: { type: string; size: number }): string | undefined {
-	if (!LOGO_CONTENT_TYPES.some((type) => type === file.type)) {
+export function logoRefusal(file: PickedFile): string | undefined {
+	if (!logoContentType(file)) {
 		return 'A logo is an SVG, PNG, WebP or ICO file.'
 	}
 	return file.size > MAX_LOGO_BYTES
@@ -361,11 +383,12 @@ export function useThemeEditor(): ThemeEditor {
 		file: File,
 	): Promise<string | undefined> {
 		const refusal = logoRefusal(file)
-		if (refusal) {
+		const contentType = logoContentType(file)
+		if (refusal || !contentType) {
 			return refusal
 		}
 		const data = toBase64(await file.arrayBuffer())
-		const upload: LogoUpload = { slot, mode, contentType: file.type, data }
+		const upload: LogoUpload = { slot, mode, contentType, data }
 		state.value.pending = {
 			...state.value.pending,
 			[logoKey(slot, mode)]: { upload, url: URL.createObjectURL(file) },
