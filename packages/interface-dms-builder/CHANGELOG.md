@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.3
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.1.2...v0.1.3)
+
+### 🩹 Fixes
+
+- **db:** Index relation columns by default and refuse deleting a referenced resource ([#26](https://github.com/AntelopeJS/dms-builder/pull/26))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/dms-builder v0.2.2 ([88f388e](https://github.com/AntelopeJS/dms-builder/commit/88f388e))
+- **playground:** Move to @antelopejs/dms-frontend 0.3.2 ([#27](https://github.com/AntelopeJS/dms-builder/pull/27))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.2
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.1.1...v0.1.2)
