@@ -116,22 +116,54 @@ export function isStructural(
 	return structuralTypes(catalog).has(type)
 }
 
+/**
+ * The types another component holds and has its author pick — the charts a
+ * chart card draws with —, by the type holding them. Read off the catalog: a
+ * `block` option naming the types it takes.
+ */
+export function heldTypes(catalog: BlockCatalog): Map<string, string[]> {
+	const held = new Map<string, string[]>()
+	for (const { type, config } of catalog.blocks) {
+		const types = Object.values(config).flatMap((schema) => schema.ui?.blockTypes ?? [])
+		if (types.length) {
+			held.set(type, types)
+		}
+	}
+	return held
+}
+
+/**
+ * What the palette offers, grouped. The simple mode leaves out a type another
+ * component holds: that one is offered instead, picks it in its panel, and
+ * answers a search for it — "line" finds the chart card. The advanced view
+ * offers both, for the developer placing a chart on its own.
+ */
 export function paletteGroups(
 	catalog: BlockCatalog | null,
 	query: string,
+	advanced = false,
 ): PaletteGroup[] {
 	if (!catalog) {
 		return []
 	}
 	const needle = query.trim().toLowerCase()
 	const structural = structuralTypes(catalog)
+	const held = advanced ? new Map<string, string[]>() : heldTypes(catalog)
+	const hidden = new Set([...held.values()].flat())
+	const matches = (type: string): boolean => {
+		const label = (descriptorOf(catalog, type)?.label ?? type).toLowerCase()
+		return label.includes(needle) || type.toLowerCase().includes(needle)
+	}
 	const buckets = new Map<string, BlockTypeDescriptor[]>()
 	for (const block of catalog.blocks) {
-		if (structural.has(block.type)) {
+		if (structural.has(block.type) || hidden.has(block.type)) {
 			continue
 		}
-		const label = (block.label ?? block.type).toLowerCase()
-		if (needle && !label.includes(needle) && !block.type.toLowerCase().includes(needle)) {
+		if (
+			needle &&
+			!matches(block.type) &&
+			!(held.get(block.type) ?? []).some(matches)
+		) {
 			continue
 		}
 		const group = block.group ?? UNGROUPED

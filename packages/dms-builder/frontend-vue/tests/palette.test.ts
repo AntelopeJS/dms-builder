@@ -17,8 +17,8 @@ import type { BlockCatalog, BlockTypeDescriptor } from '../app/runtime/types'
 
 const catalog = testCatalog()
 
-function offered(source: BlockCatalog, query = ''): string[] {
-	return paletteGroups(source, query).flatMap((group) =>
+function offered(source: BlockCatalog, query = '', advanced = false): string[] {
+	return paletteGroups(source, query, advanced).flatMap((group) =>
 		group.blocks.map((block) => block.type),
 	)
 }
@@ -53,6 +53,30 @@ function panelCatalog(): BlockCatalog {
 			...catalog.blocks,
 			container('Panel', { allowedChildren: ['Text', 'Section'] }),
 		],
+	}
+}
+
+/** The charts on their own, beside the card that draws with two of them. */
+function chartCatalog(): BlockCatalog {
+	return {
+		...catalog,
+		blocks: [
+			...catalog.blocks,
+			chart('ChartLine', 'Line Chart'),
+			chart('ChartArea', 'Area Chart'),
+			chart('ChartGauge', 'Gauge'),
+		],
+	}
+}
+
+function chart(type: string, label: string): BlockTypeDescriptor {
+	return {
+		type,
+		componentName: `Dms${type}`,
+		label,
+		group: 'visualization',
+		config: {},
+		shapeSource: 'test',
 	}
 }
 
@@ -132,5 +156,28 @@ describe('the components the palette lists', () => {
 
 	it('answers nothing at all before the catalog has arrived', () => {
 		expect(paletteGroups(null, '')).toEqual([])
+	})
+})
+
+describe('the charts a chart card draws with', () => {
+	it('leaves them to the card in the simple mode', () => {
+		const types = offered(chartCatalog())
+		expect(types).toContain('ChartCard')
+		expect(types).not.toContain('ChartLine')
+		expect(types).not.toContain('ChartArea')
+		expect(types, 'a chart the card does not take').toContain('ChartGauge')
+	})
+
+	it('finds the card when one of them is searched for', () => {
+		expect(offered(chartCatalog(), 'line')).toEqual(['ChartCard'])
+		expect(offered(chartCatalog(), 'area chart')).toEqual(['ChartCard'])
+	})
+
+	it('offers them on their own in the advanced view', () => {
+		const types = offered(chartCatalog(), '', true)
+		expect(types).toContain('ChartCard')
+		expect(types).toContain('ChartLine')
+		expect(types).toContain('ChartArea')
+		expect(offered(chartCatalog(), 'line', true)).toEqual(['ChartLine'])
 	})
 })

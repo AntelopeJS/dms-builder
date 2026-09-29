@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { paletteGroups } from '../runtime/catalog'
+import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 import type { BlockTypeDescriptor } from '../runtime/types'
 
 const builder = useBuilder()
+const { advanced } = useBuilderMode()
 const query = ref('')
 
 const groups = computed(() =>
-	paletteGroups(builder.session.value.catalog, query.value),
+	paletteGroups(builder.session.value.catalog, query.value, advanced.value),
 )
 
 /** Adding from the palette drops into the container being worked in. */
