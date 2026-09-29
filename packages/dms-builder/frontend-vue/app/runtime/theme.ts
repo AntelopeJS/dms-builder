@@ -286,6 +286,51 @@ export function trimmedVariables(variables: ThemeVariableSets): ThemeVariableSet
 	return { light: trim(variables.light), dark: trim(variables.dark) }
 }
 
+/**
+ * A set of values the author edited, moved onto the same set read again:
+ * what the author changed from what they started with — set or removed — goes
+ * on top of the new one, and what they left alone reads as the new one has it.
+ */
+function rebaseValues<K extends string>(
+	draft: Partial<Record<K, string>>,
+	from: Partial<Record<K, string>>,
+	onto: Partial<Record<K, string>>,
+): Partial<Record<K, string>> {
+	const result = { ...onto }
+	const names = new Set([...Object.keys(draft), ...Object.keys(from)] as K[])
+	for (const name of names) {
+		const value = draft[name]
+		if (value === from[name]) {
+			continue
+		}
+		if (value === undefined) {
+			delete result[name]
+		} else {
+			result[name] = value
+		}
+	}
+	return result
+}
+
+/** An author's draft, moved from the theme it started from onto the theme the files hold now. */
+export function rebaseTheme(draft: ThemeDraft, from: ThemeDraft, onto: ThemeDraft): ThemeDraft {
+	const slots = new Set([draft, from, onto].flatMap((theme) => Object.keys(theme.logos) as LogoSlot[]))
+	const logos: ThemeLogos = {}
+	for (const slot of slots) {
+		const sources = rebaseValues(draft.logos[slot] ?? {}, from.logos[slot] ?? {}, onto.logos[slot] ?? {})
+		if (Object.keys(sources).length > 0) {
+			logos[slot] = sources
+		}
+	}
+	return {
+		variables: {
+			light: rebaseValues(draft.variables.light, from.variables.light, onto.variables.light) as ThemeVariables,
+			dark: rebaseValues(draft.variables.dark, from.variables.dark, onto.variables.dark) as ThemeVariables,
+		},
+		logos,
+	}
+}
+
 function draftOf(structure: ThemeStructure): ThemeDraft {
 	return cloneTheme({ variables: structure.variables, logos: structure.logos })
 }
@@ -305,6 +350,8 @@ export interface ThemeEditor {
 	resetLogo: (slot: LogoSlot, mode: ThemeMode) => void
 	discard: () => void
 	save: () => Promise<OpResult<{ version: string }> | undefined>
+	/** Read the theme's files again after they changed on disk, keeping the author's changes on top. */
+	refresh: () => Promise<void>
 	clear: () => void
 }
 
@@ -478,6 +525,25 @@ export function useThemeEditor(): ThemeEditor {
 	}
 
 	/**
+	 * Read the theme again once its files changed on disk: the new files become
+	 * what the draft is compared with, and the author's changes stay on top, so
+	 * a save writes over the files knowingly and a discard keeps them.
+	 */
+	async function refresh(): Promise<void> {
+		const { draft, baseline } = state.value
+		const result = await api.theme()
+		if (!result.ok) {
+			state.value.error = result.error
+			return
+		}
+		const onDisk = draftOf(result.data)
+		state.value.structure = result.data
+		state.value.baseline = onDisk
+		state.value.draft = draft && baseline ? rebaseTheme(draft, baseline, onDisk) : cloneTheme(onDisk)
+		preview()
+	}
+
+	/**
 	 * Take the preview off the page and forget the theme. Only a theme that was
 	 * loaded has put anything on the page, so an editor that never opened the
 	 * theme touches nothing.
@@ -500,6 +566,7 @@ export function useThemeEditor(): ThemeEditor {
 		resetLogo,
 		discard,
 		save,
+		refresh,
 		clear,
 	}
 }

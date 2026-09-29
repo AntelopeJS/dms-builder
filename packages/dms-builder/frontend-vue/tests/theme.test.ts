@@ -4,6 +4,7 @@ import {
 	logoRefusal,
 	previewDeclarations,
 	previewLogo,
+	rebaseTheme,
 	type ThemeEditorState,
 	themeIssues,
 	trimmedVariables,
@@ -264,5 +265,27 @@ describe('a theme save across the reload it causes', () => {
 		})
 		expect(() => rememberThemeSave('/shop/board', 'Theme saved')).not.toThrow()
 		expect(takeThemeSave()).toBe(undefined)
+	})
+})
+
+describe('a draft moved onto the theme read again', () => {
+	const theme = (light: Record<string, string>, logos = {}) => ({ variables: { light, dark: {} }, logos })
+
+	it("keeps the author's changes, and takes what the files now hold for the rest", () => {
+		const from = theme({ '--ui-primary': '#111111', '--ui-bg': '#ffffff', '--ui-radius': '1rem' })
+		const draft = theme({ '--ui-primary': '#7c3aed', '--ui-radius': '1rem', '--ui-text': '#222222' })
+		const onto = theme({ '--ui-primary': '#333333', '--ui-bg': '#fafafa', '--ui-radius': '2rem' })
+		expect(rebaseTheme(draft, from, onto).variables.light).toEqual({
+			'--ui-primary': '#7c3aed',
+			'--ui-radius': '2rem',
+			'--ui-text': '#222222',
+		})
+	})
+
+	it('moves the logos the same way, slot by slot', () => {
+		const from = theme({}, { default: { light: '/branding/a.svg' } })
+		const draft = theme({}, {})
+		const onto = theme({}, { default: { light: '/branding/a.svg', dark: '/branding/b.svg' } })
+		expect(rebaseTheme(draft, from, onto).logos).toEqual({ default: { dark: '/branding/b.svg' } })
 	})
 })

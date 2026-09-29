@@ -1423,7 +1423,7 @@ export function useBuilder(): BuilderController {
 	function themeRefusal(error: BuilderError): BuilderError {
 		const details: Record<string, () => string> = {
 			stale: () =>
-				'The theme files changed on disk since the editor read them. Reopen Theme & branding to keep going.',
+				'The theme files changed on disk since the editor read them. It has read them again, your changes kept on top: Save writes your changes over them, Discard keeps the files as they are.',
 			invalid_config: () =>
 				'issues' in error
 					? `The theme was not saved: ${error.issues.map((issue) => issue.message).join(' · ')}.`
@@ -1444,6 +1444,9 @@ export function useBuilder(): BuilderController {
 		try {
 			const result = await theme.save()
 			reloading = result?.ok === true && reloadsPage(result.changes)
+			if (result && !result.ok && result.error.code === 'stale') {
+				await theme.refresh()
+			}
 			if (result) {
 				report(result.ok ? result : { ok: false, error: themeRefusal(result.error) }, message)
 			}
