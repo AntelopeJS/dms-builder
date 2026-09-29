@@ -13,10 +13,15 @@ import type {
   OpWarning,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
-import { Node, type SourceFile } from "ts-morph";
+import { Node, type Project, type SourceFile } from "ts-morph";
 import { applyImportRef, ensureNamedImport } from "./emit";
 import { dropResourceData } from "./resource-data";
-import { findResourceRecord, resourceRefResolver } from "./resource-index";
+import {
+  findResourceRecord,
+  listResourceRecords,
+  type ResourceRecord,
+  resourceRefResolver,
+} from "./resource-index";
 import {
   indexedFieldNames,
   readDataApiFieldAspects,
@@ -41,7 +46,11 @@ import {
   tableFieldText,
 } from "./resource-emit-types";
 import { contentVersion } from "./page-structure";
-import { routeMapExpr, TABLE_VIEW_MODULE } from "./resource-emit";
+import {
+  routeMapExpr,
+  TABLE_VIEW_MODULE,
+  withDefaultIndex,
+} from "./resource-emit";
 import { getExtendsCall } from "./literals";
 function resourceVersion(
   databaseFile: SourceFile,
@@ -70,6 +79,32 @@ function checkVersion(
 function notFound<T = void>(ref: string): OpResult<T> {
   return { ok: false, error: { code: "not_found", ref } };
 }
+
+/**
+ * The other resources whose code imports this one -- a relation field pointing
+ * at it, typically. Deleting it would break their code and leave their rows
+ * holding ids of rows that no longer exist, so the delete waits on them.
+ */
+function referencingResources(
+  project: Project,
+  record: ResourceRecord,
+): string[] {
+  const importing = new Set<string>(
+    [record.databaseFile, record.dataApiFile, record.indexFile].flatMap(
+      (target) =>
+        findImporters(project, target).map((importer) =>
+          importer.getSourceFile().getFilePath(),
+        ),
+    ),
+  );
+  return listResourceRecords()
+    .filter(
+      (other) =>
+        other.ref !== record.ref &&
+        (importing.has(other.databaseFile) || importing.has(other.dataApiFile)),
+    )
+    .map((other) => other.ref);
+}
 export async function deleteResource(
   ref: string,
   opts?: DeleteResourceOpts,
@@ -90,6 +125,10 @@ export async function deleteResource(
   );
   if (stale) {
     return stale;
+  }
+  const blockedBy = referencingResources(opened.project, record);
+  if (blockedBy.length > 0) {
+    return { ok: false, error: { code: "referential_integrity", blockedBy } };
   }
   const indexFile = opened.project.getSourceFile(record.indexFile);
   const transaction = new Transaction(opened.project);
@@ -196,7 +235,7 @@ export function addField(
   });
   let built: ReturnType<typeof buildFieldText>;
   try {
-    built = buildFieldText(spec, ctx);
+    built = buildFieldText(withDefaultIndex(spec), ctx);
   } catch (error) {
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType<{ path: string }>(error);

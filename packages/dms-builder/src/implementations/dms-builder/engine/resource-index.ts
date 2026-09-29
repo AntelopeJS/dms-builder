@@ -239,7 +239,7 @@ export function findResourceRecord(ref: string): ResourceRecord | undefined {
   return getResourceIndex().get(ref);
 }
 
-function listResourceRecords(): ResourceRecord[] {
+export function listResourceRecords(): ResourceRecord[] {
   return Array.from(getResourceIndex().values());
 }
 

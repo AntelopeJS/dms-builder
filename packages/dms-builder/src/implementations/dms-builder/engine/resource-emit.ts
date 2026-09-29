@@ -1,5 +1,6 @@
 import type {
   DataTypeValue,
+  FieldSpec,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
 import { pascalCase } from "./emit";
@@ -284,6 +285,25 @@ const MULTIPLE_TYPES = new Set([
   "file",
   "image",
 ]);
+
+/** The DataTypes whose column holds the id of another row. */
+const REFERENCE_TYPES = new Set(["relation", "cascader_relation", "tree"]);
+
+/**
+ * A field as the builder first writes it. A column holding another row's id is
+ * indexed unless the caller says otherwise: the DMS joins and filters on it, and
+ * without an index every such lookup scans the whole table. Only applied when a
+ * field is created -- reconfiguring one never adds an index nobody asked for.
+ */
+export function withDefaultIndex(field: FieldSpec): FieldSpec {
+  if (
+    field.indexed !== undefined ||
+    !REFERENCE_TYPES.has(field.dataType.$dataType)
+  ) {
+    return field;
+  }
+  return { ...field, indexed: true };
+}
 
 /** The column a DataType is stored in, as configured; `undefined` if unmapped. */
 export function mappedDbType(

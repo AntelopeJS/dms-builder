@@ -40,7 +40,11 @@ export interface FieldAspects {
   access?: "read" | "readwrite";
   /** Whether the field is required. Default false → `@Optional()`. */
   required?: boolean;
-  /** Whether the Table column is indexed. */
+  /**
+   * Whether the Table column is indexed. When a field is created, defaults to
+   * true for `relation`, `cascader_relation` and `tree` fields and to false
+   * otherwise.
+   */
   indexed?: boolean;
   /** The `@Column` display order. */
   order?: number;
@@ -230,6 +234,11 @@ export const ConfigureResource =
     ) => Promise<OpResult>
   >();
 
+/**
+ * Delete a resource's files and, unless `keepData`, its table rows. Refused
+ * with `referential_integrity` while another resource references it (a
+ * relation field pointing at it); `blockedBy` lists those resources.
+ */
 export const DeleteResource =
   InterfaceFunction<
     (ref: ResourceRef, opts?: DeleteResourceOpts) => Promise<OpResult>

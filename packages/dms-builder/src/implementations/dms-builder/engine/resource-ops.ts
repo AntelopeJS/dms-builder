@@ -22,6 +22,7 @@ import {
   resourceClassName,
   resourceNames,
   resourceRoute,
+  withDefaultIndex,
 } from "./resource-emit";
 import {
   buildDataApiFile,
@@ -281,19 +282,20 @@ export function createResource(
   let dataApiText: string;
   let warnings: OpWarning[];
   const resolveRef = resourceRefResolver();
+  const fields = input.fields.map(withDefaultIndex);
   try {
     const database = buildDatabaseFile({
       names,
       filePath: files.database,
       schema,
-      fields: input.fields,
+      fields,
       seeds: input.seeds,
       resolveRef,
     });
     const dataApi = buildDataApiFile({
       names,
       filePath: files.dataApi,
-      fields: input.fields,
+      fields,
       routes: input.routes,
       resolveRef,
     });
