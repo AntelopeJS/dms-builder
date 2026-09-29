@@ -2,8 +2,10 @@
 import { computed, ref, watchEffect } from 'vue'
 import {
 	descriptorOf,
+	heldChildren,
 	isStructural,
 	missingConfig,
+	resolvedPreview,
 	servedNodeAt,
 	slotsOf,
 } from '../runtime/catalog'
@@ -87,6 +89,15 @@ const children = computed(() =>
 		preview: rendered.value?.children?.find((entry) => entry.id === child.name)
 			?.component,
 	})),
+)
+/**
+ * What the block holds through its settings — a card's chart —, rendered inside
+ * it as the page renders it. Without it a card showed its figure over nothing.
+ */
+const held = computed(() =>
+	heldChildren(descriptor.value, rendered.value).map((child) =>
+		resolvedPreview(child, resolveDmsComponent),
+	),
 )
 const slotted = computed(() => children.value.filter((child) => child.block.slot))
 const plain = computed(() => children.value.filter((child) => !child.block.slot))
@@ -494,6 +505,16 @@ function answerCursor(event: DragEvent): void {
 						/>
 					</template>
 					<template #default>
+						<!-- Keyed on what it draws: a chart switched from columns to a pie in
+						place keeps the one colour its single series had, where the page,
+						drawing it afresh, gives each slice its own. -->
+						<DmsRecursiveComponent
+							v-for="child in held"
+							:key="`${child.id}:${JSON.stringify(child.options)}`"
+							:component="child"
+							:page-id="pageId"
+							:component-id="`${path}-child-${child.id}`"
+						/>
 						<DmsBuilderChildren
 							:path="path"
 							:children="plain"

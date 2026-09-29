@@ -10,9 +10,11 @@ import {
 import type {
 	BlockCatalog,
 	ComponentPreview,
+	ComponentPreviewChild,
 	BlockDraft,
 	BlockTypeDescriptor,
 	OptionSchema,
+	ResolvedPreview,
 } from './types'
 
 /** The node the DMS served at a draft path, walking `.child()` ids. */
@@ -26,6 +28,41 @@ export function servedNodeAt(
 		node = node?.children?.find((child) => child.id === segment)?.component
 	}
 	return node
+}
+
+/**
+ * The children a block holds through its own settings, as the DMS served them:
+ * the chart a card draws with lives in the card's `chart` setting, and is served
+ * as the card's child of that name. The draft carries none of them as a child,
+ * so the canvas renders them itself, where the page does: inside the block.
+ *
+ * Only those: a served child the draft no longer names is one just removed, and
+ * the preview has not caught up yet.
+ */
+export function heldChildren(
+	descriptor: BlockTypeDescriptor | undefined,
+	node: ComponentPreview | undefined,
+): ComponentPreviewChild[] {
+	const config = descriptor?.config ?? {}
+	return (node?.children ?? []).filter(
+		(entry) => !entry.slot && (config[entry.id]?.ui?.blockTypes?.length ?? 0) > 0,
+	)
+}
+
+/** A served node with its component resolved, all the way down, as the page does. */
+export function resolvedPreview(
+	child: ComponentPreviewChild,
+	resolve: (name: string) => unknown,
+): ResolvedPreview {
+	const { id, component, ...placement } = child
+	return {
+		...placement,
+		id,
+		options: component.options,
+		component: resolve(component.componentName) ?? 'div',
+		componentName: component.componentName,
+		children: (component.children ?? []).map((entry) => resolvedPreview(entry, resolve)),
+	}
 }
 
 export interface PaletteGroup {

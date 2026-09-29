@@ -212,6 +212,20 @@ export interface ComponentPreview {
 	children?: ComponentPreviewChild[]
 }
 
+/**
+ * A served node as the DMS page renders it, its component resolved all the way
+ * down: what `DmsRecursiveComponent` takes.
+ */
+export interface ResolvedPreview {
+	id: string
+	options?: Record<string, unknown>
+	component: unknown
+	componentName: string
+	children: ResolvedPreview[]
+	slot?: string
+	[key: string]: unknown
+}
+
 /** What `GET /dms/pagelayout` answers with. */
 export interface PageLayoutPayload {
 	layout?: ComponentPreview
