@@ -7,6 +7,7 @@ import {
 	valueProblem,
 } from '../app/runtime/theme'
 import { isVariableName, otherVariables } from '../app/runtime/theme-catalog'
+import { sheetText } from '../app/runtime/theme-mirror'
 
 /**
  * The theme editor's live preview: what it puts on the page before anything is
@@ -112,5 +113,37 @@ describe('the variables beyond the catalog', () => {
 		expect(isVariableName('--brand-500')).toBe(true)
 		expect(isVariableName('brand')).toBe(false)
 		expect(isVariableName('--a b')).toBe(false)
+	})
+})
+
+describe('a stylesheet copied to read both modes', () => {
+	const rules = (...texts: string[]) => texts.map((cssText) => ({ cssText }))
+
+	it('keeps its rules, in order', () => {
+		expect(
+			sheetText({ media: { mediaText: '' }, cssRules: rules(':root { --a: 1px; }', '.dark { --a: 2px; }') }),
+		).toBe(':root { --a: 1px; }\n.dark { --a: 2px; }')
+	})
+
+	it('keeps the media it is for', () => {
+		expect(sheetText({ media: { mediaText: 'print' }, cssRules: rules('a { color: red; }') })).toBe(
+			'@media print {\na { color: red; }\n}',
+		)
+	})
+
+	it('leaves out the imports the page already resolved', () => {
+		expect(
+			sheetText({ media: { mediaText: '' }, cssRules: rules('@import url("x.css");', 'b { color: red; }') }),
+		).toBe('b { color: red; }')
+	})
+
+	it('is empty for a stylesheet the page may not read', () => {
+		const foreign = {
+			media: { mediaText: '' },
+			get cssRules(): ArrayLike<{ cssText: string }> {
+				throw new Error('SecurityError')
+			},
+		}
+		expect(sheetText(foreign)).toBe('')
 	})
 })

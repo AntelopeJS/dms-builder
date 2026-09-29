@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { describeError } from '../runtime/errors'
 import { THEME_MODES, useThemeEditor } from '../runtime/theme'
+import { DARK_CLASS, ModeMirror } from '../runtime/theme-mirror'
 import {
 	isVariableName,
 	otherVariables,
@@ -14,17 +15,18 @@ const MODE_ITEMS = [
 	{ label: 'Light', value: 'light', icon: 'i-ph-sun' },
 	{ label: 'Dark', value: 'dark', icon: 'i-ph-moon' },
 ]
-const DARK_CLASS = 'dark'
 
 const editor = useThemeEditor()
 const state = editor.state
 const colorMode = useColorModePreference()
 
 const shownMode = ref<ThemeMode>('light')
-const observed = ref<Partial<Record<ThemeMode, ThemeVariables>>>({})
+const observed = ref<Record<ThemeMode, ThemeVariables>>({ light: {}, dark: {} })
 const added = ref<string[]>([])
 const newName = ref('')
-let observer: MutationObserver | undefined
+let mirror: ModeMirror | undefined
+let observers: MutationObserver[] = []
+let pendingFrame = 0
 
 const others = computed(() =>
 	otherVariables([
@@ -46,37 +48,39 @@ const files = computed(() => {
 		: []
 })
 
-function readVariables(element: Element): ThemeVariables {
-	const style = getComputedStyle(element)
-	return Object.fromEntries(
-		variableNames.value.map((name) => [name, style.getPropertyValue(name).trim()]),
-	)
+/** Read what each variable shows in each mode, whichever one the page shows. */
+function observe(): void {
+	shownMode.value = document.documentElement.classList.contains(DARK_CLASS) ? 'dark' : 'light'
+	if (mirror) {
+		observed.value = mirror.read(variableNames.value)
+	}
 }
 
-/**
- * Read what each variable shows now. The dark values are read off a hidden
- * element carrying the class the DMS keys dark mode on, which works in either
- * mode; the light ones only off the page itself, so they are kept from the
- * last time the page was light.
- */
-function observe(): void {
-	const root = document.documentElement
-	shownMode.value = root.classList.contains(DARK_CLASS) ? 'dark' : 'light'
-	const probe = document.createElement('div')
-	probe.className = DARK_CLASS
-	probe.hidden = true
-	document.body.appendChild(probe)
-	const dark = readVariables(probe)
-	probe.remove()
-	const light = shownMode.value === 'light' ? readVariables(root) : observed.value.light
-	observed.value = { light, dark }
+/** One read per frame, however many edits, class changes and stylesheet swaps asked. */
+function scheduleObserve(): void {
+	if (pendingFrame) {
+		return
+	}
+	pendingFrame = requestAnimationFrame(() => {
+		pendingFrame = 0
+		observe()
+	})
 }
 
 function valuesOf(name: string): Partial<Record<ThemeMode, string>> {
 	return {
-		light: observed.value.light?.[name],
-		dark: observed.value.dark?.[name],
+		light: observed.value.light[name],
+		dark: observed.value.dark[name],
 	}
+}
+
+/** Watch what changes what the variables compute to: the mode, and the stylesheets. */
+function watchPage(): MutationObserver[] {
+	const mode = new MutationObserver(scheduleObserve)
+	mode.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+	const styles = new MutationObserver(scheduleObserve)
+	styles.observe(document.head, { childList: true, subtree: true, characterData: true })
+	return [mode, styles]
 }
 
 function showMode(mode: string | number): void {
@@ -92,20 +96,23 @@ function addVariable(): void {
 	newName.value = ''
 }
 
-watch(() => state.value.draft, observe, { deep: true, flush: 'post' })
-watch(variableNames, observe, { flush: 'post' })
+watch(() => state.value.draft, scheduleObserve, { deep: true, flush: 'post' })
+watch(variableNames, scheduleObserve, { flush: 'post' })
 
 onMounted(() => {
-	void editor.load().then(observe)
-	observer = new MutationObserver(observe)
-	observer.observe(document.documentElement, {
-		attributes: true,
-		attributeFilter: ['class'],
-	})
-	observe()
+	mirror = new ModeMirror()
+	observers = watchPage()
+	void editor.load().then(scheduleObserve)
+	scheduleObserve()
 })
 
-onUnmounted(() => observer?.disconnect())
+onUnmounted(() => {
+	observers.forEach((observer) => observer.disconnect())
+	cancelAnimationFrame(pendingFrame)
+	pendingFrame = 0
+	mirror?.dispose()
+	mirror = undefined
+})
 </script>
 
 <template>
