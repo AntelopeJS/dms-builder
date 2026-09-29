@@ -27,8 +27,12 @@ const props = defineProps<{
 	periodOption?: string
 	/** The block being configured, used to name the query it reads. */
 	blockName: string
-	/** How the preview draws the points: along a line, or as columns. */
-	draw?: 'columns' | 'line'
+	/**
+	 * Whether the block's own editor shows no preview: a chart card draws on the
+	 * page itself as it is set up, and a second chart in the panel says nothing
+	 * more.
+	 */
+	withoutPreview?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -428,6 +432,9 @@ async function apply(): Promise<void> {
 }
 
 async function readPreview(): Promise<void> {
+	if (props.withoutPreview) {
+		return
+	}
 	previewing.value = true
 	try {
 		preview.value = await builder.previewQuery(queryInput(), periodArgs())
@@ -658,7 +665,7 @@ watch(
 
 		<template v-else>
 			<div
-				v-if="resource"
+				v-if="resource && !withoutPreview"
 				class="flex flex-col gap-2.5 rounded-lg border border-default bg-elevated/60 p-3"
 			>
 				<div class="flex items-start justify-between gap-2">
@@ -679,7 +686,7 @@ watch(
 
 				<DmsChart
 					v-if="previewPoints.length"
-					:type="draw === 'line' ? 'line' : 'column'"
+					type="column"
 					:static-dataset="previewSeries"
 					height="180px"
 					:show-legend="false"

@@ -345,6 +345,21 @@ describe('what a card measures', () => {
 		expect(textOf(fold(root, 'Data'))).toContain('Count of order rows, by Status')
 	})
 
+	it('draws no preview of its own: the card on the page shows it', async () => {
+		const root = await panel()
+		write(control(root, 'USelectMenu', 'From'), 'order')
+		await settle()
+		write(control(root, 'USelectMenu', 'Split by'), 'status')
+		await settle()
+
+		expect(findAll(root, (node) => node.tag === 'DmsChart')).toHaveLength(0)
+		expect(textOf(root)).not.toContain('Preview')
+		expect(
+			backend.calls.filter((call) => `${call.method} ${call.path}` === PREVIEW),
+			'nothing read for a preview nobody sees',
+		).toHaveLength(0)
+	})
+
 	it("shows each card's own source, not the one opened before it", async () => {
 		const root = await panel([card('chartCard'), card('revenueChart')])
 		builder.setDraftQuery({
@@ -389,11 +404,6 @@ describe('what a card measures', () => {
 			},
 		})
 		expect(config().periodScope).toBe('page')
-		const previews = backend.calls.filter((call) => `${call.method} ${call.path}` === PREVIEW)
-		expect(
-			(previews.at(-1)?.body as { args?: Record<string, unknown> })?.args,
-			'the period before is read for the preview too',
-		).toHaveProperty('compareFrom')
 		expect(textOf(fold(root, 'Data'))).toContain("on the page's period, against the one before")
 
 		write(control(root, 'UCheckbox', 'Period'), false)

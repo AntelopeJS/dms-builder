@@ -219,6 +219,57 @@ describe('a ranking read from a table', () => {
 		])
 	})
 
+	it('reads the period before for its preview when it compares with it', async () => {
+		backend.answers['GET /api/builder/resources'] = [
+			{ ref: 'order', className: 'Order', tableName: 'orders', route: '/api/order', fieldCount: 3 },
+		]
+		const dated = orders()
+		dated.fields = [
+			...dated.fields,
+			{ name: 'createdAt', dataType: { $dataType: 'date' } },
+		] as ResourceStructure['fields']
+		backend.answers['GET /api/builder/resource'] = { ok: true, data: dated, changes: [] }
+		backend.answers['POST /api/builder/query-preview'] = {
+			ok: true,
+			data: { body: { value: 12, series: [{ x: 'BE', y: 12 }] } },
+			changes: [],
+		}
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(DataSource, {
+			props: {
+				modelValue: undefined,
+				responseShape: 'card',
+				periodOption: 'periodScope',
+				blockName: 'revenueCard',
+			},
+		})
+		await nextTick()
+		const control = (tag: string, name: string) =>
+			findAll(
+				root,
+				(node) =>
+					node.tag === tag &&
+					(node.props['aria-label'] === name || node.props.label === name),
+			)[0]!
+
+		write(control('USelectMenu', 'From'), 'order')
+		await settle()
+		write(control('USelectMenu', 'Split by'), 'country')
+		await settle()
+		write(control('UCheckbox', 'Period'), true)
+		await settle()
+		write(control('USwitch', 'Compare with the previous period'), true)
+		await settle()
+
+		const previews = backend.calls.filter(
+			(call) => `${call.method} ${call.path}` === 'POST /api/builder/query-preview',
+		)
+		expect(
+			(previews.at(-1)?.body as { args?: Record<string, unknown> })?.args,
+		).toHaveProperty('compareFrom')
+	})
+
 	it('leaves the other sources of the page answering the way they did', async () => {
 		backend.structure = {
 			...backend.structure,

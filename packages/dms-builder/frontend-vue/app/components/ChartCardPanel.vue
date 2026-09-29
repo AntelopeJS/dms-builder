@@ -7,7 +7,6 @@ import {
 	COLOUR_OPTION,
 	FORMAT_LABELS,
 	heldBlock,
-	LINE_CHART_TYPES,
 	LOOK_SWITCHES,
 	MAIN_CHART_TYPES,
 } from '../runtime/chart-card'
@@ -113,9 +112,6 @@ const dataSummary = computed(() => {
 })
 
 const fetchUi = computed(() => options.value.fetchUrl?.ui ?? {})
-const draw = computed(() =>
-	chart.value.type && LINE_CHART_TYPES.has(chart.value.type) ? 'line' : 'columns',
-)
 
 /* ---- its headline figure ----------------------------------------------- */
 
@@ -251,7 +247,7 @@ const showingMore = ref(false)
 					:response-shape="fetchUi.responseShape"
 					:period-option="fetchUi.periodOption"
 					:block-name="block.name"
-					:draw="draw"
+					without-preview
 					@patch="patch($event)"
 				/>
 			</DmsBuilderFoldCard>

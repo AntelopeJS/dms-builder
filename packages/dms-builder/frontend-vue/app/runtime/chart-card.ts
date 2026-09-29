@@ -35,14 +35,6 @@ export const MAIN_CHART_TYPES = [
 	'ChartPie',
 ]
 
-/** The types drawn along a line, which the source's preview draws as one. */
-export const LINE_CHART_TYPES = new Set([
-	'ChartLine',
-	'ChartArea',
-	'ChartRangeArea',
-	'ChartMixed',
-])
-
 /** The chart's switches the Look card sets itself, where the chart has them. */
 export const LOOK_SWITCHES = [
 	{ key: 'showTooltip', label: 'Figures on hover', icon: 'i-ph-chat-centered-text' },
