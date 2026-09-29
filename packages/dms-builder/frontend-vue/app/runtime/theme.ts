@@ -26,9 +26,14 @@ import type {
 
 export const THEME_MODES: ThemeMode[] = ['light', 'dark']
 
-/** The selectors the DMS declares each mode's defaults under, and the theme overrides them at. */
+/**
+ * The selectors the theme overrides each mode at, the ones the module writes.
+ * Light is not plain `:root`: unlayered, a `:root` rule still matches a page in
+ * dark mode and wins over the DMS's layered `.dark` default, so a value set for
+ * light alone would show in dark too.
+ */
 const MODE_SELECTORS: Record<ThemeMode, string> = {
-	light: ':root',
+	light: ':root:not(.dark)',
 	dark: '.dark',
 }
 

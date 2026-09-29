@@ -87,7 +87,7 @@ describe("theme stylesheet", () => {
       dark: { "--ui-primary": "#a78bfa" },
     });
     expect(text).to.equal(
-      ":root {\n  --ui-primary: #7c3aed;\n  --ui-radius: 0.5rem;\n}\n\n.dark {\n  --ui-primary: #a78bfa;\n}\n",
+      ":root:not(.dark) {\n  --ui-primary: #7c3aed;\n  --ui-radius: 0.5rem;\n}\n\n.dark {\n  --ui-primary: #a78bfa;\n}\n",
     );
     expect(parseStylesheet(text).variables).to.deep.equal({
       light: { "--ui-primary": "#7c3aed", "--ui-radius": "0.5rem" },
@@ -105,6 +105,34 @@ describe("theme stylesheet", () => {
 
   it("writes nothing for a theme without overrides", () => {
     expect(emitStylesheet({ light: {}, dark: {} })).to.equal("");
+  });
+
+  it("keeps a value set for light alone out of dark mode", () => {
+    // Unlayered, a bare `:root` would also match the dark page and win over
+    // the DMS's layered dark default.
+    expect(emitStylesheet({ light: { "--ui-bg": "snow" }, dark: {} })).to.equal(
+      ":root:not(.dark) {\n  --ui-bg: snow;\n}\n",
+    );
+  });
+
+  it("reads a hand-written :root rule as a value of both modes", () => {
+    const parsed = parseStylesheet(
+      ":root {\n  --font-sans: Inter;\n  --ui-bg: white;\n}\n.dark {\n  --ui-bg: black;\n}\n",
+    );
+    expect(parsed.variables).to.deep.equal({
+      light: { "--font-sans": "Inter", "--ui-bg": "white" },
+      dark: { "--font-sans": "Inter", "--ui-bg": "black" },
+    });
+  });
+
+  it("reads each mode the way the cascade picks its values", () => {
+    const parsed = parseStylesheet(
+      ":root:not(.dark) { --a: light; }\n.dark { --b: dark; }\n:root { --a: both; --b: both; }\n",
+    );
+    expect(parsed.variables).to.deep.equal({
+      light: { "--a": "light", "--b": "both" },
+      dark: { "--a": "both", "--b": "both" },
+    });
   });
 });
 
@@ -134,7 +162,7 @@ describe("theme", function () {
     const result = await SetTheme(draft());
     expectOk(result, "SetTheme");
     expect(readLayerFile("app/assets/css/theme.css")).to.equal(
-      ":root {\n  --ui-primary: #7c3aed;\n}\n\n.dark {\n  --ui-primary: #a78bfa;\n}\n",
+      ":root:not(.dark) {\n  --ui-primary: #7c3aed;\n}\n\n.dark {\n  --ui-primary: #a78bfa;\n}\n",
     );
     expect(readLayerFile("app/theme.ts")).to.contain(
       'import "./assets/css/theme.css";',

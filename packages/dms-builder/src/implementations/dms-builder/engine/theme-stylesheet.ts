@@ -8,13 +8,33 @@ import type {
 export const THEME_MODES: ThemeMode[] = ["light", "dark"];
 
 /**
- * The selector each mode's overrides are declared under: the ones the DMS
- * declares its own defaults under, in its `dms` cascade layer. Unlayered, the
- * project's declarations win over those whatever the stylesheet order.
+ * The selector each mode's overrides are written under. The DMS declares its
+ * defaults in its `dms` cascade layer, and unlayered, the project's
+ * declarations win over those whatever the stylesheet order. That is also why
+ * light is not plain `:root`: an unlayered `:root` still matches a page in
+ * dark mode and wins over the DMS's layered `.dark`, so a value set for light
+ * alone would show in dark too.
  */
 const MODE_SELECTORS: Record<ThemeMode, string> = {
-  light: ":root",
+  light: ":root:not(.dark)",
   dark: ".dark",
+};
+
+/** A selector the builder reads back: the modes it applies to and how specific it is. */
+interface SelectorReach {
+  modes: ThemeMode[];
+  specificity: number;
+}
+
+/**
+ * The selectors a stylesheet may hold: the two the builder writes, and
+ * `:root`, which the DMS docs use for a value both modes share and a
+ * hand-written file may carry.
+ */
+const SELECTOR_REACH: Record<string, SelectorReach> = {
+  [MODE_SELECTORS.light]: { modes: ["light"], specificity: 2 },
+  [MODE_SELECTORS.dark]: { modes: ["dark"], specificity: 1 },
+  ":root": { modes: ["light", "dark"], specificity: 1 },
 };
 
 const VARIABLE_NAME = /^--[A-Za-z0-9_-]+$/;
@@ -37,12 +57,10 @@ export interface ParsedStylesheet {
   opaque?: string;
 }
 
-function emptyVariableSets(): ThemeVariableSets {
-  return { light: {}, dark: {} };
-}
-
-function modeOfSelector(selector: string): ThemeMode | undefined {
-  return THEME_MODES.find((mode) => MODE_SELECTORS[mode] === selector.trim());
+/** One rule of a stylesheet the builder reads back, in the order the file holds it. */
+interface ReadRule {
+  reach: SelectorReach;
+  declarations: ThemeVariables;
 }
 
 function valueProblem(value: string): string | undefined {
@@ -74,33 +92,59 @@ function parseDeclarations(body: string): ThemeVariables | undefined {
   return variables;
 }
 
-/**
- * Read the overrides back from the stylesheet the builder writes.
- *
- * The file is the builder's: two rules of custom properties and nothing else.
- * Anything more — another selector, a comment, an at-rule — is someone's hand
- * work the builder cannot keep while rewriting the file whole, so the file is
- * reported as opaque rather than silently flattened.
- */
-export function parseStylesheet(text: string): ParsedStylesheet {
-  const variables = emptyVariableSets();
+function readRules(text: string): ReadRule[] | string {
+  const rules: ReadRule[] = [];
   let rest = text;
   while (rest.trim() !== "") {
     const rule = RULE.exec(rest);
-    const mode = rule?.[1] ? modeOfSelector(rule[1]) : undefined;
-    if (!rule || !mode) {
-      return { opaque: "it holds rules other than :root and .dark" };
+    const reach = rule?.[1] ? SELECTOR_REACH[rule[1].trim()] : undefined;
+    if (!rule || !reach) {
+      return `it holds rules other than ${Object.keys(SELECTOR_REACH).join(", ")}`;
     }
     const declarations = parseDeclarations(rule[2] ?? "");
     if (!declarations) {
-      return {
-        opaque: `its ${rule[1]} rule holds more than custom properties`,
-      };
+      return `its ${rule[1]} rule holds more than custom properties`;
     }
-    Object.assign(variables[mode], declarations);
+    rules.push({ reach, declarations });
     rest = rest.slice(rule[0].length);
   }
-  return { variables };
+  return rules;
+}
+
+/**
+ * The values a mode shows, picked the way the cascade picks them among the
+ * rules that match it: the more specific selector wins, then the later rule.
+ */
+function valuesOfMode(rules: ReadRule[], mode: ThemeMode): ThemeVariables {
+  return Object.assign(
+    {},
+    ...rules
+      .filter((rule) => rule.reach.modes.includes(mode))
+      .sort((left, right) => left.reach.specificity - right.reach.specificity)
+      .map((rule) => rule.declarations),
+  );
+}
+
+/**
+ * Read the overrides back from the stylesheet the builder writes.
+ *
+ * The file is the builder's: rules of custom properties and nothing else.
+ * Anything more — another selector, a comment, an at-rule — is someone's hand
+ * work the builder cannot keep while rewriting the file whole, so the file is
+ * reported as opaque rather than silently flattened. A `:root` rule reads as a
+ * value of both modes, which the rewrite keeps by writing it in each.
+ */
+export function parseStylesheet(text: string): ParsedStylesheet {
+  const rules = readRules(text);
+  if (typeof rules === "string") {
+    return { opaque: rules };
+  }
+  return {
+    variables: {
+      light: valuesOfMode(rules, "light"),
+      dark: valuesOfMode(rules, "dark"),
+    },
+  };
 }
 
 function emitRule(selector: string, variables: ThemeVariables): string {
