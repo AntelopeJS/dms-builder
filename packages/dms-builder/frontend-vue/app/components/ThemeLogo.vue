@@ -9,6 +9,16 @@ interface BrandingConfig {
 }
 
 /** Each tile draws its logo on its own mode's ground, whatever mode the page shows. */
+type LogoStatus = 'new' | 'saved' | 'reset' | 'default'
+
+/** What a tile's corner says of its logo. */
+const STATUS_LABELS: Record<LogoStatus, string> = {
+	new: 'new',
+	saved: 'saved',
+	reset: 'reset',
+	default: 'DMS logo',
+}
+
 const TILE_CLASSES: Record<ThemeMode, string> = {
 	light: 'bg-white text-neutral-600',
 	dark: 'bg-neutral-950 text-neutral-300',
@@ -33,11 +43,7 @@ const customized = computed(() =>
 	),
 )
 
-function source(mode: ThemeMode): string | undefined {
-	return previewLogo(state.value, props.logoSlot, mode) ?? appConfig.branding?.logo?.[props.logoSlot]?.[mode]
-}
-
-function status(mode: ThemeMode): string {
+function status(mode: ThemeMode): LogoStatus {
 	if (state.value.pending[logoKey(props.logoSlot, mode)]) {
 		return 'new'
 	}
@@ -45,6 +51,19 @@ function status(mode: ThemeMode): string {
 		return 'saved'
 	}
 	return state.value.baseline?.logos[props.logoSlot]?.[mode] ? 'reset' : 'default'
+}
+
+/**
+ * The logo a tile shows. A saved logo the draft drops shows none: once the
+ * theme's logo is merged over the DMS's, nothing on the page still names the
+ * DMS's, so the tile says what the save brings back instead of showing the
+ * logo it drops.
+ */
+function source(mode: ThemeMode): string | undefined {
+	if (status(mode) === 'reset') {
+		return undefined
+	}
+	return previewLogo(state.value, props.logoSlot, mode) ?? appConfig.branding?.logo?.[props.logoSlot]?.[mode]
 }
 
 async function pick(mode: ThemeMode, event: Event): Promise<void> {
@@ -98,9 +117,16 @@ function reset(): void {
 					:alt="`${label}, ${mode}`"
 					class="max-h-12 max-w-full object-contain"
 				/>
+				<span
+					v-else-if="status(mode) === 'reset'"
+					class="flex flex-col items-center gap-1 text-center text-[11px] font-medium"
+				>
+					<UIcon name="i-ph-arrow-counter-clockwise" class="size-5" />
+					The DMS logo, once saved
+				</span>
 				<UIcon v-else name="i-ph-image" class="size-6" />
 				<span class="absolute left-1.5 top-1 text-[10px] font-medium uppercase tracking-wide">
-					{{ mode }} · {{ status(mode) }}
+					{{ mode }} · {{ STATUS_LABELS[status(mode)] }}
 				</span>
 				<span
 					class="absolute bottom-1 right-1.5 flex items-center gap-1 text-[11px] font-medium opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
