@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { PANEL_CARD } from '../runtime/form-panel'
 import { useBuilder } from '../runtime/session'
 import { ACTION_ROUTES, ruled, useTableBlock } from '../runtime/table-panel'
 import {
@@ -183,9 +184,12 @@ const groups = computed(() => {
 </script>
 
 <template>
-	<div v-if="groups.length" class="flex flex-col gap-2">
-		<p class="text-xs font-semibold text-toned">What people can do</p>
-		<div class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+	<section v-if="groups.length" :class="PANEL_CARD" aria-label="What people can do">
+		<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+			<UIcon name="i-ph-hand-tap" class="size-4 text-primary" />
+			What people can do
+		</p>
+		<div class="divide-y divide-default overflow-hidden rounded-lg border border-default bg-default">
 			<template v-for="group in groups" :key="group.label">
 				<p class="flex h-7 items-center bg-elevated px-3 text-xs font-medium text-muted">
 					{{ group.label }}
@@ -253,5 +257,5 @@ const groups = computed(() => {
 				</div>
 			</template>
 		</div>
-	</div>
+	</section>
 </template>

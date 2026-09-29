@@ -7,6 +7,8 @@ import FormPanel from '../app/components/FormPanel.vue'
 import FormTarget from '../app/components/FormTarget.vue'
 import TablePicker from '../app/components/TablePicker.vue'
 import Option from '../app/components/Option.vue'
+import OnThePage from '../app/components/OnThePage.vue'
+import SubmitSettings from '../app/components/SubmitSettings.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -114,6 +116,8 @@ const parts = (): Record<string, Component> => ({
 	UAlert: alert,
 	DmsBuilderOption: Option as Component,
 	DmsBuilderFormPanel: FormPanel as Component,
+	DmsBuilderOnThePage: OnThePage as Component,
+	DmsBuilderSubmitSettings: SubmitSettings as Component,
 	DmsBuilderFormTarget: FormTarget as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderFormFields: FormFields as Component,
@@ -537,37 +541,66 @@ describe('a field opened', () => {
 })
 
 describe('what a form says and does once it is sent', () => {
+	/** The switch the submit settings sit behind, named in its title. */
+	function customSubmit(root: TestNode): TestNode {
+		const match = findAll(
+			root,
+			(node) => node.tag === 'USwitch' && node.props['aria-label'] === 'Custom submit',
+		)[0]
+		if (!match) {
+			throw new Error('no Custom submit switch')
+		}
+		return match
+	}
+
 	it('says its own words until it is told otherwise, behind one switch', async () => {
 		const root = await formPanel(BOUND)
-		const toggle = field(root, 'Customize submit', 'USwitch')
+		const toggle = customSubmit(root)
 		expect(toggle.props['model-value']).toBe(false)
-		expect(labels(root)).not.toContain('Once saved')
+		expect(labels(root)).not.toContain('On success')
+		expect(labels(root), 'it stays on the page').not.toContain('After submission')
 
 		write(toggle, true)
 		await nextTick()
 		expect(config()).toMatchObject({
 			successMessage: 'Data has been successfully saved',
-			errorMessage: 'An unknown error occurred',
 		})
+		expect(config(), 'a failure says what the server answered').not.toHaveProperty(
+			'errorMessage',
+		)
 		expect(config()).not.toHaveProperty('submitLabel')
 		expect(labels(root)).toEqual(
-			expect.arrayContaining(['Button', 'Once saved', 'When it fails']),
+			expect.arrayContaining(['Button text', 'On success', 'On failure', 'After submission']),
+		)
+		expect(field(root, 'On failure').props.placeholder).toBe("The server's message")
+		expect(config(), 'still staying on the page').not.toHaveProperty(
+			'redirectOnSuccess',
 		)
 
-		write(field(root, 'Button'), 'Create the order')
+		write(field(root, 'Button text'), 'Create the order')
+		write(field(root, 'On failure'), 'Try again')
+		write(field(root, 'After submission', 'USelectMenu'), '/shop/orders')
 		await nextTick()
-		write(field(root, 'Customize submit', 'USwitch'), false)
+		write(customSubmit(root), false)
 		await nextTick()
-		for (const key of ['submitLabel', 'successMessage', 'errorMessage']) {
+		for (const key of ['submitLabel', 'successMessage', 'errorMessage', 'redirectOnSuccess']) {
 			expect(config()).not.toHaveProperty(key)
 		}
-		expect(labels(root)).not.toContain('Once saved')
+		expect(labels(root)).not.toContain('On success')
 	})
 
 	it('is on for a form that already says something of its own', async () => {
 		const root = await formPanel({ ...BOUND, submitLabel: 'Send' })
-		expect(field(root, 'Customize submit', 'USwitch').props['model-value']).toBe(true)
-		expect(field(root, 'Button').props['model-value']).toBe('Send')
+		expect(customSubmit(root).props['model-value']).toBe(true)
+		expect(field(root, 'Button text').props['model-value']).toBe('Send')
+	})
+
+	it('is on for a form that already goes somewhere', async () => {
+		const root = await formPanel({ ...BOUND, redirectOnSuccess: '/shop/orders' })
+		expect(customSubmit(root).props['model-value']).toBe(true)
+		expect(field(root, 'After submission', 'USelectMenu').props['model-value']).toBe(
+			'/shop/orders',
+		)
 	})
 
 	it('stays on the page, or goes to one picked among the pages', async () => {
@@ -584,7 +617,9 @@ describe('what a form says and does once it is sent', () => {
 			{ ref: 'pages.shop', displayName: 'Shop' },
 		]
 		const root = await formPanel(BOUND)
-		const then = field(root, 'Then', 'USelectMenu')
+		write(customSubmit(root), true)
+		await nextTick()
+		const then = field(root, 'After submission', 'USelectMenu')
 		expect(then.props['model-value']).toBe('stay')
 		const items = then.props.items as Array<Record<string, unknown>>
 		expect(items.map((item) => item.label)).toEqual([
@@ -597,20 +632,30 @@ describe('what a form says and does once it is sent', () => {
 		await nextTick()
 		expect(config().redirectOnSuccess).toBe('/shop/orders')
 
-		write(field(root, 'Then', 'USelectMenu'), 'stay')
+		write(field(root, 'After submission', 'USelectMenu'), 'stay')
 		await nextTick()
 		expect(config()).not.toHaveProperty('redirectOnSuccess')
 	})
 
 	it('puts its labels beside the fields until they are asked above', async () => {
 		const root = await formPanel(BOUND)
-		const choice = field(root, 'Labels', 'DmsSegmented')
-		const items = choice.props.items as Array<{ label: string; value: string }>
-		const picked = items.find((item) => item.value === choice.props['model-value'])
-		expect(picked?.label).toBe('Beside the field')
+		const choices = findAll(
+			root,
+			(node) => node.props.role === 'group' && node.props['aria-label'] === 'Labels',
+		)[0]!
+		const buttons = findAll(choices, (node) => node.tag === 'button')
+		const picked = buttons.find((node) => node.props['aria-pressed'] === true)
+		expect(textOf(picked!).trim()).toBe('Beside the field')
 
-		write(choice, items.find((item) => item.label === 'Above it')?.value)
+		fire(buttons.find((node) => textOf(node).trim() === 'Above it')!, 'click')
 		await nextTick()
 		expect(config().fieldsOrientation).toBe('vertical')
+	})
+
+	it('groups its settings in three cards', async () => {
+		const root = await formPanel(BOUND)
+		expect(
+			findAll(root, (node) => node.tag === 'section').map((node) => node.props['aria-label']),
+		).toEqual(['Data', 'On the page', 'Custom submit'])
 	})
 })

@@ -11,6 +11,8 @@ import FormTarget from '../app/components/FormTarget.vue'
 import Node from '../app/components/Node.vue'
 import Overlay from '../app/components/Overlay.vue'
 import Option from '../app/components/Option.vue'
+import OnThePage from '../app/components/OnThePage.vue'
+import SubmitSettings from '../app/components/SubmitSettings.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -382,6 +384,8 @@ describe('a tab set the preview cannot build', () => {
 const panel = (): Record<string, Component> => ({
 	DmsBuilderOption: Option as Component,
 	DmsBuilderFormPanel: FormPanel as Component,
+	DmsBuilderOnThePage: OnThePage as Component,
+	DmsBuilderSubmitSettings: SubmitSettings as Component,
 	DmsBuilderFormTarget: FormTarget as Component,
 	DmsBuilderFormFields: FormFields as Component,
 	DmsBuilderFormFieldDetail: FormFieldDetail as Component,

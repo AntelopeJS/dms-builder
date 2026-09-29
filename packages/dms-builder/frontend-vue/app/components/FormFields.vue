@@ -187,7 +187,7 @@ function addField(): void {
 <template>
 	<div class="flex flex-col gap-2">
 		<div class="flex items-center justify-between">
-			<p class="flex items-center gap-1.5 text-xs font-semibold text-toned">
+			<p class="flex items-center gap-1.5 text-sm text-muted">
 				Fields
 				<UBadge
 					v-if="fieldCount"
@@ -228,7 +228,7 @@ function addField(): void {
 
 		<div
 			v-if="!bound && !manual"
-			class="flex items-center gap-2.5 rounded-lg border border-dashed border-accented px-3 py-3.5 text-xs text-dimmed"
+			class="flex items-center gap-2.5 rounded-lg border border-dashed border-accented bg-default px-3 py-3.5 text-xs text-dimmed"
 		>
 			<UIcon name="i-ph-list-bullets" class="size-4 shrink-0" />
 			They appear here once a table is picked.
@@ -236,7 +236,7 @@ function addField(): void {
 
 		<div
 			v-else-if="rows.length || unasked.length || manual"
-			class="overflow-hidden rounded-lg border border-default"
+			class="overflow-hidden rounded-lg border border-default bg-default"
 		>
 			<div
 				v-for="(row, at) in rows"

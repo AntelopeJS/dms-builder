@@ -59,7 +59,7 @@ async function choose(ref: string): Promise<void> {
 
 		<div
 			v-if="listing"
-			class="flex flex-col gap-2.5 rounded-lg border bg-elevated p-3"
+			class="flex flex-col gap-2.5 rounded-lg border bg-default p-3"
 			:class="table.table.value ? 'border-accented' : 'border-primary/35'"
 		>
 			<div v-if="!table.table.value" class="flex flex-col gap-1">

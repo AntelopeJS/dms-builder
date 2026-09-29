@@ -11,9 +11,13 @@ import {
 } from '../runtime/catalog'
 import { CHART_CARD_BLOCK, CHART_CARD_PANEL_OPTIONS } from '../runtime/chart-card'
 import { findNode } from '../runtime/draft'
-import { FORM_BLOCK, FORM_PANEL_OPTIONS } from '../runtime/form-panel'
+import { FORM_BLOCK, FORM_PANEL_OPTIONS, PANEL_CARD } from '../runtime/form-panel'
 import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
+import {
+	RESOURCE_FORM_BLOCK,
+	RESOURCE_FORM_PANEL_OPTIONS,
+} from '../runtime/resource-form-panel'
 import { parentPath, useBuilder } from '../runtime/session'
 import { TABLE_BLOCK, TABLE_PANEL_OPTIONS } from '../runtime/table-panel'
 import type { OptionSchema } from '../runtime/types'
@@ -94,12 +98,18 @@ const parentBlock = computed(() => {
  * each panel edits; whatever else a block declares is offered below it.
  *
  * - a form saves into a table its author picks, not into an endpoint typed;
+ * - a table form says what it does with a row, and where it goes once sent,
+ *   with no variable to type;
  * - a table lists one picked from the tables there are, their columns beside;
  * - a chart card draws a chart picked by how it draws, measuring what is
  *   built from a table, the rest folded away behind a line each.
  */
 const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
 	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
+	[RESOURCE_FORM_BLOCK]: {
+		component: 'DmsBuilderResourceFormPanel',
+		options: RESOURCE_FORM_PANEL_OPTIONS,
+	},
 	[TABLE_BLOCK]: { component: 'DmsBuilderTablePanel', options: TABLE_PANEL_OPTIONS },
 	[CHART_CARD_BLOCK]: {
 		component: 'DmsBuilderChartCardPanel',
@@ -289,6 +299,20 @@ function setOptIn(entry: RenderedOptIn, on: boolean): void {
 	builder.patchConfig(path.value, values)
 }
 
+/** The icon a group of options is titled with, by what the group holds. */
+const GROUP_ICONS: Record<string, string> = {
+	content: 'i-ph-text-t',
+	features: 'i-ph-toggle-right',
+	data: 'i-ph-table',
+	appearance: 'i-ph-palette',
+	layout: 'i-ph-layout',
+	behavior: 'i-ph-lightning',
+}
+
+function groupIcon(id: string): string {
+	return GROUP_ICONS[id] ?? 'i-ph-sliders-horizontal'
+}
+
 const plainGroups = computed(() =>
 	groups.value.filter((group) => group.id !== ADVANCED_OPTION_GROUP),
 )
@@ -306,6 +330,12 @@ const resource = computed(() =>
 		: undefined,
 )
 const fieldCount = computed(() => resource.value?.fields.length ?? 0)
+/** What the fields of the table are, to the block reading it. */
+const fieldsHint = computed(() =>
+	block.value?.type === RESOURCE_FORM_BLOCK
+		? "The form asks for the table's fields, in the table's order."
+		: 'What each column shows, and how rows are searched, sorted and filtered.',
+)
 const searchField = computed(
 	() => resource.value?.fields.find((field) => field.searchable)?.name,
 )
@@ -341,7 +371,7 @@ async function setSearchField(name: string): Promise<void> {
 		Select a block on the page to configure it.
 	</div>
 
-	<div v-else class="flex flex-col gap-5">
+	<div v-else class="flex flex-col gap-3">
 		<div
 			v-if="block.preserve"
 			class="flex flex-col gap-2 rounded-md border border-default bg-elevated p-3 text-sm text-dimmed"
@@ -369,38 +399,90 @@ async function setSearchField(name: string): Promise<void> {
 				</ul>
 			</div>
 
-			<div
+			<section
 				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
-				class="flex flex-col gap-1.5"
+				:class="PANEL_CARD"
+				aria-label="Table"
 			>
-				<label class="text-sm font-medium text-default">
-					Database table
-				</label>
-				<USelectMenu
-					:model-value="block.controller"
-					:items="
-						session.resources.map((entry) => ({
-							label: entry.ref,
-							value: entry.ref,
-						}))
-					"
-					value-key="value"
-					placeholder="Choose a resource…"
-					@update:model-value="builder.setController(path, $event)"
-				/>
-				<p class="text-xs text-dimmed">
-					This block reads and writes this table.
+				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+					<UIcon name="i-ph-table" class="size-4 text-primary" />
+					Table
 				</p>
-			</div>
+				<div class="flex flex-col gap-1.5">
+					<label class="text-sm text-muted">Database table</label>
+					<USelectMenu
+						:model-value="block.controller"
+						:items="
+							session.resources.map((entry) => ({
+								label: entry.ref,
+								value: entry.ref,
+							}))
+						"
+						value-key="value"
+						placeholder="Choose a table…"
+						@update:model-value="builder.setController(path, $event)"
+					/>
+					<p class="text-[13px]/[18px] text-muted">
+						This block reads and writes this table.
+					</p>
+				</div>
+				<UButton
+					color="neutral"
+					variant="outline"
+					block
+					:disabled="!block.controller"
+					trailing-icon="i-ph-caret-right"
+					icon="i-ph-list"
+					:label="
+						block.controller
+							? `Edit the table's ${fieldCount} field${fieldCount === 1 ? '' : 's'}`
+							: 'Choose a table first'
+					"
+					@click="builder.setView('resource')"
+				/>
+				<p class="flex gap-2 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning">
+					<UIcon name="i-ph-info" class="mt-px size-3.5 shrink-0" />
+					<span>
+						{{ fieldsHint }} Changing them changes the table itself, on every page
+						using it, right away — not on Save.
+					</span>
+				</p>
+
+				<div
+					v-if="block.type === SEARCH_BAR_BLOCK"
+					class="flex flex-col gap-1.5"
+				>
+					<label class="text-sm text-muted">Search field</label>
+					<USelectMenu
+						:model-value="searchField"
+						:items="
+							(resource?.fields ?? []).map((field) => ({
+								label: field.name,
+								value: field.name,
+							}))
+						"
+						value-key="value"
+						:disabled="!resource"
+						placeholder="— None —"
+						@update:model-value="setSearchField($event)"
+					/>
+					<p class="text-[13px]/[18px] text-muted">
+						Used by the table's search bar. The DMS accepts several; this
+						picker sets one.
+					</p>
+				</div>
+			</section>
 
 			<component :is="panel.component" v-if="panel" :key="path" :path="path" />
 
-			<div
+			<section
 				v-for="group in plainGroups"
 				:key="group.id"
-				class="flex flex-col gap-3"
+				:class="PANEL_CARD"
+				:aria-label="group.label"
 			>
-				<p class="text-sm font-semibold text-highlighted">
+				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+					<UIcon :name="groupIcon(group.id)" class="size-4 text-primary" />
 					{{ group.label }}
 				</p>
 				<template v-for="entry in entriesOf(group.options)" :key="entry.id">
@@ -442,63 +524,14 @@ async function setSearchField(name: string): Promise<void> {
 						@patch="builder.patchConfig(path, $event)"
 					/>
 				</template>
-			</div>
-
-			<div
-				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
-				class="flex flex-col gap-3"
-			>
-				<p class="text-sm font-semibold text-highlighted">Fields</p>
-				<UButton
-					color="neutral"
-					variant="outline"
-					block
-					:disabled="!block.controller"
-					trailing-icon="i-ph-caret-right"
-					icon="i-ph-list"
-					:label="
-						block.controller
-							? `${fieldCount} field${fieldCount === 1 ? '' : 's'} imported`
-							: 'Choose a table first'
-					"
-					@click="builder.setView('resource')"
-				/>
-				<p class="text-xs text-dimmed">
-					Order, visibility, filters and sorting, field by field. Those belong
-					to the resource and are written as you make them; the settings above
-					belong to this page and wait for Save.
-				</p>
-
-				<div
-					v-if="block.type === SEARCH_BAR_BLOCK"
-					class="flex flex-col gap-1.5"
-				>
-					<label class="text-sm font-medium text-default">Search field</label>
-					<USelectMenu
-						:model-value="searchField"
-						:items="
-							(resource?.fields ?? []).map((field) => ({
-								label: field.name,
-								value: field.name,
-							}))
-						"
-						value-key="value"
-						:disabled="!resource"
-						placeholder="— None —"
-						@update:model-value="setSearchField($event)"
-					/>
-					<p class="text-xs text-dimmed">
-						Used by the table's search bar. The DMS accepts several; this
-						picker sets one.
-					</p>
-				</div>
-			</div>
+			</section>
 
 			<!-- A block dropped in lands in the region on screen; this is how it is
 			moved to another one afterwards. Named after the container rather than
 			called a slot, which is a word the gesture exists to spare anyone. -->
-			<div v-if="slots.length" class="flex flex-col gap-1.5">
-				<label class="text-sm font-medium text-default">
+			<section v-if="slots.length" :class="PANEL_CARD" :aria-label="regionLabel">
+				<label class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+					<UIcon name="i-ph-squares-four" class="size-4 text-primary" />
 					{{ regionLabel }}
 				</label>
 				<USelectMenu
@@ -508,13 +541,17 @@ async function setSearchField(name: string): Promise<void> {
 					placeholder="Choose where it shows…"
 					@update:model-value="builder.setSlot(path, $event)"
 				/>
-			</div>
+			</section>
 
-			<div
+			<section
 				v-if="Object.keys(childMeta).length"
-				class="flex flex-col gap-3 border-t border-default pt-4"
+				:class="PANEL_CARD"
+				aria-label="Placement"
 			>
-				<p class="text-sm font-semibold text-highlighted">Placement</p>
+				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+					<UIcon name="i-ph-arrows-out-cardinal" class="size-4 text-primary" />
+					Placement
+				</p>
 				<DmsBuilderOption
 					v-for="[key, schema] in Object.entries(childMeta)"
 					:key="key"
@@ -523,24 +560,26 @@ async function setSearchField(name: string): Promise<void> {
 					:model-value="(block.meta ?? {})[key]"
 					@update:model-value="builder.patchMeta(path, { [key]: $event })"
 				/>
-			</div>
+			</section>
 
-			<div v-if="advanced" class="border-t border-default pt-4">
+			<section v-if="advanced" :class="PANEL_CARD" aria-label="Advanced">
 				<button
 					type="button"
-					class="flex w-full items-center gap-2 text-sm font-semibold text-dimmed hover:text-default"
+					class="flex w-full items-center gap-2 text-sm font-semibold text-highlighted"
+					:aria-expanded="showAdvanced"
 					@click="showAdvanced = !showAdvanced"
 				>
-					<UIcon
-						:name="showAdvanced ? 'i-ph-caret-down' : 'i-ph-caret-right'"
-						class="size-3.5"
-					/>
+					<UIcon name="i-ph-code" class="size-4 text-primary" />
 					Advanced
-					<span class="ml-auto font-normal normal-case">
+					<span class="ml-auto text-[13px] font-normal text-muted">
 						{{ advanced.options.length }}
 					</span>
+					<UIcon
+						:name="showAdvanced ? 'i-ph-caret-up' : 'i-ph-caret-down'"
+						class="size-4 text-dimmed"
+					/>
 				</button>
-				<div v-if="showAdvanced" class="mt-3 flex flex-col gap-3">
+				<div v-if="showAdvanced" class="flex flex-col gap-3">
 					<DmsBuilderOption
 						v-for="option in advanced.options"
 						:key="option.id"
@@ -551,7 +590,7 @@ async function setSearchField(name: string): Promise<void> {
 						@update:model-value="option.update($event)"
 					/>
 				</div>
-			</div>
+			</section>
 		</template>
 
 		<div class="flex flex-wrap gap-2 border-t border-default pt-4">

@@ -68,7 +68,7 @@ function columnsLabel(count: number | undefined): string {
 
 <template>
 	<div class="flex flex-col gap-2">
-		<p class="text-xs font-semibold text-toned">
+		<p class="text-sm text-muted">
 			{{ destination.kind === 'address' ? 'Sends to' : 'Saves into' }}
 		</p>
 
@@ -158,7 +158,7 @@ function columnsLabel(count: number | undefined): string {
 
 		<div
 			v-else-if="destination.kind === 'address'"
-			class="flex flex-col gap-2.5 rounded-lg border border-accented bg-elevated p-2.5"
+			class="flex flex-col gap-2.5 rounded-lg border border-accented bg-default p-2.5"
 		>
 			<div class="flex items-center gap-2.5">
 				<span
@@ -187,7 +187,7 @@ function columnsLabel(count: number | undefined): string {
 
 		<div
 			v-if="listing"
-			class="flex flex-col gap-2.5 rounded-lg border bg-elevated p-3"
+			class="flex flex-col gap-2.5 rounded-lg border bg-default p-3"
 			:class="destination.kind === 'none' ? 'border-primary/35' : 'border-accented'"
 		>
 			<div v-if="destination.kind === 'none'" class="flex flex-col gap-1">

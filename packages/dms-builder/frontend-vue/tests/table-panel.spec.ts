@@ -3,13 +3,11 @@ import { nextTick, type Component } from 'vue'
 import Config from '../app/components/Config.vue'
 import Option from '../app/components/Option.vue'
 import TableActions from '../app/components/TableActions.vue'
-import TableColumns from '../app/components/TableColumns.vue'
 import TablePanel from '../app/components/TablePanel.vue'
 import TableSource from '../app/components/TableSource.vue'
 import TablePicker from '../app/components/TablePicker.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
-	fakeEvent,
 	findAll,
 	fire,
 	installDocumentStub,
@@ -24,7 +22,7 @@ import type { ResourceStructure } from '../app/runtime/types'
 
 /**
  * A table, as someone building a page sets one up in the simple mode: the
- * table it lists, picked rather than named, that table's columns beside it,
+ * table it lists, picked rather than named, a way to that table's columns,
  * how its rows come and are called, and what people can do with them.
  */
 
@@ -37,7 +35,6 @@ Object.assign(globalThis, { resolveDmsComponent: () => undefined })
 
 const RESOURCES = 'GET /api/builder/resources'
 const RESOURCE = 'GET /api/builder/resource'
-const FIELDS = 'PUT /api/builder/resource/fields'
 const CONFIGURE = 'POST /api/builder/resource/configure'
 const { setMode } = useBuilderMode()
 
@@ -101,7 +98,6 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderTablePanel: TablePanel as Component,
 	DmsBuilderTableSource: TableSource as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
-	DmsBuilderTableColumns: TableColumns as Component,
 	DmsBuilderTableActions: TableActions as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
@@ -203,27 +199,29 @@ function toggle(root: TestNode, name: string): TestNode {
 	return control(root, 'USwitch', name)
 }
 
-function checkbox(root: TestNode, name: string): TestNode {
-	return control(root, 'UCheckbox', name)
+interface Choice {
+	label: string
+	type?: string
+	value?: unknown
 }
 
-/** The labels a segmented control offers, and the one it shows picked. */
-function segments(target: TestNode): { labels: string[]; picked?: string } {
-	const items = target.props.items as Array<{ label: string; value: unknown }>
-	return {
-		labels: items.map((item) => item.label),
-		picked: items.find((item) => item.value === target.props['model-value'])?.label,
-	}
+/** A menu's choices, group by group: a column's name, then its choices. */
+function choices(target: TestNode): string[][] {
+	return (target.props.items as Choice[][]).map((group) =>
+		group.map((item) => (item.type === 'label' ? `${item.label}:` : item.label)),
+	)
 }
 
-/** Pick the segment labelled `label`, the way a click on it does. */
-function pick(target: TestNode, label: string): void {
-	const items = target.props.items as Array<{ label: string; value: unknown }>
-	const item = items.find((entry) => entry.label === label)
+/** The value of the choice labelled `label` under the column `column`. */
+function choice(target: TestNode, column: string, label: string): unknown {
+	const group = (target.props.items as Choice[][]).find(
+		(entry) => entry[0]?.label === column,
+	)
+	const item = group?.find((entry) => entry.type !== 'label' && entry.label === label)
 	if (!item) {
-		throw new Error(`no segment ${label}`)
+		throw new Error(`no choice ${column} ${label}`)
 	}
-	write(target, item.value)
+	return item.value
 }
 
 /** Fire a control's own `update:modelValue`, the way a user's input does. */
@@ -233,17 +231,6 @@ function write(target: TestNode, value: unknown): void {
 		throw new Error(`<${target.tag}> writes nothing`)
 	}
 	;(handler as (value: unknown) => void)(value)
-}
-
-/** The rows of the column grid, which each carry a column's checkboxes. */
-function columnRows(root: TestNode): TestNode[] {
-	return findAll(root, (candidate) => candidate.props.draggable !== undefined)
-}
-
-function fieldWrites(): Array<{ path?: unknown; patch?: unknown }> {
-	return backend.calls
-		.filter((call) => `${call.method} ${call.path}` === FIELDS)
-		.map((call) => call.body as { path?: unknown; patch?: unknown })
 }
 
 beforeEach(() => {
@@ -278,7 +265,7 @@ describe('a table placed a moment ago', () => {
 		)
 	})
 
-	it('lists the table picked, and shows its columns', async () => {
+	it('lists the table picked, and leads to its columns', async () => {
 		const root = await tablePanel()
 		const order = findAll(root, (candidate) => candidate.props.role === 'option')[1]
 		fire(order!, 'click')
@@ -286,7 +273,7 @@ describe('a table placed a moment ago', () => {
 
 		expect(node()?.controller).toBe('order')
 		expect(has(root, 'Table it lists: order')).toBe(true)
-		expect(columnRows(root).map(textOf)).toEqual(['Amount', 'Status', 'Created', 'Note'])
+		expect(has(root, 'Open the table')).toBe(true)
 		expect(textOf(root)).toContain('What people can do')
 	})
 
@@ -299,50 +286,21 @@ describe('a table placed a moment ago', () => {
 })
 
 describe('the columns of the table it lists', () => {
-	it('shows whether each shows, is searched and filtered, and writes it at once', async () => {
+	it('leaves them to the table, opened in the tables view', async () => {
 		const root = await tablePanel({ controller: 'order' })
-
-		expect(checkbox(root, 'Amount: Shown').props['model-value']).toBe(true)
-		expect(checkbox(root, 'Note: Shown').props['model-value']).toBe(false)
-		expect(checkbox(root, 'Status: Filter').props['model-value']).toBe(true)
-		expect(checkbox(root, 'Status: Search').props['model-value']).toBe(false)
-
-		write(checkbox(root, 'Status: Search'), true)
-		await settle()
-		expect(fieldWrites()).toEqual([
-			{ path: 'order#status', patch: { searchable: true } },
-		])
-		expect(config(), 'the page itself is left as it was').toEqual({})
-	})
-
-	it('moves a column with the arrow keys, writing each rank that changes', async () => {
-		const root = await tablePanel({ controller: 'order' })
-		fire(button(root, 'Move Status'), 'keydown', {
-			...fakeEvent('keydown'),
-			key: 'ArrowUp',
-		} as ReturnType<typeof fakeEvent>)
-		await settle()
-
-		expect(fieldWrites()).toEqual([
-			{ path: 'order#status', patch: { order: 1 } },
-			{ path: 'order#amount', patch: { order: 2 } },
-			{ path: 'order#created', patch: { order: 3 } },
-			{ path: 'order#note', patch: { order: 4 } },
-		])
-	})
-
-	it('moves a column dropped on another to its place', async () => {
-		const root = await tablePanel({ controller: 'order' })
-		const [amount, , , note] = columnRows(root)
-		fire(note!, 'dragstart')
-		fire(amount!, 'dragover')
-		fire(amount!, 'drop')
-		await settle()
-
 		expect(
-			fieldWrites().map((entry) => entry.path),
-			'the column dropped first, the others after it',
-		).toEqual(['order#note', 'order#amount', 'order#status', 'order#created'])
+			findAll(root, (candidate) => candidate.tag === 'UCheckbox'),
+			'no column set from the page',
+		).toEqual([])
+
+		fire(button(root, 'Open the table'), 'click')
+		await nextTick()
+		expect(builder.session.value.view).toBe('resource')
+		expect(builder.session.value.table).toEqual({
+			ref: 'order',
+			tab: 'fields',
+			adding: false,
+		})
 	})
 
 	it('forgets what named the old columns when another table is listed', async () => {
@@ -362,41 +320,47 @@ describe('the columns of the table it lists', () => {
 })
 
 describe('how its rows come and are called', () => {
-	it('sorts by a column the table sorts by, a date newest first', async () => {
+	it('sorts by a column the table sorts by, and its way, in one choice', async () => {
 		const root = await tablePanel({ controller: 'order' })
-		const menu = control(root, 'USelectMenu', 'Rows come sorted by')
-		const offered = (menu.props.items as Array<{ value: string }>).map(
-			(item) => item.value,
-		)
-		expect(offered, 'only the columns it sorts by').toEqual(['#none', 'amount', 'created'])
+		const menu = control(root, 'USelectMenu', 'Sort rows by')
+		expect(choices(menu), 'only the columns it sorts by, each its own way').toEqual([
+			['None'],
+			['Amount:', 'Largest first', 'Smallest first'],
+			['Created:', 'Newest first', 'Oldest first'],
+		])
+		expect(menu.props['model-value']).toBeUndefined()
 
-		write(menu, 'created')
+		write(menu, choice(menu, 'Created', 'Newest first'))
 		await nextTick()
 		expect(config().defaultSort).toEqual({ field: 'created', desc: true })
 
-		pick(control(root, 'DmsSegmented', 'Order'), 'Oldest first')
+		const sorted = control(root, 'USelectMenu', 'Sort rows by')
+		write(sorted, choice(sorted, 'Created', 'Oldest first'))
 		await nextTick()
 		expect(config().defaultSort).toEqual({ field: 'created' })
 
-		write(control(root, 'USelectMenu', 'Rows come sorted by'), '#none')
+		write(control(root, 'USelectMenu', 'Sort rows by'), '#none')
 		await nextTick()
 		expect(config().defaultSort).toBeUndefined()
 	})
 
-	it('reads a number largest first, and a sort written in code as it is', async () => {
+	it('shows a sort written in code as the choice it is', async () => {
 		const root = await tablePanel({
 			controller: 'order',
-			config: { defaultSort: { field: 'amount', desc: true } },
+			config: { defaultSort: { field: 'status', desc: true } },
 		})
-		expect(segments(control(root, 'DmsSegmented', 'Order'))).toEqual({
-			labels: ['Largest first', 'Smallest first'],
-			picked: 'Largest first',
-		})
+		const menu = control(root, 'USelectMenu', 'Sort rows by')
+		expect(choices(menu).at(-1), 'a column it does not sort by').toEqual([
+			'Status:',
+			'A to Z',
+			'Z to A',
+		])
+		expect(menu.props['model-value']).toBe(choice(menu, 'Status', 'Z to A'))
 	})
 
 	it('names a row by a column it shows', async () => {
 		const root = await tablePanel({ controller: 'order' })
-		const menu = control(root, 'USelectMenu', 'Rows are called by')
+		const menu = control(root, 'USelectMenu', 'Name rows by')
 		expect(
 			(menu.props.items as Array<{ value: string }>).map((item) => item.value),
 		).toEqual(['#none', 'amount', 'status', 'created'])
@@ -405,9 +369,15 @@ describe('how its rows come and are called', () => {
 		await nextTick()
 		expect(config().labelKey).toBe('status')
 
-		write(control(root, 'USelectMenu', 'Rows are called by'), '#none')
+		write(control(root, 'USelectMenu', 'Name rows by'), '#none')
 		await nextTick()
 		expect(config().labelKey).toBeUndefined()
+	})
+
+	it('explains each setting behind its tip', async () => {
+		const root = await tablePanel({ controller: 'order' })
+		expect(has(root, 'Among the columns order sorts by: Amount, Created.')).toBe(true)
+		expect(has(root, 'Shown in the title of their dialogs.')).toBe(true)
 	})
 })
 

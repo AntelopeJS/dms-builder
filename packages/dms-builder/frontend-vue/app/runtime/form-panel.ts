@@ -34,6 +34,18 @@ export const FORM_PANEL_OPTIONS = new Set([
 	'errorMessage',
 ])
 
+/** Beside the field is where a form puts its labels when nothing says. */
+export const FIELD_ORIENTATION_DEFAULT = 'horizontal'
+
+/**
+ * A card of a form's panel: a titled group of the settings that go together —
+ * its data, what it shows on the page, what it does once sent.
+ */
+export const PANEL_CARD =
+	'flex flex-col gap-3.5 rounded-lg border border-default bg-elevated p-3.5'
+/** A setting's label inside a card, quieter than the card's title. */
+export const CARD_FIELD_UI = { label: 'font-normal text-muted' }
+
 /** The branch of a form's entries that is a field rather than a group. */
 function fieldBranch(fields: OptionSchema | undefined): OptionSchema | undefined {
 	const items = fields?.items

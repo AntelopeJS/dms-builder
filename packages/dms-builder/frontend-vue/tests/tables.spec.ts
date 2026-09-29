@@ -595,7 +595,10 @@ describe('a block that reads a table', () => {
 		)
 	})
 
+	// The simple view edits a table form in a panel of its own; the advanced
+	// one lists its table where the table block has its picker.
 	it('leaves it off a form over the same table', async () => {
+		useBuilderMode().setMode('advanced')
 		const form = await selected('ResourceForm')
 		const shown = findAll(form, (node) => node.tag === 'label').map(textOf)
 		expect(shown).toContain('Database table')

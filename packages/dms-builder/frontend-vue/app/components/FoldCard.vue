@@ -26,8 +26,7 @@ const open = ref(props.defaultOpen)
 	<UCollapsible
 		v-model:open="open"
 		:unmount-on-hide="false"
-		class="overflow-hidden rounded-lg border transition-colors"
-		:class="open ? 'border-accented bg-elevated/30' : 'border-default'"
+		class="overflow-hidden rounded-lg border border-default bg-elevated"
 	>
 		<UButton
 			color="neutral"
@@ -35,19 +34,14 @@ const open = ref(props.defaultOpen)
 			block
 			:trailing-icon="open ? 'i-ph-caret-up' : 'i-ph-caret-down'"
 			:ui="{ trailingIcon: 'size-4 text-dimmed' }"
-			class="min-h-12 justify-start gap-2.5 rounded-none px-3 text-left"
+			class="min-h-12 justify-start gap-2 rounded-none px-3.5 py-3 text-left hover:bg-accented/40"
 		>
-			<span
-				class="flex size-7 shrink-0 items-center justify-center rounded-md"
-				:class="open ? 'bg-primary/10 text-primary' : 'bg-accented text-muted'"
-			>
-				<UIcon :name="icon" class="size-4" />
-			</span>
+			<UIcon :name="icon" class="size-4 shrink-0 text-primary" />
 			<span class="flex min-w-0 flex-1 flex-col">
-				<span class="font-semibold text-highlighted">{{ title }}</span>
+				<span class="text-sm font-semibold text-highlighted">{{ title }}</span>
 				<span
 					v-if="summary"
-					class="flex min-w-0 items-center gap-1.5 text-xs font-normal text-muted"
+					class="flex min-w-0 items-center gap-1.5 text-[13px]/[18px] font-normal text-muted"
 				>
 					<UChip v-if="dot" :color="dot" standalone />
 					<span class="truncate">{{ summary }}</span>
@@ -55,7 +49,7 @@ const open = ref(props.defaultOpen)
 			</span>
 		</UButton>
 		<template #content>
-			<div class="flex flex-col gap-3 border-t border-default p-3">
+			<div class="flex flex-col gap-3.5 px-3.5 pt-1 pb-3.5">
 				<slot />
 			</div>
 		</template>

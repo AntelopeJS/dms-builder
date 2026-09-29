@@ -13,6 +13,7 @@ import {
 } from '../runtime/chart-card'
 import { THEME_COLORS } from '../runtime/constants'
 import { describeSource, sourceQuery } from '../runtime/data-source'
+import { PANEL_CARD } from '../runtime/form-panel'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
@@ -198,33 +199,15 @@ const showingMore = ref(false)
 </script>
 
 <template>
-	<div class="flex flex-col gap-6">
-		<div class="flex flex-col gap-3">
-			<UFormField
-				v-if="has('title')"
-				label="Title"
-				:required="!options.title?.optional"
-			>
-				<UInput
-					:model-value="text('title')"
-					size="lg"
-					placeholder="Shown at the top of the card"
-					class="w-full"
-					@update:model-value="write('title', String($event))"
-				/>
-			</UFormField>
-			<UFormField v-if="has('description')" label="Description">
-				<UTextarea
-					:model-value="text('description')"
-					:rows="2"
-					placeholder="Shown under the title — optional"
-					class="w-full"
-					@update:model-value="write('description', String($event))"
-				/>
-			</UFormField>
-		</div>
+	<div class="flex flex-col gap-3">
+		<DmsBuilderOnThePage :path="path" />
 
-		<UFormField v-if="chartTypes.length" label="Chart" :required="!chart.type">
+		<section v-if="chartTypes.length" :class="PANEL_CARD" aria-label="Chart">
+			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+				<UIcon name="i-ph-chart-line" class="size-4 text-primary" />
+				Chart
+				<span v-if="!chart.type" class="text-error" aria-hidden="true">*</span>
+			</p>
 			<div role="group" aria-label="How it draws" class="grid grid-cols-3 gap-1.5">
 				<UButton
 					v-for="type in [...mainTypes, ...(othersShown ? otherTypes : [])]"
@@ -249,12 +232,12 @@ const showingMore = ref(false)
 					.slice(0, 3)
 					.map((type) => typeOf(type).label.toLowerCase())
 					.join(', ')}…`"
-				class="mt-2 px-0"
+				class="self-start px-0"
 				@click="showingOthers = true"
 			/>
-		</UFormField>
+		</section>
 
-		<div class="flex flex-col gap-2.5">
+		<div class="flex flex-col gap-3">
 			<DmsBuilderFoldCard
 				v-if="has('fetchUrl') && block"
 				icon="i-ph-table"
@@ -382,7 +365,7 @@ const showingMore = ref(false)
 
 				<div
 					v-if="has('showLegend') || lookSwitches.length"
-					class="-mx-3 border-y border-default"
+					class="overflow-hidden rounded-md border border-default bg-default"
 				>
 					<div
 						v-if="has('showLegend')"
