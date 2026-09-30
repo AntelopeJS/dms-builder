@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.5
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.4...v0.2.5)
+
+### 🩹 Fixes
+
+- **deps:** Cap @antelopejs/interface-dms-builder below the next minor and check interface ranges ([#32](https://github.com/AntelopeJS/dms-builder/pull/32))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.2.4
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.3...v0.2.4)
