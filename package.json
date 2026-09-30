@@ -8,7 +8,7 @@
     "url": "git+https://github.com/AntelopeJS/dms-builder.git"
   },
   "scripts": {
-    "lint": "oxlint && oxfmt --check .",
+    "lint": "oxlint && oxfmt --check . && antelopejs-check-interface-ranges",
     "lint:fix": "oxlint --fix --max-warnings=1000000 && oxfmt .",
     "format": "oxfmt .",
     "build": "pnpm --filter @antelopejs/dms-builder build",
@@ -17,7 +17,7 @@
     "knip": "pnpm --filter @antelopejs/dms-builder knip"
   },
   "devDependencies": {
-    "@antelopejs/tooling-configs": ">=0.0.6 <1.0.0",
+    "@antelopejs/tooling-configs": ">=0.0.7 <1.0.0",
     "@types/node": "^24.0.0",
     "oxfmt": "^0.66.0",
     "oxlint": "1.81.0",

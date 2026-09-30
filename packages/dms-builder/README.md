@@ -172,8 +172,10 @@ pnpm test
 pnpm -w lint        # oxlint and oxfmt, configured at the workspace root
 ```
 
-The runtime depends on the interface through `>=<interface version> <1.0.0`;
-inside the workspace pnpm resolves that range to the sibling package
+The runtime implements the interface, so it depends on it through
+`>=<interface version> <0.<minor + 1>.0` (a cap below the next minor): a
+breaking interface minor never reaches a runtime that does not implement it.
+Inside the workspace pnpm resolves that range to the sibling package
 (`link-workspace-packages`), and the published manifest keeps it. Release the
 interface package first (`release-interface.yml`), then release
 `@antelopejs/dms-builder` (`release.yml`) — the runtime's release workflow
