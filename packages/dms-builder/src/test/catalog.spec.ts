@@ -114,6 +114,16 @@ describe("the block catalog", () => {
     );
   });
 
+  it("keeps a placeholder's own size to the advanced view", () => {
+    const { config } = blockNamed("Placeholder");
+    expect(config.height?.ui?.advanced).to.equal(true);
+    expect(config.width?.ui?.advanced).to.equal(true);
+    expect(
+      config.label?.ui?.advanced,
+      "what it says stays offered",
+    ).to.not.equal(true);
+  });
+
   it("marks the options a data type is handed a table in", () => {
     const relation = catalog.dataTypes.find((type) => type.id === "relation");
     expect(relation?.config.dataApiController).to.include({
