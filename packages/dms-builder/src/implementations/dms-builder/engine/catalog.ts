@@ -123,13 +123,21 @@ function withAdvanced(type: string, config: ConfigSchema): ConfigSchema {
   );
 }
 
+/**
+ * Icons the builder draws its own way: the DMS gives a table form the form's
+ * pencil, and side by side in the palette the two read as one component.
+ */
+const ICONS: Readonly<Record<string, string>> = {
+  ResourceForm: "i-ph-clipboard-text",
+};
+
 function fromDeclared(declared: DeclaredBlockType): BlockTypeDescriptor {
   return {
     type: declared.type,
     import: { name: declared.type, module: BASE_MODULE },
     componentName: declared.componentName,
     label: declared.meta.name,
-    icon: declared.meta.icon,
+    icon: ICONS[declared.type] ?? declared.meta.icon,
     group: declared.meta.group,
     container: declared.container === true,
     allowedChildren: declared.allowedChildren,

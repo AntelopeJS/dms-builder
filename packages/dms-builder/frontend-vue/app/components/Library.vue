@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { paletteGroups } from '../runtime/catalog'
+import { paletteGroups, paletteIcon } from '../runtime/catalog'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 import type { BlockTypeDescriptor } from '../runtime/types'
@@ -53,52 +53,55 @@ function onDragStart(event: DragEvent, block: BlockTypeDescriptor): void {
 			<p class="text-xs font-semibold uppercase tracking-wide text-dimmed">
 				{{ group.label }}
 			</p>
-			<div class="grid grid-cols-2 gap-2">
-				<!-- A component the container turns down stays draggable: the rule is
-				about where it would land, and elsewhere on the page it is welcome. -->
-				<button
+			<div class="grid grid-cols-3 gap-2">
+				<div
 					v-for="block in group.blocks"
 					:key="block.type"
-					type="button"
-					draggable="true"
-					class="flex cursor-grab flex-col gap-1 rounded-lg border border-default bg-default p-2.5 text-left transition-colors"
-					:class="
-						refusals.get(block.type) ? 'opacity-50' : 'hover:border-primary'
-					"
-					:aria-disabled="refusals.get(block.type) !== undefined"
-					:title="refusals.get(block.type) ?? block.description"
-					@dragstart="onDragStart($event, block)"
-					@dragend="builder.endDrag()"
-					@click="builder.addBlock(block.type, target, null)"
+					class="relative flex min-w-0"
 				>
-					<UIcon
-						:name="block.icon ?? 'i-ph-square'"
-						class="size-4 text-dimmed"
-					/>
-					<span class="text-xs font-medium text-default">
-						{{ block.label ?? block.type }}
-					</span>
-					<span
-						v-if="block.description"
-						class="line-clamp-2 text-xs leading-snug text-dimmed"
+					<!-- A component the container turns down stays draggable: the rule is
+					about where it would land, and elsewhere on the page it is welcome. -->
+					<button
+						type="button"
+						draggable="true"
+						class="flex min-w-0 flex-1 cursor-grab flex-col items-center gap-2 rounded-lg border border-default bg-default px-1.5 pt-3 pb-2.5 transition-colors"
+						:class="
+							refusals.get(block.type) ? 'opacity-50' : 'hover:border-primary'
+						"
+						:aria-disabled="refusals.get(block.type) !== undefined"
+						:title="refusals.get(block.type)"
+						@dragstart="onDragStart($event, block)"
+						@dragend="builder.endDrag()"
+						@click="builder.addBlock(block.type, target, null)"
 					>
-						{{ block.description }}
-					</span>
-					<span v-if="refusals.get(block.type)" class="text-xs text-warning">
-						{{ refusals.get(block.type) }}
-					</span>
-				</button>
+						<span
+							class="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary"
+						>
+							<UIcon :name="paletteIcon(block.icon)" class="size-6" />
+						</span>
+						<span
+							class="text-center text-xs font-medium text-balance text-default"
+						>
+							{{ block.label ?? block.type }}
+						</span>
+					</button>
+					<!-- What the component is waits behind its own button, beside the
+					tile rather than in it: the tile's click adds the component. -->
+					<UTooltip v-if="block.description" :text="block.description">
+						<button
+							type="button"
+							:aria-label="`About ${block.label ?? block.type}: ${block.description}`"
+							class="absolute top-1 right-1 flex size-3.5 cursor-help items-center justify-center text-[10px] leading-none font-medium text-dimmed opacity-60 transition-opacity hover:opacity-100"
+						>
+							?
+						</button>
+					</UTooltip>
+				</div>
 			</div>
 		</div>
 
 		<p v-if="!groups.length" class="text-sm text-dimmed">
 			No component matches “{{ query }}”.
-		</p>
-
-		<p class="rounded-md border border-default p-3 text-xs text-dimmed">
-			<b class="text-default">Drag</b> a component onto the page to place it, or
-			<b class="text-default">click</b> to append it
-			{{ target ? `inside ${target}` : 'to the page' }}.
 		</p>
 	</div>
 </template>

@@ -223,6 +223,21 @@ export function paletteGroups(
 	}))
 }
 
+const PALETTE_ICON = 'i-ph-square'
+const PHOSPHOR_WEIGHT = /-(thin|light|bold|fill|duotone)$/
+
+/**
+ * The icon a palette tile draws. A tile draws it large, in Phosphor's two-tone
+ * weight: at that size the line weight a menu uses reads thin and empty. An
+ * icon from another set, or one already naming its weight, is drawn as given.
+ */
+export function paletteIcon(icon: string | undefined): string {
+	const name = icon ?? PALETTE_ICON
+	return name.startsWith('i-ph-') && !PHOSPHOR_WEIGHT.test(name)
+		? `${name}-duotone`
+		: name
+}
+
 /**
  * The known keys first, in their canonical order, then whatever else the
  * catalog declared — a group this build has never heard of still shows up.

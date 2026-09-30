@@ -6,6 +6,7 @@ import Children from '../app/components/Children.vue'
 import Library from '../app/components/Library.vue'
 import Node from '../app/components/Node.vue'
 import Placeholder from '../app/components/Placeholder.vue'
+import Rail from '../app/components/Rail.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	byClass,
@@ -1364,21 +1365,49 @@ describe('the palette', () => {
 		}
 	}
 
-	it('says what each component is, under its name', async () => {
+	/** The rail around the palette, whose heading says where a click adds. */
+	function mountRail(): TestNode {
+		return mount(Rail, {
+			components: { DmsBuilderLibrary: Library as Component },
+		}).root
+	}
+
+	/** The question mark beside a tile, and the tooltip it opens. */
+	function aboutOf(root: TestNode, label: string): { button: TestNode; tooltip: string } {
+		const tooltip = findAll(
+			root,
+			(node) =>
+				node.tag === 'UTooltip' &&
+				findAll(node, (inner) =>
+					String(inner.props['aria-label'] ?? '').startsWith(`About ${label}:`),
+				).length > 0,
+		)[0]
+		const button = tooltip && findAll(tooltip, (node) => node.tag === 'button')[0]
+		if (!tooltip || !button) {
+			throw new Error(`no question mark beside ${label}`)
+		}
+		return { button, tooltip: String(tooltip.props.text) }
+	}
+
+	it('names each component on its tile, and says what it is behind a question mark', async () => {
 		await openWith([block('title', 'Text')])
 		const { root } = mount(Library)
 		await nextTick()
 
-		expect(textOf(paletteButton(root, 'Text'))).toContain(
-			'A paragraph, a heading, or a line of prose.',
-		)
+		expect(textOf(paletteButton(root, 'Text')), 'the tile keeps to its name').toBe('Text')
+		const about = aboutOf(root, 'Text')
+		expect(about.tooltip).toBe('A paragraph, a heading, or a line of prose.')
+
+		// The question mark sits beside the tile, not in it: asking adds nothing.
+		expect(about.button.props.onClick).toBeUndefined()
+		expect(findAll(paletteButton(root, 'Text'), (node) => node === about.button)).toEqual([])
 	})
 
-	it('appends to the page on click, as its own note says', async () => {
+	it('appends to the page on click, as the heading over it says', async () => {
 		await openWith([block('title', 'Text')])
-		const { root } = mount(Library)
+		const root = mountRail()
 		await nextTick()
-		expect(textOf(root)).toContain('click to append it to the page')
+		expect(textOf(root)).toContain('click to add to the page')
 
 		fire(paletteButton(root, 'Text'), 'click')
 		expect(names()).toEqual(['title', 'text'])
@@ -1386,10 +1415,10 @@ describe('the palette', () => {
 
 	it('appends into the selected container, and says which one', async () => {
 		await openWith([block('row', 'Section')])
-		builder.select('row')
-		const { root } = mount(Library)
+		builder.select('row', 'library')
+		const root = mountRail()
 		await nextTick()
-		expect(textOf(root)).toContain('click to append it inside row')
+		expect(textOf(root)).toContain('click to add inside row')
 
 		fire(paletteButton(root, 'Text'), 'click')
 		expect(names('row')).toEqual(['text'])

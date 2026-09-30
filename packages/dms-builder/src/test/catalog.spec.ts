@@ -124,6 +124,13 @@ describe("the block catalog", () => {
     ).to.not.equal(true);
   });
 
+  it("gives the table form an icon of its own, beside the form's", () => {
+    expect(blockNamed("ResourceForm").icon).to.equal("i-ph-clipboard-text");
+    expect(blockNamed("Form").icon).to.not.equal(
+      blockNamed("ResourceForm").icon,
+    );
+  });
+
   it("marks the options a data type is handed a table in", () => {
     const relation = catalog.dataTypes.find((type) => type.id === "relation");
     expect(relation?.config.dataApiController).to.include({

@@ -65,9 +65,13 @@ const pageHeading = computed<Heading>(() => {
 
 const heading = computed<Heading>(() => {
 	const headings: Record<string, Heading> = {
+		// Where a click adds the component is said here, over the palette, so
+		// the palette itself is left to the components.
 		library: {
 			title: 'Components',
-			subtitle: 'Drag onto the page, or click to append',
+			subtitle: builder.paletteTarget.value
+				? `Drag, or click to add inside ${builder.paletteTarget.value}`
+				: 'Drag, or click to add to the page',
 		},
 		config: {
 			title:

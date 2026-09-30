@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paletteGroups } from '../app/runtime/catalog'
+import { paletteGroups, paletteIcon } from '../app/runtime/catalog'
 import { testCatalog } from './support/builder-harness'
 import type { BlockCatalog, BlockTypeDescriptor } from '../app/runtime/types'
 
@@ -183,6 +183,21 @@ describe('a type the DMS never declared', () => {
 
 	it('is still offered in the advanced view', () => {
 		expect(offered(inferredCatalog(), '', true)).toContain('Widget')
+	})
+})
+
+describe('the icon a tile draws', () => {
+	it("is the component's own, in Phosphor's two-tone weight", () => {
+		expect(paletteIcon('i-ph-table')).toBe('i-ph-table-duotone')
+	})
+
+	it('is left as given when it names its weight or comes from another set', () => {
+		expect(paletteIcon('i-ph-table-bold')).toBe('i-ph-table-bold')
+		expect(paletteIcon('i-lucide-table')).toBe('i-lucide-table')
+	})
+
+	it('is a plain square for a component declaring none', () => {
+		expect(paletteIcon(undefined)).toBe('i-ph-square-duotone')
 	})
 })
 
