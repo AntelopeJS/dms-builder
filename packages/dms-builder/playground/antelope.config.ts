@@ -38,10 +38,6 @@ export default defineConfig({
     },
   },
   modules: {
-    // `dms` before the modules that read its interface: a shared interface
-    // package binds to the context of whichever module requires it first, and
-    // that binding dies with that module's generation. The module implementing
-    // the interface has to come first.
     dms: {
       source: dmsSource,
       config: {
