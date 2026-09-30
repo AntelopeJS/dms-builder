@@ -10,6 +10,7 @@ import {
   type FunctionTypeNode,
   type InterfaceDeclaration,
   Node,
+  type ParameterDeclaration,
   Project,
   type SourceFile,
   type TypeAliasDeclaration,
@@ -281,6 +282,8 @@ interface FactoryShape {
   returnText: string;
   optionsType?: TypeNode;
   controllerArg: boolean;
+  /** Whether the builder can write a call to it: see `writableParameters`. */
+  writable: boolean;
 }
 
 /** The type parameters that stand for a table's DataAPI class. */
@@ -304,11 +307,50 @@ function controllerLeading(
   return controllerParams(typeParameters).has(firstParamType.getText().trim());
 }
 
+/**
+ * Whether a parameter takes an options object. Read off the type checker, not
+ * the syntax: `(typeof MODES)[number]` is a string all the same. A type the
+ * declarations cannot resolve reads as `any`, and is given the benefit of the
+ * doubt.
+ */
+function takesOptions(parameter: ParameterDeclaration): boolean {
+  const type = parameter.getType();
+  const members = type.isUnion() ? type.getUnionTypes() : [type];
+  return members
+    .filter((member) => !member.isUndefined() && !member.isNull())
+    .every(
+      (member) =>
+        member.isAny() ||
+        member.isUnknown() ||
+        (member.isObject() &&
+          !member.isArray() &&
+          member.getCallSignatures().length === 0),
+    );
+}
+
+/**
+ * Whether the builder can write a call to the factory: it writes the table
+ * first when the factory reads one, then one options object, and nothing else.
+ * A factory taking a name (`CustomComponent(componentName)`) or a mode before
+ * its options (`resourceForm(controller, mode, options)`) is one no page can
+ * be built with here, however it is offered.
+ */
+function writableParameters(
+  parameters: ParameterDeclaration[],
+  isControllerLeading: boolean,
+): boolean {
+  const [options, ...rest] = parameters.slice(isControllerLeading ? 1 : 0);
+  return (
+    (options === undefined || takesOptions(options)) &&
+    rest.every((parameter) => parameter.isOptional())
+  );
+}
+
 function factoryShape(
   name: string,
   returnText: string,
   typeParameters: TypeParameterDeclaration[],
-  parameters: Array<{ getTypeNode(): TypeNode | undefined }>,
+  parameters: ParameterDeclaration[],
 ): FactoryShape {
   const isControllerLeading = controllerLeading(
     typeParameters,
@@ -319,6 +361,7 @@ function factoryShape(
     returnText,
     optionsType: parameters[isControllerLeading ? 1 : 0]?.getTypeNode(),
     controllerArg: isControllerLeading,
+    writable: writableParameters(parameters, isControllerLeading),
   };
 }
 
@@ -361,6 +404,7 @@ function discoverBlocks(
   for (const sourceFile of sourceFiles) {
     for (const shape of functionShapes(sourceFile)) {
       if (!BUILDER_RETURN.test(shape.returnText.trim())) continue;
+      if (!shape.writable) continue;
       blocks.push({
         type: shape.name,
         import: { name: shape.name, module: BASE_MODULE },

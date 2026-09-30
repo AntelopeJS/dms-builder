@@ -101,6 +101,19 @@ describe("the block catalog", () => {
     expect(blockNamed("KpiCard").controllerArg).to.not.equal(true);
   });
 
+  it("offers no factory it could not write a call to", () => {
+    const types = catalog.blocks.map((block) => block.type);
+    expect(types, "takes a component's name, not options").to.not.include(
+      "CustomComponent",
+    );
+    expect(types, "takes a mode before its options").to.not.include(
+      "resourceForm",
+    );
+    expect(types, "the table form a page is built with").to.include(
+      "ResourceForm",
+    );
+  });
+
   it("marks the options a data type is handed a table in", () => {
     const relation = catalog.dataTypes.find((type) => type.id === "relation");
     expect(relation?.config.dataApiController).to.include({
