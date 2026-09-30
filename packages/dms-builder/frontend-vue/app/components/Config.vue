@@ -19,6 +19,7 @@ import {
 	RESOURCE_FORM_PANEL_OPTIONS,
 } from '../runtime/resource-form-panel'
 import { parentPath, useBuilder } from '../runtime/session'
+import { SPACER_BLOCK, SPACER_PANEL_OPTIONS } from '../runtime/spacer-panel'
 import { TABLE_BLOCK, TABLE_PANEL_OPTIONS } from '../runtime/table-panel'
 import type { OptionSchema } from '../runtime/types'
 
@@ -102,7 +103,9 @@ const parentBlock = computed(() => {
  *   with no variable to type;
  * - a table lists one picked from the tables there are, their columns beside;
  * - a chart card draws a chart picked by how it draws, measuring what is
- *   built from a table, the rest folded away behind a line each.
+ *   built from a table, the rest folded away behind a line each;
+ * - a spacer takes the room picked among three ways, each drawn, rather than
+ *   three numbers.
  */
 const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
 	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
@@ -115,6 +118,7 @@ const PANELS: Record<string, { component: string; options: ReadonlySet<string> }
 		component: 'DmsBuilderChartCardPanel',
 		options: CHART_CARD_PANEL_OPTIONS,
 	},
+	[SPACER_BLOCK]: { component: 'DmsBuilderSpacerPanel', options: SPACER_PANEL_OPTIONS },
 }
 
 const panel = computed(() =>
