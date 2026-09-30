@@ -159,6 +159,33 @@ describe('the components the palette lists', () => {
 	})
 })
 
+describe('a type the DMS never declared', () => {
+	/** A factory the builder only inferred: no name, no description, no option. */
+	function inferredCatalog(): BlockCatalog {
+		return {
+			...catalog,
+			blocks: [
+				...catalog.blocks,
+				{
+					type: 'Widget',
+					container: true,
+					config: {},
+					shapeSource: 'inferred',
+				} as BlockTypeDescriptor,
+			],
+		}
+	}
+
+	it('is left out of the simple mode', () => {
+		expect(offered(inferredCatalog())).not.toContain('Widget')
+		expect(offered(inferredCatalog(), 'widget'), 'nor found by searching').toEqual([])
+	})
+
+	it('is still offered in the advanced view', () => {
+		expect(offered(inferredCatalog(), '', true)).toContain('Widget')
+	})
+})
+
 describe('the charts a chart card draws with', () => {
 	it('leaves them to the card in the simple mode', () => {
 		const types = offered(chartCatalog())

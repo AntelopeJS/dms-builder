@@ -174,6 +174,10 @@ export function heldTypes(catalog: BlockCatalog): Map<string, string[]> {
  * component holds: that one is offered instead, picks it in its panel, and
  * answers a search for it — "line" finds the chart card. The advanced view
  * offers both, for the developer placing a chart on its own.
+ *
+ * The simple mode leaves out a type the DMS never declared as well: the
+ * builder only inferred it from a factory, and it comes with no name, no
+ * description and no option written for whoever builds a page.
  */
 export function paletteGroups(
 	catalog: BlockCatalog | null,
@@ -193,7 +197,11 @@ export function paletteGroups(
 	}
 	const buckets = new Map<string, BlockTypeDescriptor[]>()
 	for (const block of catalog.blocks) {
-		if (structural.has(block.type) || hidden.has(block.type)) {
+		if (
+			structural.has(block.type) ||
+			hidden.has(block.type) ||
+			(!advanced && block.shapeSource === 'inferred')
+		) {
 			continue
 		}
 		if (
