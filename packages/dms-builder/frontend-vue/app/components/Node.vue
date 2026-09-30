@@ -325,8 +325,11 @@ function answerCursor(event: DragEvent): void {
 	a row makes its cells as tall as the tallest, and what it stretches is this
 	wrapper. The block inside would keep its own height and sit in a box it does
 	not fill — a page the canvas shows and the page itself never renders. -->
+	<!-- The frame is drawn inside the block: two blocks a container stacks with
+	no room between them — the blocks of a tab — would otherwise have the one
+	selected drawn over the edge of the next, which reads as an overlap. -->
 	<div
-		class="relative grid min-w-0 rounded-lg outline-offset-4 transition-[outline-color]"
+		class="relative grid min-w-0 rounded-lg -outline-offset-2 transition-[outline-color]"
 		:class="[
 			// A block that renders to nothing yet — a tab set with no tabs, an
 			// empty stack — would be a hairline nobody can click, and so could
