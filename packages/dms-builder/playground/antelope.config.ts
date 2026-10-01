@@ -22,12 +22,8 @@ const dmsSource = DMS_MODULE_PATH
     }
   : {
       type: "package" as const,
-      // Single-bound on purpose: the CLI passes this range to `npm pack`
-      // through a shell without quoting it, so a range containing a space
-      // ("\u003e=0.4.4 <1.0.0") is split into two arguments and the module fails
-      // to load. Same resolution, one word.
       package: "@antelopejs/dms",
-      version: "^0.4.4",
+      version: ">=0.5.0 <1.0.0",
     };
 
 export default defineConfig({
@@ -113,7 +109,7 @@ export default defineConfig({
       source: {
         type: "package",
         package: "@antelopejs/api",
-        version: "^1.3.0",
+        version: "^1.3.1",
       },
       config: {
         servers: [{ protocol: "http", port: API_PORT }],
@@ -128,7 +124,7 @@ export default defineConfig({
       source: {
         type: "package",
         package: "@antelopejs/file-storage-local",
-        version: "^0.1.4",
+        version: ">=0.1.4 <1.0.0",
       },
       config: {
         storagePath: ".antelope/file-storage",
@@ -140,7 +136,7 @@ export default defineConfig({
       source: {
         type: "package",
         package: "@antelopejs/nodemailer",
-        version: "^0.0.5",
+        version: ">=0.0.5 <1.0.0",
       },
       config: {
         ethereal: true,
