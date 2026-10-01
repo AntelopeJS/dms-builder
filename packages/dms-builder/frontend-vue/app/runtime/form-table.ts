@@ -2,16 +2,16 @@
  * A form that saves into a table, as the simple mode builds one.
  *
  * Someone building a page does not type an endpoint: they pick the table the
- * form fills and tick the columns it asks for. The form then submits to that
- * table's create route, and each ticked column is a field of the form — sent
- * under the column's name, with the column's label and type.
+ * form fills. The form then submits to that table's create route, and each
+ * column a row is written with is a field of the form — sent under the
+ * column's name, with the column's label and type. The fields are the table's:
+ * they are changed where the table is.
  *
  * Nothing records the choice but the form itself: the table is the one whose
- * create route the form submits to, and a column is ticked when a field of the
- * form is sent under its name.
+ * create route the form submits to, and a column is asked for when a field of
+ * the form is sent under its name.
  */
 import { optionLabel } from './catalog'
-import { mergePatch } from './object'
 import type {
 	ResourceFieldStructure,
 	ResourceStructure,
@@ -121,113 +121,6 @@ export function askedColumns(fields: unknown): Set<string> {
 		}
 	}
 	return names
-}
-
-/** The form's fields with the one asking for `column` added at the end. */
-export function withColumn(fields: unknown, column: ResourceFieldStructure): Entry[] {
-	return [...entries(fields), fieldFor(column)]
-}
-
-/** The form's fields without the one asking for `name`, groups included. */
-export function withoutColumn(fields: unknown, name: string): Entry[] {
-	return entries(fields)
-		.filter((entry) => entry.id !== name || Array.isArray(entry.fields))
-		.map((entry) =>
-			Array.isArray(entry.fields)
-				? { ...entry, fields: entries(entry.fields).filter((nested) => nested.id !== name) }
-				: entry,
-		)
-}
-
-/**
- * One line of a form's field list: a field, or a group followed by the fields
- * it holds.
- */
-export interface FormRow {
-	/** The entry's rank in the form, then its rank inside its group. */
-	path: number[]
-	entry: Entry
-	group: boolean
-	/** How many entries share its list, which is as far as it can move. */
-	siblings: number
-}
-
-/** A form's entries as the lines of a list, a group's fields under it. */
-export function formRows(fields: unknown): FormRow[] {
-	const top = entries(fields)
-	return top.flatMap((entry, at): FormRow[] => {
-		if (!Array.isArray(entry.fields)) {
-			return [{ path: [at], entry, group: false, siblings: top.length }]
-		}
-		const nested = entries(entry.fields)
-		return [
-			{ path: [at], entry, group: true, siblings: top.length },
-			...nested.map((field, inner) => ({
-				path: [at, inner],
-				entry: field,
-				group: false,
-				siblings: nested.length,
-			})),
-		]
-	})
-}
-
-/** The form's fields with `patch` applied to the entry at `path`. */
-export function withEntryPatched(
-	fields: unknown,
-	path: number[],
-	patch: Record<string, unknown>,
-): Entry[] {
-	return inList(fields, path, (list, at) =>
-		list.map((entry, index) => (index === at ? mergePatch(entry, patch) : entry)),
-	)
-}
-
-/** The form's fields with the entry at `path` moved `delta` places in its list. */
-export function withEntryMoved(
-	fields: unknown,
-	path: number[],
-	delta: number,
-): Entry[] {
-	return inList(fields, path, (list, at) => {
-		const target = at + delta
-		if (target < 0 || target >= list.length) {
-			return list
-		}
-		const next = [...list]
-		const [moved] = next.splice(at, 1)
-		next.splice(target, 0, moved as Entry)
-		return next
-	})
-}
-
-/** The form's fields without the entry at `path`. */
-export function withoutEntry(fields: unknown, path: number[]): Entry[] {
-	return inList(fields, path, (list, at) => list.filter((_, index) => index !== at))
-}
-
-/** The form's fields with `field` added at the end. */
-export function withField(fields: unknown, field: Entry): Entry[] {
-	return [...entries(fields), field]
-}
-
-/** Apply `edit` to the list that holds the entry at `path`. */
-function inList(
-	fields: unknown,
-	path: number[],
-	edit: (list: Entry[], at: number) => Entry[],
-): Entry[] {
-	const top = entries(fields)
-	const [first, second] = path
-	if (first === undefined) {
-		return top
-	}
-	if (second === undefined) {
-		return edit(top, first)
-	}
-	return top.map((entry, at) =>
-		at === first ? { ...entry, fields: edit(entries(entry.fields), second) } : entry,
-	)
 }
 
 function entries(value: unknown): Entry[] {

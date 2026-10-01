@@ -5,9 +5,9 @@ import { useBuilder } from '../runtime/session'
 
 /**
  * A form, as someone building a page sets one up, in three cards: the data it
- * works on — the table it saves into and the columns it asks for —, what it
- * shows on the page, and what happens once it is sent. Addresses and methods
- * are the advanced view's.
+ * works on — the table it saves into, whose columns are its fields, set where
+ * the table is —, what it shows on the page, and what happens once it is sent.
+ * Addresses, methods and fields typed by hand are the advanced view's.
  */
 const props = defineProps<{ path: string }>()
 
@@ -31,7 +31,6 @@ watch(
 				Data
 			</p>
 			<DmsBuilderFormTarget :path="path" />
-			<DmsBuilderFormFields :path="path" />
 		</section>
 
 		<DmsBuilderOnThePage :path="path" />

@@ -4,8 +4,6 @@ import Bar from '../app/components/Bar.vue'
 import BlockMenu from '../app/components/BlockMenu.vue'
 import Children from '../app/components/Children.vue'
 import Config from '../app/components/Config.vue'
-import FormFieldDetail from '../app/components/FormFieldDetail.vue'
-import FormFields from '../app/components/FormFields.vue'
 import FormPanel from '../app/components/FormPanel.vue'
 import FormTarget from '../app/components/FormTarget.vue'
 import Node from '../app/components/Node.vue'
@@ -393,8 +391,6 @@ const panel = (): Record<string, Component> => ({
 	DmsBuilderTableChoice: TableChoice as Component,
 	DmsBuilderTableLink: TableLink as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
-	DmsBuilderFormFields: FormFields as Component,
-	DmsBuilderFormFieldDetail: FormFieldDetail as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 	USelectMenu: stub('USelectMenu'),
@@ -650,29 +646,6 @@ describe('the key of a form field', () => {
 		>
 	}
 
-	/** Open the form's first field, where the simple mode edits its label. */
-	async function openFirst(root: TestNode): Promise<void> {
-		const line = findAll(root, (node) => node.props['aria-expanded'] === false)[0]
-		fire(line!, 'click')
-		await nextTick()
-	}
-
-	it('is left out of the simple mode, and written from the label', async () => {
-		const root = await formWithFields([{ label: 'Field 1', type: text }])
-		await openFirst(root)
-		expect(labels(root)).not.toContain('Key')
-		expect(labels(root)).toContain('Label')
-
-		write(box(root, 'Label'), 'Délai de livraison')
-		await nextTick()
-		expect(fields()[0]?.id).toBe('delaiDeLivraison')
-
-		// Following the label for as long as it is the key the label gave.
-		write(box(root, 'Label'), 'Delivery date')
-		await nextTick()
-		expect(fields()[0]?.id).toBe('deliveryDate')
-	})
-
 	it('is kept apart from the keys of the other fields of the form', async () => {
 		await formWithFields([
 			{ id: 'amount', label: 'Amount', type: text },
@@ -688,17 +661,6 @@ describe('the key of a form field', () => {
 		])
 		const group = fields()[1] as { fields: Array<Record<string, unknown>> }
 		expect(group.fields[0]?.id).toBe('city2')
-	})
-
-	it('is left alone once it says something the label did not give it', async () => {
-		// Written by hand, in the code or in the advanced view: a backend reads
-		// the form under that name.
-		const root = await formWithFields([{ id: 'test', label: 'aaa', type: text }])
-		await openFirst(root)
-
-		write(box(root, 'Label'), 'Amount')
-		await nextTick()
-		expect(fields()[0]?.id).toBe('test')
 	})
 
 	it('is shown in the advanced view, and left to whoever types it', async () => {

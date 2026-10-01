@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { h, nextTick, type Component } from 'vue'
 import Config from '../app/components/Config.vue'
-import FormFieldDetail from '../app/components/FormFieldDetail.vue'
-import FormFields from '../app/components/FormFields.vue'
 import FormPanel from '../app/components/FormPanel.vue'
 import FormTarget from '../app/components/FormTarget.vue'
 import TablePicker from '../app/components/TablePicker.vue'
@@ -124,8 +122,6 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderTableChoice: TableChoice as Component,
 	DmsBuilderTableLink: TableLink as Component,
-	DmsBuilderFormFields: FormFields as Component,
-	DmsBuilderFormFieldDetail: FormFieldDetail as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 	USelectMenu: stub('USelectMenu'),
@@ -233,33 +229,6 @@ function field(root: TestNode, label: string, tag = 'UInput'): TestNode {
 	return match
 }
 
-/** The lines of the field list, which open a field each. */
-function lines(root: TestNode): TestNode[] {
-	return findAll(
-		root,
-		(node) =>
-			node.tag === 'UButton' &&
-			node.props['aria-expanded'] !== undefined &&
-			!String(node.props['aria-label'] ?? '').startsWith('Table'),
-	)
-}
-
-/** The field lines, by the title each shows: the first of its words, over its type. */
-function rows(root: TestNode): string[] {
-	return lines(root).map((line) => {
-		const title = findAll(
-			line,
-			(node) =>
-				node.tag === 'span' && !node.children.some((child) => child.kind === 'element'),
-		)[0]
-		return title ? textOf(title).trim() : ''
-	})
-}
-
-function openRow(root: TestNode, at: number): void {
-	fire(lines(root)[at]!, 'click')
-}
-
 /** Fire a control's own `update:modelValue`, the way a user's input does. */
 function write(node: TestNode, value: unknown): void {
 	const handler = node.props['onUpdate:modelValue']
@@ -299,7 +268,6 @@ describe('a form placed a moment ago', () => {
 		)
 		expect(labels(root)).not.toContain('Submit to')
 		expect(labels(root)).not.toContain('Load from')
-		expect(textOf(root)).toContain('They appear here once a table is picked.')
 		expect(textOf(root), 'what the table picker says in its place').not.toContain(
 			'Still to fill in',
 		)
@@ -316,7 +284,6 @@ describe('a form placed a moment ago', () => {
 			submitUrlMethod: 'POST',
 		})
 		expect(keys(), 'sent under the column names').toEqual(['amount', 'status', 'note'])
-		expect(rows(root)).toEqual(['Amount', 'Status', 'Note'])
 		expect(textOf(root)).toContain('3 of its 3 columns in the form')
 	})
 
@@ -329,16 +296,13 @@ describe('a form placed a moment ago', () => {
 })
 
 describe('a form saving into a table', () => {
-	it('lists what it asks for in order, and the columns it leaves out under them', async () => {
+	it('leaves its fields to the table, a click away', async () => {
 		const root = await formPanel(BOUND)
 
-		expect(rows(root)).toEqual(['Amount', 'Status'])
-		expect(textOf(root)).toContain('Not in the form')
 		expect(textOf(root)).toContain('2 of its 3 columns in the form')
-
-		fire(button(root, 'Add Note to the form'), 'click')
-		await nextTick()
-		expect(keys()).toEqual(['amount', 'status', 'note'])
+		expect(textOf(root), 'no list of fields to edit here').not.toContain('Not in the form')
+		expect(has(root, 'Add field')).toBe(false)
+		expect(has(root, 'Open the table')).toBe(true)
 	})
 
 	it('keeps its fields when its own table is picked again', async () => {
@@ -350,87 +314,6 @@ describe('a form saving into a table', () => {
 		await settle()
 
 		expect(keys(), 'what the author left out stays out').toEqual(['amount', 'status'])
-	})
-
-	it('moves a field within the form', async () => {
-		const root = await formPanel(BOUND)
-		fire(button(root, 'Move Status up'), 'click')
-		await nextTick()
-		expect(keys()).toEqual(['status', 'amount'])
-
-		fire(button(root, 'Move Status down'), 'click')
-		await nextTick()
-		expect(keys()).toEqual(['amount', 'status'])
-	})
-
-	it('keeps the field it has open when another moves past it', async () => {
-		const root = await formPanel(BOUND)
-		openRow(root, 1)
-		await nextTick()
-
-		fire(button(root, 'Move Amount down'), 'click')
-		await nextTick()
-		expect(keys()).toEqual(['status', 'amount'])
-		expect(lines(root).map((line) => line.props['aria-expanded'])).toEqual([true, false])
-		expect(field(root, 'Label').props['model-value']).toBe('Status')
-	})
-
-	it('says when a column the table needs is left out, and puts it back', async () => {
-		const root = await formPanel(BOUND)
-		expect(textOf(root)).not.toContain("The table can't save a row without")
-
-		fire(button(root, 'Leave Amount out of the form'), 'click')
-		await nextTick()
-		expect(keys()).toEqual(['status'])
-		const [warning] = findAll(root, (node) => node.tag === 'UAlert')
-		expect(textOf(warning!)).toContain(
-			"The table can't save a row without Amount: every submit will fail until it is in the form.",
-		)
-
-		fire(button(warning!, 'Add Amount to the form'), 'click')
-		await nextTick()
-		expect(keys()).toEqual(['status', 'amount'])
-		expect(textOf(root)).not.toContain("The table can't save a row without")
-	})
-
-	it('keeps a field sent under its column when it is renamed on the form', async () => {
-		const root = await formPanel(BOUND)
-		openRow(root, 1)
-		await nextTick()
-
-		write(field(root, 'Label'), 'Order state')
-		await nextTick()
-		expect(fields()[1]).toMatchObject({ id: 'status', label: 'Order state' })
-		expect(textOf(root)).toContain('Saved in the column Status')
-
-		fire(button(root, 'Use its name'), 'click')
-		await nextTick()
-		expect(fields()[1]).toMatchObject({ id: 'status', label: 'Status' })
-	})
-
-	it('takes its type from the column, and holds required what the table needs', async () => {
-		const root = await formPanel(BOUND)
-		openRow(root, 0)
-		await nextTick()
-
-		expect(labels(root), 'the column says what type it is').not.toContain('Type')
-		const required = field(root, 'Required', 'USwitch')
-		expect(required.props['model-value']).toBe(true)
-		expect(required.props.disabled).toBe(true)
-		expect(formField(root, 'Required').props.description).toBe(
-			"The table can't save a row without it.",
-		)
-	})
-
-	it('leaves the opened field out from its own line', async () => {
-		const root = await formPanel(BOUND)
-		openRow(root, 1)
-		await nextTick()
-		fire(button(root, 'Leave it out of the form'), 'click')
-		await nextTick()
-
-		expect(keys()).toEqual(['amount'])
-		expect(rows(root)).toEqual(['Amount'])
 	})
 
 	it('turns Create back on for a table whose API refuses new rows', async () => {
@@ -487,61 +370,6 @@ describe('a form sending to an address', () => {
 		expect(findAll(root, (node) => node.props.role === 'option')).toHaveLength(1)
 	})
 
-	it('takes fields added by hand, keyed after their label', async () => {
-		const root = await formPanel(ADDRESSED)
-		fire(button(root, 'Add field'), 'click')
-		await nextTick()
-
-		write(field(root, 'New field'), 'Delivery date')
-		await nextTick()
-		fire(button(root, 'Add the field'), 'click')
-		await nextTick()
-
-		expect(fields()[1]).toEqual({
-			id: 'deliveryDate',
-			label: 'Delivery date',
-			type: { $dataType: 'string', config: {} },
-		})
-		expect(rows(root)).toEqual(['aaa', 'Delivery date'])
-	})
-})
-
-describe('a field opened', () => {
-	const number = { $dataType: 'number', config: {} }
-
-	it('takes a default in the input its type calls for', async () => {
-		const root = await formPanel({
-			fields: [{ id: 'qty', label: 'Quantity', type: number, defaultValue: 5 }],
-		})
-		openRow(root, 0)
-		await nextTick()
-
-		const boxes = findAll(
-			root,
-			(node) => node.tag === 'UInput' && node.props.type === 'number',
-		)
-		expect(boxes.map((box) => box.props['model-value'])).toContain(5)
-	})
-
-	it('drops its default when it changes to a type that cannot hold it', async () => {
-		const root = await formPanel({
-			fields: [{ id: 'qty', label: 'Quantity', type: number, defaultValue: 5 }],
-		})
-		openRow(root, 0)
-		await nextTick()
-
-		const [typePicker] = findAll(
-			root,
-			(node) =>
-				node.tag === 'USelectMenu' &&
-				node.props.placeholder === 'Choose a data type…',
-		)
-		write(typePicker!, 'string')
-		await nextTick()
-
-		expect(fields()[0]?.type).toMatchObject({ $dataType: 'string' })
-		expect(fields()[0]).not.toHaveProperty('defaultValue')
-	})
 })
 
 describe('what a form says and does once it is sent', () => {

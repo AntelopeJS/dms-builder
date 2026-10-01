@@ -1,9 +1,8 @@
 /**
  * A form block, as the simple mode's panel edits it.
  *
- * The panel is split in parts — where the form saves, the fields it asks for,
- * one field opened — and each reads the same block: which table it fills, the
- * columns that table is written with, and which of them the form asks for.
+ * The panel reads which table the form fills, the columns that table is
+ * written with, and which of them the form asks for.
  */
 import { computed } from 'vue'
 import { useBlockPanel } from './block-panel'
@@ -14,7 +13,6 @@ import {
 	fillableColumns,
 } from './form-table'
 import { useBuilder } from './session'
-import type { OptionSchema } from './types'
 
 /** The block the simple mode edits with a panel of its own. */
 export const FORM_BLOCK = 'Form'
@@ -46,17 +44,11 @@ export const PANEL_CARD =
 /** A setting's label inside a card, quieter than the card's title. */
 export const CARD_FIELD_UI = { label: 'font-normal text-muted' }
 
-/** The branch of a form's entries that is a field rather than a group. */
-function fieldBranch(fields: OptionSchema | undefined): OptionSchema | undefined {
-	const items = fields?.items
-	return items?.oneOf?.find((branch) => !branch.properties?.fields) ?? items
-}
-
 export function useFormBlock(path: () => string) {
 	const builder = useBuilder()
 	const session = builder.session
 	const panel = useBlockPanel(path)
-	const { config, options, patch } = panel
+	const { config } = panel
 
 	const destination = computed(() =>
 		destinationOf(config.value, session.value.resources),
@@ -70,26 +62,10 @@ export function useFormBlock(path: () => string) {
 	const columns = computed(() => fillableColumns(structure.value))
 	const asked = computed(() => askedColumns(config.value.fields))
 	/**
-	 * The columns a row cannot be written without that the form leaves out:
-	 * leaving one out is the author's call, and every submit then fails.
-	 */
-	const needed = computed(() =>
-		columns.value.filter(
-			(column) => column.required && !asked.value.has(column.name),
-		),
-	)
-	const fieldSchema = computed(() => fieldBranch(options.value.fields))
-
-	function setFields(fields: unknown[]): void {
-		patch({ fields })
-	}
-
-	/**
 	 * Save the form into a table: every column a row is written with becomes a
-	 * field of it, ready to be left out, and it submits to the table's create
-	 * route. The fields a form had for another table are not this one's; the
-	 * ones it has for this table are the author's, and picking it again keeps
-	 * them.
+	 * field of it, and it submits to the table's create route. The fields a form
+	 * had for another table are not this one's; picking its own table again
+	 * keeps the ones it has.
 	 */
 	async function bindTo(ref: string): Promise<void> {
 		const target = session.value.resources.find((entry) => entry.ref === ref)
@@ -111,9 +87,6 @@ export function useFormBlock(path: () => string) {
 		structure,
 		columns,
 		asked,
-		needed,
-		fieldSchema,
-		setFields,
 		bindTo,
 	}
 }
