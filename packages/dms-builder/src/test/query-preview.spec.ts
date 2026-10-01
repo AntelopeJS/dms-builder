@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import {
   previewInstance,
+  previewRequestFromSearch,
   runPlanPreview,
 } from "../implementations/dms-builder/engine/query-preview";
 import type { PlanStream } from "../implementations/dms-builder/engine/query-plan-execute";
@@ -259,5 +260,63 @@ describe("previewing a query", () => {
     expect(previewInstance("dms-builder-playground", "default")).to.equal(
       undefined,
     );
+  });
+});
+
+/**
+ * A card on the builder's canvas reads its unsaved source by address: the query
+ * rides in one parameter, and the period it appends rides beside it.
+ */
+describe("a preview asked for by address", () => {
+  const query = {
+    name: "orders",
+    resource: "order",
+    template: "aggregate",
+    params: { op: "count" },
+    response: "card",
+  };
+
+  it("reads the query, and hands every other parameter to the route", () => {
+    const search = new URLSearchParams({
+      query: JSON.stringify(query),
+      from: "2026-09-01T00:00:00.000Z",
+      to: "2026-09-30T00:00:00.000Z",
+    });
+    const result = previewRequestFromSearch(search, "query", "acme");
+
+    expect(result.ok).to.equal(true);
+    if (result.ok) {
+      expect(result.data.query).to.deep.equal(query);
+      expect(result.data.args).to.deep.equal({
+        from: "2026-09-01T00:00:00.000Z",
+        to: "2026-09-30T00:00:00.000Z",
+      });
+      expect(result.data.tenant).to.equal("acme");
+    }
+  });
+
+  it("refuses an address without a query it could run", () => {
+    const missing = previewRequestFromSearch(
+      new URLSearchParams(),
+      "query",
+      undefined,
+    );
+    const garbled = previewRequestFromSearch(
+      new URLSearchParams({ query: "{not json" }),
+      "query",
+      undefined,
+    );
+    const nameless = previewRequestFromSearch(
+      new URLSearchParams({ query: JSON.stringify({ resource: "order" }) }),
+      "query",
+      undefined,
+    );
+
+    for (const result of [missing, garbled, nameless]) {
+      expect(result.ok).to.equal(false);
+      if (!result.ok) {
+        expect(result.error.code).to.equal("invalid_config");
+      }
+    }
   });
 });

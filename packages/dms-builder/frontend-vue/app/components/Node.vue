@@ -15,6 +15,13 @@ import {
 	namedHost,
 	spansFullWidth,
 } from '../runtime/dropping'
+import {
+	savedConfigAt,
+	sourceKeyOf,
+	withDraftEdits,
+	withDraftSource,
+} from '../runtime/canvas-options'
+import { sourceQuery } from '../runtime/data-source'
 import { joinPath, useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
@@ -73,6 +80,28 @@ const rendered = computed(() => {
 const resolved = computed(() =>
 	rendered.value ? resolveDmsComponent(rendered.value.componentName) : undefined,
 )
+/**
+ * What the block is rendered with: what was served for it, with the draft's
+ * edits the served shape cannot carry — a setting typed since the page was
+ * saved, a source measured anew — so the canvas follows the draft as it does
+ * wherever the preview builds the block.
+ */
+const options = computed(() => {
+	const shown = served.value
+		? withDraftEdits(
+				rendered.value?.options,
+				descriptor.value,
+				savedConfigAt(session.value.structure?.blocks, props.path),
+				props.block.config,
+			)
+		: rendered.value?.options
+	return withDraftSource(
+		shown,
+		descriptor.value,
+		sourceQuery(session.value.draft, session.value.structure, props.block.name),
+	)
+})
+const sourceKey = computed(() => sourceKeyOf(options.value, descriptor.value))
 const label = computed(
 	() => descriptor.value?.label ?? props.block.type ?? 'Block',
 )
@@ -483,7 +512,7 @@ function answerCursor(event: DragEvent): void {
 			<span>{{ standInNote }}</span>
 		</div>
 
-		<DmsBuilderBoundary v-else :label="label" :reset-key="rendered?.options">
+		<DmsBuilderBoundary v-else :label="label" :reset-key="options">
 			<!-- A DMS component may await in its own setup — a form asks for its
 			values before it can render a field, a table for its rows — and Vue
 			refuses to mount an async setup that has no Suspense above it: it warns
@@ -493,8 +522,9 @@ function answerCursor(event: DragEvent): void {
 			<Suspense>
 				<component
 					:is="resolved"
+					:key="sourceKey"
 					ref="instance"
-					v-bind="rendered?.options"
+					v-bind="options"
 					:page-id="pageId"
 					:component-id="path"
 					:child-count="childCount"

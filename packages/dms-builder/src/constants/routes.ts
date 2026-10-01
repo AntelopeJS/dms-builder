@@ -21,6 +21,12 @@ export const ROUTES = {
   refresh: "/refresh",
 } as const;
 
+/**
+ * The parameter a GET of the query preview carries its query in, as JSON.
+ * Mirrored in `frontend-vue/app/runtime/constants.ts`.
+ */
+export const QUERY_PREVIEW_PARAMETER = "query";
+
 export const FRONTEND_MODULE_NAME = "@antelopejs/dms-builder-frontend-vue";
 export const FRONTEND_MODULE_CONFIG_KEY = "dmsBuilder";
 export const FRONTEND_MODULE_DIR = "../frontend-vue";

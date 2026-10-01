@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HTTPResult,
   JSONBody,
   Parameter,
   Post,
@@ -26,9 +27,10 @@ import type {
   PageDraft,
 } from "@antelopejs/interface-dms-builder";
 import { getRoutePrefix } from "../config";
-import { ROUTES } from "../constants/routes";
+import { QUERY_PREVIEW_PARAMETER, ROUTES } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
+import { previewRequestFromSearch } from "../implementations/dms-builder/engine/query-preview";
 
 interface PageBody {
   page: string;
@@ -262,6 +264,37 @@ export class BuilderController extends Controller(getRoutePrefix()) {
       args: body.args,
       tenant: getRequestTenantId(context),
     });
+  }
+
+  /**
+   * The same preview on a GET, answered with the bare envelope the query's route
+   * will serve once saved: a card on the builder's canvas reads its draft source
+   * here, the way the page reads the route. The query comes as JSON; every other
+   * parameter is what the route would receive, the period a card appends among
+   * them. A query that cannot run answers an error status, so the card shows an
+   * error rather than an answer it would read as no data.
+   */
+  @Get(ROUTES.queryPreview)
+  async queryPreviewAnswer(
+    @AuthTenantOwner() _user: User,
+    @Context() context: RequestContext,
+  ) {
+    const request = previewRequestFromSearch(
+      context.url.searchParams,
+      QUERY_PREVIEW_PARAMETER,
+      getRequestTenantId(context),
+    );
+    if (!request.ok) {
+      return new HTTPResult(400, request.error);
+    }
+    const answer = await engine.PreviewQuery(request.data);
+    if (!answer.ok) {
+      return new HTTPResult(
+        answer.error.code === "not_found" ? 404 : 422,
+        answer.error,
+      );
+    }
+    return answer.data.body;
   }
 
   @Get(ROUTES.dataSources)

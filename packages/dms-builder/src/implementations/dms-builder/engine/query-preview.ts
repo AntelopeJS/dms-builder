@@ -275,6 +275,50 @@ export async function runPlanPreview(
 }
 
 /**
+ * A preview asked for on a GET: the query as JSON in one parameter, and every
+ * other parameter what the route would receive — the period a card appends to
+ * the address it reads among them.
+ *
+ * What a card on the builder's canvas reads its unsaved source from: it fetches
+ * an address, and has no body to send.
+ */
+export function previewRequestFromSearch(
+  search: URLSearchParams,
+  queryParameter: string,
+  tenant: string | undefined,
+): OpResult<PreviewRequest> {
+  const encoded = search.get(queryParameter);
+  let query: unknown;
+  try {
+    query = encoded ? JSON.parse(encoded) : undefined;
+  } catch {
+    query = undefined;
+  }
+  const input = query as Partial<AddQueryInput> | undefined;
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    typeof input.resource !== "string" ||
+    typeof input.template !== "string"
+  ) {
+    return invalidConfig<PreviewRequest>(
+      `"${queryParameter}" must be a query as JSON, naming its resource and template`,
+    );
+  }
+  const args: PlanArguments = {};
+  for (const [name, value] of search) {
+    if (name !== queryParameter) {
+      args[name] = value;
+    }
+  }
+  return {
+    ok: true,
+    data: { query: input as AddQueryInput, args, tenant },
+    changes: [],
+  };
+}
+
+/**
  * Run a query the caller has not saved, and answer what its route would.
  *
  * Read-only by construction: a plan describes filters, a grouping and a measure,
