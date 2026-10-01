@@ -3,7 +3,11 @@ import { computed, watch } from 'vue'
 import { dataTypeItem, sortDirections } from '../runtime/catalog'
 import { CARD_FIELD_UI, PANEL_CARD } from '../runtime/form-panel'
 import { useBuilder } from '../runtime/session'
-import { useTableBlock } from '../runtime/table-panel'
+import {
+	columnsTaken,
+	SHARED_TABLE_WARNING,
+	useTableBlock,
+} from '../runtime/table-panel'
 import type { ResourceFieldStructure } from '../runtime/types'
 
 /**
@@ -48,9 +52,10 @@ function columnNamed(name: string | undefined): ResourceFieldStructure | undefin
 	return table.columns.value.find((column) => column.name === name)
 }
 
-function openTable(): void {
-	if (table.table.value) builder.openTable(table.table.value)
-}
+/** The columns the table shows on first load, out of all it has. */
+const shownCount = computed(
+	() => table.columns.value.filter((column) => column.listable).length,
+)
 
 /* ---- the order rows come in -------------------------------------------- */
 
@@ -169,17 +174,11 @@ const nameItems = computed(() => {
 			<DmsBuilderTableSource :path="path" />
 
 			<template v-if="table.table.value && table.structure.value">
-				<div class="flex items-center justify-between gap-2">
-					<p class="text-sm text-muted">Columns</p>
-					<UButton
-						size="xs"
-						variant="link"
-						trailing-icon="i-ph-arrow-square-out"
-						label="Open the table"
-						class="px-0"
-						@click="openTable"
-					/>
-				</div>
+				<DmsBuilderTableLink
+					:table="table.table.value"
+					:summary="`${columnsTaken(shownCount, table.columns.value.length)} shown`"
+					:warning="`Columns belong to the table: ${SHARED_TABLE_WARNING}`"
+				/>
 
 				<div
 					v-if="table.has('defaultSort') || table.has('labelKey')"

@@ -6,6 +6,8 @@ import TableActions from '../app/components/TableActions.vue'
 import TablePanel from '../app/components/TablePanel.vue'
 import TableSource from '../app/components/TableSource.vue'
 import TablePicker from '../app/components/TablePicker.vue'
+import TableChoice from '../app/components/TableChoice.vue'
+import TableLink from '../app/components/TableLink.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -98,6 +100,8 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderTablePanel: TablePanel as Component,
 	DmsBuilderTableSource: TableSource as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
+	DmsBuilderTableChoice: TableChoice as Component,
+	DmsBuilderTableLink: TableLink as Component,
 	DmsBuilderTableActions: TableActions as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
@@ -292,6 +296,12 @@ describe('the columns of the table it lists', () => {
 			findAll(root, (candidate) => candidate.tag === 'UCheckbox'),
 			'no column set from the page',
 		).toEqual([])
+		expect(textOf(root), 'what it takes of the table').toContain(
+			'3 of its 4 columns shown',
+		)
+		expect(textOf(root)).toContain(
+			'Columns belong to the table: editing them changes every page that uses it.',
+		)
 
 		fire(button(root, 'Open the table'), 'click')
 		await nextTick()

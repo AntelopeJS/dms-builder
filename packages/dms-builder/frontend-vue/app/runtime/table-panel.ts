@@ -88,6 +88,18 @@ export function columnsInOrder(
 	return [...(fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 }
 
+/**
+ * What a block takes of its table, the way every panel says it, beside the way
+ * to the table: `2 of its 3 columns`.
+ */
+export function columnsTaken(taken: number, total: number): string {
+	return `${taken} of its ${total} column${total === 1 ? '' : 's'}`
+}
+
+/** What editing the table where it is changes, said under that way to it. */
+export const SHARED_TABLE_WARNING =
+	'editing them changes every page that uses it.'
+
 export function useTableBlock(path: () => string) {
 	const builder = useBuilder()
 	const session = builder.session

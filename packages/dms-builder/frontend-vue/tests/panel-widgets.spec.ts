@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, type Component } from 'vue'
 import DataSource from '../app/components/DataSource.vue'
 import Option from '../app/components/Option.vue'
+import TableChoice from '../app/components/TableChoice.vue'
+import TablePicker from '../app/components/TablePicker.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -52,6 +54,26 @@ async function settle(): Promise<void> {
 		await vi.advanceTimersByTimeAsync(0)
 	}
 	await nextTick()
+}
+
+/** The table choice a data source opens with, as the Nuxt build registers it. */
+function tableParts(): Record<string, Component> {
+	return {
+		DmsBuilderTableChoice: TableChoice as Component,
+		DmsBuilderTablePicker: TablePicker as Component,
+	}
+}
+
+/** Pick a table among those a data source offers, the way a click does. */
+function pickTable(root: TestNode, name: string): void {
+	const option = findAll(
+		root,
+		(node) => node.props.role === 'option' && textOf(node).startsWith(name),
+	)[0]
+	if (!option) {
+		throw new Error(`no table ${name} to pick`)
+	}
+	fire(option, 'click')
 }
 
 describe('a colour option', () => {
@@ -128,6 +150,7 @@ describe('a ranking read from a table', () => {
 		await builder.open('/reports/sales')
 		await vi.advanceTimersByTimeAsync(200)
 		const { root } = mount(DataSource, {
+			components: tableParts(),
 			props: {
 				modelValue: undefined,
 				responseShape: 'items',
@@ -146,7 +169,7 @@ describe('a ranking read from a table', () => {
 				root,
 				(node) => node.tag === 'UCheckbox' && node.props.label === name,
 			)[0]!
-		write(picker('From'), 'order')
+		pickTable(root, 'order')
 		await settle()
 		write(picker('Split by'), 'country')
 		await settle()
@@ -199,6 +222,7 @@ describe('a ranking read from a table', () => {
 		const before = backend.calls.length
 
 		const { root } = mount(DataSource, {
+			components: tableParts(),
 			props: {
 				modelValue: '/reports/sales/stats/top-countries',
 				responseShape: 'items',
@@ -237,6 +261,7 @@ describe('a ranking read from a table', () => {
 		await builder.open('/reports/sales')
 		await vi.advanceTimersByTimeAsync(200)
 		const { root } = mount(DataSource, {
+			components: tableParts(),
 			props: {
 				modelValue: undefined,
 				responseShape: 'card',
@@ -253,7 +278,7 @@ describe('a ranking read from a table', () => {
 					(node.props['aria-label'] === name || node.props.label === name),
 			)[0]!
 
-		write(control('USelectMenu', 'From'), 'order')
+		pickTable(root, 'order')
 		await settle()
 		write(control('USelectMenu', 'Split by'), 'country')
 		await settle()

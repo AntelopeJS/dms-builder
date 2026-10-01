@@ -700,67 +700,59 @@ watch(
 				</p>
 			</div>
 
-			<div class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+			<DmsBuilderTableChoice
+				:model-value="resource"
+				note="The table it measures"
+				label="Table it measures"
+				empty-title="Pick the table it measures"
+				empty-hint="Its rows are counted or added up. Choose next what is measured, and how it is split."
+				@update:model-value="pickResource"
+			/>
+
+			<div
+				v-if="resource"
+				class="divide-y divide-default overflow-hidden rounded-lg border border-default"
+			>
 				<div class="flex items-center gap-2 px-2.5 py-1.5">
-					<span class="w-18 shrink-0 text-xs text-muted">From</span>
+					<span class="w-18 shrink-0 text-xs text-muted">Measure</span>
 					<USelectMenu
-						:model-value="resource"
-						:items="
-							session.resources.map((entry) => ({
-								label: entry.ref,
-								value: entry.ref,
-								icon: 'i-ph-table',
-							}))
-						"
+						v-model="measure"
+						:items="MEASURES"
 						value-key="value"
-						placeholder="Which table?"
-						aria-label="From"
+						aria-label="Measure"
 						class="min-w-0 flex-1"
-						@update:model-value="pickResource($event)"
+					/>
+					<USelectMenu
+						v-if="needsMeasureField"
+						:model-value="measureField"
+						:items="numericFields"
+						value-key="value"
+						placeholder="of…"
+						aria-label="Measured column"
+						class="min-w-0 flex-1"
+						@update:model-value="measureField = $event"
 					/>
 				</div>
-				<template v-if="resource">
-					<div class="flex items-center gap-2 px-2.5 py-1.5">
-						<span class="w-18 shrink-0 text-xs text-muted">Measure</span>
-						<USelectMenu
-							v-model="measure"
-							:items="MEASURES"
-							value-key="value"
-							aria-label="Measure"
-							class="min-w-0 flex-1"
-						/>
-						<USelectMenu
-							v-if="needsMeasureField"
-							:model-value="measureField"
-							:items="numericFields"
-							value-key="value"
-							placeholder="of…"
-							aria-label="Measured column"
-							class="min-w-0 flex-1"
-							@update:model-value="measureField = $event"
-						/>
-					</div>
-					<div v-if="wantsSeries" class="flex items-center gap-2 px-2.5 py-1.5">
-						<span class="w-18 shrink-0 text-xs text-muted">Split by</span>
-						<USelectMenu
-							:model-value="groupBy"
-							:items="groupableFields"
-							value-key="value"
-							placeholder="Grouped by…"
-							aria-label="Split by"
-							class="min-w-0 flex-1"
-							@update:model-value="groupBy = $event"
-						/>
-						<USelectMenu
-							v-if="groupsByDate"
-							v-model="bucket"
-							:items="BUCKETS"
-							value-key="value"
-							aria-label="Period of each group"
-							class="w-28 shrink-0"
-						/>
-					</div>
-				</template>
+				<div v-if="wantsSeries" class="flex items-center gap-2 px-2.5 py-1.5">
+					<span class="w-18 shrink-0 text-xs text-muted">Split by</span>
+					<USelectMenu
+						:model-value="groupBy"
+						:items="groupableFields"
+						value-key="value"
+						placeholder="Grouped by…"
+						aria-label="Split by"
+						class="min-w-0 flex-1"
+						@update:model-value="groupBy = $event"
+					/>
+					<USelectMenu
+						v-if="groupsByDate"
+						v-model="bucket"
+						:items="BUCKETS"
+						value-key="value"
+						aria-label="Period of each group"
+						class="w-28 shrink-0"
+					/>
+				</div>
 			</div>
 
 			<div v-if="resource && refinements.length" class="flex flex-col gap-1.5">

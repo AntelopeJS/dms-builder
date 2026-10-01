@@ -5,6 +5,9 @@ import Config from '../app/components/Config.vue'
 import DataSource from '../app/components/DataSource.vue'
 import FoldCard from '../app/components/FoldCard.vue'
 import Option from '../app/components/Option.vue'
+import OnThePage from '../app/components/OnThePage.vue'
+import TableChoice from '../app/components/TableChoice.vue'
+import TablePicker from '../app/components/TablePicker.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -175,7 +178,10 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderOption: Option as Component,
 	DmsBuilderChartCardPanel: ChartCardPanel as Component,
 	DmsBuilderFoldCard: FoldCard as Component,
+	DmsBuilderOnThePage: OnThePage as Component,
 	DmsBuilderDataSource: DataSource as Component,
+	DmsBuilderTableChoice: TableChoice as Component,
+	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	UCollapsible: collapsible,
 	UChip: stub('UChip'),
@@ -210,6 +216,18 @@ async function panel(blocks: BlockNode[] = [card('chartCard')]): Promise<TestNod
 	mounted.push(tree.unmount)
 	await settle()
 	return tree.root
+}
+
+/** Pick the table a card measures among those offered, the way a click does. */
+function pickTable(root: TestNode, name: string): void {
+	const option = findAll(
+		root,
+		(node) => node.props.role === 'option' && textOf(node).startsWith(name),
+	)[0]
+	if (!option) {
+		throw new Error(`no table ${name} to pick`)
+	}
+	fire(option, 'click')
 }
 
 function config(name = 'chartCard'): Record<string, unknown> {
@@ -328,6 +346,18 @@ describe('the chart a card draws with', () => {
 })
 
 describe('what a card measures', () => {
+	it('starts the panel, before what the card shows on the page', async () => {
+		const root = await panel()
+		const titles = findAll(
+			root,
+			(node) =>
+				(node.tag === 'section' && typeof node.props['aria-label'] === 'string') ||
+				(node.tag === 'span' && ['Data', 'Headline', 'Look'].includes(textOf(node))),
+		).map((node) => (node.tag === 'section' ? String(node.props['aria-label']) : textOf(node)))
+
+		expect(titles.slice(0, 3)).toEqual(['Data', 'On the page', 'Chart'])
+	})
+
 	it('folds behind a line saying it, open until closed', async () => {
 		const root = await panel()
 		expect(fold(root, 'Data').props['aria-expanded']).toBe(true)
@@ -335,7 +365,7 @@ describe('what a card measures', () => {
 		expect(fold(root, 'Look').props['aria-expanded']).toBe(false)
 		expect(textOf(fold(root, 'Data'))).toContain('Nothing measured yet')
 
-		write(control(root, 'USelectMenu', 'From'), 'order')
+		pickTable(root, 'order')
 		await settle()
 		write(control(root, 'USelectMenu', 'Split by'), 'status')
 		await settle()
@@ -347,7 +377,7 @@ describe('what a card measures', () => {
 
 	it('draws no preview of its own: the card on the page shows it', async () => {
 		const root = await panel()
-		write(control(root, 'USelectMenu', 'From'), 'order')
+		pickTable(root, 'order')
 		await settle()
 		write(control(root, 'USelectMenu', 'Split by'), 'status')
 		await settle()
@@ -369,7 +399,7 @@ describe('what a card measures', () => {
 			params: { op: 'sum', field: 'amount', groupBy: 'createdAt', bucket: 'month' },
 			response: 'card',
 		})
-		write(control(root, 'USelectMenu', 'From'), 'order')
+		pickTable(root, 'order')
 		await settle()
 
 		builder.select('revenueChart')
@@ -380,7 +410,7 @@ describe('what a card measures', () => {
 
 	it('follows the page period on a date column, and compares with the one before', async () => {
 		const root = await panel()
-		write(control(root, 'USelectMenu', 'From'), 'order')
+		pickTable(root, 'order')
 		await settle()
 		write(control(root, 'USelectMenu', 'Split by'), 'status')
 		await settle()
@@ -417,11 +447,14 @@ describe('what a card measures', () => {
 
 		expect(textOf(fold(root, 'Data'))).toContain("From the page's code")
 		expect(textOf(root)).toContain('GET /shop/board/stats/chart-card2')
-		expect(findAll(root, (node) => node.props['aria-label'] === 'From')).toHaveLength(0)
+		expect(findAll(root, (node) => node.props['aria-label'] === 'Tables')).toHaveLength(0)
 
 		fire(button(root, 'Build it here instead'), 'click')
 		await nextTick()
-		expect(findAll(root, (node) => node.props['aria-label'] === 'From')).toHaveLength(1)
+		expect(
+			findAll(root, (node) => node.props['aria-label'] === 'Tables'),
+			'the tables to measure, to pick one from',
+		).toHaveLength(1)
 		expect(config().fetchUrl, 'nothing written until a table is picked').toBe(
 			'/shop/board/stats/chart-card2',
 		)

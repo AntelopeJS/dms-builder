@@ -5,7 +5,11 @@ import { useBlockPanel } from '../runtime/block-panel'
 import { PANEL_CARD } from '../runtime/form-panel'
 import { savedRowOf, type ResourceFormMode } from '../runtime/resource-form-panel'
 import { useBuilder } from '../runtime/session'
-import { columnsInOrder } from '../runtime/table-panel'
+import {
+	columnsInOrder,
+	columnsTaken,
+	SHARED_TABLE_WARNING,
+} from '../runtime/table-panel'
 
 /**
  * A table form, as someone building a page sets one up, in three cards: the
@@ -24,16 +28,10 @@ const { config, text } = block
 /* ---- the data ----------------------------------------------------------- */
 
 const table = computed(() => block.block.value?.controller)
-const tableItems = computed(() =>
-	session.value.resources.map((entry) => ({ label: entry.ref, value: entry.ref })),
-)
 const fields = computed(() =>
 	table.value
 		? columnsInOrder(session.value.resourceStructures[table.value]?.fields)
 		: [],
-)
-const fieldNames = computed(() =>
-	fields.value.map((field) => field.label || field.name).join(', '),
 )
 
 const MODES: Array<{ value: ResourceFormMode; label: string }> = [
@@ -51,8 +49,8 @@ const HINTS: Record<ResourceFormMode, string> = {
 const mode = computed(() => text('mode') as ResourceFormMode | '')
 const savedRow = computed(() => savedRowOf(mode.value, config.value.rowId))
 
-function pick(ref: unknown): void {
-	if (typeof ref === 'string' && ref !== table.value) {
+function pick(ref: string): void {
+	if (ref !== table.value) {
 		builder.setController(props.path, ref)
 	}
 }
@@ -80,18 +78,14 @@ function setMode(next: ResourceFormMode): void {
 				<UIcon name="i-ph-table" class="size-4 text-primary" />
 				Data
 			</p>
-			<div class="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
-				<span class="text-sm text-muted">Table</span>
-				<USelectMenu
-					:model-value="table"
-					:items="tableItems"
-					value-key="value"
-					placeholder="Choose a table…"
-					aria-label="Table"
-					class="w-full"
-					@update:model-value="pick($event)"
-				/>
-			</div>
+			<DmsBuilderTableChoice
+				:model-value="table"
+				note="The table its fields come from"
+				label="Table the form works on"
+				empty-title="Pick the table it works on"
+				empty-hint="The form asks for the table's fields, in the table's order. Choose next whether it creates, edits or shows a row."
+				@update:model-value="pick"
+			/>
 
 			<div v-if="block.has('mode')" class="flex flex-col gap-1.5">
 				<span class="text-sm text-muted">The form</span>
@@ -122,41 +116,12 @@ function setMode(next: ResourceFormMode): void {
 				</span>
 			</div>
 
-			<div class="h-px bg-(--ui-border)" />
-
-			<button
-				type="button"
-				class="flex items-center gap-2.5 text-left text-sm disabled:opacity-60"
-				:disabled="!table"
-				@click="builder.setView('resource')"
-			>
-				<span class="flex min-w-0 flex-1 flex-col">
-					<span class="font-medium text-default">
-						{{
-							table
-								? `${fields.length} field${fields.length === 1 ? '' : 's'}`
-								: 'No table yet'
-						}}
-					</span>
-					<span class="truncate text-[13px]/[18px] text-muted">
-						{{ table ? fieldNames : 'Choose a table to see its fields.' }}
-					</span>
-				</span>
-				<span
-					v-if="table"
-					class="flex shrink-0 items-center gap-1 font-medium text-primary"
-				>
-					Go to Tables
-					<UIcon name="i-ph-arrow-right" class="size-4" />
-				</span>
-			</button>
-			<p
+			<DmsBuilderTableLink
 				v-if="table"
-				class="flex gap-2 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning"
-			>
-				<UIcon name="i-ph-info" class="mt-px size-3.5 shrink-0" />
-				Fields belong to the table: editing them changes every page that uses it.
-			</p>
+				:table="table"
+				:summary="`${columnsTaken(fields.length, fields.length)} in the form`"
+				:warning="`Fields belong to the table: ${SHARED_TABLE_WARNING}`"
+			/>
 		</section>
 
 		<DmsBuilderOnThePage :path="path" />

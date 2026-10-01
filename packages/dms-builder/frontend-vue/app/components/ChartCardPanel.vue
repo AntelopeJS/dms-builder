@@ -18,10 +18,11 @@ import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
 
 /**
- * A chart card, as someone building a page sets one up: what it is called, the
- * chart it draws with, then three parts that fold away behind a line each —
- * what it measures, its headline figure, and how it looks. Routes and scopes
- * are the advanced view's.
+ * A chart card, as someone building a page sets one up, starting where every
+ * panel starts: what it measures, then what it is called, the chart it draws
+ * with, its headline figure and how it looks. What it measures, its headline
+ * and its look fold away behind a line each. Routes and scopes are the advanced
+ * view's.
  */
 const props = defineProps<{ path: string }>()
 
@@ -196,6 +197,24 @@ const showingMore = ref(false)
 
 <template>
 	<div class="flex flex-col gap-3">
+		<DmsBuilderFoldCard
+			v-if="has('fetchUrl') && block"
+			icon="i-ph-table"
+			title="Data"
+			:summary="dataSummary"
+			default-open
+		>
+			<DmsBuilderDataSource
+				:key="block.name"
+				:model-value="config.fetchUrl"
+				:response-shape="fetchUi.responseShape"
+				:period-option="fetchUi.periodOption"
+				:block-name="block.name"
+				without-preview
+				@patch="patch($event)"
+			/>
+		</DmsBuilderFoldCard>
+
 		<DmsBuilderOnThePage :path="path" />
 
 		<section v-if="chartTypes.length" :class="PANEL_CARD" aria-label="Chart">
@@ -234,24 +253,6 @@ const showingMore = ref(false)
 		</section>
 
 		<div class="flex flex-col gap-3">
-			<DmsBuilderFoldCard
-				v-if="has('fetchUrl') && block"
-				icon="i-ph-table"
-				title="Data"
-				:summary="dataSummary"
-				default-open
-			>
-				<DmsBuilderDataSource
-					:key="block.name"
-					:model-value="config.fetchUrl"
-					:response-shape="fetchUi.responseShape"
-					:period-option="fetchUi.periodOption"
-					:block-name="block.name"
-					without-preview
-					@patch="patch($event)"
-				/>
-			</DmsBuilderFoldCard>
-
 			<DmsBuilderFoldCard
 				v-if="has('valueFormat') || has('showDelta')"
 				icon="i-ph-trend-up"

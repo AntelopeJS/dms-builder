@@ -13,6 +13,9 @@ import Overlay from '../app/components/Overlay.vue'
 import Option from '../app/components/Option.vue'
 import OnThePage from '../app/components/OnThePage.vue'
 import SubmitSettings from '../app/components/SubmitSettings.vue'
+import TableChoice from '../app/components/TableChoice.vue'
+import TableLink from '../app/components/TableLink.vue'
+import TablePicker from '../app/components/TablePicker.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -387,6 +390,9 @@ const panel = (): Record<string, Component> => ({
 	DmsBuilderOnThePage: OnThePage as Component,
 	DmsBuilderSubmitSettings: SubmitSettings as Component,
 	DmsBuilderFormTarget: FormTarget as Component,
+	DmsBuilderTableChoice: TableChoice as Component,
+	DmsBuilderTableLink: TableLink as Component,
+	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderFormFields: FormFields as Component,
 	DmsBuilderFormFieldDetail: FormFieldDetail as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),

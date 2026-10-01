@@ -6,6 +6,8 @@ import FormFields from '../app/components/FormFields.vue'
 import FormPanel from '../app/components/FormPanel.vue'
 import FormTarget from '../app/components/FormTarget.vue'
 import TablePicker from '../app/components/TablePicker.vue'
+import TableChoice from '../app/components/TableChoice.vue'
+import TableLink from '../app/components/TableLink.vue'
 import Option from '../app/components/Option.vue'
 import OnThePage from '../app/components/OnThePage.vue'
 import SubmitSettings from '../app/components/SubmitSettings.vue'
@@ -120,6 +122,8 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderSubmitSettings: SubmitSettings as Component,
 	DmsBuilderFormTarget: FormTarget as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
+	DmsBuilderTableChoice: TableChoice as Component,
+	DmsBuilderTableLink: TableLink as Component,
 	DmsBuilderFormFields: FormFields as Component,
 	DmsBuilderFormFieldDetail: FormFieldDetail as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),

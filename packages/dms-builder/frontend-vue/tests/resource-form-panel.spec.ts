@@ -5,6 +5,9 @@ import Option from '../app/components/Option.vue'
 import ResourceFormPanel from '../app/components/ResourceFormPanel.vue'
 import OnThePage from '../app/components/OnThePage.vue'
 import SubmitSettings from '../app/components/SubmitSettings.vue'
+import TableChoice from '../app/components/TableChoice.vue'
+import TableLink from '../app/components/TableLink.vue'
+import TablePicker from '../app/components/TablePicker.vue'
 import { useBuilderMode } from '../app/runtime/mode'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockCatalog, ResourceStructure } from '../app/runtime/types'
@@ -124,6 +127,9 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderSubmitSettings: SubmitSettings as Component,
 	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
+	DmsBuilderTableChoice: TableChoice as Component,
+	DmsBuilderTableLink: TableLink as Component,
+	DmsBuilderTablePicker: TablePicker as Component,
 	USelectMenu: stub('USelectMenu'),
 	USwitch: stub('USwitch'),
 	UTextarea: stub('UTextarea'),
@@ -313,16 +319,31 @@ describe('a table form in the simple mode', () => {
 		)
 	})
 
-	it('picks its table in its own card', async () => {
+	it('picks its table in its own card, the way every panel does', async () => {
 		const root = await tableForm()
+		builder.session.value.resources = [
+			...builder.session.value.resources,
+			{ ref: 'invoice', className: 'invoiceDataAPI', tableName: 'invoices', route: '/api/invoice', fieldCount: 2 },
+		]
+		await settle()
 		const table = findAll(
 			root,
-			(node) => node.tag === 'USelectMenu' && node.props['aria-label'] === 'Table',
+			(node) =>
+				node.tag === 'UButton' &&
+				node.props['aria-label'] === 'Table the form works on: order',
 		)[0]!
-		expect(table.props['model-value']).toBe('order')
+		expect(textOf(table), 'what the table is to the form, under its name').toContain(
+			'The table its fields come from',
+		)
 
-		write(table, 'invoice')
-		await nextTick()
+		fire(table, 'click')
+		await settle()
+		const invoice = findAll(
+			root,
+			(node) => node.props.role === 'option' && textOf(node).startsWith('invoice'),
+		)[0]!
+		fire(invoice, 'click')
+		await settle()
 		expect(builder.session.value.draft?.blocks[0]?.controller).toBe('invoice')
 	})
 
@@ -345,15 +366,18 @@ describe('a table form in the simple mode', () => {
 		expect(textOf(root), 'said once, where it is picked').not.toContain('Still to fill in')
 	})
 
-	it('lists the fields it asks for, and leads to the table to change them', async () => {
+	it('says what it asks of the table, and leads to the table to change it', async () => {
 		const root = await tableForm()
-		expect(textOf(root)).toContain('3 fields')
-		expect(textOf(root)).toContain('Amount, Status, Created')
+		expect(textOf(root)).toContain('3 of its 3 columns in the form')
 		expect(textOf(root)).toContain(
 			'Fields belong to the table: editing them changes every page that uses it.',
 		)
 
-		fire(button(root, 'Go to Tables'), 'click')
+		const open = findAll(
+			root,
+			(node) => node.tag === 'UButton' && node.props.label === 'Open the table',
+		)[0]!
+		fire(open, 'click')
 		expect(builder.session.value.view).toBe('resource')
 		expect(builder.session.value.table?.ref).toBe('order')
 	})

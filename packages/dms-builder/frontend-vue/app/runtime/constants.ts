@@ -33,9 +33,9 @@ export const HISTORY_LIMIT = 50
 export const TOAST_MS = 2600
 
 export const OPTION_GROUPS = [
+	'data',
 	'content',
 	'features',
-	'data',
 	'appearance',
 	'layout',
 	'behavior',
