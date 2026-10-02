@@ -16,10 +16,11 @@ import {
 	spansFullWidth,
 } from '../runtime/dropping'
 import {
+	mountIdOf,
+	remountKeyOf,
 	ROOM_BLOCKS,
 	roomStyle,
 	savedConfigAt,
-	sourceKeyOf,
 	withDraftEdits,
 	withDraftSource,
 } from '../runtime/canvas-options'
@@ -103,7 +104,10 @@ const options = computed(() => {
 		sourceQuery(session.value.draft, session.value.structure, props.block.name),
 	)
 })
-const sourceKey = computed(() => sourceKeyOf(options.value, descriptor.value))
+const sourceKey = computed(() =>
+	remountKeyOf(props.block.type, options.value, descriptor.value),
+)
+const mountId = computed(() => mountIdOf(props.block.type, props.path, options.value))
 /**
  * A block that is nothing but room — a spacer — is invisible on the page, and
  * on the canvas its size would change with nothing to show it: drawn as a
@@ -537,7 +541,7 @@ function answerCursor(event: DragEvent): void {
 					ref="instance"
 					v-bind="options"
 					:page-id="pageId"
-					:component-id="path"
+					:component-id="mountId"
 					:child-count="childCount"
 				>
 					<template v-for="region in regions" :key="region.id" #[region.id]>

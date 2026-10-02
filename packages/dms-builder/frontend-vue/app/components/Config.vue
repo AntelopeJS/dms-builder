@@ -21,6 +21,7 @@ import {
 import { parentPath, useBuilder } from '../runtime/session'
 import { SPACER_BLOCK, SPACER_PANEL_OPTIONS } from '../runtime/spacer-panel'
 import { TABLE_BLOCK, TABLE_PANEL_OPTIONS } from '../runtime/table-panel'
+import { TREE_BLOCK, TREE_PANEL_OPTIONS } from '../runtime/tree-panel'
 import type { OptionSchema } from '../runtime/types'
 
 interface RenderedOption {
@@ -105,7 +106,9 @@ const parentBlock = computed(() => {
  * - a chart card draws a chart picked by how it draws, measuring what is
  *   built from a table, the rest folded away behind a line each;
  * - a spacer takes the room picked among three ways, each drawn, rather than
- *   three numbers.
+ *   three numbers;
+ * - a tree lists its items one by one rather than as JSON, and keeps what it
+ *   does by itself until a switch says otherwise.
  */
 const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
 	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
@@ -119,6 +122,7 @@ const PANELS: Record<string, { component: string; options: ReadonlySet<string> }
 		options: CHART_CARD_PANEL_OPTIONS,
 	},
 	[SPACER_BLOCK]: { component: 'DmsBuilderSpacerPanel', options: SPACER_PANEL_OPTIONS },
+	[TREE_BLOCK]: { component: 'DmsBuilderTreePanel', options: TREE_PANEL_OPTIONS },
 }
 
 const panel = computed(() =>

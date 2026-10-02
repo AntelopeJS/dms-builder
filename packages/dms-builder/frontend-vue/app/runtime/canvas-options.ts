@@ -191,3 +191,55 @@ export function sourceKeyOf(
 		.map(([key]) => String(options?.[key] ?? ''))
 		.join('\u0000')
 }
+
+/**
+ * The settings a block reads once, as it mounts, rather than as they change: a
+ * tree loads the items listed for it when it is set up, and knows which start
+ * open only then.
+ */
+const READ_ONCE: Readonly<Record<string, readonly string[]>> = {
+	Tree: ['staticNodes', 'defaultExpanded'],
+}
+
+/**
+ * What the canvas renders a block anew on: its source, and the settings it reads
+ * only once. An edit to one would otherwise go unseen until the page reloads.
+ */
+export function remountKeyOf(
+	type: string | undefined,
+	options: Record<string, unknown> | undefined,
+	descriptor: BlockTypeDescriptor | undefined,
+): string {
+	const once = READ_ONCE[type ?? ''] ?? []
+	return [
+		sourceKeyOf(options, descriptor),
+		...once.map((key) => JSON.stringify(options?.[key] ?? null)),
+	].join('\u0000')
+}
+
+/** A short, stable digest of `text`: enough to tell two revisions apart. */
+function digest(text: string): string {
+	let hash = 5381
+	for (let at = 0; at < text.length; at += 1) {
+		hash = ((hash << 5) + hash + text.charCodeAt(at)) | 0
+	}
+	return (hash >>> 0).toString(36)
+}
+
+/**
+ * The id the canvas mounts a block under. A block that reads some settings only
+ * as it mounts keeps what it loaded under a key made of its id — a tree loads
+ * its items through the DMS's async data — and mounting it anew under the same
+ * id hands it back the items it loaded first. Its id follows those settings.
+ */
+export function mountIdOf(
+	type: string | undefined,
+	path: string,
+	options: Record<string, unknown> | undefined,
+): string {
+	const once = READ_ONCE[type ?? '']
+	if (!once) {
+		return path
+	}
+	return `${path}~${digest(once.map((key) => JSON.stringify(options?.[key] ?? null)).join('\u0000'))}`
+}

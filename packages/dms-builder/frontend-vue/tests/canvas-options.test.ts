@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+	mountIdOf,
+	remountKeyOf,
 	roomStyle,
 	savedConfigAt,
 	sourceKeyOf,
@@ -168,5 +170,29 @@ describe('a block that is nothing but room', () => {
 
 	it('leaves every other block to size itself', () => {
 		expect(roomStyle('Text', { grow: 2 })).toBeUndefined()
+	})
+})
+
+describe('a block that reads some settings only as it mounts', () => {
+	it('is rendered anew when its listed items change', () => {
+		const before = remountKeyOf('Tree', { staticNodes: [{ label: 'Fruits' }] }, undefined)
+		const after = remountKeyOf('Tree', { staticNodes: [{ label: 'Fruit' }] }, undefined)
+		expect(before).not.toBe(after)
+		expect(remountKeyOf('Tree', { staticNodes: [{ label: 'Fruits' }], title: 'Shop' }, undefined)).toBe(
+			before,
+		)
+	})
+
+	it('is mounted under an id that follows them, so it loads them afresh', () => {
+		const first = mountIdOf('Tree', 'tree', { staticNodes: [{ label: 'Fruits' }] })
+		expect(first).toMatch(/^tree~/)
+		expect(mountIdOf('Tree', 'tree', { staticNodes: [{ label: 'Fruit' }] })).not.toBe(first)
+		expect(mountIdOf('Text', 'intro', { content: 'a' })).toBe('intro')
+	})
+
+	it('is left mounted by a block that reads them as they change', () => {
+		expect(remountKeyOf('Text', { content: 'a' }, undefined)).toBe(
+			remountKeyOf('Text', { content: 'b' }, undefined),
+		)
 	})
 })
