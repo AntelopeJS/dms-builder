@@ -27,6 +27,10 @@ export interface OpWarning {
     | "query_opaque"
     /** A query the draft dropped is still read by a block, so it was kept. */
     | "query_kept"
+    /** A tree on the page was taken over by hand, so the draft left it alone. */
+    | "tree_opaque"
+    /** A tree the draft dropped is still read by a block, so it was kept. */
+    | "tree_kept"
     | "index_clamped"
     | "datatype_fallback"
     | "data_not_dropped"

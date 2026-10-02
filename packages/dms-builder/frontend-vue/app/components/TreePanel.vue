@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useBlockPanel } from '../runtime/block-panel'
 import { THEME_COLORS } from '../runtime/constants'
 import { CARD_FIELD_UI, PANEL_CARD } from '../runtime/form-panel'
+import { useBuilder } from '../runtime/session'
+import { treeSource } from '../runtime/tree-source'
 import {
 	CUSTOM_LOOK,
 	CUSTOM_OPENING,
@@ -20,32 +22,51 @@ import {
 
 /**
  * A tree, as someone building a page sets one up, starting where every panel
- * starts: its items, listed here or read from an address, then what it shows on
- * the page. How items are selected, which start open and how it looks keep to
+ * starts: its items — listed here, read from the page's tables, or from an
+ * address — then what it shows on the page. How items are selected, which start open and how it looks keep to
  * what the tree does by itself until a switch says otherwise. Methods, handlers
  * and loading on demand are the advanced view's.
  */
 const props = defineProps<{ path: string }>()
 
-const { config, options, has, text, patch, write } = useBlockPanel(() => props.path)
+const { block, config, options, has, text, patch, write } = useBlockPanel(() => props.path)
+const builder = useBuilder()
+const session = builder.session
 
 /* ---- its items ---------------------------------------------------------- */
 
-type Source = 'listed' | 'address'
+type Source = 'listed' | 'table' | 'address'
 
 const SOURCES: Array<{ value: Source; label: string }> = [
 	{ value: 'listed', label: 'Listed here' },
+	{ value: 'table', label: 'From a table' },
 	{ value: 'address', label: 'From an address' },
 ]
 
-/** Where its items come from, picked before an address is typed. */
+/** The tree its items are read from, when the page's tables answer them. */
+const fromTables = computed(() =>
+	treeSource(session.value.draft, session.value.structure, block.value?.name ?? ''),
+)
+
+/** Where its items come from, picked before a table or an address is. */
 const pickedSource = ref<Source | null>(null)
 const source = computed<Source>(
-	() => pickedSource.value ?? (text('fetchUrl') ? 'address' : 'listed'),
+	() =>
+		pickedSource.value ??
+		(fromTables.value ? 'table' : text('fetchUrl') ? 'address' : 'listed'),
 )
 
 function setSource(next: Source): void {
+	if (next === source.value) {
+		return
+	}
 	pickedSource.value = next
+	if (fromTables.value) {
+		// The route reading the tables goes with them, and the address the block
+		// read it at with it.
+		builder.removeDraftTree(block.value?.name ?? '')
+		patch({ fetchUrl: undefined, lazyLoad: undefined })
+	}
 	if (next === 'listed') {
 		// Read from an address, the items listed here go unread: the address and
 		// the method it is read with go together.
@@ -203,14 +224,14 @@ const ICONS = [
 				v-if="has('fetchUrl')"
 				role="group"
 				aria-label="Where its items come from"
-				class="grid grid-cols-2 gap-1 rounded-lg border border-accented bg-default p-0.75"
+				class="grid grid-cols-3 gap-1 rounded-lg border border-accented bg-default p-0.75"
 			>
 				<button
 					v-for="choice in SOURCES"
 					:key="choice.value"
 					type="button"
 					:aria-pressed="source === choice.value"
-					class="h-8 whitespace-nowrap rounded-[5px] px-1.5 text-[13px] transition-colors"
+					class="min-h-8 rounded-[5px] px-1 py-1 text-[12px]/[14px] transition-colors"
 					:class="
 						source === choice.value
 							? 'bg-primary font-semibold text-inverted'
@@ -280,6 +301,8 @@ const ICONS = [
 					@click="addItem(null)"
 				/>
 			</template>
+
+			<DmsBuilderTreeTableSource v-else-if="source === 'table'" :path="path" />
 
 			<UFormField
 				v-else

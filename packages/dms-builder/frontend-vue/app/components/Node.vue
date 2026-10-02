@@ -23,8 +23,10 @@ import {
 	savedConfigAt,
 	withDraftEdits,
 	withDraftSource,
+	withDraftTree,
 } from '../runtime/canvas-options'
 import { sourceQuery } from '../runtime/data-source'
+import { treeSource } from '../runtime/tree-source'
 import { joinPath, useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
@@ -98,10 +100,14 @@ const options = computed(() => {
 				props.block.config,
 			)
 		: rendered.value?.options
-	return withDraftSource(
-		shown,
-		descriptor.value,
-		sourceQuery(session.value.draft, session.value.structure, props.block.name),
+	return withDraftTree(
+		withDraftSource(
+			shown,
+			descriptor.value,
+			sourceQuery(session.value.draft, session.value.structure, props.block.name),
+		),
+		props.block.type,
+		treeSource(session.value.draft, session.value.structure, props.block.name),
 	)
 })
 const sourceKey = computed(() =>

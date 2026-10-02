@@ -107,8 +107,9 @@ const parentBlock = computed(() => {
  *   built from a table, the rest folded away behind a line each;
  * - a spacer takes the room picked among three ways, each drawn, rather than
  *   three numbers;
- * - a tree lists its items one by one rather than as JSON, and keeps what it
- *   does by itself until a switch says otherwise.
+ * - a tree lists its items one by one, or reads them from the page's tables
+ *   ranked, nested or linked, rather than as JSON, and keeps what it does by
+ *   itself until a switch says otherwise.
  */
 const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
 	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },

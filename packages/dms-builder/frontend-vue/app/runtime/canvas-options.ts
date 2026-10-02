@@ -3,8 +3,9 @@
  * being built follows the draft as it is edited rather than the page as it was
  * last saved.
  */
-import { API_PREFIX, QUERY_PREVIEW_PARAMETER } from './constants'
+import { API_PREFIX, QUERY_PREVIEW_PARAMETER, TREE_PREVIEW_PARAMETER } from './constants'
 import type { SourceQuery } from './data-source'
+import { treeProblem, type TreeSourceSpec } from './tree-source'
 import type { BlockNode, BlockTypeDescriptor, OptionSchema } from './types'
 
 /** The settings a value can be laid over as it is: no shape to rebuild. */
@@ -179,6 +180,32 @@ export function withDraftSource(
 }
 
 /**
+ * Where the canvas reads a tree built here from tables: the builder's preview,
+ * answered by the helper the route will call. A branch opened on the canvas is
+ * asked for at the same address.
+ */
+export function treePreviewUrl(tree: TreeSourceSpec): string {
+	const input = JSON.stringify({ levels: tree.levels, ...(tree.lazy ? { lazy: true } : {}) })
+	return `${API_PREFIX}/tree-preview?${TREE_PREVIEW_PARAMETER}=${encodeURIComponent(input)}`
+}
+
+/**
+ * A tree reading tables, pointed at the preview of its levels as the draft
+ * holds them, so a level added or a column picked redraws it. Loading a branch
+ * as it opens follows the draft too: the tree only asks for one when told to.
+ */
+export function withDraftTree(
+	options: Record<string, unknown> | undefined,
+	type: string | undefined,
+	tree: TreeSourceSpec | undefined,
+): Record<string, unknown> | undefined {
+	if (!options || type !== 'Tree' || !tree || treeProblem(tree)) {
+		return options
+	}
+	return { ...options, fetchUrl: treePreviewUrl(tree), lazyLoad: tree.lazy === true }
+}
+
+/**
  * What a block reads its figures from, to render it anew when that changes: a
  * card fetches once, as it mounts, and a new source would otherwise go unread.
  */
@@ -194,11 +221,12 @@ export function sourceKeyOf(
 
 /**
  * The settings a block reads once, as it mounts, rather than as they change: a
- * tree loads the items listed for it when it is set up, and knows which start
- * open only then.
+ * tree loads its items — listed for it or read from an address — when it is set
+ * up, and knows which start open and whether it loads a branch as it opens only
+ * then.
  */
 const READ_ONCE: Readonly<Record<string, readonly string[]>> = {
-	Tree: ['staticNodes', 'defaultExpanded'],
+	Tree: ['staticNodes', 'defaultExpanded', 'fetchUrl', 'lazyLoad'],
 }
 
 /**

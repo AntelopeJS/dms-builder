@@ -6,8 +6,10 @@ import {
 	savedConfigAt,
 	sourceKeyOf,
 	sourcePreviewUrl,
+	treePreviewUrl,
 	withDraftEdits,
 	withDraftSource,
+	withDraftTree,
 } from '../app/runtime/canvas-options'
 import type { BlockNode, BlockTypeDescriptor, OptionSchema } from '../app/runtime/types'
 
@@ -193,6 +195,40 @@ describe('a block that reads some settings only as it mounts', () => {
 	it('is left mounted by a block that reads them as they change', () => {
 		expect(remountKeyOf('Text', { content: 'a' }, undefined)).toBe(
 			remountKeyOf('Text', { content: 'b' }, undefined),
+		)
+	})
+})
+
+describe('a tree reading tables built here', () => {
+	const levels = [{ resource: 'category', label: ['name'], parent: 'parent' }]
+
+	it('reads the preview of its levels, each branch asked for there too', () => {
+		const url = treePreviewUrl({ levels, lazy: true })
+		expect(url.startsWith('/api/builder/tree-preview?tree=')).toBe(true)
+		expect(JSON.parse(new URL(url, 'http://localhost').searchParams.get('tree') ?? '')).toEqual({
+			levels,
+			lazy: true,
+		})
+
+		expect(
+			withDraftTree({ title: 'Categories', fetchUrl: '/shop/board/tree/tree' }, 'Tree', {
+				levels,
+				lazy: true,
+			}),
+		).toEqual({ title: 'Categories', fetchUrl: treePreviewUrl({ levels, lazy: true }), lazyLoad: true })
+	})
+
+	it('is left alone while its levels cannot be read, and for any other block', () => {
+		const options = { fetchUrl: '/shop/board/tree/tree' }
+		expect(withDraftTree(options, 'Tree', { levels: [{ resource: 'order', by: '' }] })).toBe(options)
+		expect(withDraftTree(options, 'Tree', undefined)).toBe(options)
+		expect(withDraftTree(options, 'Table', { levels })).toBe(options)
+	})
+
+	it('mounts anew under another address, which it reads once', () => {
+		const first = mountIdOf('Tree', 'tree', { fetchUrl: treePreviewUrl({ levels }) })
+		expect(mountIdOf('Tree', 'tree', { fetchUrl: treePreviewUrl({ levels, lazy: true }) })).not.toBe(
+			first,
 		)
 	})
 })

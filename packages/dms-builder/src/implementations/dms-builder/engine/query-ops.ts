@@ -96,7 +96,7 @@ function resourceFields(record: ResourceRecord): ResourceFieldStructure[] {
     .map((property) => readDataApiFieldAspects(property, indexed));
 }
 
-function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
+export function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
   const names = new Set(PAGE_RESERVED_MEMBERS);
   for (const member of pageClass.getMembers()) {
     // A block is a static field, read off the class itself; a route is a

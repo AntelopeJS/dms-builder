@@ -1,5 +1,6 @@
 import type { BlockPath, CategoryRef, PageRef } from "./addressing";
 import type { QueryStructure } from "./queries";
+import type { TreeStructure } from "./trees";
 import type { ResourceRef } from "./resources";
 
 /**
@@ -72,6 +73,8 @@ export interface PageStructure {
   blocks: BlockNode[];
   /** The query routes declared on the page, found by shape. */
   queries: QueryStructure[];
+  /** The routes answering a tree from the page's tables, found by shape. */
+  trees?: TreeStructure[];
   version: string;
 }
 
