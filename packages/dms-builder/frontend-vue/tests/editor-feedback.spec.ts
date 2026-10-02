@@ -267,7 +267,7 @@ describe('a setting the page needs and nobody filled in', () => {
 	/** What the Nuxt build auto-imports around the config panel. */
 	const panel = (): Record<string, Component> => ({
 		DmsBuilderOption: Option as Component,
-		DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+		DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 		DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 		USelectMenu: stub('USelectMenu'),
 		USwitch: stub('USwitch'),
@@ -391,7 +391,7 @@ const panel = (): Record<string, Component> => ({
 	DmsBuilderTableChoice: TableChoice as Component,
 	DmsBuilderTableLink: TableLink as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
-	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 	USelectMenu: stub('USelectMenu'),
 	USwitch: stub('USwitch'),

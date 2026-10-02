@@ -182,7 +182,7 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderDataSource: DataSource as Component,
 	DmsBuilderTableChoice: TableChoice as Component,
 	DmsBuilderTablePicker: TablePicker as Component,
-	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 	UCollapsible: collapsible,
 	UChip: stub('UChip'),
 	USelectMenu: stub('USelectMenu'),

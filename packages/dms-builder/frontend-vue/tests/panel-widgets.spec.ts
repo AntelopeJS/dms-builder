@@ -112,6 +112,37 @@ describe('a colour option', () => {
 	})
 })
 
+describe('an icon option', () => {
+	const schema: OptionSchema = {
+		type: 'string',
+		optional: true,
+		description: 'Icon name, e.g. `i-ph-trend-up`.',
+		ui: { label: 'Icon', widget: 'icon' },
+	}
+
+	it("is picked by sight, the way a page's icon is", async () => {
+		const written: unknown[] = []
+		const { root } = mount(Option, {
+			props: {
+				name: 'icon',
+				schema,
+				modelValue: 'i-ph-trend-up',
+				'onUpdate:modelValue': (value: unknown) => written.push(value),
+			},
+			components: { DmsBuilderIconPicker: stub('DmsBuilderIconPicker') },
+		})
+		await nextTick()
+
+		const picker = findAll(root, (node) => node.tag === 'DmsBuilderIconPicker')[0]!
+		expect(picker.props['model-value']).toBe('i-ph-trend-up')
+		expect(picker.props.label).toBe('Choose the icon')
+		expect(textOf(root), 'no name to type').not.toContain('Icon name, e.g.')
+
+		write(picker, 'i-ph-currency-eur')
+		expect(written).toEqual(['i-ph-currency-eur'])
+	})
+})
+
 describe('a ranking read from a table', () => {
 	function orders(): ResourceStructure {
 		return {

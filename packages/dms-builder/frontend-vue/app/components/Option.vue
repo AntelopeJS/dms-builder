@@ -74,6 +74,12 @@ const session = builder.session
 
 const label = computed(() => optionLabel(props.name, props.schema))
 const ui = computed(() => props.schema.ui ?? {})
+/** What an icon option's tile shows while none is picked, when it names one. */
+const iconFallback = computed(() =>
+	typeof ui.value.placeholder === 'string' && ui.value.placeholder.startsWith('i-')
+		? ui.value.placeholder
+		: undefined,
+)
 
 /**
  * Whether the page needs this one filled in, and whether it still is not.
@@ -1090,10 +1096,14 @@ const nestedProperties = computed(() =>
 			/>
 		</div>
 
-		<DmsBuilderIconInput
+		<!-- Picked by sight, as a page's icon is: the tile is the choice, and the
+		name only shows once the search beside it is open. -->
+		<DmsBuilderIconPicker
 			v-else-if="widget === 'icon'"
-			:model-value="modelValue as string"
-			:placeholder="ui.placeholder"
+			:model-value="typeof modelValue === 'string' ? modelValue : undefined"
+			:fallback="iconFallback"
+			:label="`Choose the ${label.toLowerCase()}`"
+			class="self-start"
 			@update:model-value="set($event)"
 		/>
 
@@ -1108,7 +1118,9 @@ const nestedProperties = computed(() =>
 			Required — the page cannot be built until this is filled in.
 		</p>
 		<p v-else-if="ineligible" class="text-xs text-warning">{{ ineligible }}</p>
-		<p v-else-if="schema.description" class="text-xs text-dimmed">
+		<!-- An icon is picked by sight; how its name is spelled is the picker's
+		to say, when one is typed. -->
+		<p v-else-if="schema.description && widget !== 'icon'" class="text-xs text-dimmed">
 			{{ schema.description }}
 		</p>
 	</div>

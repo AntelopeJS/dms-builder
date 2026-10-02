@@ -122,7 +122,7 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderTablePicker: TablePicker as Component,
 	DmsBuilderTableChoice: TableChoice as Component,
 	DmsBuilderTableLink: TableLink as Component,
-	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 	USelectMenu: stub('USelectMenu'),
 	USwitch: stub('USwitch'),

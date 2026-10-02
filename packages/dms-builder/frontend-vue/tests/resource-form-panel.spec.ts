@@ -125,7 +125,7 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderResourceFormPanel: ResourceFormPanel as Component,
 	DmsBuilderOnThePage: OnThePage as Component,
 	DmsBuilderSubmitSettings: SubmitSettings as Component,
-	DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 	DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 	DmsBuilderTableChoice: TableChoice as Component,
 	DmsBuilderTableLink: TableLink as Component,

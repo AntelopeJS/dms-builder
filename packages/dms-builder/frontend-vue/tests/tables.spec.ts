@@ -543,7 +543,7 @@ describe('a write that went through with a warning', () => {
 describe('a block that reads a table', () => {
 	const panel = (): Record<string, Component> => ({
 		DmsBuilderOption: Option as Component,
-		DmsBuilderIconInput: stub('DmsBuilderIconInput'),
+		DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 		DmsBuilderDataSource: stub('DmsBuilderDataSource'),
 		USelectMenu: stub('USelectMenu'),
 		USwitch: stub('USwitch'),
