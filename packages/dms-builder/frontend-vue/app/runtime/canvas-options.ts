@@ -5,7 +5,7 @@
  */
 import { API_PREFIX, QUERY_PREVIEW_PARAMETER } from './constants'
 import type { SourceQuery } from './data-source'
-import type { BlockNode, BlockTypeDescriptor } from './types'
+import type { BlockNode, BlockTypeDescriptor, OptionSchema } from './types'
 
 /** The settings a value can be laid over as it is: no shape to rebuild. */
 const PLAIN_TYPES = new Set(['string', 'number', 'boolean'])
@@ -27,16 +27,77 @@ export function savedConfigAt(
 	return node?.config
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function same(a: unknown, b: unknown): boolean {
+	return a === b || JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** A value a block reads as written: a text, a number, a switch, or nothing. */
+function plain(value: unknown): boolean {
+	return value === undefined || PLAIN_TYPES.has(typeof value)
+}
+
 /**
- * A block rendered from what the DMS served for the saved page, with the plain
+ * The settings in `served` edited since the save, laid over it, setting by
+ * setting; undefined when nothing was.
+ *
+ * A setting holding settings of its own — what people can do with a row — is
+ * gone through the same way, so what the DMS filled in around the saved ones
+ * stays: it serves every action a table offers, where the page names only the
+ * one it turned off.
+ */
+function editsOver(
+	served: Record<string, unknown>,
+	schemas: Record<string, OptionSchema>,
+	saved: Record<string, unknown> | undefined,
+	draft: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	let edited: Record<string, unknown> | undefined
+	for (const [key, schema] of Object.entries(schemas)) {
+		const before = saved?.[key]
+		const after = draft?.[key]
+		if (same(before, after)) {
+			continue
+		}
+		let value: unknown
+		if (schema.properties && (after === undefined || isRecord(after))) {
+			const inner = isRecord(served[key]) ? served[key] : {}
+			value =
+				editsOver(
+					inner,
+					schema.properties,
+					isRecord(before) ? before : undefined,
+					after,
+				) ?? inner
+		} else if (PLAIN_TYPES.has(schema.type) || (schema.oneOf && plain(after))) {
+			value = after ?? schema.default
+		} else {
+			continue
+		}
+		edited ??= { ...served }
+		if (value === undefined) {
+			delete edited[key]
+		} else {
+			edited[key] = value
+		}
+	}
+	return edited
+}
+
+/**
+ * A block rendered from what the DMS served for the saved page, with the
  * settings edited since laid over it.
  *
  * The preview cannot build every block — a table needs the running page — and
  * the canvas then renders the saved shape, which knew nothing of a title typed
- * a moment ago. A text, a number or a switch is read by the block as written,
- * so it can be laid over what was served; anything with a shape of its own is
- * left as it was saved. Only what changed is laid over: what the draft leaves
- * as the page saved it may have been filled in by the DMS on the way.
+ * a moment ago or of an action turned off. A text, a number or a switch is read
+ * by the block as written, so it can be laid over what was served, one by one
+ * inside a setting that holds several; anything with a shape of its own is left
+ * as it was saved. Only what changed is laid over: what the draft leaves as the
+ * page saved it may have been filled in by the DMS on the way.
  */
 export function withDraftEdits(
 	options: Record<string, unknown> | undefined,
@@ -47,22 +108,39 @@ export function withDraftEdits(
 	if (!options) {
 		return options
 	}
-	let edited: Record<string, unknown> | undefined
-	for (const [key, schema] of Object.entries(descriptor?.config ?? {})) {
-		const before = saved?.[key]
-		const after = draft?.[key]
-		if (!PLAIN_TYPES.has(schema.type) || before === after) {
-			continue
-		}
-		edited ??= { ...options }
-		const value = after ?? schema.default
-		if (value === undefined) {
-			delete edited[key]
-		} else {
-			edited[key] = value
-		}
+	return editsOver(options, descriptor?.config ?? {}, saved, draft) ?? options
+}
+
+/** The blocks that are nothing but room, drawn on the canvas so it shows. */
+export const ROOM_BLOCKS = new Set(['Spacer'])
+
+/**
+ * The sizing a room block's wrapper carries. The canvas wraps every block in a
+ * div of its own, and that div — not the spacer — is what a stack lays out:
+ * the spacer's share of the free room and its bounds would apply inside a box
+ * that never grows. The page lays the spacer out itself, with these.
+ */
+export function roomStyle(
+	type: string | undefined,
+	options: Record<string, unknown> | undefined,
+): Record<string, string | number> | undefined {
+	if (!type || !ROOM_BLOCKS.has(type)) {
+		return undefined
 	}
-	return edited ?? options
+	const length = (value: unknown): string | undefined =>
+		typeof value === 'string' && value.trim() !== '' ? value : undefined
+	const style: Record<string, string | number | undefined> = {
+		flexGrow: typeof options?.grow === 'number' ? options.grow : 1,
+		flexShrink: 1,
+		flexBasis: 'auto',
+		minWidth: length(options?.minSize),
+		maxWidth: length(options?.maxSize),
+		minHeight: length(options?.minSize),
+		maxHeight: length(options?.maxSize),
+	}
+	return Object.fromEntries(
+		Object.entries(style).filter(([, value]) => value !== undefined),
+	) as Record<string, string | number>
 }
 
 /**

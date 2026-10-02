@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+	roomStyle,
 	savedConfigAt,
 	sourceKeyOf,
 	sourcePreviewUrl,
@@ -63,6 +64,37 @@ describe('a block rendered from the saved page', () => {
 		expect(withDraftEdits(served, TABLE, {}, { defaultSort: sort })).toBe(served)
 	})
 
+	it('turns an action on or off among those the DMS filled in around the saved one', () => {
+		const action: OptionSchema = {
+			type: 'union',
+			default: true,
+			oneOf: [{ type: 'boolean' }, { type: 'object' }],
+		}
+		const table = descriptor({
+			rowActions: {
+				type: 'object',
+				optional: true,
+				properties: { add: action, delete: action, hasSelection: { type: 'boolean' } },
+			},
+		})
+		// The page turned delete off; the DMS serves every other action as well.
+		const shown = { location: '/api/order', rowActions: { add: true, edit: true, delete: false } }
+		const saved = { rowActions: { delete: false } }
+
+		expect(
+			withDraftEdits(shown, table, saved, {
+				rowActions: { delete: false, add: false, hasSelection: true },
+			}),
+		).toEqual({
+			location: '/api/order',
+			rowActions: { add: false, edit: true, delete: false, hasSelection: true },
+		})
+		expect(
+			withDraftEdits(shown, table, saved, {}),
+			'an action no longer set is back to what the block does by itself',
+		).toEqual({ location: '/api/order', rowActions: { add: true, edit: true, delete: true } })
+	})
+
 	it("reads the saved settings at the block's path", () => {
 		const blocks = [
 			{
@@ -114,5 +146,27 @@ describe('a card reading a source built here', () => {
 
 	it('builds the preview address from the query alone', () => {
 		expect(sourcePreviewUrl(QUERY)).not.toContain('stats')
+	})
+})
+
+describe('a block that is nothing but room', () => {
+	it("hands its wrapper the spacer's share of the free room and its bounds", () => {
+		expect(roomStyle('Spacer', { grow: 2, minSize: '16px', maxSize: '40%' })).toEqual({
+			flexGrow: 2,
+			flexShrink: 1,
+			flexBasis: 'auto',
+			minWidth: '16px',
+			maxWidth: '40%',
+			minHeight: '16px',
+			maxHeight: '40%',
+		})
+	})
+
+	it('takes the share the DMS gives a spacer that sets none', () => {
+		expect(roomStyle('Spacer', {})).toEqual({ flexGrow: 1, flexShrink: 1, flexBasis: 'auto' })
+	})
+
+	it('leaves every other block to size itself', () => {
+		expect(roomStyle('Text', { grow: 2 })).toBeUndefined()
 	})
 })

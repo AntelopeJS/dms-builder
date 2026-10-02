@@ -90,6 +90,81 @@ describe('a table the preview cannot build', () => {
 	})
 })
 
+describe('what people can do with a table the preview cannot build', () => {
+	it('follows an action turned off, among those the DMS serves around the saved one', async () => {
+		// The page turned delete off; the DMS serves every other action beside it.
+		backend.layout = {
+			components: {
+				orders: {
+					componentName: 'DmsTableView',
+					options: {
+						location: '/api/order',
+						rowActions: { add: true, edit: true, duplicate: true, delete: false },
+					},
+				},
+			},
+		}
+		const root = await canvas(
+			[
+				{
+					path: 'orders',
+					name: 'orders',
+					type: 'TableView',
+					editable: true,
+					controller: 'order',
+					config: { rowActions: { delete: false } },
+				},
+			],
+			{},
+			['/reports/sales#orders'],
+		)
+
+		builder.patchConfig('orders', { rowActions: { delete: false, add: false } })
+		await nextTick()
+
+		expect(rendered(root, 'DmsTableView').props.rowActions).toEqual({
+			add: false,
+			edit: true,
+			duplicate: true,
+			delete: false,
+		})
+	})
+})
+
+describe('a spacer on the canvas', () => {
+	it('is sized by its wrapper, the way a stack sizes the spacer on the page', async () => {
+		backend.catalog.blocks.push({
+			type: 'Spacer',
+			componentName: 'dms-spacer',
+			label: 'Spacer',
+			group: 'layout',
+			container: false,
+			shapeSource: 'test',
+			config: {
+				minSize: { type: 'string', optional: true },
+				maxSize: { type: 'string', optional: true },
+				grow: { type: 'number', default: 1 },
+			},
+		})
+		const root = await canvas(
+			[{ path: 'gap', name: 'gap', type: 'Spacer', editable: true, config: {} }],
+			{ gap: { componentName: 'DmsSpacer', options: { grow: 0, minSize: '24px', maxSize: '24px' } } },
+		)
+
+		const wrapper = findAll(root, (node) => node.props['data-path'] === 'gap')[0]!
+		expect(wrapper.props.style).toMatchObject({
+			flexGrow: 0,
+			minWidth: '24px',
+			maxWidth: '24px',
+			minHeight: '24px',
+			maxHeight: '24px',
+		})
+		expect(String(wrapper.props.class), 'drawn, so its size shows').toContain(
+			'repeating-linear-gradient',
+		)
+	})
+})
+
 describe('a card measuring a source built here', () => {
 	const fetchUrl: OptionSchema = { type: 'string', optional: true, ui: { widget: 'dataSource' } }
 

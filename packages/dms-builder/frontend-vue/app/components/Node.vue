@@ -16,6 +16,8 @@ import {
 	spansFullWidth,
 } from '../runtime/dropping'
 import {
+	ROOM_BLOCKS,
+	roomStyle,
 	savedConfigAt,
 	sourceKeyOf,
 	withDraftEdits,
@@ -102,6 +104,12 @@ const options = computed(() => {
 	)
 })
 const sourceKey = computed(() => sourceKeyOf(options.value, descriptor.value))
+/**
+ * A block that is nothing but room — a spacer — is invisible on the page, and
+ * on the canvas its size would change with nothing to show it: drawn as a
+ * hatched area, sized the way the page sizes it.
+ */
+const room = computed(() => ROOM_BLOCKS.has(props.block.type ?? ''))
 const label = computed(
 	() => descriptor.value?.label ?? props.block.type ?? 'Block',
 )
@@ -374,9 +382,12 @@ function answerCursor(event: DragEvent): void {
 			// The block is on the pointer; what is left here is the hole it
 			// came out of, which the drop is about to fill from somewhere else.
 			lifted ? 'opacity-40' : '',
+			room
+				? 'bg-[repeating-linear-gradient(-45deg,transparent_0_6px,var(--ui-border-accented)_6px_7px)]'
+				: '',
 			frame,
 		]"
-		:style="spanStyle"
+		:style="[spanStyle, roomStyle(block.type, options)]"
 		:data-path="path"
 		:draggable="!structural"
 		@click="onClick"
