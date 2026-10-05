@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import { ICON_PREFIXES } from '../runtime/constants'
+import { ICON_PREFIXES, SUGGESTED_ICONS } from '../runtime/constants'
 import { isBundledIcon, useIconSearch } from '../runtime/icon-search'
 
 /**
@@ -37,11 +37,15 @@ const typed = computed(() => {
 		: undefined
 })
 
+/** Until a search is typed, the icons most often picked rather than nothing. */
+const shown = computed<readonly string[]>(() =>
+	query.value.trim().length < 2 ? SUGGESTED_ICONS : results.value,
+)
+
 const hint = computed(() => {
 	if (offline.value) {
 		return 'Icon search is unavailable — type a full name such as i-ph-house.'
 	}
-	if (query.value.trim().length < 2) return 'Type to search icons by name.'
 	return searching.value ? 'Searching…' : 'No icon matches.'
 })
 
@@ -79,11 +83,11 @@ function pick(name: string | undefined): void {
 					:loading="searching"
 				/>
 				<div
-					v-if="results.length"
+					v-if="shown.length"
 					class="grid max-h-52 grid-cols-7 gap-1 overflow-y-auto"
 				>
 					<UButton
-						v-for="name in results"
+						v-for="name in shown"
 						:key="name"
 						:icon="name"
 						:color="name === modelValue ? 'primary' : 'neutral'"
@@ -106,10 +110,13 @@ function pick(name: string | undefined): void {
 				>
 					Use <span class="truncate font-mono">{{ typed }}</span>
 				</UButton>
-				<p v-else-if="!results.length" class="px-1 py-1.5 text-xs text-muted">
+				<p v-else-if="!shown.length" class="px-1 py-1.5 text-xs text-muted">
 					{{ hint }}
 				</p>
+				<!-- The icon picked, by name, and the way to take it off; with none
+				picked there is nothing to name. -->
 				<div
+					v-if="modelValue"
 					class="flex items-center justify-between gap-2 border-t border-default px-0.5 pt-2 text-xs text-muted"
 				>
 					<span
@@ -121,10 +128,9 @@ function pick(name: string | undefined): void {
 								: `Only ${bundled} icons are bundled; this one will not render.`
 						"
 					>
-						{{ modelValue ?? 'No icon' }}
+						{{ modelValue }}
 					</span>
 					<UButton
-						v-if="modelValue"
 						label="Remove"
 						size="xs"
 						color="neutral"

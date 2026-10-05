@@ -31,6 +31,24 @@ export const PREVIEW_DEBOUNCE_MS = 150
 export const ICON_PREFIXES = ['ph', 'lucide'] as const
 export const ICON_SEARCH_URL = 'https://api.iconify.design/search'
 export const ICON_SEARCH_LIMIT = 48
+// What the picker offers before anything is searched: two rows of its grid,
+// the icons a page, a tab or a menu entry most often reaches for.
+export const SUGGESTED_ICONS = [
+	'i-ph-house',
+	'i-ph-chart-line-up',
+	'i-ph-chart-bar',
+	'i-ph-table',
+	'i-ph-users',
+	'i-ph-user',
+	'i-ph-receipt',
+	'i-ph-shopping-cart',
+	'i-ph-package',
+	'i-ph-calendar-blank',
+	'i-ph-envelope',
+	'i-ph-folder',
+	'i-ph-file-text',
+	'i-ph-gear',
+] as const
 export const HISTORY_LIMIT = 50
 export const TOAST_MS = 2600
 
