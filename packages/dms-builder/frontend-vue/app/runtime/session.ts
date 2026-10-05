@@ -5,10 +5,9 @@ import {
 	descriptorOf,
 	missingSettings,
 	newBlockDraft,
+	regionAfter,
 	shownRegion,
-	slotIdFor,
 	slotsOf,
-	suggestedName,
 	type MissingSetting,
 } from './catalog'
 import {
@@ -871,24 +870,7 @@ export function useBuilder(): BuilderController {
 	): { id: string } {
 		const option = (container.config ?? {})[dynamic.optionPath]
 		const existing = Array.isArray(option) ? option : []
-		const rank = existing.length + 1
-		const type = container.type ?? 'slot'
-		const title = `${type} ${rank}`
-		const taken = new Set(
-			existing
-				.map((entry) => (entry as Record<string, unknown>)?.[dynamic.idKey])
-				.filter((id): id is string => typeof id === 'string'),
-		)
-		const entry: Record<string, unknown> = {
-			[dynamic.idKey]: slotIdFor(
-				undefined,
-				`${suggestedName(type)}${rank}`,
-				taken,
-			),
-		}
-		if (dynamic.labelKey) {
-			entry[dynamic.labelKey] = title
-		}
+		const entry = regionAfter(container.type ?? 'slot', dynamic, existing)
 		container.config = {
 			...(container.config ?? {}),
 			[dynamic.optionPath]: [...existing, entry],

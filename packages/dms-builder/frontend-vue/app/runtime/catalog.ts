@@ -13,6 +13,7 @@ import type {
 	ComponentPreviewChild,
 	BlockDraft,
 	BlockTypeDescriptor,
+	DynamicSlots,
 	OptionSchema,
 	ResolvedPreview,
 } from './types'
@@ -839,7 +840,53 @@ function placedConfig(
 			config[key] = seed
 		}
 	}
+	openFirstRegion(descriptor, config)
 	return config
+}
+
+/**
+ * A container whose regions its own options declare is placed with one.
+ *
+ * A tab set placed with no tab is a strip with nothing to click, and nothing
+ * on the canvas to drop a block into: the first tab is what makes it a tab set
+ * the moment it lands, titled for the author to rename.
+ */
+function openFirstRegion(
+	descriptor: BlockTypeDescriptor,
+	config: Record<string, unknown>,
+): void {
+	const dynamic = descriptor.dynamicSlots
+	const declared = dynamic ? config[dynamic.optionPath] : undefined
+	const empty =
+		declared === undefined || (Array.isArray(declared) && declared.length === 0)
+	if (!dynamic || !empty) {
+		return
+	}
+	config[dynamic.optionPath] = [regionAfter(descriptor.type, dynamic, [])]
+}
+
+/**
+ * One more region for a container of type `type`, after the `existing` ones:
+ * the second tab of a tab set is “Tab 2”, its children attached to `tab2`.
+ */
+export function regionAfter(
+	type: string,
+	dynamic: DynamicSlots,
+	existing: unknown[],
+): Record<string, unknown> {
+	const rank = existing.length + 1
+	const taken = new Set(
+		existing
+			.map((entry) => (entry as Record<string, unknown>)?.[dynamic.idKey])
+			.filter((id): id is string => typeof id === 'string'),
+	)
+	const entry: Record<string, unknown> = {
+		[dynamic.idKey]: slotIdFor(undefined, `${suggestedName(type)}${rank}`, taken),
+	}
+	if (dynamic.labelKey) {
+		entry[dynamic.labelKey] = `${type} ${rank}`
+	}
+	return entry
 }
 
 /** `rank` is which one of its type this is on the page, counting from 1. */

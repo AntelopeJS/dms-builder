@@ -660,10 +660,12 @@ describe('a block placed before it is configured', () => {
 		])
 	})
 
-	it('opens a list the block cannot do without as an empty one', () => {
+	it('opens a tab set on a first tab, titled for the author to rename', () => {
 		builder.addBlock('Tab')
 
-		expect(configOf('tab')).toEqual({ items: [] })
+		// With no tab, the set is a strip with nothing to click and nowhere on
+		// the canvas to drop a block into.
+		expect(configOf('tab')).toEqual({ items: [{ slot: 'tab1', label: 'Tab 1' }] })
 	})
 
 	it('writes nothing on a block that demands nothing', () => {
