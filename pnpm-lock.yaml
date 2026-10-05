@@ -49,8 +49,8 @@ importers:
         version: 23.0.0
     devDependencies:
       '@antelopejs/core':
-        specifier: '>=1.13.3 <2'
-        version: 1.13.3
+        specifier: '>=1.13.4 <2'
+        version: 1.13.4
       '@antelopejs/interface-data-api':
         specifier: '>=0.1.9 <1.0.0'
         version: 0.1.9(@antelopejs/interface-api-util@0.1.2(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.1.1))(@antelopejs/interface-core@0.1.1))(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.1.1))(@antelopejs/interface-core@0.1.1)(@antelopejs/interface-database-decorators@0.1.6(@antelopejs/interface-api@0.0.13(@antelopejs/interface-core@0.1.1))(@antelopejs/interface-core@0.1.1)(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.1.1)))(@antelopejs/interface-database@0.1.7(@antelopejs/interface-core@0.1.1))
@@ -111,8 +111,8 @@ importers:
 
 packages:
 
-  '@antelopejs/core@1.13.3':
-    resolution: {integrity: sha512-6xypCf+zUHUC8VdSJtacB+NGYAYVMBjVwHamwSz/GrbwbHGkBtM00b7FSK81AeU8xSpExuHAXcfjk8NTjqQ1bQ==}
+  '@antelopejs/core@1.13.4':
+    resolution: {integrity: sha512-nr28aF/uOLqfZ72HPIxt7cv3YfgAeXEemEZm7mOPCbAr1yXB6CMyBWFHlmlk/vdFChAunnsGwDYqWCDnjTXRnA==}
     engines: {node: '>=20.19'}
     hasBin: true
 
@@ -2369,7 +2369,7 @@ packages:
 
 snapshots:
 
-  '@antelopejs/core@1.13.3':
+  '@antelopejs/core@1.13.4':
     dependencies:
       '@antelopejs/interface-core': 0.1.1
       '@clack/prompts': 1.8.1
