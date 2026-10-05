@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
 	descriptorOf,
 	heldChildren,
@@ -156,17 +156,52 @@ const plain = computed(() => children.value.filter((child) => !child.block.slot)
  * index into the regions its own options declare. Without this the editor would
  * go on dropping into the first tab while the author is looking at another.
  */
-const instance = ref<{ activeTab?: string } | null>(null)
-watchEffect(() => {
-	const open = instance.value?.activeTab
-	if (open === undefined) {
-		return
-	}
-	const region = slotsOf(descriptor.value, props.block)[Number(open)]
-	if (region) {
-		builder.openRegion(props.path, region.id)
-	}
+const instance = ref<{ activeTab?: string; goToTab?: (index: number) => void } | null>(null)
+// Reported when the tab shown changes, not when the tabs do: a tab moved in the
+// panel keeps its region, and the set follows it there (below).
+watch(
+	() => instance.value?.activeTab,
+	(open) => {
+		if (open === undefined) {
+			return
+		}
+		const region = slotsOf(descriptor.value, props.block)[Number(open)]
+		if (region) {
+			builder.openRegion(props.path, region.id)
+		}
+	},
+	{ immediate: true },
+)
+
+/**
+ * And the other way round: a tab opened from the panel opens here too.
+ *
+ * Only the region asked for is watched, not the one shown, or a tab clicked on
+ * the canvas would be sent back to the one the editor last held. A tab just
+ * added is only rendered once the preview answers with it, so how many tabs
+ * the rendered set has is watched too, and after the render.
+ */
+const renderedRegions = computed(() => {
+	const optionPath = descriptor.value?.dynamicSlots?.optionPath
+	const entries = optionPath ? options.value?.[optionPath] : undefined
+	return Array.isArray(entries) ? entries.length : 0
 })
+watch(
+	() =>
+		[
+			session.value.openRegions[props.path],
+			slotsOf(descriptor.value, props.block).map((slot) => slot.id),
+			instance.value,
+			renderedRegions.value,
+		] as const,
+	([wanted, regions, shown]) => {
+		const index = regions.indexOf(wanted ?? '')
+		if (index !== -1 && shown?.goToTab && shown.activeTab !== String(index)) {
+			shown.goToTab(index)
+		}
+	},
+	{ flush: 'post' },
+)
 
 /**
  * The regions the block declares, each with what is attached to it.

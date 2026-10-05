@@ -264,6 +264,12 @@ describe('a block the builder cannot rewrite', () => {
 })
 
 describe('a setting the page needs and nobody filled in', () => {
+	// A tab set's own options, as the advanced view lists them: the simple mode
+	// edits a tab set with a panel of its own.
+	const { setMode } = useBuilderMode()
+	beforeEach(() => setMode('advanced'))
+	afterEach(() => setMode('simple'))
+
 	/** What the Nuxt build auto-imports around the config panel. */
 	const panel = (): Record<string, Component> => ({
 		DmsBuilderOption: Option as Component,
@@ -409,6 +415,11 @@ function write(node: TestNode, value: unknown): void {
 
 describe('an option that takes one of several kinds', () => {
 	const KINDS = ['Text', 'Number', 'Details']
+	// A tab's badge, as the advanced view offers it: the simple mode's panel
+	// takes it as a count or a word.
+	const { setMode } = useBuilderMode()
+	beforeEach(() => setMode('advanced'))
+	afterEach(() => setMode('simple'))
 
 	/** A tab set with one tab, whose badge is a union of three kinds. */
 	async function tabWithABadge(): Promise<TestNode> {
