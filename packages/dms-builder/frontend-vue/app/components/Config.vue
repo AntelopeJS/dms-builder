@@ -11,6 +11,12 @@ import {
 } from '../runtime/catalog'
 import { CHART_CARD_BLOCK, CHART_CARD_PANEL_OPTIONS } from '../runtime/chart-card'
 import { findNode } from '../runtime/draft'
+import {
+	KPI_CARD_BLOCK,
+	KPI_CARD_PANEL_OPTIONS,
+	TOP_LIST_BLOCK,
+	TOP_LIST_PANEL_OPTIONS,
+} from '../runtime/figure-panel'
 import { FORM_BLOCK, FORM_PANEL_OPTIONS, PANEL_CARD } from '../runtime/form-panel'
 import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
@@ -112,7 +118,9 @@ const parentBlock = computed(() => {
  *   ranked, nested or linked, rather than as JSON, and keeps what it does by
  *   itself until a switch says otherwise;
  * - a tab set lists its tabs a line each, the open one's details under it,
- *   and how it looks a line per setting.
+ *   and how it looks a line per setting;
+ * - a KPI card and a top list fold their figures' format, their trend and a
+ *   list's ranking behind a line each, a setting showing only once it applies.
  */
 const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
 	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
@@ -128,6 +136,8 @@ const PANELS: Record<string, { component: string; options: ReadonlySet<string> }
 	[SPACER_BLOCK]: { component: 'DmsBuilderSpacerPanel', options: SPACER_PANEL_OPTIONS },
 	[TREE_BLOCK]: { component: 'DmsBuilderTreePanel', options: TREE_PANEL_OPTIONS },
 	[TABS_BLOCK]: { component: 'DmsBuilderTabsPanel', options: TABS_PANEL_OPTIONS },
+	[KPI_CARD_BLOCK]: { component: 'DmsBuilderKpiCardPanel', options: KPI_CARD_PANEL_OPTIONS },
+	[TOP_LIST_BLOCK]: { component: 'DmsBuilderTopListPanel', options: TOP_LIST_PANEL_OPTIONS },
 }
 
 const panel = computed(() =>

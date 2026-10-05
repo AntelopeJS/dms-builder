@@ -11,9 +11,14 @@ import {
  * What a block shows on the page around what it holds, as someone building
  * the page sets it up: its title, its description, and — for a form — where
  * its labels sit. Shared by the blocks the simple mode has a panel for; each
- * setting shows only on a block that declares it.
+ * setting shows only on a block that declares it, and a panel adds its own
+ * below them.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** Pick the block's icon beside its title, the way a page's is. */
+	withIcon?: boolean
+}>()
 
 const block = useBlockPanel(() => props.path)
 const { text, write } = block
@@ -48,13 +53,23 @@ const orientation = computed(
 			:required="titleRequired"
 			:ui="CARD_FIELD_UI"
 		>
-			<UInput
-				class="w-full"
-				:model-value="text('title')"
-				size="lg"
-				:placeholder="titleRequired ? undefined : 'Optional'"
-				@update:model-value="write('title', String($event))"
-			/>
+			<div class="flex gap-2">
+				<DmsBuilderIconPicker
+					v-if="withIcon && block.has('icon')"
+					:model-value="text('icon') || undefined"
+					fallback="i-ph-image"
+					size="lg"
+					label="Choose the icon"
+					@update:model-value="write('icon', $event)"
+				/>
+				<UInput
+					class="w-full"
+					:model-value="text('title')"
+					size="lg"
+					:placeholder="titleRequired ? undefined : 'Optional'"
+					@update:model-value="write('title', String($event))"
+				/>
+			</div>
 		</UFormField>
 		<UFormField v-if="block.has('description')" label="Description" :ui="CARD_FIELD_UI">
 			<UInput
@@ -96,5 +111,6 @@ const orientation = computed(
 				</button>
 			</div>
 		</div>
+		<slot />
 	</section>
 </template>
