@@ -83,16 +83,16 @@ describe("resource route maps", () => {
 
     after(() => destroyFixture());
 
-    it("keeps the tab counters when the export is switched off", async function () {
+    it("keeps the tab counters and footer figures when the export is switched off", async function () {
       this.timeout(OP_TIMEOUT);
       expectOk(
         await ConfigureResource("ticket", { routes: without("export") }),
         "ConfigureResource",
       );
 
-      expect(app.read(DATA_API_FILE)).to.contain(
-        "countBatch: TableViewRoutes.CountBatch",
-      );
+      const written = app.read(DATA_API_FILE);
+      expect(written).to.contain("countBatch: TableViewRoutes.CountBatch");
+      expect(written).to.contain("summary: TableViewRoutes.Summary");
       const structure = expectOk(
         await GetResourceStructure("ticket"),
         "GetResourceStructure",

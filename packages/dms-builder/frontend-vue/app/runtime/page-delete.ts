@@ -17,7 +17,7 @@ export function usePageDelete() {
 	const router = useRouter()
 	// Auto-imported from the host's own layers, like every composable the loader
 	// scans; neither is part of the frontend-module SDK.
-	const devReload = useDmsDevReload()
+	const devReload = useDevReload()
 	const { confirm } = useConfirm()
 
 	/** The page being deleted, while the write is under way. */
@@ -41,7 +41,7 @@ export function usePageDelete() {
 				.join(' '),
 			confirmLabel: 'Delete the page',
 			cancelLabel: 'Keep it',
-			confirmColor: 'error',
+			color: 'error',
 		})
 		if (!asked) {
 			return

@@ -827,8 +827,8 @@ function placedConfig(
 		if (config[key] !== undefined) {
 			continue
 		}
-		// What the block itself asks to be placed with: a form shows its buttons
-		// from the moment it is dropped.
+		// What the block itself asks to be placed with: an empty state says
+		// something from the moment it is dropped.
 		if (schema.ui?.initial !== undefined) {
 			config[key] = schema.ui.initial
 			continue

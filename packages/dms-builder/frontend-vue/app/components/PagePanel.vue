@@ -14,7 +14,7 @@ const session = builder.session
 const router = useRouter()
 // Auto-imported from the host's own layers, like every composable the loader
 // scans; neither is part of the frontend-module SDK.
-const devReload = useDmsDevReload()
+const devReload = useDevReload()
 const { confirm } = useConfirm()
 
 // What marks a setting written at once rather than with Save.
@@ -89,7 +89,7 @@ async function move(category: string): Promise<void> {
 		description: `Its address becomes ${categoryRoute(category)}/${page.id} and its file moves with it. Nothing redirects the old address.`,
 		confirmLabel: 'Move the page',
 		cancelLabel: `Keep it in ${categoryLabel.value}`,
-		confirmColor: 'warning',
+		color: 'warning',
 	})
 	if (!asked) {
 		return

@@ -46,8 +46,10 @@ const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
   list: [
     ["list", "List"],
     ["count", "Count"],
-    // The tab counters of a table: served beside the list, never alone.
+    // The tab counters and footer figures of a table: served beside the
+    // list, never alone.
     ["countBatch", "CountBatch"],
+    ["summary", "Summary"],
   ],
   get: [["get", "Get"]],
   create: [["new", "New"]],
@@ -65,6 +67,7 @@ const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
   list: "list",
   count: "list",
   countBatch: "list",
+  summary: "list",
   get: "get",
   new: "create",
   edit: "edit",

@@ -42,7 +42,7 @@ const session = builder.session
 const router = useRouter()
 // Auto-imported from the host's own layer, like every `app/composables` the
 // loader scans; it is not part of the frontend-module SDK.
-const devReload = useDmsDevReload()
+const devReload = useDevReload()
 
 const query = ref('')
 const collapsed = ref(new Set<string>())

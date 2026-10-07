@@ -30,7 +30,7 @@ installDocumentStub()
 Object.assign(globalThis, {
 	resolveDmsComponent: () => undefined,
 	// The host's wait for a route to be served, which here it is at once.
-	useDmsDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
+	useDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
 })
 
 function summary(ref: string, category: string): PageSummary {
@@ -117,7 +117,7 @@ describe('deleting the page the editor is open on', () => {
 		await settle()
 
 		expect(backend.confirms).toEqual([
-			expect.objectContaining({ title: 'Delete Sales?', confirmColor: 'error' }),
+			expect.objectContaining({ title: 'Delete Sales?', color: 'error' }),
 		])
 		expect(backend.confirms[0]?.description).toContain(
 			'Its unsaved changes go with it.',

@@ -6,14 +6,14 @@
  * at a time, so the new route is unserved for a moment. Navigating in that
  * window renders the page without its layout, or 404s -- and it stays bare
  * once the route is served, until the page is visited again. The host solves
- * this once, in `useDmsDevReload()`, and the builder routes every such
+ * this once, in `useDevReload()`, and the builder routes every such
  * navigation through here rather than growing a retry loop of its own. That
  * includes a click in the builder's own page tree, which lists a page as soon
  * as its file is written, seconds before the host serves it.
  */
 
 /**
- * The slice of the host's `useDmsDevReload()` composable the builder needs:
+ * The slice of the host's `useDevReload()` composable the builder needs:
  * resolve `true` once the committed site layout serves `route`, `false` on
  * timeout.
  */

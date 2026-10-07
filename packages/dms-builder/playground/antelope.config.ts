@@ -23,7 +23,7 @@ const dmsSource = DMS_MODULE_PATH
   : {
       type: "package" as const,
       package: "@antelopejs/dms",
-      version: ">=0.5.0 <1.0.0",
+      version: ">=0.6.0 <1.0.0",
     };
 
 export default defineConfig({
@@ -86,7 +86,7 @@ export default defineConfig({
       source: {
         type: "package",
         package: "@antelopejs/mongodb",
-        version: "^1.3.0",
+        version: "^1.4.2",
       },
       config: {
         url: "mongodb://localhost:27017",

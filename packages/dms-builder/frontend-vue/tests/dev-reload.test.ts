@@ -8,7 +8,7 @@ import {
 /**
  * The builder never polls the site layout itself: both write paths that change
  * a page's route (create, move) hand the wait to the host's
- * `useDmsDevReload().awaitRoute`. These tests drive that seam with a waiter
+ * `useDevReload().awaitRoute`. These tests drive that seam with a waiter
  * that is held open, so the "route still 404s / route is registered" transition
  * is observable without a backend.
  */

@@ -115,6 +115,7 @@ describe('the components the palette lists', () => {
 			'Tab',
 			'PeriodSelector',
 			'Text',
+			'EmptyState',
 			'TableView',
 			'Form',
 			'ChartCard',

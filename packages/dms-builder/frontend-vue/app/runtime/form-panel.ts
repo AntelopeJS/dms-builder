@@ -18,10 +18,13 @@ import { useBuilder } from './session'
 export const FORM_BLOCK = 'Form'
 
 /**
- * The options that panel edits. Whatever else the block declares is still
- * offered the way any block's options are.
+ * The options that panel edits, or decides: a form saving into a table is an
+ * action, which says its buttons too. Whatever else the block declares is
+ * still offered the way any block's options are.
  */
 export const FORM_PANEL_OPTIONS = new Set([
+	'kind',
+	'saveMode',
 	'title',
 	'description',
 	'fields',

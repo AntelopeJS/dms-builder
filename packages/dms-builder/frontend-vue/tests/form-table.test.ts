@@ -78,11 +78,12 @@ describe('the columns a form can ask for', () => {
 })
 
 describe('a form bound to a table', () => {
-	it('submits to its create route, loads from nowhere, and asks for every column', () => {
+	it('submits to its create route as an action, loads from nowhere, and asks for every column', () => {
 		const options = boundTo(orders, fillableColumns(structure()))
 		expect(options).toMatchObject({
 			submitUrl: '/api/order/new',
 			submitUrlMethod: 'POST',
+			kind: 'action',
 			fetchUrl: undefined,
 		})
 		expect(askedColumns(options.fields)).toEqual(new Set(['amount', 'createdAt']))

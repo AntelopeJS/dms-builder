@@ -355,7 +355,7 @@ describe('a table, open', () => {
 		expect(backend.confirms).toHaveLength(1)
 		expect(backend.confirms[0]).toMatchObject({
 			confirmLabel: 'Remove the field and its data',
-			confirmColor: 'error',
+			color: 'error',
 		})
 		expect(backend.confirms[0]?.description).toContain('drops its column')
 		expect(deletions()).toEqual(['DELETE /api/builder/resource/fields'])

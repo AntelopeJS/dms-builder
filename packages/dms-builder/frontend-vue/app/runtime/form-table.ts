@@ -22,6 +22,11 @@ import type {
 const CREATE_SEGMENT = '/new'
 /** The method that route takes, as the DMS spells it. */
 const CREATE_METHOD = 'POST'
+/**
+ * What the DMS calls a form that does something each time it is sent: it
+ * shows its reset and submit buttons, and empties once the row is in.
+ */
+const ACTION_KIND = 'action'
 
 type Entry = Record<string, unknown>
 
@@ -92,7 +97,8 @@ export function fieldFor(column: ResourceFieldStructure): Entry {
  * The options a form takes to save into `table`, asking for `columns`.
  *
  * Loading is left out: a form that creates rows starts empty, and an address
- * it loaded from would only fill it with a row it is not editing.
+ * it loaded from would only fill it with a row it is not editing. Each send
+ * adds a row, so the form is an action rather than a record kept on screen.
  */
 export function boundTo(
 	table: ResourceSummary,
@@ -101,6 +107,7 @@ export function boundTo(
 	return {
 		submitUrl: createUrlOf(table),
 		submitUrlMethod: CREATE_METHOD,
+		kind: ACTION_KIND,
 		fetchUrl: undefined,
 		fetchUrlMethod: undefined,
 		fields: columns.map(fieldFor),

@@ -638,9 +638,13 @@ describe('a block placed before it is configured', () => {
 			title: 'Form 1',
 			submitLabel: 'Submit',
 			fields: [],
-			// Placed showing its reset and submit buttons, before it saves anywhere.
-			showActions: true,
 		})
+	})
+
+	it('carries what its own type asks to be placed with, over a seeded name', () => {
+		builder.addBlock('EmptyState')
+
+		expect(configOf('emptyState')).toEqual({ title: 'Nothing here yet' })
 	})
 
 	it('words a button the page shows rather than naming it after the block', () => {

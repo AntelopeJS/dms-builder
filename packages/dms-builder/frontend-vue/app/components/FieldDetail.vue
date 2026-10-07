@@ -43,7 +43,7 @@ async function remove(): Promise<void> {
 		title: `Remove ${name}?`,
 		description: `Removing ${name} drops its column and the value every row holds in it. This is written straight away, not on Save.`,
 		confirmLabel: 'Remove the field and its data',
-		confirmColor: 'error',
+		color: 'error',
 	})
 	if (confirmed) void builder.removeField(path.value)
 }

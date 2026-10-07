@@ -282,6 +282,7 @@ describe('a form placed a moment ago', () => {
 		expect(config()).toMatchObject({
 			submitUrl: '/api/order/new',
 			submitUrlMethod: 'POST',
+			kind: 'action',
 		})
 		expect(keys(), 'sent under the column names').toEqual(['amount', 'status', 'note'])
 		expect(textOf(root)).toContain('3 of its 3 columns in the form')

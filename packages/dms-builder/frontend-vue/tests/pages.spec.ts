@@ -30,7 +30,7 @@ let mounted: (() => void)[] = []
 installDocumentStub()
 Object.assign(globalThis, {
 	resolveDmsComponent: () => undefined,
-	useDmsDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
+	useDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
 })
 
 function summary(
@@ -287,7 +287,7 @@ describe('the pages, as a tree', () => {
 		beforeEach(() => {
 			held = new Map()
 			Object.assign(globalThis, {
-				useDmsDevReload: () => ({
+				useDevReload: () => ({
 					awaitRoute: (route: string) =>
 						new Promise<boolean>((resolve) => held.set(route, resolve)),
 				}),
@@ -296,7 +296,7 @@ describe('the pages, as a tree', () => {
 
 		afterEach(() => {
 			Object.assign(globalThis, {
-				useDmsDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
+				useDevReload: () => ({ awaitRoute: () => Promise.resolve(true) }),
 			})
 		})
 
@@ -382,7 +382,7 @@ describe('the pages, as a tree', () => {
 		await settle()
 
 		expect(backend.confirms).toEqual([
-			expect.objectContaining({ title: 'Delete Totals?', confirmColor: 'error' }),
+			expect.objectContaining({ title: 'Delete Totals?', color: 'error' }),
 		])
 		expect(deletions()).toEqual([{ ref: '/reports/totals' }])
 		expect(pushedRoutes, 'another page than the open one').toEqual([])

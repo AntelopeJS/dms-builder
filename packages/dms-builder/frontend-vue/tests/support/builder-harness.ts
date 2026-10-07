@@ -44,7 +44,7 @@ export interface FakeBackend {
 		title: string
 		description: string
 		confirmLabel?: string
-		confirmColor?: string
+		color?: string
 	}>
 	/** How the next confirmations are answered: yes unless a suite says no. */
 	confirmAnswer: boolean
@@ -247,6 +247,17 @@ export function testCatalog(): BlockCatalog {
 					},
 				},
 			}),
+			// Mirrors `EmptyStateSchema`: placed already saying something.
+			block('EmptyState', {
+				label: 'Empty state',
+				group: 'content',
+				config: {
+					title: {
+						type: 'string',
+						ui: { label: 'Title', group: 'content', initial: 'Nothing here yet' },
+					},
+				},
+			}),
 			// What `FormSchema` declares its fields as: an entry is a field or a
 			// group of them — two branches of one kind, with no tag to tell them
 			// apart, so only what the entry holds says which it is.
@@ -276,8 +287,8 @@ export function testCatalog(): BlockCatalog {
 						optional: true,
 						ui: { label: 'Submit button label' },
 					},
-					// Mirrors the DMS: addresses are the advanced view's, and a form
-					// is placed showing its buttons.
+					// Mirrors the DMS: addresses are the advanced view's, and what a
+					// form is says which buttons it shows.
 					submitUrl: {
 						type: 'string',
 						optional: true,
@@ -288,15 +299,11 @@ export function testCatalog(): BlockCatalog {
 						optional: true,
 						ui: { label: 'Load from', group: 'data', widget: 'url', advanced: true },
 					},
-					showActions: {
-						type: 'boolean',
+					kind: {
+						type: 'string',
 						optional: true,
-						ui: {
-							label: 'Show the buttons',
-							widget: 'switch',
-							initial: true,
-							advanced: true,
-						},
+						enum: ['record', 'action'],
+						ui: { label: 'Form kind', group: 'behavior', widget: 'segmented' },
 					},
 					// Mirrors `SubmitMessageOptions`: both behind one switch.
 					successMessage: {
