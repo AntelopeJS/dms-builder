@@ -19,6 +19,8 @@ import { toRaw } from 'vue'
 import { descriptorOf, isLayout, newBlockDraft } from './catalog'
 import { COLUMN_CONTAINER, ROW_CONTAINERS, ROW_WRAPPER } from './constants'
 import { findNode, uniqueName, walkDraft } from './draft'
+import { mergePatch } from './object'
+import { SPACER_BLOCK } from './spacer-panel'
 import type { BlockCatalog, BlockDraft, PageDraft } from './types'
 
 /** How a list of blocks is laid out, which decides what may be flattened into it. */
@@ -206,7 +208,10 @@ function isPlain(block: BlockDraft, catalog: BlockCatalog): boolean {
 		return false
 	}
 	const placed = newBlockDraft(descriptor).config ?? {}
-	const config = block.config ?? {}
+	// The column width a spacer had the editor narrow is the editor's too.
+	const config = isFitted(block.config?.[MIN_COLUMN_WIDTH])
+		? mergePatch(block.config ?? {}, { [MIN_COLUMN_WIDTH]: undefined })
+		: (block.config ?? {})
 	if (Object.keys(config).some((key) => !(key in descriptor.config))) {
 		return false
 	}
@@ -225,3 +230,69 @@ function holdsKept(block: BlockDraft): boolean {
 	})
 	return kept
 }
+
+/** The grid option a column is dropped below, and the width it ships with. */
+const MIN_COLUMN_WIDTH = 'minColumnWidth'
+const GRID_MIN_COLUMN_PX = 240
+
+function fittedWidth(span: number): string {
+	return `${Math.floor(GRID_MIN_COLUMN_PX / span)}px`
+}
+
+/** Whether a column width is one `fitSpacerColumns` writes, not an author's. */
+function isFitted(width: unknown): boolean {
+	const match = typeof width === 'string' ? /^(\d+)px$/.exec(width) : null
+	if (!match) {
+		return false
+	}
+	const px = Number(match[1])
+	for (let span = 2; Math.floor(GRID_MIN_COLUMN_PX / span) >= px; span += 1) {
+		if (Math.floor(GRID_MIN_COLUMN_PX / span) === px) {
+			return true
+		}
+	}
+	return false
+}
+
+/** The most columns a spacer takes in any row of a grid, one if none does. */
+function widestSpacer(grid: BlockDraft): number {
+	let widest = 1
+	for (const row of grid.children ?? []) {
+		for (const cell of row.children ?? []) {
+			if (cell.type === SPACER_BLOCK) {
+				widest = Math.max(widest, Number(cell.meta?.colSpan) || 1)
+			}
+		}
+	}
+	return widest
+}
+
+/**
+ * A grid whose spacer takes several columns keeps them beside the blocks of
+ * its row.
+ *
+ * A grid drops a column narrower than its minimum width, so a spacer taking two
+ * columns beside a card asks for three where only two fit, and goes to the next
+ * line instead of taking the room asked of it. The minimum is divided by the
+ * columns the widest spacer takes: the row stays on one line wherever its card
+ * alone had a column, and still breaks on a phone. A width an author set is
+ * left as set, and the default comes back with the spacer's columns.
+ */
+export function fitSpacerColumns(draft: PageDraft): void {
+	walkDraft(draft.blocks, (block) => {
+		if (block.type !== ROW_WRAPPER || block.preserve) {
+			return
+		}
+		const written = block.config?.[MIN_COLUMN_WIDTH]
+		if (written !== undefined && !isFitted(written)) {
+			return
+		}
+		const span = widestSpacer(block)
+		if (span > 1) {
+			block.config = { ...block.config, [MIN_COLUMN_WIDTH]: fittedWidth(span) }
+		} else if (written !== undefined) {
+			block.config = mergePatch(block.config ?? {}, { [MIN_COLUMN_WIDTH]: undefined })
+		}
+	})
+}
+

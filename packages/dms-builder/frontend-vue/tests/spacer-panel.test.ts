@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	fixedGapPatch,
 	shownSpacerRoom,
+	spacerAxis,
 	spacerRoom,
 	spacerRoomPatch,
 } from '../app/runtime/spacer-panel'
@@ -91,5 +92,35 @@ describe('the way the panel shows', () => {
 		expect(shownSpacerRoom('fixed', { grow: 1 }), 'an undo took the gap back').toBe('fill')
 		expect(shownSpacerRoom('fill', { minSize: '8px' })).toBe('bounded')
 		expect(shownSpacerRoom(null, { grow: 0, minSize: '8px', maxSize: '8px' })).toBe('fixed')
+	})
+})
+
+describe('what a spacer\'s share counts in', () => {
+	it('is columns in a row of the grid, lines stacked between blocks, else its part', () => {
+		expect(spacerAxis('GridRow')).toBe('columns')
+		expect(spacerAxis(null), 'among the page\'s blocks').toBe('lines')
+		expect(spacerAxis('Tab')).toBe('lines')
+		expect(spacerAxis('VStack')).toBe('lines')
+		expect(spacerAxis('HStack')).toBe('share')
+	})
+
+	it('reads a stacked spacer\'s lines as the free room, not as bounds', () => {
+		expect(spacerRoom({ grow: 2, minSize: '48px' })).toBe('fill')
+		expect(spacerRoom({ minSize: '24px' })).toBe('fill')
+		expect(spacerRoom({ grow: 2, minSize: '30px' })).toBe('bounded')
+		expect(spacerRoom({ grow: 2, minSize: '48px', maxSize: '80px' })).toBe('bounded')
+	})
+
+	it('fills as many lines as its share once stacked', () => {
+		expect(spacerRoomPatch('fill', { grow: 0, minSize: '8px', maxSize: '8px' }, 'lines')).toEqual({
+			grow: 1,
+			minSize: '24px',
+			maxSize: undefined,
+		})
+		expect(spacerRoomPatch('fill', { grow: 2, minSize: '8px' }, 'share')).toEqual({
+			grow: 2,
+			minSize: undefined,
+			maxSize: undefined,
+		})
 	})
 })

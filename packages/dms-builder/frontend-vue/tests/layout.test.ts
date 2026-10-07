@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pathOfNode, tidyLayout } from '../app/runtime/layout'
+import { fitSpacerColumns, pathOfNode, tidyLayout } from '../app/runtime/layout'
 import { testCatalog } from './support/builder-harness'
 import type { BlockDraft, PageDraft } from '../app/runtime/types'
 
@@ -216,3 +216,49 @@ describe('an edit', () => {
 		expect(shape(edited(before, after).blocks)).toEqual(['a'])
 	})
 })
+
+describe('a grid holding a spacer that takes several columns', () => {
+	function spacer(colSpan?: number): BlockDraft {
+		return { name: 'spacer', type: 'Spacer', config: {}, ...(colSpan ? { meta: { colSpan } } : {}) }
+	}
+
+	function fitted(blocks: BlockDraft[]): BlockDraft {
+		const draft: PageDraft = { blocks }
+		fitSpacerColumns(draft)
+		return draft.blocks[0]!
+	}
+
+	it('lets its columns narrow, so the spacer stays beside the block it was put by', () => {
+		// Two columns of a spacer beside a card ask for three, and a grid drops
+		// a column under 240px: on a narrow page the spacer went to the next line.
+		expect(fitted([grid('grid', [gridRow('row', [text('card'), spacer(2)])])]).config).toEqual({
+			minColumnWidth: '120px',
+		})
+		expect(fitted([grid('grid', [gridRow('row', [text('card'), spacer(3)])])]).config).toEqual({
+			minColumnWidth: '80px',
+		})
+	})
+
+	it('gives the width back once the spacer takes one column again', () => {
+		const block = grid('grid', [gridRow('row', [text('card'), spacer()])], {
+			config: { minColumnWidth: '120px' },
+		})
+
+		expect(fitted([block]).config).toEqual({})
+	})
+
+	it('leaves a width an author set as set', () => {
+		const block = grid('grid', [gridRow('row', [text('card'), spacer(2)])], {
+			config: { minColumnWidth: '300px' },
+		})
+
+		expect(fitted([block]).config).toEqual({ minColumnWidth: '300px' })
+	})
+
+	it('is still taken apart once nothing is beside the block', () => {
+		const block = grid('grid', [gridRow('row', [text('card')])], { config: { minColumnWidth: '120px' } })
+
+		expect(shape(tidied([block]).blocks)).toEqual(['card'])
+	})
+})
+

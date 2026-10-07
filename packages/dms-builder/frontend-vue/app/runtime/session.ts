@@ -33,7 +33,8 @@ import {
 } from './dropping'
 import { formTableOf } from './form-table'
 import { deriveKeys } from './keys'
-import { pathOfNode, tidyLayout } from './layout'
+import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
+import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
 import {
@@ -686,6 +687,7 @@ export function useBuilder(): BuilderController {
 		// the editor holds by path follows the block rather than the path.
 		const followed = followedBlocks(next)
 		tidyLayout(next, session.value.catalog, current)
+		fitSpacerColumns(next)
 		pushHistory()
 		session.value.draft = next
 		refollow(next, followed)
@@ -1032,6 +1034,7 @@ export function useBuilder(): BuilderController {
 			const placed = newBlockDraft(descriptor, rankOf(draft, type))
 			placed.name = nameOnPage(draft, placed.name)
 			adoptSlot(draft, host.parent, placed)
+			linesForSpacer(draft, host.parent, placed)
 			if (insertNode(draft, host.parent, host.index, placed)) {
 				node = placed
 			}
@@ -1040,6 +1043,27 @@ export function useBuilder(): BuilderController {
 		if (created) {
 			select(created)
 			notify(`${descriptor.label ?? descriptor.type} added`)
+		}
+	}
+
+	/**
+	 * A spacer put between stacked blocks is a line high from the start.
+	 *
+	 * Stacked, the room it takes is lines — a page or a tab leaves none free —
+	 * and one placed with nothing said would be no room at all on the page.
+	 */
+	function linesForSpacer(
+		draft: PageDraft,
+		parent: string | null,
+		placed: BlockDraft,
+	): void {
+		const holder = parent === null ? null : findNode(draft, parent)?.type
+		if (placed.type !== SPACER_BLOCK || spacerAxis(holder) !== 'lines') {
+			return
+		}
+		placed.config = {
+			...placed.config,
+			minSize: linesHeight(spacerGrow(placed.config ?? {})),
 		}
 	}
 

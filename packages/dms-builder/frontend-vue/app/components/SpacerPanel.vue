@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useBlockPanel } from '../runtime/block-panel'
+import { findNode, parentPath } from '../runtime/draft'
 import { PANEL_CARD } from '../runtime/form-panel'
+import { useBuilder } from '../runtime/session'
 import {
 	FIXED_GAP,
 	fixedGapPatch,
 	shownSpacerRoom,
 	SPACER_ROOMS,
+	linesHeight,
+	SPACER_LINE_PX,
+	spacerAxis,
 	spacerGrow,
 	spacerRoomPatch,
 	type SpacerRoom,
@@ -19,23 +24,56 @@ import {
  */
 const props = defineProps<{ path: string }>()
 
-const { config, patch, write, text } = useBlockPanel(() => props.path)
+const { block, config, patch, write, text } = useBlockPanel(() => props.path)
+const builder = useBuilder()
 
 const picked = ref<SpacerRoom | null>(null)
 const room = computed(() => shownSpacerRoom(picked.value, config.value))
 const grow = computed(() => spacerGrow(config.value))
 
+/**
+ * What its share counts in: the columns it spans in a row of the grid, lines
+ * stacked between blocks, else its part of the room left free.
+ */
+const axis = computed(() => {
+	const parent = parentPath(props.path)
+	const draft = builder.session.value.draft
+	return spacerAxis(parent === null ? null : draft && findNode(draft, parent)?.type)
+})
+const share = computed(() =>
+	axis.value === 'columns' ? Number(block.value?.meta?.colSpan) || 1 : grow.value,
+)
+const shareHint = computed(() => {
+	if (axis.value === 'columns') {
+		return 'In a row, its share is the columns it takes: a share of 2 takes two.'
+	}
+	return axis.value === 'lines'
+		? `Stacked, its share is the lines it takes, ${SPACER_LINE_PX}px each: a share of 2 takes two.`
+		: 'Beside another spacer, a share of 2 takes twice the room.'
+})
+
 function choose(next: SpacerRoom): void {
 	if (next !== room.value) {
-		patch(spacerRoomPatch(next, config.value))
+		patch(spacerRoomPatch(next, config.value, axis.value))
 	}
 	picked.value = next
 }
 
 function setShare(value: number | null | undefined): void {
-	if (typeof value === 'number') {
-		patch({ grow: value })
+	if (typeof value !== 'number') {
+		return
 	}
+	if (axis.value === 'columns') {
+		builder.patchMeta(props.path, { colSpan: value > 1 ? value : undefined })
+		return
+	}
+	// Stacked, the free room is that many lines high; within limits, the
+	// limits are the author's.
+	patch(
+		axis.value === 'lines' && room.value === 'fill'
+			? { grow: value, minSize: linesHeight(value) }
+			: { grow: value },
+	)
 }
 </script>
 
@@ -178,7 +216,7 @@ function setShare(value: number | null | undefined): void {
 						</label>
 						<UInputNumber
 							:id="`${path}:share`"
-							:model-value="grow"
+							:model-value="share"
 							:min="1"
 							size="sm"
 							:increment="{ 'aria-label': 'A larger share' }"
@@ -188,7 +226,7 @@ function setShare(value: number | null | undefined): void {
 						/>
 					</div>
 					<p class="text-xs text-dimmed">
-						Beside another spacer, a share of 2 takes twice the room.
+						{{ shareHint }}
 					</p>
 				</template>
 			</div>

@@ -13,6 +13,7 @@ import {
 	textOf,
 	type TestNode,
 } from './support/render'
+import { findNode } from '../app/runtime/draft'
 import { useBuilderMode } from '../app/runtime/mode'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockCatalog, BlockNode, OptionSchema } from '../app/runtime/types'
@@ -143,11 +144,15 @@ describe('the room a spacer takes', () => {
 		expect(textOf(root), 'no number to read without its meaning').not.toContain('Minimum size')
 	})
 
-	it('writes a share of the free room', async () => {
+	it('writes a share of the free room, as many lines high among the page\'s blocks', async () => {
 		const root = await panel()
 		await type(field(root, 'share'), 3)
 
-		expect(config()).toEqual({ grow: 3 })
+		// The page leaves no room free between its blocks: stacked, the share is
+		// the height the spacer takes, a line of 24px for each.
+		expect(config()).toEqual({ grow: 3, minSize: '72px' })
+		expect(picked(root), 'its lines are no bounds').toEqual(['fill'])
+		expect(textOf(root)).toContain('Stacked, its share is the lines it takes, 24px each')
 	})
 
 	it('holds a gap to one size, and to the size typed', async () => {
@@ -192,7 +197,7 @@ describe('the room a spacer takes', () => {
 		const root = await panel({ grow: 0, minSize: '8px', maxSize: '8px' })
 		await pick(root, 'fill')
 
-		expect(config()).toEqual({ grow: 1 })
+		expect(config()).toEqual({ grow: 1, minSize: '24px' })
 		expect(picked(root)).toEqual(['fill'])
 	})
 
@@ -207,3 +212,100 @@ describe('the room a spacer takes', () => {
 		}
 	})
 })
+
+describe('a spacer in a row of the grid', () => {
+	const PATH = 'grid/row/spacer'
+
+	/** A row of the grid holding a block, then the spacer beside it. */
+	async function inRow(): Promise<TestNode> {
+		backend.catalog = spacerCatalog(backend.catalog)
+		const cell = (name: string, type: string): BlockNode => ({
+			path: `grid/row/${name}`,
+			name,
+			type,
+			editable: true,
+			config: {},
+		})
+		const row: BlockNode = {
+			path: 'grid/row',
+			name: 'row',
+			type: 'GridRow',
+			editable: true,
+			children: [cell('text', 'Text'), cell('spacer', 'Spacer')],
+		}
+		backend.structure = {
+			...backend.structure,
+			blocks: [{ path: 'grid', name: 'grid', type: 'Grid', editable: true, children: [row] }],
+		}
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+		builder.select(PATH)
+		await vi.advanceTimersByTimeAsync(200)
+		const tree = mount(Config, { components: parts() })
+		mounted.push(tree.unmount)
+		await nextTick()
+		return tree.root
+	}
+
+	const spacer = () => findNode(builder.session.value.draft!, PATH)
+	const share = (root: TestNode) =>
+		findAll(root, (node) => node.props.id === `${PATH}:share`)[0]
+
+	it('takes the free room in columns, its share the columns it spans', async () => {
+		const root = await inRow()
+
+		expect(picked(root), 'the three ways still offered').toEqual(['fill'])
+		expect(textOf(root)).toContain('In a row, its share is the columns it takes')
+		expect(share(root)?.props['model-value']).toBe(1)
+
+		await type(share(root), 2)
+		expect(spacer()?.meta).toEqual({ colSpan: 2 })
+		expect(spacer()?.config, 'no share a grid cell would ignore').toEqual({})
+		expect(share(root)?.props['model-value']).toBe(2)
+
+		await type(share(root), 1)
+		expect(spacer()?.meta, 'one column is what a cell takes by itself').toBeUndefined()
+	})
+})
+
+describe('a spacer put on the page', () => {
+	async function openWith(blocks: BlockNode[]): Promise<void> {
+		backend.catalog = spacerCatalog(backend.catalog)
+		backend.structure = { ...backend.structure, blocks }
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+	}
+
+	const text = (path: string): BlockNode => ({
+		path,
+		name: path.split('/').at(-1)!,
+		type: 'Text',
+		editable: true,
+		config: {},
+	})
+
+	it('is a line high between stacked blocks, where nothing is left free', async () => {
+		await openWith([text('title')])
+		builder.addBlock('Spacer')
+
+		expect(findNode(builder.session.value.draft!, 'spacer')?.config).toEqual({ minSize: '24px' })
+	})
+
+	it('is a column of its own in a row of the grid', async () => {
+		await openWith([
+			{
+				path: 'grid',
+				name: 'grid',
+				type: 'Grid',
+				editable: true,
+				children: [
+					{ path: 'grid/row', name: 'row', type: 'GridRow', editable: true, children: [text('grid/row/title')] },
+				],
+			},
+		])
+		builder.addBlock('Spacer', 'grid/row', null)
+
+		expect(findNode(builder.session.value.draft!, 'grid/row/spacer')?.config).toEqual({})
+	})
+})
+
