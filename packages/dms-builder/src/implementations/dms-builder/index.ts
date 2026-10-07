@@ -33,8 +33,6 @@ import type {
   ResourceRef,
   ResourceStructure,
   ResourceSummary,
-  TreePreview,
-  TreePreviewRequest,
 } from "@antelopejs/interface-dms-builder";
 import {
   buildCatalog,
@@ -58,7 +56,6 @@ import { setPageBlocks } from "./engine/page-draft";
 import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
 import { runQueryPreview } from "./engine/query-preview";
-import { runTreePreview } from "./engine/tree-preview";
 import { addQuery, configureQuery, removeQuery } from "./engine/query-ops-emit";
 import { listQueryTemplates } from "./engine/query-template";
 import { registerBuiltinQueryTemplates } from "./engine/query-template-emit";
@@ -118,12 +115,6 @@ export async function PreviewQuery(
   request: QueryPreviewRequest,
 ): Promise<OpResult<QueryPreview>> {
   return runQueryPreview(request);
-}
-
-export async function PreviewTree(
-  request: TreePreviewRequest,
-): Promise<OpResult<TreePreview>> {
-  return runTreePreview(request);
 }
 
 export async function PreviewLayout(

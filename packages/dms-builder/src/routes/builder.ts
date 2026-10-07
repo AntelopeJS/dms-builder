@@ -31,7 +31,6 @@ import { QUERY_PREVIEW_PARAMETER, ROUTES } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
 import { previewRequestFromSearch } from "../implementations/dms-builder/engine/query-preview";
-import { treePreviewRequestFromUrl } from "../implementations/dms-builder/engine/tree-preview";
 
 interface PageBody {
   page: string;
@@ -296,33 +295,6 @@ export class BuilderController extends Controller(getRoutePrefix()) {
       );
     }
     return answer.data.body;
-  }
-
-  /**
-   * A draft's tree, answered the way its route will answer once saved: a tree
-   * on the builder's canvas reads its unsaved levels here, and each branch it
-   * opens asks for itself at this same address.
-   */
-  @Get(ROUTES.treePreview)
-  async treePreviewAnswer(
-    @AuthTenantOwner() _user: User,
-    @Context() context: RequestContext,
-  ) {
-    const request = treePreviewRequestFromUrl(
-      context.url,
-      getRequestTenantId(context),
-    );
-    if (!request.ok) {
-      return new HTTPResult(400, request.error);
-    }
-    const answer = await engine.PreviewTree(request.data);
-    if (!answer.ok) {
-      return new HTTPResult(
-        answer.error.code === "not_found" ? 404 : 422,
-        answer.error,
-      );
-    }
-    return answer.data;
   }
 
   @Get(ROUTES.dataSources)

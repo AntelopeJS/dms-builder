@@ -16,17 +16,14 @@ import {
 	spansFullWidth,
 } from '../runtime/dropping'
 import {
-	mountIdOf,
-	remountKeyOf,
 	ROOM_BLOCKS,
 	roomStyle,
 	savedConfigAt,
+	sourceKeyOf,
 	withDraftEdits,
 	withDraftSource,
-	withDraftTree,
 } from '../runtime/canvas-options'
 import { sourceQuery } from '../runtime/data-source'
-import { treeSource } from '../runtime/tree-source'
 import { joinPath, useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
@@ -100,20 +97,13 @@ const options = computed(() => {
 				props.block.config,
 			)
 		: rendered.value?.options
-	return withDraftTree(
-		withDraftSource(
-			shown,
-			descriptor.value,
-			sourceQuery(session.value.draft, session.value.structure, props.block.name),
-		),
-		props.block.type,
-		treeSource(session.value.draft, session.value.structure, props.block.name),
+	return withDraftSource(
+		shown,
+		descriptor.value,
+		sourceQuery(session.value.draft, session.value.structure, props.block.name),
 	)
 })
-const sourceKey = computed(() =>
-	remountKeyOf(props.block.type, options.value, descriptor.value),
-)
-const mountId = computed(() => mountIdOf(props.block.type, props.path, options.value))
+const sourceKey = computed(() => sourceKeyOf(options.value, descriptor.value))
 /**
  * A block that is nothing but room — a spacer — is invisible on the page, and
  * on the canvas its size would change with nothing to show it: drawn as a
@@ -582,7 +572,7 @@ function answerCursor(event: DragEvent): void {
 					ref="instance"
 					v-bind="options"
 					:page-id="pageId"
-					:component-id="mountId"
+					:component-id="path"
 					:child-count="childCount"
 				>
 					<template v-for="region in regions" :key="region.id" #[region.id]>

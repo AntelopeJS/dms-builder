@@ -58,7 +58,6 @@ import {
 } from './draft'
 import type {
 	AddQueryInput,
-	AddTreeInput,
 	BlockCatalog,
 	BlockDraft,
 	BlockTypeDescriptor,
@@ -284,13 +283,6 @@ export interface BuilderController {
 	setDraftQuery: (input: AddQueryInput) => void
 	/** Drop a query from the draft. */
 	removeDraftQuery: (name: string) => void
-	/**
-	 * Put a tree read from tables in the draft, named after the block reading
-	 * it, to be written with the blocks on the next save.
-	 */
-	setDraftTree: (input: AddTreeInput) => void
-	/** Drop a tree from the draft. */
-	removeDraftTree: (name: string) => void
 	/** Run an unsaved query and answer what its route would. */
 	previewQuery: (
 		input: AddQueryInput,
@@ -1249,37 +1241,6 @@ export function useBuilder(): BuilderController {
 		})
 	}
 
-	/**
-	 * The trees the page already serves, as draft entries: seeded from what was
-	 * read off the page the first time one is touched, as the queries are, or the
-	 * save would drop the others.
-	 */
-	function draftTrees(draft: PageDraft): AddTreeInput[] {
-		if (draft.trees) {
-			return draft.trees
-		}
-		return (session.value.structure?.trees ?? [])
-			.filter((tree) => !tree.opaque && tree.levels?.length)
-			.map((tree) => ({
-				name: tree.name,
-				levels: tree.levels ?? [],
-				...(tree.lazy ? { lazy: true } : {}),
-				endpoint: tree.endpoint,
-			}))
-	}
-
-	function setDraftTree(input: AddTreeInput): void {
-		mutate((draft) => {
-			draft.trees = [...draftTrees(draft).filter((tree) => tree.name !== input.name), input]
-		})
-	}
-
-	function removeDraftTree(name: string): void {
-		mutate((draft) => {
-			draft.trees = draftTrees(draft).filter((tree) => tree.name !== name)
-		})
-	}
-
 	async function previewQuery(
 		input: AddQueryInput,
 		args?: Record<string, unknown>,
@@ -1967,8 +1928,6 @@ export function useBuilder(): BuilderController {
 		patchConfig,
 		setDraftQuery,
 		removeDraftQuery,
-		setDraftTree,
-		removeDraftTree,
 		previewQuery,
 		patchMeta,
 		setController,

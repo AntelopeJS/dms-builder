@@ -208,7 +208,7 @@ function words(value: string): string[] {
     .map((part) => part.toLowerCase());
 }
 
-export function kebab(value: string): string {
+function kebab(value: string): string {
   return words(value).join("-");
 }
 

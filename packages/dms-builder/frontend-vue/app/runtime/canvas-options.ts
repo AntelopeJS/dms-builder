@@ -3,9 +3,8 @@
  * being built follows the draft as it is edited rather than the page as it was
  * last saved.
  */
-import { API_PREFIX, QUERY_PREVIEW_PARAMETER, TREE_PREVIEW_PARAMETER } from './constants'
+import { API_PREFIX, QUERY_PREVIEW_PARAMETER } from './constants'
 import type { SourceQuery } from './data-source'
-import { treeProblem, type TreeSourceSpec } from './tree-source'
 import type { BlockNode, BlockTypeDescriptor, OptionSchema } from './types'
 
 /** The settings a value can be laid over as it is: no shape to rebuild. */
@@ -180,32 +179,6 @@ export function withDraftSource(
 }
 
 /**
- * Where the canvas reads a tree built here from tables: the builder's preview,
- * answered by the helper the route will call. A branch opened on the canvas is
- * asked for at the same address.
- */
-export function treePreviewUrl(tree: TreeSourceSpec): string {
-	const input = JSON.stringify({ levels: tree.levels, ...(tree.lazy ? { lazy: true } : {}) })
-	return `${API_PREFIX}/tree-preview?${TREE_PREVIEW_PARAMETER}=${encodeURIComponent(input)}`
-}
-
-/**
- * A tree reading tables, pointed at the preview of its levels as the draft
- * holds them, so a level added or a column picked redraws it. Loading a branch
- * as it opens follows the draft too: the tree only asks for one when told to.
- */
-export function withDraftTree(
-	options: Record<string, unknown> | undefined,
-	type: string | undefined,
-	tree: TreeSourceSpec | undefined,
-): Record<string, unknown> | undefined {
-	if (!options || type !== 'Tree' || !tree || treeProblem(tree)) {
-		return options
-	}
-	return { ...options, fetchUrl: treePreviewUrl(tree), lazyLoad: tree.lazy === true }
-}
-
-/**
  * What a block reads its figures from, to render it anew when that changes: a
  * card fetches once, as it mounts, and a new source would otherwise go unread.
  */
@@ -217,57 +190,4 @@ export function sourceKeyOf(
 		.filter(([, schema]) => schema.ui?.widget === DATA_SOURCE_WIDGET)
 		.map(([key]) => String(options?.[key] ?? ''))
 		.join('\u0000')
-}
-
-/**
- * The settings a block reads once, as it mounts, rather than as they change: a
- * tree loads its items — listed for it or read from an address — when it is set
- * up, and knows which start open and whether it loads a branch as it opens only
- * then.
- */
-const READ_ONCE: Readonly<Record<string, readonly string[]>> = {
-	Tree: ['staticNodes', 'defaultExpanded', 'fetchUrl', 'lazyLoad'],
-}
-
-/**
- * What the canvas renders a block anew on: its source, and the settings it reads
- * only once. An edit to one would otherwise go unseen until the page reloads.
- */
-export function remountKeyOf(
-	type: string | undefined,
-	options: Record<string, unknown> | undefined,
-	descriptor: BlockTypeDescriptor | undefined,
-): string {
-	const once = READ_ONCE[type ?? ''] ?? []
-	return [
-		sourceKeyOf(options, descriptor),
-		...once.map((key) => JSON.stringify(options?.[key] ?? null)),
-	].join('\u0000')
-}
-
-/** A short, stable digest of `text`: enough to tell two revisions apart. */
-function digest(text: string): string {
-	let hash = 5381
-	for (let at = 0; at < text.length; at += 1) {
-		hash = ((hash << 5) + hash + text.charCodeAt(at)) | 0
-	}
-	return (hash >>> 0).toString(36)
-}
-
-/**
- * The id the canvas mounts a block under. A block that reads some settings only
- * as it mounts keeps what it loaded under a key made of its id — a tree loads
- * its items through the DMS's async data — and mounting it anew under the same
- * id hands it back the items it loaded first. Its id follows those settings.
- */
-export function mountIdOf(
-	type: string | undefined,
-	path: string,
-	options: Record<string, unknown> | undefined,
-): string {
-	const once = READ_ONCE[type ?? '']
-	if (!once) {
-		return path
-	}
-	return `${path}~${digest(once.map((key) => JSON.stringify(options?.[key] ?? null)).join('\u0000'))}`
 }

@@ -6,7 +6,6 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
 import { buildQueryStructures } from "./query-structure";
-import { buildTreeStructures } from "./tree-structure";
 import type { PageRecord } from "./scan";
 import { findPageRecord } from "./source-index";
 
@@ -36,11 +35,10 @@ export function buildPageStructure(ref: string): OpResult<PageStructure> {
   }
   const blocks = buildPageBlocks(page);
   const queries = buildQueryStructures(page.classNode);
-  const trees = buildTreeStructures(page.classNode);
   const version = contentVersion(page.classNode.getSourceFile().getFullText());
   return {
     ok: true,
-    data: { page: toPageMeta(page), blocks, queries, trees, version },
+    data: { page: toPageMeta(page), blocks, queries, version },
     changes: [],
   };
 }

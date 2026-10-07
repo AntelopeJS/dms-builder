@@ -1,7 +1,6 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { BlockPath, PageRef } from "./addressing";
 import type { AddQueryInput, QueryPreview } from "./queries";
-import type { AddTreeInput } from "./trees";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
@@ -47,11 +46,6 @@ export interface PageDraft {
    * as a warning instead.
    */
   queries?: AddQueryInput[];
-  /**
-   * The trees the page serves from its tables, written with the blocks reading
-   * them. Omitted, they are left alone; empty, the generated ones go.
-   */
-  trees?: AddTreeInput[];
 }
 
 /** A component tree in the shape the DMS frontend consumes. */

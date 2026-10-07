@@ -186,6 +186,20 @@ describe('a type the DMS never declared', () => {
 	})
 })
 
+describe('a block the DMS has since removed', () => {
+	/** A catalog read off an older DMS, still declaring its tree. */
+	const olderCatalog: BlockCatalog = {
+		...catalog,
+		blocks: [...catalog.blocks, { ...chart('Tree', 'Tree'), group: 'navigation' }],
+	}
+
+	it('is offered in neither mode, nor found by searching', () => {
+		expect(offered(olderCatalog)).not.toContain('Tree')
+		expect(offered(olderCatalog, '', true)).not.toContain('Tree')
+		expect(offered(olderCatalog, 'tree', true)).toEqual([])
+	})
+})
+
 describe('the icon a tile draws', () => {
 	it("is the component's own, in Phosphor's two-tone weight", () => {
 		expect(paletteIcon('i-ph-table')).toBe('i-ph-table-duotone')

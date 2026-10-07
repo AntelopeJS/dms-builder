@@ -143,7 +143,6 @@ export interface PageStructure {
 	page: PageMeta
 	blocks: BlockNode[]
 	queries: QueryStructure[]
-	trees?: TreeStructure[]
 	version: string
 }
 
@@ -175,51 +174,6 @@ export interface PageDraft {
 	 * page already serves alone.
 	 */
 	queries?: AddQueryInput[]
-	/** The trees the page serves from its tables, saved the same way. */
-	trees?: AddTreeInput[]
-}
-
-/** The period an item grouping a date spans. */
-export type TreePeriod = 'day' | 'month' | 'quarter' | 'year'
-
-/** One level of the tree: the table it reads, and how. */
-export interface TreeLevelSpec {
-	/** The table, by its ref. */
-	resource: string
-	/** Groups the rows: one item per value of this column. */
-	by?: string
-	/** With `by` on a date: the period each item spans. */
-	every?: TreePeriod
-	/** The columns a row is named by. */
-	label?: string[]
-	/** The column of a row naming the row of the same table it sits under. */
-	parent?: string
-	/** The column of a row naming the row of the level above it sits under. */
-	link?: string
-	icon?: string
-}
-
-/** A tree read from tables, as the page's code answers it. */
-export interface TreeSourceSpec {
-	levels: TreeLevelSpec[]
-	/** Answer one branch at a time, as it is opened. */
-	lazy?: boolean
-}
-
-/** A tree a page serves from its tables, as a draft carries it. */
-export interface AddTreeInput extends TreeSourceSpec {
-	/** Named after the block reading it, as a query is. */
-	name: string
-	endpoint?: string
-}
-
-/** A tree as read back off the page. */
-export interface TreeStructure {
-	name: string
-	endpoint: string
-	levels?: TreeLevelSpec[]
-	lazy?: boolean
-	opaque?: boolean
 }
 
 /** How a query's answer is arranged for the block that reads it. */

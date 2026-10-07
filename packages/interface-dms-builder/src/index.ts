@@ -6,5 +6,4 @@ export * from "./queries";
 export * from "./resources";
 export * from "./results";
 export * from "./structure";
-export * from "./trees";
 export * from "./values";

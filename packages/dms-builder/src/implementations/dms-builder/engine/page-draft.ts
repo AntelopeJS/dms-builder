@@ -30,7 +30,6 @@ import {
 } from "./ops";
 import { contentVersion } from "./page-structure";
 import { syncQueries } from "./query-sync";
-import { syncTrees } from "./tree-sync";
 import { validateDraft } from "./page-draft-validation";
 import { resourceRefResolver } from "./resource-index";
 import {
@@ -484,29 +483,6 @@ export function setPageBlocks(
       return synced;
     }
     warnings = synced;
-  }
-  // The trees go in the same way, read by their blocks in the same write.
-  if (draft.trees) {
-    const written = findPageClass(context.sourceFile, context.page.id);
-    if (!written) {
-      transaction.rollback();
-      return notFound<{ version: string }>(ref);
-    }
-    const synced = syncTrees(
-      {
-        page: ref,
-        pageFile: context.sourceFile,
-        pageClass: written,
-        transaction,
-        blocks: draft.blocks,
-      },
-      draft.trees,
-    );
-    if ("ok" in synced) {
-      transaction.rollback();
-      return synced;
-    }
-    warnings = [...warnings, ...synced];
   }
   pruneUnusedImports(context.sourceFile, referencedNames);
   // Read after every edit: the version has to describe the file the caller

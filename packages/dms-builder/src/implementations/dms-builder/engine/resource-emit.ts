@@ -152,8 +152,6 @@ export const DECORATOR_IMPORTS: Record<string, string> = {
   Table: DB_MODULE,
   Get: API_MODULE,
   Parameter: API_MODULE,
-  Context: API_MODULE,
-  RequestContext: API_MODULE,
   TenantScopedModel: TENANT_MODEL_MODULE,
   AuthUserWithPermission: GUARDS_MODULE,
   User: AUTH_DB_MODULE,

@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-	mountIdOf,
-	remountKeyOf,
 	roomStyle,
 	savedConfigAt,
 	sourceKeyOf,
 	sourcePreviewUrl,
-	treePreviewUrl,
 	withDraftEdits,
 	withDraftSource,
-	withDraftTree,
 } from '../app/runtime/canvas-options'
 import type { BlockNode, BlockTypeDescriptor, OptionSchema } from '../app/runtime/types'
 
@@ -172,63 +168,5 @@ describe('a block that is nothing but room', () => {
 
 	it('leaves every other block to size itself', () => {
 		expect(roomStyle('Text', { grow: 2 })).toBeUndefined()
-	})
-})
-
-describe('a block that reads some settings only as it mounts', () => {
-	it('is rendered anew when its listed items change', () => {
-		const before = remountKeyOf('Tree', { staticNodes: [{ label: 'Fruits' }] }, undefined)
-		const after = remountKeyOf('Tree', { staticNodes: [{ label: 'Fruit' }] }, undefined)
-		expect(before).not.toBe(after)
-		expect(remountKeyOf('Tree', { staticNodes: [{ label: 'Fruits' }], title: 'Shop' }, undefined)).toBe(
-			before,
-		)
-	})
-
-	it('is mounted under an id that follows them, so it loads them afresh', () => {
-		const first = mountIdOf('Tree', 'tree', { staticNodes: [{ label: 'Fruits' }] })
-		expect(first).toMatch(/^tree~/)
-		expect(mountIdOf('Tree', 'tree', { staticNodes: [{ label: 'Fruit' }] })).not.toBe(first)
-		expect(mountIdOf('Text', 'intro', { content: 'a' })).toBe('intro')
-	})
-
-	it('is left mounted by a block that reads them as they change', () => {
-		expect(remountKeyOf('Text', { content: 'a' }, undefined)).toBe(
-			remountKeyOf('Text', { content: 'b' }, undefined),
-		)
-	})
-})
-
-describe('a tree reading tables built here', () => {
-	const levels = [{ resource: 'category', label: ['name'], parent: 'parent' }]
-
-	it('reads the preview of its levels, each branch asked for there too', () => {
-		const url = treePreviewUrl({ levels, lazy: true })
-		expect(url.startsWith('/api/builder/tree-preview?tree=')).toBe(true)
-		expect(JSON.parse(new URL(url, 'http://localhost').searchParams.get('tree') ?? '')).toEqual({
-			levels,
-			lazy: true,
-		})
-
-		expect(
-			withDraftTree({ title: 'Categories', fetchUrl: '/shop/board/tree/tree' }, 'Tree', {
-				levels,
-				lazy: true,
-			}),
-		).toEqual({ title: 'Categories', fetchUrl: treePreviewUrl({ levels, lazy: true }), lazyLoad: true })
-	})
-
-	it('is left alone while its levels cannot be read, and for any other block', () => {
-		const options = { fetchUrl: '/shop/board/tree/tree' }
-		expect(withDraftTree(options, 'Tree', { levels: [{ resource: 'order', by: '' }] })).toBe(options)
-		expect(withDraftTree(options, 'Tree', undefined)).toBe(options)
-		expect(withDraftTree(options, 'Table', { levels })).toBe(options)
-	})
-
-	it('mounts anew under another address, which it reads once', () => {
-		const first = mountIdOf('Tree', 'tree', { fetchUrl: treePreviewUrl({ levels }) })
-		expect(mountIdOf('Tree', 'tree', { fetchUrl: treePreviewUrl({ levels, lazy: true }) })).not.toBe(
-			first,
-		)
 	})
 })

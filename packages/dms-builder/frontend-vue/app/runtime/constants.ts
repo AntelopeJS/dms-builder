@@ -20,8 +20,6 @@ export const ACTION_ORDER = 90
 export const API_PREFIX = '/api/builder'
 // The query a GET of the preview runs, as JSON; mirrored in the module's routes.
 export const QUERY_PREVIEW_PARAMETER = 'query'
-// The tree a GET of the tree preview reads, as JSON; mirrored in the module.
-export const TREE_PREVIEW_PARAMETER = 'tree'
 // The DMS's own layout endpoint, not the builder's.
 export const PAGE_LAYOUT_PATH = '/dms/pagelayout'
 export const PREVIEW_DEBOUNCE_MS = 150
@@ -104,6 +102,13 @@ export const FULL_WIDTH_BLOCKS = new Set(['GridRow'])
  * boxes that hold it.
  */
 export const LAYOUT_BLOCKS = new Set(['Grid', 'GridRow', 'HStack', 'VStack'])
+
+/**
+ * The blocks the DMS has since removed. A project on an older DMS still
+ * declares them, and a page holding one is still drawn, but the palette offers
+ * none of them, in either mode.
+ */
+export const RETIRED_BLOCKS = new Set(['Tree'])
 
 /**
  * The container the editor builds to put two blocks side by side where nothing
