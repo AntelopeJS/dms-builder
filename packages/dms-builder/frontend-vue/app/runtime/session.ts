@@ -537,6 +537,8 @@ export function useBuilder(): BuilderController {
 			])
 			session.value.catalog = catalog
 			session.value.resources = resources
+			// Not waited for: the page opens without its menu, which only the
+			// pages panel lists. A failure is still said, inside the call.
 			void loadSiteTree()
 			if (await loadStructure(pageRef)) {
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
@@ -589,15 +591,49 @@ export function useBuilder(): BuilderController {
 		session.value.pendingClose = false
 	}
 
+	/** Start again from the page as it is on disk, dropping the draft. */
 	async function reload(): Promise<void> {
 		if (!session.value.pageRef) {
 			return
 		}
 		session.value.loading = true
-		if (await loadStructure(session.value.pageRef)) {
-			await refreshPreview()
+		try {
+			if (await loadStructure(session.value.pageRef)) {
+				await refreshPreview()
+			}
+		} finally {
+			// Or a failed read leaves the editor on its spinner for good.
+			session.value.loading = false
 		}
-		session.value.loading = false
+	}
+
+	/**
+	 * Read the page again after a write that went straight to its file — its
+	 * order, its permission, a query — keeping whatever the draft holds.
+	 *
+	 * Those writes leave the blocks alone, so an unsaved draft still stands on
+	 * the page as it now is: only what was read off it, and the version the next
+	 * save is checked against, have to catch up. Starting again from the page
+	 * here is what used to drop every unsaved edit, with no undo to get it back.
+	 * A draft with nothing in it simply starts again.
+	 */
+	async function refresh(): Promise<void> {
+		const pageRef = session.value.pageRef
+		if (!pageRef) {
+			return
+		}
+		if (!dirty.value) {
+			await reload()
+			return
+		}
+		const result = await api.structure(pageRef)
+		if (!result.ok) {
+			session.value.error = result.error
+			return
+		}
+		session.value.structure = result.data
+		session.value.version = result.data.version
+		schedulePreview()
 	}
 
 	/**
@@ -1209,9 +1245,11 @@ export function useBuilder(): BuilderController {
 	 * card cannot read.
 	 */
 	function draftQueries(draft: PageDraft): AddQueryInput[] {
-		if (draft.queries) {
-			return draft.queries
-		}
+		return draft.queries ?? servedQueries()
+	}
+
+	/** The queries the page serves as it was last read, as draft entries. */
+	function servedQueries(): AddQueryInput[] {
 		return (session.value.structure?.queries ?? [])
 			.filter((query) => !query.opaque && query.resource && query.template)
 			.map((query) => ({
@@ -1224,6 +1262,26 @@ export function useBuilder(): BuilderController {
 				...(query.compare ? { compare: true } : {}),
 				endpoint: query.endpoint,
 			}))
+	}
+
+	/**
+	 * Bring queries just written straight to the page into a draft that keeps
+	 * its own list of them: that list goes out whole with the next save, and
+	 * would otherwise undo the write. Each name is taken as the page now serves
+	 * it — there, or gone. The saved state takes it too, or the write would read
+	 * as an unsaved change.
+	 */
+	function carryQueries(names: string[]): void {
+		const served = servedQueries().filter((query) => names.includes(query.name))
+		for (const draft of [session.value.draft, session.value.baseline]) {
+			if (!draft?.queries) {
+				continue
+			}
+			draft.queries = [
+				...draft.queries.filter((query) => !names.includes(query.name)),
+				...served,
+			]
+		}
 	}
 
 	function setDraftQuery(input: AddQueryInput): void {
@@ -1432,7 +1490,32 @@ export function useBuilder(): BuilderController {
 		if (session.value.queryTemplates.length) {
 			return
 		}
-		session.value.queryTemplates = await api.queryTemplates()
+		try {
+			session.value.queryTemplates = await api.queryTemplates()
+		} catch (error) {
+			unread('The query templates', error)
+		}
+	}
+
+	/**
+	 * A plain read that got no answer, said in the banner. Those reads are
+	 * started from a click or a mount nobody waits on, so a rejection left to
+	 * itself would go unseen and leave the panel quietly empty.
+	 */
+	function unread(what: string, error: unknown): void {
+		session.value.error = {
+			code: 'unsupported',
+			detail: `${what} could not be read: ${error instanceof Error ? error.message : String(error)}`,
+		}
+	}
+
+	/** Read the tables again, keeping the list already shown when that fails. */
+	async function loadResources(): Promise<void> {
+		try {
+			session.value.resources = await api.resources()
+		} catch (error) {
+			unread('The tables', error)
+		}
 	}
 
 	/**
@@ -1465,12 +1548,16 @@ export function useBuilder(): BuilderController {
 	 */
 	/** The pages and categories the builder can create alongside, and navigate to. */
 	async function loadSiteTree(): Promise<void> {
-		const [pages, categories] = await Promise.all([
-			api.pages(),
-			api.categories(),
-		])
-		session.value.pages = pages
-		session.value.categories = categories
+		try {
+			const [pages, categories] = await Promise.all([
+				api.pages(),
+				api.categories(),
+			])
+			session.value.pages = pages
+			session.value.categories = categories
+		} catch (error) {
+			unread('The pages', error)
+		}
 	}
 
 	/**
@@ -1537,7 +1624,7 @@ export function useBuilder(): BuilderController {
 		if (!report(result, `Resource ${name} created`) || !result.ok) {
 			return undefined
 		}
-		session.value.resources = await api.resources()
+		await loadResources()
 		// The engine derives the ref from the name; reloading under what the
 		// user typed misses whenever the two differ, and the panel then shows an
 		// empty resource after a create that worked.
@@ -1551,7 +1638,7 @@ export function useBuilder(): BuilderController {
 		if (!report(result, 'Resource deleted')) {
 			return false
 		}
-		session.value.resources = await api.resources()
+		await loadResources()
 		return true
 	}
 
@@ -1582,7 +1669,18 @@ export function useBuilder(): BuilderController {
 		if (!report(result, 'Query updated')) {
 			return
 		}
-		await reload()
+		await refresh()
+		// The patch can rename it: the old name is gone, the new one served.
+		carryQueries(
+			[queryName(query), patch.name].filter(
+				(name): name is string => typeof name === 'string',
+			),
+		)
+	}
+
+	/** A query's own name, out of the `page@name` ref it is written under. */
+	function queryName(ref: string): string {
+		return ref.slice(ref.lastIndexOf('@') + 1)
 	}
 
 	/**
@@ -1599,7 +1697,7 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		// The pages panel lists the page by its order too.
-		await Promise.all([reload(), loadSiteTree()])
+		await Promise.all([refresh(), loadSiteTree()])
 	}
 
 	/**
@@ -1618,11 +1716,18 @@ export function useBuilder(): BuilderController {
 		startPending(pageRef)
 		try {
 			const result = await api.configurePage(pageRef, { category })
-			if (!report(result, 'Page moved')) {
+			if (!report(result, 'Page moved') || !result.ok) {
 				return undefined
 			}
+			// An unsaved draft is the same page at its new address, and goes
+			// there with it. Left on the old ref, saving it answers `not_found`,
+			// and the editor stops the move to the new route to ask about it.
+			if (dirty.value && result.data.ref !== pageRef) {
+				session.value.pageRef = result.data.ref
+				await refresh()
+			}
 			await loadSiteTree()
-			return result.ok ? result.data.ref : undefined
+			return result.data.ref
 		} finally {
 			endPending(pageRef)
 		}
@@ -1759,7 +1864,8 @@ export function useBuilder(): BuilderController {
 		if (!report(result, `Query ${input.name} added`)) {
 			return
 		}
-		await reload()
+		await refresh()
+		carryQueries([input.name])
 	}
 
 	async function removeQuery(ref: string): Promise<void> {
@@ -1767,7 +1873,8 @@ export function useBuilder(): BuilderController {
 		if (!report(result, 'Query removed')) {
 			return
 		}
-		await reload()
+		await refresh()
+		carryQueries([queryName(ref)])
 	}
 
 	function beginDrag(payload: DragPayload): void {

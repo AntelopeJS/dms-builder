@@ -45,6 +45,17 @@ const canRedo = computed(() => session.value.future.length > 0)
 			title="Tables of the project, their fields and their API"
 			@click="builder.setView('resource')"
 		/>
+		<!-- Reached from here and nowhere else: a block now picks its data
+		through its own panel, which no longer links to the list of them. -->
+		<UButton
+			icon="i-ph-function"
+			size="xs"
+			:color="session.view === 'query' ? 'primary' : 'neutral'"
+			variant="ghost"
+			label="Data"
+			title="Data sources the blocks of this page read"
+			@click="builder.setView('query')"
+		/>
 
 		<span class="vsep h-4 w-px bg-default" />
 

@@ -132,16 +132,20 @@ chrome — sidebar, header, breadcrumb — usable behind it.
   their aspects (listed, searchable, sortable, filterable, required), plus
   resource creation. These write straight through, since they touch files the
   page only references.
-- **Queries** — the `count` and `aggregate` routes the page exposes, and a form
-  to add one. A card's data source picks from them.
-- **Outline**, **Page** (title, description, icon, visibility) and **JSON**
-  (export the draft, or paste one back).
+- **Data sources** — opened from the bar: the `count` and `aggregate` routes
+  the page exposes, and a form to add one. A card's data source picks from
+  them.
+- **Page** (title, description, icon, visibility) and **JSON** (export the
+  draft, or paste one back).
 
 Edits stay local until **Save**: undo/redo (`⌘Z` / `⌘⇧Z`), discard, and a
 single `SetPageBlocks` write at the end. `⌘S` saves, `⌘D` duplicates, `Delete`
-removes, the arrows reorder, `Escape` deselects. A page that changed on disk
-while you were editing refuses the write and offers a reload rather than
-overwriting.
+removes, the arrows reorder — while the focus is on the page, not on a control
+of the panel. `Escape` closes the block menu, then deselects; it never leaves
+the editor, which is the bar's close button. A page that changed on disk while
+you were editing refuses the write and offers a reload rather than
+overwriting. The settings written at once (a page's position and access, its
+data sources) keep the unsaved draft as it is.
 
 `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the
 client plugin at priority 100, and only when the backend's manifest entry for

@@ -49,6 +49,61 @@ const isTyping = (target: EventTarget | null): boolean => {
 	)
 }
 
+// What answers keys of its own: anything that can hold the focus and act on
+// it, a button as much as a field.
+const CONTROLS = [
+	'input',
+	'textarea',
+	'select',
+	'button',
+	'a[href]',
+	'[contenteditable]',
+	...[
+		'switch',
+		'checkbox',
+		'radio',
+		'combobox',
+		'listbox',
+		'option',
+		'menu',
+		'menuitem',
+		'slider',
+		'spinbutton',
+		'tab',
+		'dialog',
+		'alertdialog',
+	].map((role) => `[role="${role}"]`),
+].join(', ')
+
+// What closes on Escape by itself, and takes the key with it.
+const POPUPS = ['dialog', 'alertdialog', 'listbox', 'menu']
+	.map((role) => `[role="${role}"]`)
+	.join(', ')
+
+/** The element a key was pressed on, when it was pressed on one. */
+const elementOf = (target: EventTarget | null): Element | null =>
+	target && typeof (target as Element).closest === 'function'
+		? (target as Element)
+		: null
+
+/**
+ * Whether the focus is on a control outside the canvas: a switch, a select or
+ * a button of the panel, a dialog over the editor.
+ *
+ * The keys that act on the selected block are not for those. Backspace on a
+ * switch the panel just toggled is not a request to remove the block the panel
+ * is about, nor an arrow in a select one to move it. Inside a block — the
+ * canvas renders real components, buttons included — the keys are the block's.
+ */
+function isOnControl(target: EventTarget | null): boolean {
+	const element = elementOf(target)
+	return (
+		!!element &&
+		element.closest(CONTROLS) !== null &&
+		element.closest('[data-path]') === null
+	)
+}
+
 function onKeydown(event: KeyboardEvent): void {
 	if (!session.value.active) {
 		return
@@ -62,12 +117,22 @@ function onKeydown(event: KeyboardEvent): void {
 	if (isTyping(event.target)) {
 		return
 	}
+	// Escape clears what is open or selected, one step at a time, and never
+	// leaves the editor: it is the key people press to close a list that has
+	// already closed. Leaving is the bar's button, which asks first.
 	if (event.key === 'Escape') {
-		if (session.value.selection) {
-			builder.select(null)
+		if (event.defaultPrevented || elementOf(event.target)?.closest(POPUPS)) {
 			return
 		}
-		builder.leave()
+		if (session.value.menu) {
+			builder.closeMenu()
+			return
+		}
+		// Only a selection: with none, this would trade the open panel for
+		// the library.
+		if (session.value.selection) {
+			builder.select(null)
+		}
 		return
 	}
 	if (modifier && event.key.toLowerCase() === 'z') {
@@ -80,7 +145,7 @@ function onKeydown(event: KeyboardEvent): void {
 		return
 	}
 	const path = session.value.selection
-	if (!path) {
+	if (!path || isOnControl(event.target)) {
 		return
 	}
 	if (modifier && event.key.toLowerCase() === 'd') {

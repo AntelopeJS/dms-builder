@@ -28,8 +28,25 @@ interface SaveBody {
 }
 
 /**
- * The typed client over the module's HTTP API. Reads answer with their value,
- * writes with an `OpResult` the caller branches on.
+ * A request that came back with no answer from the module: the network dropped
+ * it, or the server failed before the module could word a refusal.
+ *
+ * Shaped as the refusal it stands for, so every caller that branches on `ok`
+ * shows it the way it shows the module's own — rather than a rejection nobody
+ * catches, which leaves a spinner stopped and nothing said.
+ */
+function unanswered<T>(error: unknown): OpResult<T> {
+	const reason = error instanceof Error ? error.message : String(error)
+	return {
+		ok: false,
+		error: { code: 'unsupported', detail: `The request failed: ${reason}` },
+	}
+}
+
+/**
+ * The typed client over the module's HTTP API. Plain reads answer with their
+ * value; writes, and the reads the module answers with an `OpResult`, answer
+ * with one the caller branches on — a request that failed outright included.
  */
 export function useBuilderApi() {
 	const { $authFetch } = useAuthFetch()
@@ -38,16 +55,45 @@ export function useBuilderApi() {
 		return $authFetch<T>(`${API_PREFIX}${path}`, { method: 'GET', query })
 	}
 
-	function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
-		return $authFetch<T>(`${API_PREFIX}${path}`, { method: 'POST', body })
+	function answered<T>(request: Promise<OpResult<T>>): Promise<OpResult<T>> {
+		return request.catch((error: unknown) => unanswered<T>(error))
 	}
 
-	function put<T>(path: string, body: Record<string, unknown>): Promise<T> {
-		return $authFetch<T>(`${API_PREFIX}${path}`, { method: 'PUT', body })
+	function read<T>(
+		path: string,
+		query: Record<string, string>,
+	): Promise<OpResult<T>> {
+		return answered(get<OpResult<T>>(path, query))
 	}
 
-	function remove<T>(path: string, query: Record<string, string>): Promise<T> {
-		return $authFetch<T>(`${API_PREFIX}${path}`, { method: 'DELETE', query })
+	function post<T>(
+		path: string,
+		body: Record<string, unknown>,
+	): Promise<OpResult<T>> {
+		return answered(
+			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, { method: 'POST', body }),
+		)
+	}
+
+	function put<T>(
+		path: string,
+		body: Record<string, unknown>,
+	): Promise<OpResult<T>> {
+		return answered(
+			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, { method: 'PUT', body }),
+		)
+	}
+
+	function remove<T>(
+		path: string,
+		query: Record<string, string>,
+	): Promise<OpResult<T>> {
+		return answered(
+			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, {
+				method: 'DELETE',
+				query,
+			}),
+		)
 	}
 
 	return {
@@ -55,31 +101,32 @@ export function useBuilderApi() {
 		pages: () => get<PageSummary[]>('/pages'),
 		categories: () => get<CategorySummary[]>('/categories'),
 		createPage: (input: CreatePageInput) =>
-			post<OpResult<{ ref: string; filepath: string }>>(
+			post<{ ref: string; filepath: string }>(
 				'/pages',
 				input as unknown as Record<string, unknown>,
 			),
-		deletePage: (ref: string) => remove<OpResult<void>>('/page', { ref }),
+		deletePage: (ref: string) => remove<void>('/page', { ref }),
 		createCategory: (input: CreateCategoryInput) =>
-			post<OpResult<{ ref: string }>>(
+			post<{ ref: string }>(
 				'/categories',
 				input as unknown as Record<string, unknown>,
 			),
-		deleteCategory: (ref: string) =>
-			remove<OpResult<void>>('/category', { ref }),
-		structure: (ref: string) =>
-			get<OpResult<PageStructure>>('/page', { ref }),
+		deleteCategory: (ref: string) => remove<void>('/category', { ref }),
+		structure: (ref: string) => read<PageStructure>('/page', { ref }),
 		resources: () => get<ResourceSummary[]>('/resources'),
-		resource: (ref: string) =>
-			get<OpResult<ResourceStructure>>('/resource', { ref }),
+		resource: (ref: string) => read<ResourceStructure>('/resource', { ref }),
 		preview: (page: string, draft: PageDraft) =>
-			post<OpResult<PageLayoutPreview>>('/page/preview', { page, draft }),
+			post<PageLayoutPreview>('/page/preview', { page, draft }),
 		save: (body: SaveBody) =>
-			post<OpResult<{ version: string }>>(
+			post<{ version: string }>(
 				'/page/blocks',
 				body as unknown as Record<string, unknown>,
 			),
-		refresh: () => post<{ ok: boolean }>('/refresh', {}),
+		refresh: () =>
+			$authFetch<{ ok: boolean }>(`${API_PREFIX}/refresh`, {
+				method: 'POST',
+				body: {},
+			}),
 		/**
 		 * The page as the DMS serves it, outside the builder's own API. It is
 		 * what a block the preview cannot build falls back to — a TableView needs
@@ -90,31 +137,30 @@ export function useBuilderApi() {
 				method: 'GET',
 				query: { slug },
 			}),
-		deleteResource: (ref: string) => remove<OpResult<void>>('/resource', { ref }),
+		deleteResource: (ref: string) => remove<void>('/resource', { ref }),
 		configureCategory: (category: string, patch: Record<string, unknown>) =>
-			put<OpResult<void>>('/category', { category, patch }),
+			put<void>('/category', { category, patch }),
 		configureQuery: (query: string, patch: Record<string, unknown>) =>
-			put<OpResult<void>>('/queries', { query, patch }),
+			put<void>('/queries', { query, patch }),
 		// The ref comes back because a patch can change it: a page's category
 		// decides its route.
 		configurePage: (page: string, patch: Record<string, unknown>) =>
-			post<OpResult<{ ref: string }>>('/page/configure', { page, patch }),
+			post<{ ref: string }>('/page/configure', { page, patch }),
 		createResource: (input: CreateResourceInput) =>
-			post<OpResult<{ ref: string }>>(
+			post<{ ref: string }>(
 				'/resources',
 				input as unknown as Record<string, unknown>,
 			),
 		addField: (resource: string, field: FieldSpec) =>
-			post<OpResult<{ path: string }>>('/resource/fields', {
+			post<{ path: string }>('/resource/fields', {
 				resource,
 				field,
 			}),
 		configureResource: (resource: string, patch: { routes?: string[] }) =>
-			post<OpResult<void>>('/resource/configure', { resource, patch }),
+			post<void>('/resource/configure', { resource, patch }),
 		configureField: (path: string, patch: Partial<FieldAspects>) =>
-			put<OpResult<void>>('/resource/fields', { path, patch }),
-		removeField: (path: string) =>
-			remove<OpResult<void>>('/resource/fields', { path }),
+			put<void>('/resource/fields', { path, patch }),
+		removeField: (path: string) => remove<void>('/resource/fields', { path }),
 		queryTemplates: () =>
 			get<QueryTemplateDescriptor[]>('/query-templates'),
 		dataSources: (responseShape?: string) =>
@@ -124,15 +170,15 @@ export function useBuilderApi() {
 					: '/data-sources',
 			),
 		previewQuery: (query: AddQueryInput, args?: Record<string, unknown>) =>
-			post<OpResult<QueryPreview>>('/query-preview', {
+			post<QueryPreview>('/query-preview', {
 				query: query as unknown as Record<string, unknown>,
 				args: args ?? {},
 			}),
 		addQuery: (page: string, input: AddQueryInput) =>
-			post<OpResult<{ query: string; route: string }>>('/queries', {
+			post<{ query: string; route: string }>('/queries', {
 				page,
 				input,
 			}),
-		removeQuery: (ref: string) => remove<OpResult<void>>('/queries', { ref }),
+		removeQuery: (ref: string) => remove<void>('/queries', { ref }),
 	}
 }

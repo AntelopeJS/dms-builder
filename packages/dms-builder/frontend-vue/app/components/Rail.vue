@@ -84,7 +84,7 @@ const heading = computed<Heading>(() => {
 		page: pageHeading.value,
 		pages: { title: 'Pages', subtitle: 'Pages and categories of the project' },
 		resource: tableHeading.value,
-		query: { title: 'Queries', subtitle: session.value.pageRef ?? '' },
+		query: { title: 'Data sources', subtitle: session.value.pageRef ?? '' },
 		json: { title: 'Configuration', subtitle: 'Export and import the page' },
 	}
 	return headings[session.value.view] ?? { title: '', subtitle: '' }
