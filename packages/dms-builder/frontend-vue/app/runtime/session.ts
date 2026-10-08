@@ -39,6 +39,7 @@ import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
+import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
@@ -85,6 +86,8 @@ import type {
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
+	TableReader,
+	TableUsage,
 	ValidationIssue,
 } from './types'
 
@@ -175,6 +178,8 @@ export interface BuilderSession {
 	categories: CategorySummary[]
 	resourceFields: Record<string, string[]>
 	resourceStructures: Record<string, ResourceStructure>
+	/** What each table reaches and holds, once read; null until then. */
+	tableUsage: TableUsage | null
 	queryTemplates: QueryTemplateDescriptor[]
 	draft: PageDraft | null
 	baseline: PageDraft | null
@@ -274,6 +279,7 @@ function emptySession(): BuilderSession {
 		categories: [],
 		resourceFields: {},
 		resourceStructures: {},
+		tableUsage: null,
 		queryTemplates: [],
 		draft: null,
 		baseline: null,
@@ -393,6 +399,8 @@ export interface BuilderController {
 	notify: (message: string, options?: { undo?: boolean }) => void
 	/** Every unsaved change of the draft, as the change list shows it. */
 	unsaved: ComputedRef<DraftChange[]>
+	/** The pages reading a table, once known: what a change to it reaches. */
+	readersOf: (table: string) => TableReader[] | undefined
 	/** Put one change back, as one edit. */
 	revert: (change: DraftChange) => void
 	/** Answer the move to another page with "stay": the page to go back to. */
@@ -426,6 +434,8 @@ export interface BuilderController {
 		patch: Record<string, unknown>,
 	) => Promise<void>
 	configureQuery: (query: string, patch: Record<string, unknown>) => Promise<void>
+	/** Move a category one place up or down the menu, written at once. */
+	moveCategory: (ref: string, delta: -1 | 1) => Promise<void>
 	savePageMeta: (patch: Record<string, unknown>) => Promise<void>
 	movePage: (category: string) => Promise<string | undefined>
 	loadSiteTree: () => Promise<void>
@@ -598,6 +608,11 @@ export function useBuilder(): BuilderController {
 		),
 	)
 
+	function readersOf(table: string): TableReader[] | undefined {
+		const usage = session.value.tableUsage
+		return usage ? (usage.readers[table] ?? []) : undefined
+	}
+
 	/** Keep track of when the draft started to differ from the page. */
 	function noteDirty(): void {
 		if (!dirty.value) {
@@ -737,6 +752,7 @@ export function useBuilder(): BuilderController {
 			// Not waited for: the page opens without its menu, which only the
 			// pages panel lists. A failure is still said, inside the call.
 			void loadSiteTree()
+			void loadTableUsage()
 			if (await loadStructure(pageRef)) {
 				if (start && !session.value.draft?.blocks.length) {
 					applyLayout(start)
@@ -1890,6 +1906,8 @@ export function useBuilder(): BuilderController {
 			session.value.lastSave = { outcome: 'saved', at: Date.now() }
 			noteDirty()
 			keepDraft()
+			// What reads each table may have changed with the page.
+			void loadTableUsage()
 			report(result, 'Page saved')
 		} finally {
 			session.value.saving = false
@@ -1956,6 +1974,23 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
+	/**
+	 * What each table reaches and holds. Read in the background, and left as it
+	 * was when it cannot be: it only ever adds to what the panels say.
+	 */
+	async function loadTableUsage(): Promise<void> {
+		try {
+			const usage = await api.tableUsage()
+			// Only an answer of the right shape: an older module answers this
+			// route with something else, or not at all.
+			if (usage && typeof usage.readers === 'object' && usage.readers !== null) {
+				session.value.tableUsage = { readers: usage.readers, rows: usage.rows ?? {} }
+			}
+		} catch {
+			// An older module, or one that failed: the scope goes unsaid.
+		}
+	}
+
 	/** Read the tables again, keeping the list already shown when that fails. */
 	async function loadResources(): Promise<void> {
 		try {
@@ -1963,6 +1998,7 @@ export function useBuilder(): BuilderController {
 		} catch (error) {
 			unread('The tables', error)
 		}
+		void loadTableUsage()
 	}
 
 	/**
@@ -2163,6 +2199,55 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		await loadSiteTree()
+	}
+
+	/**
+	 * Put a category one place earlier or later among its siblings. The menu
+	 * reads places as numbers, so every sibling is numbered again in its new
+	 * place, and only those whose number changes are written — one after the
+	 * other, each a file of its own.
+	 */
+	async function moveCategory(ref: string, delta: -1 | 1): Promise<void> {
+		const category = session.value.categories.find((entry) => entry.ref === ref)
+		if (!category || session.value.pending.includes(ref)) {
+			return
+		}
+		const siblings = session.value.categories
+			.filter((entry) => (entry.parent ?? undefined) === (category.parent ?? undefined))
+			.sort(byCategoryOrder)
+		const at = siblings.findIndex((entry) => entry.ref === ref)
+		const to = at + delta
+		if (at === -1 || to < 0 || to >= siblings.length) {
+			return
+		}
+		const reordered = [...siblings]
+		reordered.splice(at, 1)
+		reordered.splice(to, 0, category)
+		startPending(ref)
+		try {
+			for (const [index, entry] of reordered.entries()) {
+				const order = index + 1
+				if (entry.order === order) {
+					continue
+				}
+				const result = await api.configureCategory(entry.ref, { order })
+				if (!report(result, 'Menu reordered')) {
+					break
+				}
+			}
+			session.value.applied = [
+				...session.value.applied,
+				{
+					id: session.value.applied.length + 1,
+					at: Date.now(),
+					title: `Moved the category ${category.displayName} ${delta < 0 ? 'up' : 'down'}`,
+					scope: 'menu',
+				},
+			]
+			await loadSiteTree()
+		} finally {
+			endPending(ref)
+		}
 	}
 
 	async function configureQuery(
@@ -2579,6 +2664,7 @@ export function useBuilder(): BuilderController {
 		save,
 		notify,
 		unsaved,
+		readersOf,
 		revert,
 		stayOnPage,
 		applyLayout,
@@ -2595,6 +2681,7 @@ export function useBuilder(): BuilderController {
 		addField,
 		configureCategory,
 		configureQuery,
+		moveCategory,
 		savePageMeta,
 		movePage,
 		loadSiteTree,

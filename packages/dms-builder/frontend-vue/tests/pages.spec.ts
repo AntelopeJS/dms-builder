@@ -431,6 +431,25 @@ describe('the pages, as a tree', () => {
 		})
 	})
 
+	it('moves a category up the menu, numbering its siblings again', async () => {
+		const root = await tree()
+
+		fire(buttonLabelled(root, 'Move Shop up the menu'), 'click')
+		await settle()
+
+		const writes = backend.calls
+			.filter((call) => call.method === 'PUT' && call.path === '/api/builder/category')
+			.map((call) => call.body)
+		expect(writes).toEqual([
+			{ category: 'shop', patch: { order: 1 } },
+			{ category: 'reports', patch: { order: 2 } },
+		])
+		expect(builder.session.value.applied.at(-1)).toMatchObject({
+			title: 'Moved the category Shop up',
+			scope: 'menu',
+		})
+	})
+
 	it('offers to delete a category only once nothing is in it', async () => {
 		const root = await tree()
 		const labels = findAll(root, (node) => node.tag === 'UButton').map(
@@ -453,6 +472,23 @@ describe('the pages, as a tree', () => {
 		expect(deletions()).toEqual([{ ref: '/reports/totals' }])
 		expect(pushedRoutes, 'another page than the open one').toEqual([])
 		expect(builder.session.value.draft).not.toBeNull()
+	})
+
+	it('says what goes with the page and what still links to it, before asking', async () => {
+		backend.answers['GET /api/builder/page/impact'] = {
+			blocks: 3,
+			queries: ['total'],
+			linkedFrom: [{ page: '/shop/orders', displayName: 'Orders' }],
+		}
+		backend.confirmAnswer = false
+		const root = await tree()
+
+		fire(buttonLabelled(root, 'Delete Totals'), 'click')
+		await settle()
+
+		const [asked] = backend.confirms
+		expect(asked?.description).toContain('Its 3 blocks and 1 data source go with it.')
+		expect(asked?.description).toContain('Orders still links to it')
 	})
 
 	it('deletes nothing when the question is turned down', async () => {
@@ -525,6 +561,27 @@ describe("a page's settings", () => {
 		expect(sent('POST', '/api/builder/page/configure')).toEqual({
 			page: '/reports/sales',
 			patch: { category: 'shop' },
+		})
+	})
+
+	it('pick the access among the permissions the DMS registered', async () => {
+		backend.answers['GET /api/builder/permissions'] = [
+			{ id: 'shop.orders', title: 'Orders', group: 'Shop' },
+		]
+		const root = await settings()
+		const picker = findAll(
+			root,
+			(node) => node.tag === 'USelectMenu' && node.props['aria-label'] === 'Who can see it',
+		)[0]!
+
+		expect((picker.props.items as Array<{ value: string }>).map((item) => item.value)).toEqual([
+			'#own',
+			'shop.orders',
+		])
+		write(picker, 'shop.orders')
+		await settle()
+		expect(builder.session.value.draft?.page).toEqual({
+			permission: { id: 'shop.orders', title: 'Sales' },
 		})
 	})
 

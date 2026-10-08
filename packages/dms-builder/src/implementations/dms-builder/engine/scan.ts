@@ -25,6 +25,9 @@ export interface CategoryRecord {
   id: string;
   fullSlug: string;
   displayName: string;
+  icon?: string;
+  /** Its place among its siblings in the menu, lowest first. */
+  order?: number;
   parentRef?: string;
   importName?: string;
   importModule?: string;
@@ -308,6 +311,8 @@ class SourceScanner {
       id,
       fullSlug: joinSlug(parent?.fullSlug ?? "", urlSlug),
       displayName: getStringProperty(opts, "displayName") ?? id,
+      icon: getStringProperty(opts, "icon"),
+      order: getNumberProperty(opts, "order"),
       parentRef: parent?.ref,
       importName: Node.isVariableDeclaration(decl) ? decl.getName() : undefined,
       importModule: decl.getSourceFile().getFilePath(),

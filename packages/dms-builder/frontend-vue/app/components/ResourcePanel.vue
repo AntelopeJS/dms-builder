@@ -101,11 +101,21 @@ const headline = computed(() => {
 	if (!read || !ref_) {
 		return ''
 	}
+	const rows = rowsOf(ref_)
+	const pages = builder.readersOf(ref_)
 	const readersHere = readBy(ref_)
 	return [
-		`${plural(read.fields.length, 'field')}`,
+		rows === undefined
+			? plural(read.fields.length, 'field')
+			: `${rows.toLocaleString()} row${rows === 1 ? '' : 's'}`,
 		`served at ${read.route}`,
-		readersHere ? `read by ${plural(readersHere, 'block')} on this page` : '',
+		pages
+			? pages.length
+				? `read by ${pages.map((page) => page.displayName).join(', ')}`
+				: 'read by no page'
+			: readersHere
+				? `read by ${plural(readersHere, 'block')} on this page`
+				: '',
 	]
 		.filter(Boolean)
 		.join(' · ')
@@ -119,13 +129,24 @@ function plural(count: number, noun: string): string {
 	return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
+/** Rows held, at this tenant, once the module has counted them. */
+function rowsOf(ref_: string): number | undefined {
+	return session.value.tableUsage?.rows[ref_]
+}
+
+/** The pages reading a table, once the module has said; this page's count before. */
+function reachOf(ref_: string): string {
+	const pages = builder.readersOf(ref_)
+	if (pages) {
+		return pages.length ? plural(pages.length, 'page') : 'unused'
+	}
+	const readersHere = readBy(ref_)
+	return readersHere ? `read by ${plural(readersHere, 'block')} here` : ''
+}
+
 function describe(entry: ResourceSummary): string {
 	const fields = session.value.resourceStructures[entry.ref]?.fields.length
-	const readersHere = readBy(entry.ref)
-	return [
-		fields === undefined ? '' : plural(fields, 'field'),
-		readersHere ? `read by ${plural(readersHere, 'block')} on this page` : '',
-	]
+	return [fields === undefined ? '' : plural(fields, 'field'), reachOf(entry.ref)]
 		.filter(Boolean)
 		.join(' · ')
 }

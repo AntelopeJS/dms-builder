@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
-import { byMenuOrder, categoryOptions, categoryRoute } from '../runtime/categories'
+import {
+	byCategoryOrder,
+	byMenuOrder,
+	categoryOptions,
+	categoryRoute,
+} from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
 import { usePageDelete } from '../runtime/page-delete'
 import { useBuilder, type PageLayout } from '../runtime/session'
@@ -103,6 +108,7 @@ const tree = computed(() => {
 	const build = (parent: string | undefined): CategoryNode[] =>
 		session.value.categories
 			.filter((entry) => (entry.parent ?? undefined) === parent)
+			.sort(byCategoryOrder)
 			.map((entry) => ({
 				ref: entry.ref,
 				label: entry.displayName,
@@ -619,6 +625,26 @@ async function write(): Promise<void> {
 						v-else
 						class="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
 					>
+						<UButton
+							icon="i-ph-arrow-up-light"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							:aria-label="`Move ${item.label} up the menu`"
+							title="Earlier in the menu · written at once"
+							:disabled="session.pending.includes(item.ref)"
+							@click="builder.moveCategory(item.ref, -1)"
+						/>
+						<UButton
+							icon="i-ph-arrow-down-light"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							:aria-label="`Move ${item.label} down the menu`"
+							title="Later in the menu · written at once"
+							:disabled="session.pending.includes(item.ref)"
+							@click="builder.moveCategory(item.ref, 1)"
+						/>
 						<UButton
 							icon="i-ph-plus-light"
 							size="xs"

@@ -198,9 +198,14 @@ function ensureOptionsObject(target: BlockTarget): ObjectLiteralExpression {
  * read as what the editor meant, an option to take out of the file, rather
  * than written as a `null` the page's types refuse.
  */
-export function optionsPatch(patch: Record<string, unknown>): Record<string, unknown> {
+export function optionsPatch(
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(patch).map(([key, value]) => [key, value === null ? undefined : value]),
+    Object.entries(patch).map(([key, value]) => [
+      key,
+      value === null ? undefined : value,
+    ]),
   );
 }
 

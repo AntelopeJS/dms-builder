@@ -79,5 +79,7 @@ export function listCategorySummaries(): CategorySummary[] {
     ref: category.ref,
     displayName: category.displayName,
     parent: category.parentRef,
+    icon: category.icon,
+    order: category.order,
   }));
 }

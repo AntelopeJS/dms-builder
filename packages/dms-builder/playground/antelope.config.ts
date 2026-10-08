@@ -23,10 +23,7 @@ const dmsSource = DMS_MODULE_PATH
   : {
       type: "package" as const,
       package: "@antelopejs/dms",
-      // Capped below the next minor: a cold start fetches the newest release
-      // in range, and each DMS minor needs its own `@antelopejs/dms-frontend`
-      // (0.6 ↔ 0.5), pinned in package.json.
-      version: ">=0.6.0 <0.7.0",
+      version: ">=0.6.0 <1.0.0",
     };
 
 export default defineConfig({

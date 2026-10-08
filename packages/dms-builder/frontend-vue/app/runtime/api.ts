@@ -19,6 +19,9 @@ import type {
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
+	PageImpact,
+	PermissionChoice,
+	TableUsage,
 } from './types'
 
 interface SaveBody {
@@ -114,6 +117,9 @@ export function useBuilderApi() {
 		deleteCategory: (ref: string) => remove<void>('/category', { ref }),
 		structure: (ref: string) => read<PageStructure>('/page', { ref }),
 		resources: () => get<ResourceSummary[]>('/resources'),
+		tableUsage: () => get<TableUsage>('/tables/usage'),
+		pageImpact: (ref: string) => get<PageImpact>('/page/impact', { ref }),
+		permissions: () => get<PermissionChoice[]>('/permissions'),
 		resource: (ref: string) => read<ResourceStructure>('/resource', { ref }),
 		preview: (page: string, draft: PageDraft) =>
 			post<PageLayoutPreview>('/page/preview', { page, draft }),

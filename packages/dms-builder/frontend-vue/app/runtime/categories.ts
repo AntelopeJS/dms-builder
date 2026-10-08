@@ -24,6 +24,13 @@ export function byMenuOrder(a: PageSummary, b: PageSummary): number {
 	)
 }
 
+/** Categories in the order the menu lists them: by order, then name. */
+export function byCategoryOrder(a: CategorySummary, b: CategorySummary): number {
+	return (
+		(a.order ?? 0) - (b.order ?? 0) || a.displayName.localeCompare(b.displayName)
+	)
+}
+
 /**
  * The categories as a menu reads them: in tree order, labelled by display name
  * and indented by depth.
@@ -37,9 +44,9 @@ export function categoryOptions(
 ): CategoryOption[] {
 	const options: CategoryOption[] = []
 	const walk = (parent: string | undefined, depth: number): void => {
-		for (const category of categories.filter(
-			(entry) => (entry.parent ?? undefined) === parent,
-		)) {
+		for (const category of categories
+			.filter((entry) => (entry.parent ?? undefined) === parent)
+			.sort(byCategoryOrder)) {
 			options.push({
 				label: `${'\u00A0\u00A0'.repeat(depth)}${depth > 0 ? '↳ ' : ''}${category.displayName}`,
 				value: category.ref,

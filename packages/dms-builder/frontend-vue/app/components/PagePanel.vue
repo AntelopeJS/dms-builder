@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
+import { useBuilderApi } from '../runtime/api'
 import { categoryOptions, categoryRoute } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
 import { useBuilderMode } from '../runtime/mode'
 import { usePageDelete } from '../runtime/page-delete'
+import type { PermissionChoice } from '../runtime/types'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
@@ -62,6 +64,38 @@ function setPermission(id: string): void {
 			: null,
 	})
 }
+
+// Auto-imported from the host's own layer: the DMS writes many of its titles
+// as translation keys, `$page.auth.login_title`, read in the viewer's language.
+const { processI18n } = useTranslation()
+
+/** The permissions the DMS has registered, to pick the page's from. */
+const permissions = ref<PermissionChoice[]>([])
+onMounted(async () => {
+	try {
+		const listed = await useBuilderApi().permissions()
+		permissions.value = Array.isArray(listed) ? listed : []
+	} catch {
+		// No list: the id is still typed by hand below.
+	}
+})
+
+/**
+ * The choice that means no permission set: a menu item cannot stand for an
+ * empty value, and no permission's id starts with a hash.
+ */
+const OWN = '#own'
+
+/** The permissions as a picker lists them, the page's own default first. */
+const permissionItems = computed(() => [
+	{ label: 'Its own permission', description: 'Named after the page', value: OWN },
+	...permissions.value.map((choice) => ({
+		label: processI18n(choice.title),
+		description: `${processI18n(choice.group)} · ${choice.id}`,
+		value: choice.id,
+		...(choice.icon ? { icon: choice.icon } : {}),
+	})),
+])
 
 /** The page's place among its siblings, staged with the rest. */
 const order = computed(() => value<number | undefined>('order', meta.value?.order) ?? 0)
@@ -206,14 +240,30 @@ async function move(category: string): Promise<void> {
 					: 'Left empty, the page has a permission of its own, named after it: the roles granted it see the page.'
 			"
 		>
-			<UInput
-				:model-value="permission"
-				icon="i-ph-shield-light"
-				placeholder="shop.products"
-				class="w-full font-mono"
-				aria-label="Permission"
-				@update:model-value="setPermission(String($event))"
-			/>
+			<div class="flex flex-col gap-1.5">
+				<USelectMenu
+					v-if="permissions.length"
+					:model-value="permission || OWN"
+					:items="permissionItems"
+					value-key="value"
+					icon="i-ph-shield-light"
+					:search-input="{ placeholder: 'Find a permission…' }"
+					aria-label="Who can see it"
+					class="w-full"
+					@update:model-value="setPermission($event === OWN ? '' : String($event ?? ''))"
+				/>
+				<!-- The id itself, for one the DMS has not registered yet. -->
+				<UInput
+					v-if="advanced || !permissions.length"
+					:model-value="permission"
+					icon="i-ph-shield-light"
+					placeholder="shop.products"
+					size="sm"
+					class="w-full font-mono"
+					aria-label="Permission"
+					@update:model-value="setPermission(String($event))"
+				/>
+			</div>
 		</UFormField>
 
 		<p v-if="advanced" class="flex items-center gap-1.5 text-xs text-muted">

@@ -18,6 +18,9 @@ export const ROUTES = {
   queries: "/queries",
   queryPreview: "/query-preview",
   dataSources: "/data-sources",
+  tableUsage: "/tables/usage",
+  pageImpact: "/page/impact",
+  permissions: "/permissions",
   refresh: "/refresh",
 } as const;
 

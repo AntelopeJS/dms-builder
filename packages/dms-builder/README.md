@@ -57,9 +57,11 @@ so every route under `/api/builder` answers `404`.
 
 ## HTTP API
 
-All routes sit under `/api/builder` and answer with the interface's own
-`OpResult` shape — `{ ok: true, data, changes }` or `{ ok: false, error }` —
-so a client branches on `ok` rather than on the status code.
+All routes sit under `/api/builder`. The operations answer with the
+interface's own `OpResult` shape — `{ ok: true, data, changes }` or
+`{ ok: false, error }` — so a client branches on `ok` rather than on the status
+code; the reads that only describe the project (`/tables/usage`,
+`/page/impact`, `/permissions`) answer with their value.
 
 | Method | Path | Body / query | Operation |
 | --- | --- | --- | --- |
@@ -70,15 +72,18 @@ so a client branches on `ok` rather than on the status code.
 | `GET` | `/categories` | — | `ListCategories` |
 | `GET` | `/page` | `?ref=` | `GetPageStructure` |
 | `DELETE` | `/page` | `?ref=` | `DeletePage` |
-| `POST` | `/page/configure` | `{ page, patch, expectedVersion? }` | `ConfigurePage` |
+| `POST` | `/page/configure` | `{ page, patch, expectedVersion? }` | `ConfigurePage` (a page or category option sent as `null` is taken out) |
 | `POST` | `/page/preview` | `{ page, draft }` | `PreviewLayout` |
 | `POST` | `/page/blocks` | `{ page, draft, expectedVersion? }` | `SetPageBlocks` |
+| `GET` | `/page/impact` | `?ref=` | What deleting the page takes: its blocks, its data sources, the pages linking to it |
+| `GET` | `/permissions` | — | The permissions the DMS registered, flat, to pick a page's access from |
 | `GET` | `/resources` | — | `ListResources` |
 | `POST` | `/resources` | `CreateResourceInput` | `CreateResource` |
 | `GET` | `/resource` | `?ref=` | `GetResourceStructure` |
 | `POST` | `/resource/fields` | `{ resource, field, expectedVersion? }` | `AddField` |
 | `PUT` | `/resource/fields` | `{ path, patch, expectedVersion? }` | `ConfigureField` |
 | `DELETE` | `/resource/fields` | `?path=` | `RemoveField` |
+| `GET` | `/tables/usage` | — | The pages reading each table, and its rows at the request's tenant |
 | `GET` | `/query-templates` | — | `ListQueryTemplates` |
 | `POST` | `/queries` | `{ page, input, expectedVersion? }` | `AddQuery` |
 | `PUT` | `/queries` | `{ query, patch, expectedVersion? }` | `ConfigureQuery` |
@@ -104,48 +109,58 @@ edit — fails with `stale` instead of overwriting. See
 ## The builder UI
 
 The module ships a Vue 3 frontend module, registered with `AddFrontendModule`
-only when the builder is enabled. It adds an **Edit this page** action to the DMS header;
-opening it overlays the page's content area with the builder and leaves the DMS
-chrome — sidebar, header, breadcrumb — usable behind it.
+only when the builder is enabled. It adds an **Edit this page** action to the
+DMS header (or `⌘B`); the builder is a mode of the page being looked at, laid
+over its content area, the DMS chrome — sidebar, header, breadcrumb — still
+usable behind it.
 
+- **Bar** — the mode, the page and its address, the workspace (**Page**,
+  **Tables**, **Data**), the save status (saved, *n* unsaved changes, saving,
+  to fix, failed) that opens the change list, undo/redo, the canvas's zoom and
+  width, Simple/Developer, **Save** and **Done**.
+- **Side rail** — three tabs that stay whatever is selected: **Add** (the
+  catalog, grouped and searchable by what a block is for; drag onto the page,
+  click to add where you are working, `↵`/`⌥↵` to add below or beside the
+  selection), **Layers** (every block of the page as a tree, the rows and
+  columns the editor wrote shown for what they hold) and **Pages** (the menu:
+  pages and categories, a new page started from a layout, its address checked
+  as it is typed).
 - **Canvas** — the page rendered by its real components. The layout comes from
   `PreviewLayout`, so a card fetches its real data and a grid lays itself out
   exactly as it will once saved. Blocks the preview cannot build faithfully
   (a `TableView`, whose DataAPI class only the running page holds) render as a
-  labelled placeholder rather than a lie. A drop is aimed at a block that is
+  labelled stand-in rather than a lie. A drop is aimed at a block that is
   already there, and every block of a grid answers on all four of its sides:
   its left and right quarters place the block in the column before or after it,
   the bands across its top and bottom above or below it, and the middle of a
-  container inside it. The rows and columns those readings need are the
-  editor's to write — composing a grid never asks anyone to place one.
-- **Library** — the catalog, grouped and searchable. Drag onto the page to place
-  a block, or click to append it. Placement follows the catalog:
-  `allowedChildren` refuses a block a container will not take. A type named as a
-  container's *one* allowed child is left out of the palette entirely — that
-  container writes it around whatever is dropped in, so it is structure rather
-  than a component (`Grid` and its `GridRow`).
-- **Settings** — a panel generated from the block's schema. Every option gets
-  the control its declaration asks for, with its label, help text, default and
-  bounds; nested objects, arrays, unions, DataTypes and nested blocks all
-  render recursively. Nothing is hand-written per block type.
-- **Data source** — the resource behind the selected block: its fields and
-  their aspects (listed, searchable, sortable, filterable, required), plus
-  resource creation. These write straight through, since they touch files the
-  page only references.
-- **Data sources** — opened from the bar: the `count` and `aggregate` routes
-  the page exposes, and a form to add one. A card's data source picks from
-  them.
-- **Page** (title, description, icon, visibility) and **JSON** (export the
-  draft, or paste one back).
+  container inside it; where it would land is said in words before it is let
+  go. The rows and columns those readings need are the editor's to write —
+  composing a grid never asks anyone to place one.
+- **Inspector** — the selected block, named as the page shows it and placed in
+  words (`Top list · column 2 of 3`), its settings in tabs (Content, Data,
+  Style; a table adds Actions, a form Fields and After submit). Blocks with a
+  panel of their own are set up in the words of whoever builds the page; the
+  rest get a panel generated from their schema. It also shows the page's own
+  settings, the page as JSON, and the **change list**: every unsaved edit in
+  plain words, revertible one by one, then what Save will check and write,
+  then what was already written straight to the project.
+- **Tables** and **Data** — workspaces of their own: the tables with their
+  fields, API and settings, each saying how many rows it holds and which pages
+  read it; the page's data sources, read as a sentence, with who uses them and
+  a preview.
 
-Edits stay local until **Save**: undo/redo (`⌘Z` / `⌘⇧Z`), discard, and a
-single `SetPageBlocks` write at the end. `⌘S` saves, `⌘D` duplicates, `Delete`
-removes, the arrows reorder — while the focus is on the page, not on a control
-of the panel. `Escape` closes the block menu, then deselects; it never leaves
-the editor, which is the bar's close button. A page that changed on disk while
-you were editing refuses the write and offers a reload rather than
-overwriting. The settings written at once (a page's position and access, its
-data sources) keep the unsaved draft as it is.
+Edits stay local until **Save**: undo/redo (`⌘Z` / `⌘⇧Z`) — the choices of
+one data source count as one step —, discard, and a single `SetPageBlocks`
+write at the end, the page's position, access and visibility included. The
+draft is also kept on this device, for a week, and offered again on the next
+visit. `⌘S` saves, `⌘D` duplicates, `Delete` removes, `↑`/`↓` select the block
+before or after, `⌥↑`/`⌥↓` move it, `↵` opens its settings, `/` searches the
+blocks — while the focus is on the page, not on a control of the panel.
+`Escape` closes the block menu, then deselects; it never leaves the editor.
+A page that changed on disk while you were editing refuses the write, and
+offers to keep your version or to reload. A table's fields and API, the menu's
+order and a category are still written at once, for every page reading them;
+the change list keeps a note of each, with what it reached.
 
 `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the
 client plugin at priority 100, and only when the backend's manifest entry for

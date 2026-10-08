@@ -610,3 +610,28 @@ describe('a block that reads a table', () => {
 		expect(textOf(table)).not.toContain('Data export')
 	})
 })
+
+describe('what a table reaches', () => {
+	it('says its rows and the pages reading it, under its name', async () => {
+		backend.answers[RESOURCES] = [summary('ticket')]
+		backend.answers[RESOURCE] = { ok: true, data: ticket(), changes: [] }
+		backend.answers['GET /api/builder/tables/usage'] = {
+			readers: {
+				ticket: [
+					{ page: '/support/board', displayName: 'Board', blocks: 1, queries: 0 },
+					{ page: '/support/intake', displayName: 'Intake', blocks: 1, queries: 0 },
+				],
+			},
+			rows: { ticket: 1284 },
+		}
+		await openEditor()
+		builder.openTable('ticket')
+		const { root } = mountPanel(ResourcePanel, { components: parts() })
+		await settle()
+
+		const text = textOf(root)
+		expect(text).toContain(`${(1284).toLocaleString()} rows`)
+		expect(text).toContain('read by Board, Intake')
+		expect(text, 'and the list says how many').toContain('2 pages')
+	})
+})

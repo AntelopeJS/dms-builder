@@ -299,6 +299,9 @@ export interface CategorySummary {
 	ref: string
 	displayName: string
 	parent?: string
+	icon?: string
+	/** Its place among its siblings in the menu, lowest first. */
+	order?: number
 }
 
 export interface CreatePageInput {
@@ -427,4 +430,34 @@ export interface DataSourceDescriptor {
 	method?: string
 	params?: Record<string, OptionSchema>
 	period?: { from: string; to: string }
+}
+
+/** A page reading a table, and how many of its blocks and sources do. */
+export interface TableReader {
+	page: string
+	displayName: string
+	blocks: number
+	queries: number
+}
+
+/** What each table reaches and holds, by its ref. */
+export interface TableUsage {
+	readers: Record<string, TableReader[]>
+	/** Rows at the request's tenant; a table the database could not answer for is absent. */
+	rows: Record<string, number>
+}
+
+/** What deleting a page takes with it, and what it leaves pointing nowhere. */
+export interface PageImpact {
+	blocks: number
+	queries: string[]
+	linkedFrom: Array<{ page: string; displayName: string }>
+}
+
+/** A permission a page can be given, as the access picker lists it. */
+export interface PermissionChoice {
+	id: string
+	title: string
+	icon?: string
+	group: string
 }

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import { ICON_PREFIXES, SUGGESTED_ICONS } from '../runtime/constants'
+import { useDmsState } from '#dms/frontend-module'
+import { ICON_PREFIXES, SESSION_STATE_KEY, SUGGESTED_ICONS } from '../runtime/constants'
 import { isBundledIcon, useIconSearch } from '../runtime/icon-search'
+import type { BuilderSession } from '../runtime/session'
 
 /**
  * An icon, shown as the tile it will be and picked from a search beside it.
@@ -37,10 +39,55 @@ const typed = computed(() => {
 		: undefined
 })
 
+// Read straight from the editor's state: the picker is a field, and a field
+// has no business opening the builder's API to name what is in the menu.
+const session = useDmsState<BuilderSession | undefined>(SESSION_STATE_KEY, () => undefined)
+
+/** How many tiles a row of the grid holds, for the arrows to walk it. */
+const COLUMNS = 7
+
+/**
+ * The icons the project's menu already uses: the ones an author most often
+ * wants again, so a page sits beside its siblings looking like one of them.
+ */
+const used = computed(() => {
+	const icons = [
+		...(session.value?.pages ?? []).map((page) => page.icon),
+		...(session.value?.categories ?? []).map((category) => category.icon),
+	].filter((icon): icon is string => typeof icon === 'string' && icon !== '')
+	return [...new Set(icons)].slice(0, COLUMNS * 2)
+})
+
+const searching_ = computed(() => query.value.trim().length >= 2)
+
 /** Until a search is typed, the icons most often picked rather than nothing. */
 const shown = computed<readonly string[]>(() =>
-	query.value.trim().length < 2 ? SUGGESTED_ICONS : results.value,
+	searching_.value
+		? results.value
+		: SUGGESTED_ICONS.filter((icon) => !used.value.includes(icon)),
 )
+
+/** The arrows walk the tiles, a row at a time up and down. */
+function walkTiles(event: KeyboardEvent): void {
+	const steps: Record<string, number> = {
+		ArrowRight: 1,
+		ArrowLeft: -1,
+		ArrowDown: COLUMNS,
+		ArrowUp: -COLUMNS,
+	}
+	const step = steps[event.key]
+	const grid = event.currentTarget as HTMLElement | null
+	if (!step || typeof grid?.querySelectorAll !== 'function') {
+		return
+	}
+	const tiles = [...grid.querySelectorAll<HTMLElement>('button')]
+	const at = tiles.indexOf(document.activeElement as HTMLElement)
+	const next = tiles[Math.min(Math.max(at + step, 0), tiles.length - 1)]
+	if (next) {
+		event.preventDefault()
+		next.focus()
+	}
+}
 
 const hint = computed(() => {
 	if (offline.value) {
@@ -82,23 +129,41 @@ function pick(name: string | undefined): void {
 					autofocus
 					:loading="searching"
 				/>
-				<div
-					v-if="shown.length"
-					class="grid max-h-52 grid-cols-7 gap-1 overflow-y-auto"
-				>
-					<UButton
-						v-for="name in shown"
-						:key="name"
-						:icon="name"
-						:color="name === modelValue ? 'primary' : 'neutral'"
-						:variant="name === modelValue ? 'soft' : 'ghost'"
-						square
-						block
-						:title="name"
-						:aria-label="name"
-						:aria-pressed="name === modelValue"
-						@click="pick(name)"
-					/>
+				<div class="flex max-h-60 flex-col gap-2 overflow-y-auto" @keydown="walkTiles">
+					<template v-if="!searching_ && used.length">
+						<DmsEyebrow class="px-0.5">Used in this project</DmsEyebrow>
+						<div class="grid grid-cols-7 gap-1">
+							<UButton
+								v-for="name in used"
+								:key="name"
+								:icon="name"
+								:color="name === modelValue ? 'primary' : 'neutral'"
+								:variant="name === modelValue ? 'soft' : 'ghost'"
+								square
+								block
+								:title="name"
+								:aria-label="name"
+								:aria-pressed="name === modelValue"
+								@click="pick(name)"
+							/>
+						</div>
+						<DmsEyebrow class="px-0.5">Suggested</DmsEyebrow>
+					</template>
+					<div v-if="shown.length" class="grid grid-cols-7 gap-1">
+						<UButton
+							v-for="name in shown"
+							:key="name"
+							:icon="name"
+							:color="name === modelValue ? 'primary' : 'neutral'"
+							:variant="name === modelValue ? 'soft' : 'ghost'"
+							square
+							block
+							:title="name"
+							:aria-label="name"
+							:aria-pressed="name === modelValue"
+							@click="pick(name)"
+						/>
+					</div>
 				</div>
 				<UButton
 					v-if="typed && !results.includes(typed)"

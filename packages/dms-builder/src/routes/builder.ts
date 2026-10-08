@@ -30,7 +30,13 @@ import { getRoutePrefix } from "../config";
 import { QUERY_PREVIEW_PARAMETER, ROUTES } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
+import { listPermissions } from "../implementations/dms-builder/engine/permissions";
 import { previewRequestFromSearch } from "../implementations/dms-builder/engine/query-preview";
+import {
+  pageImpact,
+  tableReaders,
+  tableRowCounts,
+} from "../implementations/dms-builder/engine/table-readers";
 
 interface PageBody {
   page: string;
@@ -192,6 +198,38 @@ export class BuilderController extends Controller(getRoutePrefix()) {
   @Get(ROUTES.resources)
   async resources(@AuthTenantOwner() _user: User) {
     return engine.ListResources();
+  }
+
+  /** The permissions the DMS has registered: what a page's access is picked from. */
+  @Get(ROUTES.permissions)
+  async permissions(@AuthTenantOwner() _user: User) {
+    return listPermissions();
+  }
+
+  /** What deleting a page takes with it, asked before the question is put. */
+  @Get(ROUTES.pageImpact)
+  async pageImpact(
+    @AuthTenantOwner() _user: User,
+    @Parameter("ref", "query") ref: string,
+  ) {
+    const impact = pageImpact(ref);
+    return impact ?? new HTTPResult(404, { code: "not_found", ref });
+  }
+
+  /**
+   * What each table reaches and holds: the pages reading it, and its rows at
+   * the request's tenant — what a change to a table is said to touch before
+   * it is made.
+   */
+  @Get(ROUTES.tableUsage)
+  async tableUsage(
+    @AuthTenantOwner() _user: User,
+    @Context() context: RequestContext,
+  ) {
+    return {
+      readers: tableReaders(),
+      rows: await tableRowCounts(getRequestTenantId(context)),
+    };
   }
 
   @Get(ROUTES.resource)

@@ -96,6 +96,9 @@ export interface CategorySummary {
   ref: CategoryRef;
   displayName: string;
   parent?: CategoryRef;
+  icon?: string;
+  /** Its place among its siblings in the menu, lowest first. */
+  order?: number;
 }
 
 /** The category metadata fields `ConfigureCategory` may patch. */

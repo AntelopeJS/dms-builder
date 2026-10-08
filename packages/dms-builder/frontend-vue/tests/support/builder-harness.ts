@@ -536,6 +536,12 @@ export function installFakeHost(): FakeBackend {
 		},
 	})
 
-	Object.assign(globalThis, { useAuthFetch, useConfirm })
+	// The DMS's translation of its `$`-marked titles: the key, unmarked.
+	const useTranslation = () => ({
+		processI18n: (key: string) => key.replace(/^\$/, ''),
+		processApiMessage: (message: unknown) => String(message),
+	})
+
+	Object.assign(globalThis, { useAuthFetch, useConfirm, useTranslation })
 	return backend
 }

@@ -9,7 +9,10 @@ import {
   RemoveBlock,
   SetPageBlocks,
 } from "../implementations/dms-builder";
-import type { PageStructure } from "@antelopejs/interface-dms-builder";
+import type {
+  PageDraft,
+  PageStructure,
+} from "@antelopejs/interface-dms-builder";
 import {
   createFixture,
   destroyFixture,
@@ -229,21 +232,28 @@ describe("the page draft", () => {
         "SetPageBlocks",
       );
       expect(app.read(PAGE_FILE)).to.contain("order: 3");
-      expect(app.read(PAGE_FILE)).to.contain('permission: { id: "shop.board" }');
+      expect(app.read(PAGE_FILE)).to.contain(
+        'permission: { id: "shop.board" }',
+      );
 
-      // Cleared in the editor: JSON carries no `undefined`, so it says null.
+      // Cleared in the editor: JSON carries no `undefined`, so it says null —
+      // which the declared draft has no word for, and the wire does.
+      const cleared = JSON.parse(
+        '{"order":null,"permission":null}',
+      ) as PageDraft["page"];
       expectOk(
         await SetPageBlocks(
           PAGE,
-          // The declared draft has no null; the wire does.
-          { page: { order: null, permission: null } as unknown as undefined, blocks },
+          { page: cleared, blocks },
           { expectedVersion: ordered.version },
         ),
         "SetPageBlocks",
       );
       expect(app.read(PAGE_FILE)).to.not.contain("order:");
       expect(app.read(PAGE_FILE)).to.not.contain("permission:");
-      expect(app.read(PAGE_FILE), "and nothing written as null").to.not.contain("null");
+      expect(app.read(PAGE_FILE), "and nothing written as null").to.not.contain(
+        "null",
+      );
     });
 
     it("refuses a write based on a version that has moved", async function () {
