@@ -423,7 +423,7 @@ async function setSearchField(name: string): Promise<void> {
 				aria-label="Table"
 			>
 				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-					<UIcon name="i-ph-table" class="size-4 text-primary" />
+					<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 					Table
 				</p>
 				<div class="flex flex-col gap-1.5">
@@ -449,8 +449,8 @@ async function setSearchField(name: string): Promise<void> {
 					variant="outline"
 					block
 					:disabled="!block.controller"
-					trailing-icon="i-ph-caret-right"
-					icon="i-ph-list"
+					trailing-icon="i-ph-caret-right-light"
+					icon="i-ph-list-light"
 					:label="
 						block.controller
 							? `Edit the table's ${fieldCount} field${fieldCount === 1 ? '' : 's'}`
@@ -459,7 +459,7 @@ async function setSearchField(name: string): Promise<void> {
 					@click="builder.setView('resource')"
 				/>
 				<p class="flex gap-2 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning">
-					<UIcon name="i-ph-info" class="mt-px size-3.5 shrink-0" />
+					<UIcon name="i-ph-info-light" class="mt-px size-3.5 shrink-0" />
 					<span>
 						{{ fieldsHint }} Changing them changes the table itself, on every page
 						using it, right away — not on Save.
@@ -549,7 +549,7 @@ async function setSearchField(name: string): Promise<void> {
 			called a slot, which is a word the gesture exists to spare anyone. -->
 			<section v-if="slots.length" :class="PANEL_CARD" :aria-label="regionLabel">
 				<label class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-					<UIcon name="i-ph-squares-four" class="size-4 text-primary" />
+					<UIcon name="i-ph-squares-four-light" class="size-4 text-primary" />
 					{{ regionLabel }}
 				</label>
 				<USelectMenu
@@ -567,7 +567,7 @@ async function setSearchField(name: string): Promise<void> {
 				aria-label="Placement"
 			>
 				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-					<UIcon name="i-ph-arrows-out-cardinal" class="size-4 text-primary" />
+					<UIcon name="i-ph-arrows-out-cardinal-light" class="size-4 text-primary" />
 					Placement
 				</p>
 				<DmsBuilderOption
@@ -587,7 +587,7 @@ async function setSearchField(name: string): Promise<void> {
 					:aria-expanded="showAdvanced"
 					@click="showAdvanced = !showAdvanced"
 				>
-					<UIcon name="i-ph-code" class="size-4 text-primary" />
+					<UIcon name="i-ph-code-light" class="size-4 text-primary" />
 					Advanced
 					<span class="ml-auto text-[13px] font-normal text-muted">
 						{{ advanced.options.length }}

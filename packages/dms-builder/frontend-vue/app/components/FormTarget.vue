@@ -99,7 +99,7 @@ function turnCreateOn(): void {
 					role="alert"
 					color="warning"
 					variant="subtle"
-					icon="i-ph-warning"
+					icon="i-ph-warning-light"
 				>
 					<template #description>
 						The API of {{ destination.table.ref }} has Create turned off, so every
@@ -151,7 +151,7 @@ function turnCreateOn(): void {
 					<span
 						class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accented text-muted"
 					>
-						<UIcon name="i-ph-globe-simple" class="size-4" />
+						<UIcon name="i-ph-globe-simple-light" class="size-4" />
 					</span>
 					<span class="flex min-w-0 flex-1 flex-col">
 						<code class="truncate font-mono text-sm text-highlighted">
@@ -162,7 +162,7 @@ function turnCreateOn(): void {
 				</div>
 				<UButton
 					v-if="!choosing"
-					icon="i-ph-table"
+					icon="i-ph-table-light"
 					size="xs"
 					color="neutral"
 					variant="outline"

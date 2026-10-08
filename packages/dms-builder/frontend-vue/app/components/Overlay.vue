@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useDmsRoute as useRoute } from '#dms/frontend-module'
 import { useContentAnchor } from '../runtime/anchor'
 import { placedPaths } from '../runtime/naming'
@@ -169,6 +169,17 @@ function onKeydown(event: KeyboardEvent): void {
 		if (session.value.selection) {
 			builder.select(null)
 		}
+		return
+	}
+	// The palette's search, from anywhere on the page.
+	if (event.key === '/' && !modifier && !isOnControl(event.target)) {
+		event.preventDefault()
+		builder.setView('library')
+		void nextTick(() =>
+			document
+				.querySelector<HTMLInputElement>('input[data-builder-search], [data-builder-search] input')
+				?.focus(),
+		)
 		return
 	}
 	if (modifier && event.key.toLowerCase() === 'z') {

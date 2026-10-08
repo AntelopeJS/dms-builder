@@ -74,7 +74,7 @@ function choose(ref: string): void {
 							: 'border-primary/35 bg-primary/10 text-primary'
 					"
 				>
-					<UIcon name="i-ph-table" class="size-4" />
+					<UIcon name="i-ph-table-light" class="size-4" />
 				</span>
 			</template>
 			<span class="flex min-w-0 flex-1 flex-col">

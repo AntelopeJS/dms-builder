@@ -639,7 +639,7 @@ watch(
 				<span
 					class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accented text-muted"
 				>
-					<UIcon name="i-ph-code" class="size-4" />
+					<UIcon name="i-ph-code-light" class="size-4" />
 				</span>
 				<span class="flex min-w-0 flex-1 flex-col">
 					<code class="truncate font-mono text-xs text-highlighted">
@@ -649,7 +649,7 @@ watch(
 				</span>
 			</div>
 			<UButton
-				icon="i-ph-table"
+				icon="i-ph-table-light"
 				size="xs"
 				color="neutral"
 				variant="outline"
@@ -842,7 +842,7 @@ watch(
 								class="min-w-0 flex-1"
 							/>
 							<UButton
-								icon="i-ph-x"
+								icon="i-ph-x-light"
 								size="xs"
 								color="neutral"
 								variant="ghost"
@@ -851,7 +851,7 @@ watch(
 							/>
 						</div>
 						<UButton
-							icon="i-ph-plus"
+							icon="i-ph-plus-light"
 							size="xs"
 							variant="link"
 							label="Add a condition"

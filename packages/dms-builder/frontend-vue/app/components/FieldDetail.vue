@@ -90,7 +90,7 @@ async function remove(): Promise<void> {
 			v-if="advanced"
 			class="flex items-start gap-2 text-xs leading-relaxed text-muted"
 		>
-			<UIcon name="i-ph-lock-simple" class="mt-0.5 size-3.5 shrink-0" />
+			<UIcon name="i-ph-lock-simple-light" class="mt-0.5 size-3.5 shrink-0" />
 			<p>
 				Key
 				<code class="rounded bg-accented px-1.5 py-px font-mono text-toned">{{
@@ -141,7 +141,7 @@ async function remove(): Promise<void> {
 			class="flex items-center justify-between gap-3 border-t border-default pt-3.5"
 		>
 			<UButton
-				icon="i-ph-trash"
+				icon="i-ph-trash-light"
 				size="xs"
 				color="error"
 				variant="ghost"

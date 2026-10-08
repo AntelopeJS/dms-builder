@@ -214,7 +214,7 @@ const colours = computed(() => {
 	<div class="flex flex-col gap-3">
 		<section :class="PANEL_CARD" aria-label="Tabs">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-tabs" class="size-4 text-primary" />
+				<UIcon name="i-ph-tabs-light" class="size-4 text-primary" />
 				Tabs
 				<span
 					class="rounded-full bg-accented px-1.75 text-[11px]/[18px] font-medium text-muted"
@@ -254,7 +254,7 @@ const colours = computed(() => {
 							@keydown.up.prevent.stop="nudge(tab, -1)"
 							@keydown.down.prevent.stop="nudge(tab, 1)"
 						>
-							<UIcon name="i-ph-dots-six-vertical" class="size-3.5" />
+							<UIcon name="i-ph-dots-six-vertical-light" class="size-3.5" />
 						</button>
 						<DmsBuilderIconPicker
 							:model-value="tab.icon"
@@ -281,7 +281,7 @@ const colours = computed(() => {
 						<span class="shrink-0 text-xs text-dimmed">{{ blocksLabel(tab.blocks) }}</span>
 						<UDropdownMenu :items="actions(tab)" :content="{ align: 'end' }">
 							<UButton
-								icon="i-ph-dots-three"
+								icon="i-ph-dots-three-light"
 								size="xs"
 								color="neutral"
 								variant="ghost"
@@ -317,7 +317,7 @@ const colours = computed(() => {
 			</div>
 
 			<UButton
-				icon="i-ph-plus"
+				icon="i-ph-plus-light"
 				size="sm"
 				color="neutral"
 				variant="outline"
@@ -329,7 +329,7 @@ const colours = computed(() => {
 
 		<section :class="PANEL_CARD" aria-label="Look">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-palette" class="size-4 text-primary" />
+				<UIcon name="i-ph-palette-light" class="size-4 text-primary" />
 				Look
 			</p>
 			<div class="flex flex-col gap-1.5">
@@ -342,7 +342,7 @@ const colours = computed(() => {
 					<div
 						role="group"
 						:aria-label="look.label"
-						class="grid flex-1 gap-0.5 rounded-lg border border-accented bg-default p-0.5"
+						class="grid flex-1 gap-0.5 rounded-lg border border-default bg-(--dms-bg-muted) p-0.5"
 						:style="{ gridTemplateColumns: `repeat(${choices(look.key).length}, minmax(0, 1fr))` }"
 					>
 						<button
@@ -353,8 +353,8 @@ const colours = computed(() => {
 							class="h-6.5 rounded-[5px] px-1 text-[12px] transition-colors"
 							:class="
 								chosen(look.key) === choice.value
-									? 'bg-primary font-semibold text-inverted'
-									: 'font-medium text-toned hover:bg-elevated'
+									? 'bg-default font-semibold text-highlighted shadow-sm ring-1 ring-accented'
+									: 'font-medium text-muted hover:text-highlighted'
 							"
 							@click="write(look.key, choice.value)"
 						>
@@ -383,7 +383,7 @@ const colours = computed(() => {
 			class="flex items-center gap-2.5 rounded-lg border border-default bg-elevated px-3.5 py-3"
 			aria-label="Behavior"
 		>
-			<UIcon name="i-ph-lightning" class="size-4 shrink-0 text-primary" />
+			<UIcon name="i-ph-lightning-light" class="size-4 shrink-0 text-primary" />
 			<span class="flex-1 text-[13px] text-default">Remember the open tab</span>
 			<USwitch
 				:model-value="config.persistState === true"

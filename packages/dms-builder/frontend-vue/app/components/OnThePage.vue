@@ -44,7 +44,7 @@ const orientation = computed(
 		aria-label="On the page"
 	>
 		<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-			<UIcon name="i-ph-text-t" class="size-4 text-primary" />
+			<UIcon name="i-ph-text-t-light" class="size-4 text-primary" />
 			On the page
 		</p>
 		<UFormField

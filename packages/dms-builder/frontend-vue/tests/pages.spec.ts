@@ -121,10 +121,11 @@ function treeDouble(): Component {
 
 const parts = (): Record<string, Component> => ({
 	UTree: treeDouble(),
+	UModal: stub('UModal'),
+	UTextarea: stub('UTextarea'),
 	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 	USelectMenu: stub('USelectMenu'),
 	USwitch: stub('USwitch'),
-	UTextarea: stub('UTextarea'),
 	UInputNumber: stub('UInputNumber'),
 })
 
@@ -228,7 +229,7 @@ describe('the pages, as a tree', () => {
 		const open = findAll(root, (node) => node.props['aria-selected'] === true)
 		expect(open.map(textOf)).toEqual(['Sales /reports/sales'])
 		expect(
-			findAll(root, (node) => node.props.name === 'i-ph-eye-slash'),
+			findAll(root, (node) => node.props.name === 'i-ph-eye-slash-light'),
 			'the hidden page says so',
 		).toHaveLength(1)
 	})
@@ -278,6 +279,71 @@ describe('the pages, as a tree', () => {
 		})
 	})
 
+	it('refuses an address another page already answers at, before writing', async () => {
+		const root = await tree()
+
+		fire(buttonLabelled(root, 'New page in Shop'), 'click')
+		await nextTick()
+		write(
+			findAll(
+				root,
+				(node) => node.tag === 'UInput' && node.props.placeholder === 'Revenue',
+			)[0]!,
+			'Orders',
+		)
+		await nextTick()
+
+		const address = findAll(
+			root,
+			(node) => node.tag === 'UFormField' && node.props.label === 'Address',
+		)[0]!
+		expect(address.props.error).toBe('Orders already answers at this address.')
+		expect(buttonLabelled(root, 'Create page').props.disabled).toBe(true)
+	})
+
+	it('starts the new page from the layout picked, as unsaved changes', async () => {
+		const root = await tree()
+		fire(buttonLabelled(root, 'New page in Shop'), 'click')
+		await nextTick()
+		write(
+			findAll(
+				root,
+				(node) => node.tag === 'UInput' && node.props.placeholder === 'Revenue',
+			)[0]!,
+			'Monthly revenue',
+		)
+		write(
+			findAll(
+				root,
+				(node) => node.tag === 'DmsSegmented' && node.props['aria-label'] === 'Start from',
+			)[0]!,
+			'list',
+		)
+		await nextTick()
+		backend.answers['POST /api/builder/pages'] = {
+			ok: true,
+			data: { ref: '/shop/monthly-revenue', filepath: 'pages/monthly-revenue.ts' },
+			changes: [],
+		}
+
+		fire(buttonLabelled(root, 'Create page'), 'click')
+		await settle()
+		expect(pushedRoutes).toEqual(['/shop/monthly-revenue'])
+
+		// The route watcher opens the editor there, on the empty page just written.
+		backend.structure = {
+			...backend.structure,
+			page: { ...backend.structure.page, ref: '/shop/monthly-revenue' },
+			blocks: [],
+		}
+		await builder.open('/shop/monthly-revenue')
+		await settle()
+		expect(builder.session.value.draft?.blocks.map((block) => block.type)).toEqual([
+			'TableView',
+		])
+		expect(builder.dirty.value, 'kept or undone like any edit').toBe(true)
+	})
+
 	describe('opening a page the DMS does not serve yet', () => {
 		// A page is listed as soon as its file is written, seconds before the
 		// reloaded module serves its route: these routes are held until told.
@@ -308,7 +374,7 @@ describe('the pages, as a tree', () => {
 		}
 
 		const spinning = (root: TestNode, route: string): boolean =>
-			findAll(row(root, route), (node) => node.props.name === 'i-ph-circle-notch')
+			findAll(row(root, route), (node) => node.props.name === 'i-ph-circle-notch-light')
 				.length > 0
 
 		it('waits for its route before going there, and says so on its row', async () => {

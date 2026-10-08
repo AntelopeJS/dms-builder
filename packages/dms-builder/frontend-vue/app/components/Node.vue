@@ -475,7 +475,7 @@ function answerCursor(event: DragEvent): void {
 			so its label would only say "Block". -->
 			<template v-if="block.preserve">
 				<span class="opacity-70">·</span>
-				<UIcon name="i-ph-lock-simple" class="size-3 opacity-70" />
+				<UIcon name="i-ph-lock-simple-light" class="size-3 opacity-70" />
 				<span class="opacity-70">set up in code</span>
 			</template>
 			<template v-else>
@@ -486,7 +486,7 @@ function answerCursor(event: DragEvent): void {
 			</template>
 			<UIcon
 				v-if="missing.length"
-				name="i-ph-warning"
+				name="i-ph-warning-light"
 				class="size-3 text-warning"
 			/>
 			<button
@@ -502,7 +502,7 @@ function answerCursor(event: DragEvent): void {
 					)
 				"
 			>
-				<UIcon name="i-ph-dots-three" class="size-3.5" />
+				<UIcon name="i-ph-dots-three-light" class="size-3.5" />
 			</button>
 		</div>
 
@@ -514,7 +514,7 @@ function answerCursor(event: DragEvent): void {
 			v-if="block.preserve && !resolved"
 			class="flex items-center gap-2 rounded-lg border border-dashed border-default bg-elevated p-4 text-sm text-dimmed"
 		>
-			<UIcon name="i-ph-lock-simple" class="size-4" />
+			<UIcon name="i-ph-lock-simple-light" class="size-4" />
 			<span>{{ block.name }} is set up in code and can't be changed here</span>
 		</div>
 

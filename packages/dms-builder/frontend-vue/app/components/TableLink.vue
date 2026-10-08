@@ -25,14 +25,14 @@ const builder = useBuilder()
 			<UButton
 				size="xs"
 				variant="link"
-				trailing-icon="i-ph-arrow-square-out"
+				trailing-icon="i-ph-arrow-square-out-light"
 				label="Open the table"
 				class="shrink-0 px-0"
 				@click="builder.openTable(table)"
 			/>
 		</div>
 		<p class="flex gap-2 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning">
-			<UIcon name="i-ph-info" class="mt-px size-3.5 shrink-0" />
+			<UIcon name="i-ph-info-light" class="mt-px size-3.5 shrink-0" />
 			{{ warning }}
 		</p>
 	</div>

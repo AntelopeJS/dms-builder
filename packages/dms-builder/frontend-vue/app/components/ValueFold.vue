@@ -39,7 +39,7 @@ function typed(text: string): void {
 <template>
 	<DmsBuilderFoldCard
 		v-if="has('valueFormat') && formats.length"
-		icon="i-ph-hash"
+		icon="i-ph-hash-light"
 		title="Value"
 		:summary="valueSummary(format, code)"
 	>

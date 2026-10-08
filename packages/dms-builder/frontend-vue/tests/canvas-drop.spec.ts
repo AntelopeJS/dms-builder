@@ -564,7 +564,7 @@ describe('a grid written by hand, holding nothing yet', () => {
 		expect(gaps(root)).toEqual(['end of grid'])
 		expect(into(root)?.path).toBe('page')
 		expect(into(root)?.refused).toBe(false)
-		expect(into(root)?.says).not.toContain('only accepts')
+		expect(into(root)?.says).not.toContain('only takes')
 	})
 
 	it('keeps no layout around the one block it ends up holding', async () => {
@@ -1374,35 +1374,17 @@ describe('the palette', () => {
 		}).root
 	}
 
-	/** The question mark beside a tile, and the tooltip it opens. */
-	function aboutOf(root: TestNode, label: string): { button: TestNode; tooltip: string } {
-		const tooltip = findAll(
-			root,
-			(node) =>
-				node.tag === 'UTooltip' &&
-				findAll(node, (inner) =>
-					String(inner.props['aria-label'] ?? '').startsWith(`About ${label}:`),
-				).length > 0,
-		)[0]
-		const button = tooltip && findAll(tooltip, (node) => node.tag === 'button')[0]
-		if (!tooltip || !button) {
-			throw new Error(`no question mark beside ${label}`)
-		}
-		return { button, tooltip: String(tooltip.props.text) }
-	}
-
-	it('names each component on its tile, and says what it is behind a question mark', async () => {
+	it('names each component, and says what it is for under its name', async () => {
 		await openWith([block('title', 'Text')])
 		const { root } = mount(Library)
 		await nextTick()
 
-		expect(textOf(paletteButton(root, 'Text')), 'the tile keeps to its name').toBe('Text')
-		const about = aboutOf(root, 'Text')
-		expect(about.tooltip).toBe('A paragraph, a heading, or a line of prose.')
-
-		// The question mark sits beside the tile, not in it: asking adds nothing.
-		expect(about.button.props.onClick).toBeUndefined()
-		expect(findAll(paletteButton(root, 'Text'), (node) => node === about.button)).toEqual([])
+		const text = paletteButton(root, 'Text')
+		const lines = findAll(text, (node) => node.tag === 'b' || node.tag === 'span')
+			.map(textOf)
+			.filter(Boolean)
+		expect(lines).toContain('Text')
+		expect(lines).toContain('A paragraph, a heading, or a line of prose.')
 	})
 
 	it('appends to the page on click, as the heading over it says', async () => {
@@ -1449,7 +1431,7 @@ describe('the palette', () => {
 
 		const text = paletteButton(root, 'Text')
 		expect(text.props['aria-disabled']).toBe(false)
-		expect(String(text.props.class)).not.toContain('opacity-50')
+		expect(String(text.props.class)).not.toContain('opacity-55')
 
 		fire(text, 'click')
 		// On a row of its own, under the row the grid already held.
@@ -1493,14 +1475,14 @@ describe('the palette', () => {
 
 		const tabs = paletteButton(root, 'Tabs')
 		expect(tabs.props['aria-disabled']).toBe(true)
-		expect(tabs.props.title).toBe('Panel only accepts Text, Section')
-		expect(String(tabs.props.class)).toContain('opacity-50')
+		expect(tabs.props.title).toBe('Panel only takes Text, Section')
+		expect(String(tabs.props.class)).toContain('opacity-55')
 		expect(paletteButton(root, 'Text').props['aria-disabled']).toBe(false)
 
 		// Clicking it adds nothing, and the refusal is what comes back.
 		fire(tabs, 'click')
 		expect(names('panel')).toEqual([])
-		expect(builder.session.value.toast).toBe('Panel only accepts Text, Section')
+		expect(builder.session.value.toast).toBe('Panel only takes Text, Section')
 	})
 
 	it('stays draggable while greyed out: elsewhere the block is welcome', async () => {

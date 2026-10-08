@@ -150,7 +150,7 @@ function endpointOf(query: { endpoint: string }): string {
 					</p>
 				</div>
 				<UButton
-					icon="i-ph-pencil-simple"
+					icon="i-ph-pencil-simple-light"
 					size="xs"
 					color="neutral"
 					variant="ghost"
@@ -180,7 +180,7 @@ function endpointOf(query: { endpoint: string }): string {
 					label="unused"
 				/>
 				<UButton
-					icon="i-ph-trash"
+					icon="i-ph-trash-light"
 					size="xs"
 					color="error"
 					variant="ghost"

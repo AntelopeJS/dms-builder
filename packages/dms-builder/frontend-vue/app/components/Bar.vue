@@ -135,7 +135,7 @@ const viewItems = computed(() => [
 				<span class="truncate">{{ status.label }}</span>
 				<UIcon
 					v-if="status.kind !== 'clean' && status.kind !== 'saving'"
-					name="i-ph-caret-down"
+					name="i-ph-caret-down-light"
 					class="size-3 shrink-0 text-dimmed"
 				/>
 			</button>
@@ -167,7 +167,7 @@ const viewItems = computed(() => [
 				<UButton
 					:label="view.label.value"
 					:icon="DEVICE_ICONS[view.device.value]"
-					trailing-icon="i-ph-caret-down"
+					trailing-icon="i-ph-caret-down-light"
 					size="sm"
 					color="neutral"
 					variant="ghost"

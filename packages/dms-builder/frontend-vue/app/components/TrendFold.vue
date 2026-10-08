@@ -40,14 +40,14 @@ const sparklineHint = computed(() => {
 <template>
 	<DmsBuilderFoldCard
 		v-if="has('showDelta') || has('showSparkline')"
-		icon="i-ph-trend-up"
+		icon="i-ph-trend-up-light"
 		title="Trend"
 		:summary="trendSummary(variation, sparkline)"
 	>
 		<template v-if="has('showDelta')">
 			<div class="flex items-center gap-3">
 				<UIcon
-					name="i-ph-arrow-up-right"
+					name="i-ph-arrow-up-right-light"
 					class="size-4 shrink-0"
 					:class="variation ? 'text-primary' : 'text-dimmed'"
 				/>
@@ -90,7 +90,7 @@ const sparklineHint = computed(() => {
 		<template v-if="has('showSparkline')">
 			<div class="flex items-center gap-3">
 				<UIcon
-					name="i-ph-chart-line"
+					name="i-ph-chart-line-light"
 					class="size-4 shrink-0"
 					:class="sparkline ? 'text-primary' : 'text-dimmed'"
 				/>

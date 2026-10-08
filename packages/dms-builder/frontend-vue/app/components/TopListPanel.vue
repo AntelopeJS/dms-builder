@@ -35,7 +35,7 @@ function setHighlighted(count: number | null | undefined): void {
 	<div class="flex flex-col gap-3">
 		<section v-if="has('fetchUrl') && block" :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-table" class="size-4 text-primary" />
+				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
 			</p>
 			<DmsBuilderDataSource
@@ -64,13 +64,13 @@ function setHighlighted(count: number | null | undefined): void {
 
 		<DmsBuilderFoldCard
 			v-if="has('showRank')"
-			icon="i-ph-list-numbers"
+			icon="i-ph-list-numbers-light"
 			title="Ranking"
 			:summary="rankingSummary(ranked, highlighted)"
 		>
 			<div class="flex items-center gap-3">
 				<UIcon
-					name="i-ph-ranking"
+					name="i-ph-ranking-light"
 					class="size-4 shrink-0"
 					:class="ranked ? 'text-primary' : 'text-dimmed'"
 				/>

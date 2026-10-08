@@ -11,6 +11,7 @@ import {
 	type MissingSetting,
 } from './catalog'
 import {
+	COLUMN_CONTAINER,
 	HISTORY_LIMIT,
 	PREVIEW_DEBOUNCE_MS,
 	ROW_WRAPPER,
@@ -19,6 +20,7 @@ import {
 } from './constants'
 import {
 	draggedType,
+	isRowContainer,
 	refusalForDrop,
 	sameTarget,
 	targetAtBlock,
@@ -230,6 +232,11 @@ export interface BuilderSession {
 	dirtySince: number | null
 	/** How the last save went, until the draft is edited again. */
 	lastSave: { outcome: 'saved' | 'failed'; at: number } | null
+	/**
+	 * The layout a page just created starts from, laid on it once the editor
+	 * opens there — the page is written empty, the layout is the first edit.
+	 */
+	startLayout: { ref: string; layout: PageLayout } | null
 	dragging: DragPayload | null
 	/**
 	 * Where the drag would land, as the pointer's last position resolved it.
@@ -291,6 +298,7 @@ function emptySession(): BuilderSession {
 		applied: [],
 		dirtySince: null,
 		lastSave: null,
+		startLayout: null,
 		dragging: null,
 		dropTarget: null,
 		hovered: null,
@@ -379,6 +387,8 @@ export interface BuilderController {
 	stayOnPage: () => string | null
 	/** Lay a starting layout on the page, as one edit. */
 	applyLayout: (layout: PageLayout) => void
+	/** Add a block below the selection, or beside it. */
+	addNextTo: (type: string, beside?: boolean) => void
 	loadResourceFields: (ref: string) => Promise<void>
 	loadResource: (ref: string, force?: boolean) => Promise<void>
 	loadQueryTemplates: () => Promise<void>
@@ -396,7 +406,8 @@ export interface BuilderController {
 	savePageMeta: (patch: Record<string, unknown>) => Promise<void>
 	movePage: (category: string) => Promise<string | undefined>
 	loadSiteTree: () => Promise<void>
-	createPage: (input: CreatePageInput) => Promise<string | undefined>
+	/** Create a page, which the editor lays `layout` on once it opens there. */
+	createPage: (input: CreatePageInput, layout?: PageLayout) => Promise<string | undefined>
 	createCategory: (input: CreateCategoryInput) => Promise<void>
 	deletePage: (ref: string) => Promise<boolean>
 	deleteCategory: (ref: string) => Promise<void>
@@ -650,6 +661,10 @@ export function useBuilder(): BuilderController {
 	}
 
 	async function open(pageRef: string): Promise<void> {
+		const start =
+			session.value.startLayout?.ref === pageRef
+				? session.value.startLayout.layout
+				: undefined
 		session.value = { ...emptySession(), active: true, loading: true, pageRef }
 		try {
 			const [catalog, resources] = await Promise.all([
@@ -662,6 +677,9 @@ export function useBuilder(): BuilderController {
 			// pages panel lists. A failure is still said, inside the call.
 			void loadSiteTree()
 			if (await loadStructure(pageRef)) {
+				if (start && !session.value.draft?.blocks.length) {
+					applyLayout(start)
+				}
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
 			}
 		} catch (error) {
@@ -1226,6 +1244,41 @@ export function useBuilder(): BuilderController {
 			select(created)
 			notify(`${descriptor.label ?? descriptor.type} added`)
 		}
+	}
+
+	/**
+	 * Add a block next to the selection — below it, or beside it — the way the
+	 * palette is used from the keyboard, where a drag is not on offer. With
+	 * nothing selected, it goes where a click would put it.
+	 *
+	 * Beside a block already in a row is one more column of that row; below a
+	 * cell of a row stacks the two in that column, as a drop there would.
+	 */
+	function addNextTo(type: string, beside = false): void {
+		const path = session.value.selection
+		const draft = session.value.draft
+		if (!path || !draft) {
+			addBlock(type, paletteTarget.value, null)
+			return
+		}
+		const parent = parentPath(path)
+		const holder = parent === null ? undefined : findNode(draft, parent)
+		const inRow = isRowContainer(holder?.type)
+		const siblings = siblingsAt(draft, parent) ?? []
+		const at = siblings.findIndex((block) => block.name === leafName(path))
+		if (beside) {
+			if (inRow) {
+				addBlock(type, parent, at + 1)
+			} else {
+				addBlock(type, parent, null, { around: path, type: ROW_WRAPPER, index: 1 })
+			}
+			return
+		}
+		if (inRow) {
+			addBlock(type, parent, null, { around: path, type: COLUMN_CONTAINER, index: 1 })
+			return
+		}
+		addBlock(type, parent, at === -1 ? null : at + 1)
 	}
 
 	/**
@@ -1794,7 +1847,10 @@ export function useBuilder(): BuilderController {
 	 * on reload. The caller navigates to the returned ref, and the builder
 	 * follows the route onto the new page.
 	 */
-	async function createPage(input: CreatePageInput): Promise<string | undefined> {
+	async function createPage(
+		input: CreatePageInput,
+		layout?: PageLayout,
+	): Promise<string | undefined> {
 		const result = await api.createPage(input)
 		if (!report(result, `Page ${input.displayName} created`, {
 				title: `Created the page ${input.displayName}`,
@@ -1803,7 +1859,13 @@ export function useBuilder(): BuilderController {
 			return undefined
 		}
 		await loadSiteTree()
-		return result.ok ? result.data.ref : undefined
+		if (!result.ok) {
+			return undefined
+		}
+		if (layout) {
+			session.value.startLayout = { ref: result.data.ref, layout }
+		}
+		return result.data.ref
 	}
 
 	async function createCategory(input: CreateCategoryInput): Promise<void> {
@@ -2331,6 +2393,7 @@ export function useBuilder(): BuilderController {
 		revert,
 		stayOnPage,
 		applyLayout,
+		addNextTo,
 		loadResourceFields,
 		loadResource,
 		loadQueryTemplates,

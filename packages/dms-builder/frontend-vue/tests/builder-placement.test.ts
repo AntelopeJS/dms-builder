@@ -219,7 +219,7 @@ describe('containers', () => {
 		// `block type "Text" takes no child` on the next save.
 		builder.dropAt('title', 0)
 		expect(names('title')).toEqual([])
-		expect(builder.session.value.toast).toBe('Text takes no child')
+		expect(builder.session.value.toast).toBe("Text can't hold other blocks · drop beside it instead")
 	})
 })
 

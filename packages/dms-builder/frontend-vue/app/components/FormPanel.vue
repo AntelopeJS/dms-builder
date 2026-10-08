@@ -27,7 +27,7 @@ watch(
 	<div class="flex flex-col gap-3">
 		<section :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-table" class="size-4 text-primary" />
+				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
 			</p>
 			<DmsBuilderFormTarget :path="path" />

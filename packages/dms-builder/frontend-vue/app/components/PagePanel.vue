@@ -120,7 +120,7 @@ async function move(category: string): Promise<void> {
 <template>
 	<div v-if="meta" class="flex flex-col gap-6">
 		<UBadge
-			icon="i-ph-lightning"
+			icon="i-ph-lightning-light"
 			color="neutral"
 			variant="outline"
 			label="Applies now — the rest waits for Save"
@@ -197,7 +197,7 @@ async function move(category: string): Promise<void> {
 					:model-value="meta.category"
 					:items="categories"
 					value-key="value"
-					icon="i-ph-folder"
+					icon="i-ph-folder-light"
 					:disabled="moving"
 					:search-input="{
 						placeholder: 'Filter categories…',
@@ -208,7 +208,7 @@ async function move(category: string): Promise<void> {
 				/>
 			</UFormField>
 			<p class="flex items-center gap-1.5 text-xs text-muted">
-				<UIcon name="i-ph-globe-simple" class="size-3.5 shrink-0" />
+				<UIcon name="i-ph-globe-simple-light" class="size-3.5 shrink-0" />
 				Answers at
 				<code class="truncate font-mono text-toned">{{ meta.ref }}</code>
 			</p>
@@ -223,7 +223,7 @@ async function move(category: string): Promise<void> {
 			</template>
 			<UInput
 				v-model="permission"
-				icon="i-ph-shield"
+				icon="i-ph-shield-light"
 				placeholder="shop.products"
 				class="w-full font-mono"
 				@change="savePermission"
@@ -231,7 +231,7 @@ async function move(category: string): Promise<void> {
 		</UFormField>
 
 		<p v-if="advanced" class="flex items-center gap-1.5 text-xs text-muted">
-			<UIcon name="i-ph-file-code" class="size-3.5 shrink-0" />
+			<UIcon name="i-ph-file-code-light" class="size-3.5 shrink-0" />
 			Declared in
 			<code class="truncate font-mono">{{
 				meta.filepath.split('/').slice(-3).join('/')
@@ -239,7 +239,7 @@ async function move(category: string): Promise<void> {
 		</p>
 
 		<UButton
-			icon="i-ph-trash"
+			icon="i-ph-trash-light"
 			size="xs"
 			color="error"
 			variant="soft"

@@ -180,7 +180,7 @@ function answerCursor(event: DragEvent): void {
 				</p>
 				<div class="flex flex-wrap justify-center gap-2">
 					<UButton
-						icon="i-ph-plus"
+						icon="i-ph-plus-light"
 						label="Add a block"
 						@click.stop="builder.setView('library')"
 					/>
@@ -246,7 +246,7 @@ function answerCursor(event: DragEvent): void {
 					@dragover.prevent.stop="onDragOver"
 					@drop.prevent.stop="builder.drop()"
 				>
-					<UIcon name="i-ph-plus" class="size-4" />
+					<UIcon name="i-ph-plus-light" class="size-4" />
 					Drop a block, or press
 					<UKbd value="/" size="sm" />
 				</button>

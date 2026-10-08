@@ -173,14 +173,14 @@ async function addField(spec: FieldSpec): Promise<void> {
 			<UBadge
 				color="neutral"
 				variant="outline"
-				icon="i-ph-lightning"
+				icon="i-ph-lightning-light"
 				label="Saved as you edit — no Save needed"
 			/>
 			<UBadge
 				v-if="readBy(table.ref)"
 				color="neutral"
 				variant="outline"
-				icon="i-ph-squares-four"
+				icon="i-ph-squares-four-light"
 				:label="`Read by ${plural(readBy(table.ref), 'block')} on this page`"
 			/>
 		</div>
@@ -200,7 +200,7 @@ async function addField(spec: FieldSpec): Promise<void> {
 			v-else-if="!structure"
 			class="flex items-center gap-2 text-sm text-muted"
 		>
-			<UIcon name="i-ph-circle-notch" class="size-4 animate-spin" />
+			<UIcon name="i-ph-circle-notch-light" class="size-4 animate-spin" />
 			Reading the table…
 		</p>
 		<DmsBuilderFieldGrid
@@ -220,13 +220,13 @@ async function addField(spec: FieldSpec): Promise<void> {
 		<div v-if="session.resources.length" class="flex items-center gap-2">
 			<UInput
 				v-model="query"
-				icon="i-ph-magnifying-glass"
+				icon="i-ph-magnifying-glass-light"
 				placeholder="Find a table"
 				aria-label="Find a table"
 				class="flex-1"
 			/>
 			<UButton
-				icon="i-ph-plus"
+				icon="i-ph-plus-light"
 				label="New table"
 				:variant="composerOpen ? 'soft' : 'solid'"
 				@click="composerOpen ? cancelComposing() : (composing = true)"
@@ -252,7 +252,7 @@ async function addField(spec: FieldSpec): Promise<void> {
 			</UFormField>
 			<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
 				<span>Starts with</span>
-				<UBadge color="neutral" variant="subtle" icon="i-ph-text-t">
+				<UBadge color="neutral" variant="subtle" icon="i-ph-text-t-light">
 					Title
 					<span v-if="advanced" class="font-mono text-muted">title</span>
 				</UBadge>
@@ -285,14 +285,14 @@ async function addField(spec: FieldSpec): Promise<void> {
 					color="neutral"
 					variant="ghost"
 					block
-					trailing-icon="i-ph-caret-right"
+					trailing-icon="i-ph-caret-right-light"
 					class="justify-start gap-3 rounded-none border-t border-default px-3 py-2.5 text-left font-normal first:border-t-0"
 					@click="open(entry.ref)"
 				>
 					<span
 						class="flex size-8 shrink-0 items-center justify-center rounded-md border border-default bg-accented text-muted"
 					>
-						<UIcon name="i-ph-database" class="size-4" />
+						<UIcon name="i-ph-database-light" class="size-4" />
 					</span>
 					<span class="flex min-w-0 flex-1 flex-col gap-0.5">
 						<span class="truncate text-sm font-medium text-default">

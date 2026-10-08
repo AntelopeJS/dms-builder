@@ -195,9 +195,12 @@ export function paletteGroups(
 	const structural = structuralTypes(catalog)
 	const held = advanced ? new Map<string, string[]>() : heldTypes(catalog)
 	const hidden = new Set([...held.values()].flat())
+	// What a block is for is searched too: "money" finds the KPI that shows it.
 	const matches = (type: string): boolean => {
-		const label = (descriptorOf(catalog, type)?.label ?? type).toLowerCase()
-		return label.includes(needle) || type.toLowerCase().includes(needle)
+		const descriptor = descriptorOf(catalog, type)
+		return [descriptor?.label ?? type, type, descriptor?.description ?? ''].some((text) =>
+			text.toLowerCase().includes(needle),
+		)
 	}
 	const buckets = new Map<string, BlockTypeDescriptor[]>()
 	for (const block of catalog.blocks) {
@@ -241,6 +244,16 @@ export function paletteIcon(icon: string | undefined): string {
 	return name.startsWith('i-ph-') && !PHOSPHOR_WEIGHT.test(name)
 		? `${name}-duotone`
 		: name
+}
+
+/**
+ * The icon a block is drawn with on a line — the layers, the inspector's
+ * heading, a row of the palette: Phosphor's light weight, which the rest of the
+ * DMS draws its lines with.
+ */
+export function lineIcon(icon: string | undefined): string {
+	const name = icon ?? PALETTE_ICON
+	return name.startsWith('i-ph-') && !PHOSPHOR_WEIGHT.test(name) ? `${name}-light` : name
 }
 
 /**

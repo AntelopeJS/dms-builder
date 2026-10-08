@@ -199,7 +199,7 @@ describe('the actions offered on a block', () => {
 		await nextTick()
 
 		expect(entry(root, 'Duplicate').props.disabled).toBe(true)
-		expect(entry(root, 'Configure').props.disabled).toBe(false)
+		expect(entry(root, 'Edit settings').props.disabled).toBe(false)
 	})
 
 	it('offers it on a block the builder wrote', async () => {
@@ -229,14 +229,14 @@ describe('the actions offered on a block', () => {
 		const { root } = mount(BlockMenu)
 		await nextTick()
 
-		for (const label of ['Configure', 'Duplicate', 'Move up', 'Move down']) {
+		for (const label of ['Edit settings', 'Duplicate', 'Move up', 'Move down']) {
 			expect(entry(root, label).props.disabled, label).toBe(false)
 		}
 		expect(builder.selectedDescriptor.value?.type, 'and it is selected').toBe(
 			'Text',
 		)
 
-		fire(entry(root, 'Delete'), 'click')
+		fire(entry(root, 'Remove'), 'click')
 		expect(
 			builder.session.value.draft?.blocks.map((block) => block.name),
 		).toEqual(['note'])

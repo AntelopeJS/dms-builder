@@ -35,14 +35,12 @@ async function copy(): Promise<void> {
 <template>
 	<div class="flex flex-col gap-4">
 		<div class="flex flex-col gap-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-dimmed">
-				Export
-			</p>
+			<DmsEyebrow>Export</DmsEyebrow>
 			<pre
 				class="max-h-64 overflow-auto rounded-md border border-default bg-elevated p-3 font-mono text-xs text-muted"
 			>{{ draftText }}</pre>
 			<UButton
-				icon="i-ph-copy"
+				icon="i-ph-copy-light"
 				size="xs"
 				color="neutral"
 				variant="outline"
@@ -52,9 +50,7 @@ async function copy(): Promise<void> {
 		</div>
 
 		<div class="flex flex-col gap-2 border-t border-default pt-4">
-			<p class="text-xs font-semibold uppercase tracking-wide text-dimmed">
-				Import
-			</p>
+			<DmsEyebrow>Import</DmsEyebrow>
 			<UTextarea
 				v-model="input"
 				:rows="6"

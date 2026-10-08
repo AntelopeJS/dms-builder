@@ -63,7 +63,7 @@ const canGoBack = computed(
 		<header class="flex shrink-0 items-center gap-2 border-b border-default px-5 py-3">
 			<UButton
 				v-if="canGoBack"
-				icon="i-ph-arrow-left"
+				icon="i-ph-arrow-left-light"
 				size="sm"
 				color="neutral"
 				variant="ghost"

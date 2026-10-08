@@ -4,7 +4,7 @@ import { useDmsRouter as useRouter } from '#dms/frontend-module'
 import { byMenuOrder, categoryOptions, categoryRoute } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
 import { usePageDelete } from '../runtime/page-delete'
-import { useBuilder } from '../runtime/session'
+import { useBuilder, type PageLayout } from '../runtime/session'
 import type { PageSummary } from '../runtime/types'
 
 interface CategoryNode {
@@ -266,12 +266,35 @@ function editSlug(value: string): void {
 	draft.value.name = slugify(value)
 }
 
+/**
+ * The page already answering at the address being typed, if any: two pages
+ * cannot share one, and finding out before writing beats a refusal after.
+ */
+const taken = computed(() => {
+	if (creating.value !== 'page' || !draft.value.name) {
+		return undefined
+	}
+	return session.value.pages.find((page) => page.ref === address.value)?.displayName
+})
+
 const valid = computed(
 	() =>
 		!!draft.value.name.trim() &&
 		!!draft.value.displayName.trim() &&
+		!taken.value &&
 		(creating.value !== 'page' || !!draft.value.parent),
 )
+
+type StartLayout = PageLayout | 'blank'
+
+/** What a new page can start from; a blank page is written as it is. */
+const LAYOUT_ITEMS: { label: string; value: StartLayout; icon: string }[] = [
+	{ label: 'Blank', value: 'blank', icon: 'i-ph-file-light' },
+	{ label: 'Dashboard', value: 'dashboard', icon: 'i-ph-squares-four-light' },
+	{ label: 'List', value: 'list', icon: 'i-ph-table-light' },
+	{ label: 'Form', value: 'form', icon: 'i-ph-note-pencil-light' },
+]
+const layout = ref<StartLayout>('blank')
 
 function startRename(node: CategoryNode): void {
 	renaming.value = node.ref
@@ -303,6 +326,7 @@ function start(kind: 'page' | 'category', parent?: string): void {
 			(kind === 'page' ? (session.value.structure?.page.category ?? '') : ''),
 		description: '',
 	}
+	layout.value = 'blank'
 	if (parent) {
 		const next = new Set(collapsed.value)
 		next.delete(parent)
@@ -341,11 +365,14 @@ async function write(): Promise<void> {
 		creating.value = null
 		return
 	}
-	const ref = await builder.createPage({
-		...common,
-		category: draft.value.parent,
-		...(draft.value.description ? { description: draft.value.description } : {}),
-	})
+	const ref = await builder.createPage(
+		{
+			...common,
+			category: draft.value.parent,
+			...(draft.value.description ? { description: draft.value.description } : {}),
+		},
+		layout.value === 'blank' ? undefined : layout.value,
+	)
 	creating.value = null
 	if (ref) {
 		// The route watcher opens the builder on the new page once it is served.
@@ -359,125 +386,155 @@ async function write(): Promise<void> {
 		<div class="flex items-center gap-1.5">
 			<UInput
 				v-model="query"
-				icon="i-ph-magnifying-glass"
+				icon="i-ph-magnifying-glass-light"
 				placeholder="Find a page"
 				aria-label="Find a page"
+				size="sm"
 				class="min-w-0 flex-1"
 			/>
 			<UButton
-				icon="i-ph-file-plus"
-				label="New page"
-				:variant="creating === 'page' ? 'soft' : 'solid'"
-				@click="creating === 'page' ? (creating = null) : start('page')"
+				icon="i-ph-file-plus-light"
+				size="sm"
+				variant="soft"
+				aria-label="New page"
+				title="New page"
+				@click="start('page')"
 			/>
 			<UButton
-				icon="i-ph-folder-plus"
+				icon="i-ph-folder-plus-light"
+				size="sm"
 				color="neutral"
-				:variant="creating === 'category' ? 'soft' : 'outline'"
+				variant="outline"
 				aria-label="New category"
 				title="New category"
-				@click="creating === 'category' ? (creating = null) : start('category')"
+				@click="start('category')"
 			/>
 		</div>
 
-		<div
-			v-if="creating"
-			class="flex flex-col gap-3.5 rounded-lg border border-accented bg-elevated p-3"
+		<!-- Creating writes files at once: asked in a dialog of its own, with the
+		address it will answer at checked as it is typed. -->
+		<UModal
+			:open="creating !== null"
+			:title="creating === 'category' ? 'New category' : 'New page'"
+			:description="
+				creating === 'category'
+					? 'Written to the project at once.'
+					: 'Written to the project at once, then opened in the editor.'
+			"
+			:dismissible="!submitting"
+			@update:open="(open: boolean) => !open && (creating = null)"
 		>
-			<div class="flex items-center justify-between">
-				<p class="text-sm font-semibold text-highlighted">
-					{{ creating === 'page' ? 'New page' : 'New category' }}
-				</p>
-				<UButton
-					icon="i-ph-x"
-					size="xs"
-					color="neutral"
-					variant="ghost"
-					:aria-label="creating === 'page' ? 'Cancel the new page' : 'Cancel the new category'"
-					:disabled="submitting"
-					@click="creating = null"
-				/>
-			</div>
+			<template #body>
+				<div v-if="creating" class="flex flex-col gap-4">
+					<UFormField label="Title">
+						<div class="flex gap-2">
+							<DmsBuilderIconPicker
+								v-model="draft.icon"
+								:fallback="creating === 'page' ? 'i-ph-file' : 'i-ph-folder'"
+							/>
+							<UInput
+								v-model="draft.displayName"
+								size="lg"
+								:placeholder="creating === 'page' ? 'Revenue' : 'Reports'"
+								class="min-w-0 flex-1"
+								autofocus
+								@keydown.enter="submit"
+							/>
+						</div>
+					</UFormField>
 
-			<UFormField label="Title">
-				<div class="flex gap-2">
-					<DmsBuilderIconPicker
-						v-model="draft.icon"
-						:fallback="creating === 'page' ? 'i-ph-file' : 'i-ph-folder'"
-					/>
-					<UInput
-						v-model="draft.displayName"
-						size="lg"
-						:placeholder="creating === 'page' ? 'Revenue' : 'Reports'"
-						class="min-w-0 flex-1"
-						autofocus
-						@keydown.enter="submit"
-					/>
-				</div>
-			</UFormField>
+					<UFormField :label="creating === 'page' ? 'Category' : 'Parent category'">
+						<USelectMenu
+							v-model="draft.parent"
+							:items="categoryItems"
+							value-key="value"
+							icon="i-ph-folder-light"
+							:search-input="{
+								placeholder: 'Filter categories…',
+								icon: 'i-ph-magnifying-glass',
+							}"
+							:placeholder="creating === 'page' ? 'Choose a category…' : 'Top level'"
+							class="w-full"
+						/>
+					</UFormField>
 
-			<UFormField :label="creating === 'page' ? 'Category' : 'Parent category'">
-				<USelectMenu
-					v-model="draft.parent"
-					:items="categoryItems"
-					value-key="value"
-					icon="i-ph-folder"
-					:search-input="{
-						placeholder: 'Filter categories…',
-						icon: 'i-ph-magnifying-glass',
-					}"
-					:placeholder="creating === 'page' ? 'Choose a category…' : 'Top level'"
-					class="w-full"
-				/>
-			</UFormField>
-
-			<UFormField
-				label="Address"
-				:help="
-					slugEdited
-						? 'Also names the folder and the exported class.'
-						: 'Follows the title unless you edit it.'
-				"
-			>
-				<div v-if="editingSlug" class="flex items-center gap-1.5">
-					<span class="shrink-0 font-mono text-xs text-muted">
-						{{ categoryRoute(draft.parent) }}/
-					</span>
-					<UInput
-						:model-value="draft.name"
-						placeholder="revenue"
-						class="min-w-0 flex-1 font-mono"
-						@update:model-value="editSlug(String($event))"
-					/>
-				</div>
-				<div v-else class="flex items-center gap-1.5">
-					<p
-						class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-accented px-2.5 font-mono text-xs text-toned"
+					<UFormField
+						label="Address"
+						:error="taken ? `${taken} already answers at this address.` : undefined"
+						:help="
+							taken
+								? undefined
+								: slugEdited
+									? 'Also names the folder and the exported class.'
+									: 'Follows the title unless you edit it.'
+						"
 					>
-						<UIcon name="i-ph-globe-simple" class="size-3.5 shrink-0 text-muted" />
-						<span class="truncate">{{ address }}</span>
-					</p>
+						<div v-if="editingSlug" class="flex items-center gap-1.5">
+							<span class="shrink-0 font-mono text-xs text-muted">
+								{{ categoryRoute(draft.parent) }}/
+							</span>
+							<UInput
+								:model-value="draft.name"
+								placeholder="revenue"
+								class="min-w-0 flex-1 font-mono"
+								@update:model-value="editSlug(String($event))"
+							/>
+						</div>
+						<div v-else class="flex items-center gap-1.5">
+							<p
+								class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-accented px-2.5 font-mono text-xs text-toned"
+							>
+								<UIcon
+									:name="taken ? 'i-ph-warning-light' : 'i-ph-globe-simple'"
+									class="size-3.5 shrink-0"
+									:class="taken ? 'text-error' : 'text-muted'"
+								/>
+								<span class="truncate">{{ address }}</span>
+							</p>
+							<UButton
+								label="Edit"
+								size="sm"
+								color="neutral"
+								variant="ghost"
+								@click="editingSlug = true"
+							/>
+						</div>
+					</UFormField>
+
+					<UFormField v-if="creating === 'page'" label="Description">
+						<UTextarea
+							v-model="draft.description"
+							:rows="2"
+							placeholder="What the page is for — optional"
+							class="w-full"
+						/>
+					</UFormField>
+
+					<UFormField
+						v-if="creating === 'page'"
+						label="Start from"
+						help="Laid on the page as unsaved changes, to keep or undo."
+					>
+						<DmsSegmented
+							:model-value="layout"
+							:items="LAYOUT_ITEMS"
+							size="sm"
+							block
+							aria-label="Start from"
+							@update:model-value="layout = $event as StartLayout"
+						/>
+					</UFormField>
+				</div>
+			</template>
+			<template #footer>
+				<div class="flex w-full justify-end gap-2">
 					<UButton
-						label="Edit"
-						size="sm"
+						label="Cancel"
 						color="neutral"
 						variant="ghost"
-						@click="editingSlug = true"
+						:disabled="submitting"
+						@click="creating = null"
 					/>
-				</div>
-			</UFormField>
-
-			<UFormField v-if="creating === 'page'" label="Description">
-				<UTextarea
-					v-model="draft.description"
-					:rows="2"
-					placeholder="What the page is for — optional"
-					class="w-full"
-				/>
-			</UFormField>
-
-			<div class="flex flex-col gap-2">
-				<div class="flex gap-2">
 					<UButton
 						:label="
 							submitting
@@ -490,23 +547,9 @@ async function write(): Promise<void> {
 						:disabled="submitting || !valid"
 						@click="submit"
 					/>
-					<UButton
-						label="Cancel"
-						color="neutral"
-						variant="ghost"
-						:disabled="submitting"
-						@click="creating = null"
-					/>
 				</div>
-				<p class="text-xs text-muted">
-					{{
-						creating === 'page'
-							? 'Written to the project at once. The builder opens the page as soon as the app has reloaded.'
-							: 'Written to the project at once.'
-					}}
-				</p>
-			</div>
-		</div>
+			</template>
+		</UModal>
 
 		<!-- Each row holds buttons of its own, which a row drawn as a button
 		could not: the rows are drawn as `div`s, and the buttons keep their
@@ -517,8 +560,8 @@ async function write(): Promise<void> {
 			:expanded="expanded"
 			:get-key="(row: Row) => row.ref"
 			:as="{ link: 'div' }"
-			expanded-icon="i-ph-folder-open"
-			collapsed-icon="i-ph-folder"
+			expanded-icon="i-ph-folder-open-light"
+			collapsed-icon="i-ph-folder-light"
 			aria-label="Pages"
 			@update:expanded="expand"
 			@select="visit"
@@ -538,19 +581,19 @@ async function write(): Promise<void> {
 					<template v-if="item.kind === 'page'">
 						<UIcon
 							v-if="opening === item.ref"
-							name="i-ph-circle-notch"
+							name="i-ph-circle-notch-light"
 							class="size-4 animate-spin text-muted"
 							title="Opens once the app has reloaded"
 						/>
 						<UIcon
 							v-if="item.page.hidden"
-							name="i-ph-eye-slash"
+							name="i-ph-eye-slash-light"
 							class="size-4 text-muted"
 							title="Hidden from the menu"
 						/>
 						<UButton
 							v-if="item.ref === session.pageRef"
-							icon="i-ph-sliders-horizontal"
+							icon="i-ph-sliders-horizontal-light"
 							size="xs"
 							variant="ghost"
 							aria-label="Page settings"
@@ -558,7 +601,7 @@ async function write(): Promise<void> {
 							@click="builder.setView('page')"
 						/>
 						<UButton
-							icon="i-ph-trash"
+							icon="i-ph-trash-light"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -577,7 +620,7 @@ async function write(): Promise<void> {
 						class="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
 					>
 						<UButton
-							icon="i-ph-plus"
+							icon="i-ph-plus-light"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -586,7 +629,7 @@ async function write(): Promise<void> {
 							@click="start('page', item.ref)"
 						/>
 						<UButton
-							icon="i-ph-pencil-simple"
+							icon="i-ph-pencil-simple-light"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -596,7 +639,7 @@ async function write(): Promise<void> {
 						/>
 						<UButton
 							v-if="empty(item.node)"
-							icon="i-ph-trash"
+							icon="i-ph-trash-light"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -636,7 +679,7 @@ async function write(): Promise<void> {
 						@click="submitRename"
 					/>
 					<UButton
-						icon="i-ph-x"
+						icon="i-ph-x-light"
 						size="sm"
 						color="neutral"
 						variant="ghost"

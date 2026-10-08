@@ -80,7 +80,7 @@ function setShare(value: number | null | undefined): void {
 <template>
 	<section :class="PANEL_CARD" aria-label="Size">
 		<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-			<UIcon name="i-ph-layout" class="size-4 text-primary" />
+			<UIcon name="i-ph-layout-light" class="size-4 text-primary" />
 			Size
 		</p>
 
@@ -121,7 +121,7 @@ function setShare(value: number | null | undefined): void {
 							class="flex h-full flex-1 items-center justify-center rounded-xs border border-primary/60 bg-primary/15"
 						>
 							<UIcon
-								name="i-ph-arrows-out-line-horizontal"
+								name="i-ph-arrows-out-line-horizontal-light"
 								class="size-3.5 text-primary"
 							/>
 						</span>

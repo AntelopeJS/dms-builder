@@ -75,7 +75,7 @@ function pick(name: string | undefined): void {
 				<UInput
 					:id="searchId"
 					v-model="query"
-					icon="i-ph-magnifying-glass"
+					icon="i-ph-magnifying-glass-light"
 					placeholder="Search icons"
 					aria-label="Search icons"
 					size="sm"

@@ -75,7 +75,7 @@ function setMode(next: ResourceFormMode): void {
 	<div class="flex flex-col gap-3">
 		<section :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-table" class="size-4 text-primary" />
+				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
 			</p>
 			<DmsBuilderTableChoice
@@ -92,7 +92,7 @@ function setMode(next: ResourceFormMode): void {
 				<div
 					role="group"
 					aria-label="What the form does"
-					class="grid grid-cols-3 gap-1 rounded-lg border border-accented bg-default p-0.75"
+					class="grid grid-cols-3 gap-0.5 rounded-lg border border-default bg-(--dms-bg-muted) p-0.5"
 				>
 					<button
 						v-for="item in MODES"
@@ -102,8 +102,8 @@ function setMode(next: ResourceFormMode): void {
 						class="h-8 rounded-[5px] px-3 text-[13px] transition-colors"
 						:class="
 							mode === item.value
-								? 'bg-primary font-semibold text-inverted'
-								: 'font-medium text-toned hover:bg-elevated'
+								? 'bg-default font-semibold text-highlighted shadow-sm ring-1 ring-accented'
+								: 'font-medium text-muted hover:text-highlighted'
 						"
 						@click="setMode(item.value)"
 					>

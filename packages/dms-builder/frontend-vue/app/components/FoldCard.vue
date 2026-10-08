@@ -26,7 +26,7 @@ const open = ref(props.defaultOpen)
 	<UCollapsible
 		v-model:open="open"
 		:unmount-on-hide="false"
-		class="overflow-hidden rounded-lg border border-default bg-elevated"
+		class="overflow-hidden rounded-lg border border-default bg-default"
 	>
 		<UButton
 			color="neutral"

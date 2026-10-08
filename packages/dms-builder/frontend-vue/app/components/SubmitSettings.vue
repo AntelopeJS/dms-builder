@@ -151,7 +151,7 @@ function customize(on: boolean): void {
 		<div class="flex flex-col gap-1.5">
 			<div class="flex items-center justify-between gap-3">
 				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-					<UIcon name="i-ph-paper-plane-tilt" class="size-4 text-primary" />
+					<UIcon name="i-ph-paper-plane-tilt-light" class="size-4 text-primary" />
 					Custom submit
 				</p>
 				<USwitch

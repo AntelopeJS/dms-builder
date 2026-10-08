@@ -158,9 +158,7 @@ function submit(): void {
 					:key="group.label"
 					class="flex flex-col gap-1.5"
 				>
-					<p class="text-xs font-semibold uppercase tracking-wider text-muted">
-						{{ group.label }}
-					</p>
+					<DmsEyebrow>{{ group.label }}</DmsEyebrow>
 					<div class="grid grid-cols-3 gap-1.5">
 						<UButton
 							v-for="item in group.items"
@@ -186,7 +184,7 @@ function submit(): void {
 						<USelectMenu
 							:model-value="target"
 							:items="targets"
-							icon="i-ph-database"
+							icon="i-ph-database-light"
 							value-key="value"
 							placeholder="Choose a table…"
 							class="w-full"

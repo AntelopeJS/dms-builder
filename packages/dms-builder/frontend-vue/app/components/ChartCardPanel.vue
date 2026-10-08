@@ -199,7 +199,7 @@ const showingMore = ref(false)
 	<div class="flex flex-col gap-3">
 		<DmsBuilderFoldCard
 			v-if="has('fetchUrl') && block"
-			icon="i-ph-table"
+			icon="i-ph-table-light"
 			title="Data"
 			:summary="dataSummary"
 			default-open
@@ -219,7 +219,7 @@ const showingMore = ref(false)
 
 		<section v-if="chartTypes.length" :class="PANEL_CARD" aria-label="Chart">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-chart-line" class="size-4 text-primary" />
+				<UIcon name="i-ph-chart-line-light" class="size-4 text-primary" />
 				Chart
 				<span v-if="!chart.type" class="text-error" aria-hidden="true">*</span>
 			</p>
@@ -242,7 +242,7 @@ const showingMore = ref(false)
 				size="xs"
 				color="neutral"
 				variant="link"
-				trailing-icon="i-ph-caret-down"
+				trailing-icon="i-ph-caret-down-light"
 				:label="`More types: ${otherTypes
 					.slice(0, 3)
 					.map((type) => typeOf(type).label.toLowerCase())
@@ -255,7 +255,7 @@ const showingMore = ref(false)
 		<div class="flex flex-col gap-3">
 			<DmsBuilderFoldCard
 				v-if="has('valueFormat') || has('showDelta')"
-				icon="i-ph-trend-up"
+				icon="i-ph-trend-up-light"
 				title="Headline"
 				:summary="headlineSummary"
 			>
@@ -286,7 +286,7 @@ const showingMore = ref(false)
 				</UFormField>
 				<div v-if="has('showDelta')" class="flex items-center gap-3">
 					<UIcon
-						name="i-ph-arrow-up-right"
+						name="i-ph-arrow-up-right-light"
 						class="size-4 shrink-0"
 						:class="showsVariation ? 'text-primary' : 'text-dimmed'"
 					/>
@@ -347,7 +347,7 @@ const showingMore = ref(false)
 			</DmsBuilderFoldCard>
 
 			<DmsBuilderFoldCard
-				icon="i-ph-sliders-horizontal"
+				icon="i-ph-sliders-horizontal-light"
 				title="Look"
 				:summary="lookSummary"
 				:dot="themed"
@@ -369,7 +369,7 @@ const showingMore = ref(false)
 						class="flex h-10 items-center gap-2.5 px-3"
 					>
 						<UIcon
-							name="i-ph-list-bullets"
+							name="i-ph-list-bullets-light"
 							class="size-4 shrink-0"
 							:class="legendOn ? 'text-primary' : 'text-dimmed'"
 						/>
@@ -415,7 +415,7 @@ const showingMore = ref(false)
 					<UButton
 						color="neutral"
 						variant="outline"
-						leading-icon="i-ph-sliders"
+						leading-icon="i-ph-sliders-light"
 						:trailing-icon="showingMore ? 'i-ph-caret-down' : 'i-ph-caret-right'"
 						block
 						:ui="{ leadingIcon: 'size-4 text-muted', trailingIcon: 'size-4 text-dimmed' }"

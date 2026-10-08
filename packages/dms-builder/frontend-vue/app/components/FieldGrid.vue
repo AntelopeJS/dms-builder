@@ -105,7 +105,7 @@ function toggle(field: ResourceFieldStructure, key: FieldFlag): void {
 								<span class="truncate">{{ field.label || field.name }}</span>
 								<UIcon
 									v-if="field.opaque"
-									name="i-ph-lock-simple"
+									name="i-ph-lock-simple-light"
 									class="size-3.5 shrink-0 text-muted"
 									title="Set up in code"
 								/>
@@ -113,7 +113,7 @@ function toggle(field: ResourceFieldStructure, key: FieldFlag): void {
 									v-if="writing(field.name)"
 									class="inline-flex shrink-0 items-center gap-1 text-xs font-normal text-primary"
 								>
-									<UIcon name="i-ph-circle-notch" class="size-3 animate-spin" />
+									<UIcon name="i-ph-circle-notch-light" class="size-3 animate-spin" />
 									Saving
 								</span>
 							</span>
@@ -160,7 +160,7 @@ function toggle(field: ResourceFieldStructure, key: FieldFlag): void {
 			</p>
 
 			<UButton
-				icon="i-ph-plus"
+				icon="i-ph-plus-light"
 				label="Add field"
 				variant="ghost"
 				block

@@ -174,9 +174,14 @@ const REFUSALS = {
 	self: 'A block cannot go inside itself',
 	kept: 'This block is kept as written',
 	flank: 'A row always spans the full width; drop inside it for a column',
-	leaf: (type: string) => `${type} takes no child`,
-	only: (type: string, allowed: string[]) =>
-		`${type} only accepts ${allowed.join(', ')}`,
+	// Named as the palette names them, with what to do instead.
+	leaf: (label: string) => `${label} can't hold other blocks · drop beside it instead`,
+	only: (label: string, allowed: string[]) => `${label} only takes ${allowed.join(', ')}`,
+}
+
+/** A type as the palette names it. */
+function labelOf(catalog: BlockCatalog | null, type: string): string {
+	return descriptorOf(catalog, type)?.label ?? type
 }
 
 /** Whether a container lays its children out side by side. */
@@ -351,7 +356,7 @@ export function refusalFor(
 		return undefined
 	}
 	if (!descriptor.container) {
-		return REFUSALS.leaf(descriptor.type)
+		return REFUSALS.leaf(labelOf(catalog, descriptor.type))
 	}
 	if (!cannotHold(descriptor, type)) {
 		return undefined
@@ -359,7 +364,10 @@ export function refusalFor(
 	// A container that builds its own child around the block takes it after all.
 	return wrapperFor(catalog, descriptor.type, type)
 		? undefined
-		: REFUSALS.only(descriptor.type, descriptor.allowedChildren ?? [])
+		: REFUSALS.only(
+				labelOf(catalog, descriptor.type),
+				(descriptor.allowedChildren ?? []).map((allowed) => labelOf(catalog, allowed)),
+			)
 }
 
 /** Why a drop would be refused, wherever this placement puts it. */

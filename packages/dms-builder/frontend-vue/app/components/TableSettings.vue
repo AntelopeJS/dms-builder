@@ -71,7 +71,7 @@ async function remove(): Promise<void> {
 		<UAlert
 			color="error"
 			variant="subtle"
-			icon="i-ph-warning"
+			icon="i-ph-warning-light"
 			title="Delete this table"
 		>
 			<template #description>
@@ -94,7 +94,7 @@ async function remove(): Promise<void> {
 					/>
 				</UFormField>
 				<UButton
-					icon="i-ph-trash"
+					icon="i-ph-trash-light"
 					color="error"
 					label="Delete the table and its rows"
 					:disabled="!confirmed"

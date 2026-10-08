@@ -112,7 +112,7 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 		</p>
 
 		<section v-for="group in groups" :key="group.id" class="flex flex-col gap-1">
-			<DmsEyebrow :label="`${group.label} · ${group.entries.length}`" />
+			<DmsEyebrow>{{ `${group.label} · ${group.entries.length}` }}</DmsEyebrow>
 			<ul class="flex flex-col">
 				<li
 					v-for="change in group.entries"
@@ -140,7 +140,7 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 							class="flex min-w-0 items-center gap-1.5 font-mono text-[11px]"
 						>
 							<span class="truncate text-error line-through">{{ change.before }}</span>
-							<UIcon name="i-ph-arrow-right" class="size-3 shrink-0 text-dimmed" />
+							<UIcon name="i-ph-arrow-right-light" class="size-3 shrink-0 text-dimmed" />
 							<span class="truncate text-success">{{ change.after }}</span>
 						</span>
 						<span v-else-if="change.detail" class="block truncate text-xs text-muted">
@@ -161,7 +161,7 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 		</section>
 
 		<section v-if="builder.dirty.value" class="flex flex-col gap-2">
-			<DmsEyebrow label="On save" />
+			<DmsEyebrow>On save</DmsEyebrow>
 			<ul class="flex flex-col gap-1.5">
 				<li
 					v-for="step in steps"
@@ -196,7 +196,7 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 		</section>
 
 		<section v-if="applied.length" class="flex flex-col gap-1">
-			<DmsEyebrow :label="`Already written · ${applied.length}`" />
+			<DmsEyebrow>{{ `Already written · ${applied.length}` }}</DmsEyebrow>
 			<p class="text-xs text-muted">
 				Written to the project when they were made, for every page. Saving and
 				discarding leave them as they are.

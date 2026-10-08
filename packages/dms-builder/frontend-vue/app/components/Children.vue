@@ -103,7 +103,7 @@ function answerCursor(event: DragEvent): void {
 		@dragover.prevent.stop="onDragOver"
 		@drop.prevent.stop="builder.drop()"
 	>
-		<UIcon name="i-ph-plus" class="size-4" />
+		<UIcon name="i-ph-plus-light" class="size-4" />
 		Empty container — add a block
 	</button>
 </template>

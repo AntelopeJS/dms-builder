@@ -559,7 +559,7 @@ describe('a container that builds its own child around the block', () => {
 	it('still says what a container takes when no child of its own could hold it', () => {
 		// The rule is only dropped where the catalog states a way to honour it.
 		expect(refusalFor(albumCatalog(), albums(), 'album', 'HStack')).toBe(
-			'Album only accepts Text',
+			'Album only takes Text',
 		)
 		expect(refusalFor(albumCatalog(), albums(), 'album', 'Text')).toBe(undefined)
 	})
@@ -634,7 +634,7 @@ describe('a row pushed against the flank of another', () => {
 describe('a target the catalog refuses', () => {
 	it('refuses a block that is not a container at all', () => {
 		expect(refusalFor(catalog, draft(), 'title', 'Text')).toBe(
-			'Text takes no child',
+			"Text can't hold other blocks · drop beside it instead",
 		)
 	})
 
@@ -700,7 +700,7 @@ describe('a target the catalog refuses', () => {
 	it('takes anything at the page level, and leaves unknown types to the module', () => {
 		expect(refusalFor(catalog, draft(), null, 'Text')).toBe(undefined)
 		expect(refusalFor(catalog, draft(), 'title', undefined)).toBe(
-			'Text takes no child',
+			"Text can't hold other blocks · drop beside it instead",
 		)
 		expect(refusalFor(null, draft(), 'grid', 'Text')).toBe(undefined)
 	})

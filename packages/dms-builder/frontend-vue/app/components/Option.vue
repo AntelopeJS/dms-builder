@@ -705,7 +705,7 @@ const nestedProperties = computed(() =>
 			</label>
 			<UButton
 				v-if="clearable"
-				icon="i-ph-x"
+				icon="i-ph-x-light"
 				size="xs"
 				color="neutral"
 				variant="ghost"
@@ -973,7 +973,7 @@ const nestedProperties = computed(() =>
 					</span>
 					<div class="ml-auto flex gap-0.5">
 						<UButton
-							icon="i-ph-arrow-up"
+							icon="i-ph-arrow-up-light"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -981,7 +981,7 @@ const nestedProperties = computed(() =>
 							@click="moveItem(index, -1)"
 						/>
 						<UButton
-							icon="i-ph-arrow-down"
+							icon="i-ph-arrow-down-light"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -989,7 +989,7 @@ const nestedProperties = computed(() =>
 							@click="moveItem(index, 1)"
 						/>
 						<UButton
-							icon="i-ph-trash"
+							icon="i-ph-trash-light"
 							size="xs"
 							color="error"
 							variant="ghost"
@@ -1012,7 +1012,7 @@ const nestedProperties = computed(() =>
 				<UButton
 					v-for="kind in entryKinds"
 					:key="kind.index"
-					icon="i-ph-plus"
+					icon="i-ph-plus-light"
 					size="xs"
 					color="neutral"
 					variant="outline"
@@ -1022,7 +1022,7 @@ const nestedProperties = computed(() =>
 			</div>
 			<UButton
 				v-else
-				icon="i-ph-plus"
+				icon="i-ph-plus-light"
 				size="xs"
 				color="neutral"
 				variant="outline"

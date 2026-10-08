@@ -71,6 +71,10 @@ function open(tab: LeftTab): void {
 				<span>
 					<b class="font-semibold text-toned">Drag</b> onto the page, or click to
 					add {{ addsTo }}.
+					<template v-if="session.selection">
+						<UKbd value="↵" size="sm" /> adds below the selection,
+						<UKbd value="⌥" size="sm" /><UKbd value="↵" size="sm" /> beside it.
+					</template>
 				</span>
 			</template>
 			<template v-else-if="session.leftTab === 'layers'">

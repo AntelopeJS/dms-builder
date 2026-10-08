@@ -173,7 +173,7 @@ const ERROR = `${STRIP} border-error/40 bg-error/10`
 				@click="builder.save()"
 			/>
 			<UButton
-				icon="i-ph-x"
+				icon="i-ph-x-light"
 				size="xs"
 				color="error"
 				variant="ghost"
@@ -193,7 +193,7 @@ const ERROR = `${STRIP} border-error/40 bg-error/10`
 				</li>
 			</ul>
 			<UButton
-				icon="i-ph-x"
+				icon="i-ph-x-light"
 				size="xs"
 				color="neutral"
 				variant="ghost"

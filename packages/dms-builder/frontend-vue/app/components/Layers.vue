@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { descriptorOf, isStructural, paletteIcon } from '../runtime/catalog'
+import { descriptorOf, isStructural, lineIcon } from '../runtime/catalog'
 import { joinPath } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockTitle } from '../runtime/naming'
@@ -55,7 +55,7 @@ function blockRow(block: BlockDraft, path: string, depth: number): LayerRow {
 		path,
 		depth,
 		label: blockTitle(block, catalog),
-		icon: block.preserve ? 'i-ph-lock-simple-light' : paletteIcon(descriptor?.icon),
+		icon: block.preserve ? 'i-ph-lock-simple-light' : lineIcon(descriptor?.icon),
 		detail: blockKind(block, catalog),
 		name: block.name,
 		warning: problems.value.has(path),
@@ -221,7 +221,7 @@ function openMenu(event: MouseEvent, path: string): void {
 					:aria-label="`Actions for ${row.label}`"
 					@click.stop="openMenu($event, row.path)"
 				>
-					<UIcon name="i-ph-dots-three" class="size-4" />
+					<UIcon name="i-ph-dots-three-light" class="size-4" />
 				</button>
 			</li>
 		</ul>
@@ -235,7 +235,7 @@ function openMenu(event: MouseEvent, path: string): void {
 			class="flex h-8 items-center gap-2 rounded-md px-2 text-[12.5px] text-muted hover:bg-elevated hover:text-primary"
 			@click="builder.setView('library')"
 		>
-			<UIcon name="i-ph-plus" class="size-3.5" />
+			<UIcon name="i-ph-plus-light" class="size-3.5" />
 			Add a block
 		</button>
 	</div>

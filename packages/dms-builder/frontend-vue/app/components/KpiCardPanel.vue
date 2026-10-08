@@ -28,7 +28,7 @@ const style = computed(() => String(value('variant') ?? STYLES[0].value))
 	<div class="flex flex-col gap-3">
 		<section v-if="has('fetchUrl') && block" :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-table" class="size-4 text-primary" />
+				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
 			</p>
 			<DmsBuilderDataSource

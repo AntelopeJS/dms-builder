@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { paletteIcon } from '../runtime/catalog'
+import { lineIcon } from '../runtime/catalog'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockPosition, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
@@ -71,7 +71,7 @@ const heading = computed<Heading | undefined>(() => {
 			return {
 				icon: selected.preserve
 					? 'i-ph-lock-simple-light'
-					: paletteIcon(builder.selectedDescriptor.value?.icon),
+					: lineIcon(builder.selectedDescriptor.value?.icon),
 				title: blockTitle(selected, catalog),
 				subtitle: [
 					blockKind(selected, catalog),
@@ -120,7 +120,7 @@ function openMenu(event: MouseEvent): void {
 				</div>
 				<UButton
 					v-if="closable"
-					icon="i-ph-x"
+					icon="i-ph-x-light"
 					size="sm"
 					color="neutral"
 					variant="ghost"
@@ -129,7 +129,7 @@ function openMenu(event: MouseEvent): void {
 				/>
 				<UButton
 					v-else
-					icon="i-ph-dots-three"
+					icon="i-ph-dots-three-light"
 					size="sm"
 					color="neutral"
 					variant="ghost"

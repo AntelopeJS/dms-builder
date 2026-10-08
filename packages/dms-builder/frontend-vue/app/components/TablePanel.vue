@@ -168,7 +168,7 @@ const nameItems = computed(() => {
 	<div class="flex flex-col gap-3">
 		<section :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-table" class="size-4 text-primary" />
+				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
 			</p>
 			<DmsBuilderTableSource :path="path" />
@@ -198,7 +198,7 @@ const nameItems = computed(() => {
 										:aria-label="sortHint"
 										class="flex text-dimmed hover:text-muted"
 									>
-										<UIcon name="i-ph-info" class="size-3.5" />
+										<UIcon name="i-ph-info-light" class="size-3.5" />
 									</button>
 								</UTooltip>
 							</span>
@@ -234,7 +234,7 @@ const nameItems = computed(() => {
 										aria-label="Shown in the title of their dialogs."
 										class="flex text-dimmed hover:text-muted"
 									>
-										<UIcon name="i-ph-info" class="size-3.5" />
+										<UIcon name="i-ph-info-light" class="size-3.5" />
 									</button>
 								</UTooltip>
 							</span>
@@ -262,7 +262,7 @@ const nameItems = computed(() => {
 
 		<section v-if="table.has('caption')" :class="PANEL_CARD" aria-label="On the page">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-text-t" class="size-4 text-primary" />
+				<UIcon name="i-ph-text-t-light" class="size-4 text-primary" />
 				On the page
 			</p>
 			<UFormField label="Title" :ui="CARD_FIELD_UI">

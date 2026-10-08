@@ -186,7 +186,7 @@ const groups = computed(() => {
 <template>
 	<section v-if="groups.length" :class="PANEL_CARD" aria-label="What people can do">
 		<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-			<UIcon name="i-ph-hand-tap" class="size-4 text-primary" />
+			<UIcon name="i-ph-hand-tap-light" class="size-4 text-primary" />
 			What people can do
 		</p>
 		<div class="divide-y divide-default overflow-hidden rounded-lg border border-default bg-default">

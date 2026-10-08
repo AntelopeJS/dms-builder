@@ -201,6 +201,12 @@ describe('a block the DMS has since removed', () => {
 	})
 })
 
+describe('searching the palette', () => {
+	it('reads what a component is for, not only its name', () => {
+		expect(offered(catalog, 'prose')).toEqual(['Text'])
+	})
+})
+
 describe('the icon a tile draws', () => {
 	it("is the component's own, in Phosphor's two-tone weight", () => {
 		expect(paletteIcon('i-ph-table')).toBe('i-ph-table-duotone')
@@ -226,7 +232,8 @@ describe('the charts a chart card draws with', () => {
 	})
 
 	it('finds the card when one of them is searched for', () => {
-		expect(offered(chartCatalog(), 'line')).toEqual(['ChartCard'])
+		// The text block answers too: "a line of prose" is what it is for.
+		expect(offered(chartCatalog(), 'line')).toEqual(['Text', 'ChartCard'])
 		expect(offered(chartCatalog(), 'area chart')).toEqual(['ChartCard'])
 	})
 
@@ -235,6 +242,6 @@ describe('the charts a chart card draws with', () => {
 		expect(types).toContain('ChartCard')
 		expect(types).toContain('ChartLine')
 		expect(types).toContain('ChartArea')
-		expect(offered(chartCatalog(), 'line', true)).toEqual(['ChartLine'])
+		expect(offered(chartCatalog(), 'line', true)).toEqual(['Text', 'ChartLine'])
 	})
 })
