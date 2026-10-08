@@ -118,21 +118,69 @@ const parentBlock = computed(() => {
  * - a KPI card and a top list fold their figures' format, their trend and a
  *   list's ranking behind a line each, a setting showing only once it applies.
  */
-const PANELS: Record<string, { component: string; options: ReadonlySet<string> }> = {
-	[FORM_BLOCK]: { component: 'DmsBuilderFormPanel', options: FORM_PANEL_OPTIONS },
+/**
+ * The inspector's tabs, by what they hold. A block with a panel of its own
+ * names the tabs its panel fills; any other block gets the three every block
+ * has, each shown once something lands in it.
+ */
+type InspectorTab = 'content' | 'fields' | 'data' | 'actions' | 'after' | 'style'
+
+const TAB_LABELS: Record<InspectorTab, string> = {
+	content: 'Content',
+	fields: 'Fields',
+	data: 'Data',
+	actions: 'Actions',
+	after: 'After submit',
+	style: 'Style',
+}
+
+interface Panel {
+	component: string
+	options: ReadonlySet<string>
+	tabs: InspectorTab[]
+}
+
+const PANELS: Record<string, Panel> = {
+	[FORM_BLOCK]: {
+		component: 'DmsBuilderFormPanel',
+		options: FORM_PANEL_OPTIONS,
+		tabs: ['fields', 'after', 'style'],
+	},
 	[RESOURCE_FORM_BLOCK]: {
 		component: 'DmsBuilderResourceFormPanel',
 		options: RESOURCE_FORM_PANEL_OPTIONS,
+		tabs: ['fields', 'after', 'style'],
 	},
-	[TABLE_BLOCK]: { component: 'DmsBuilderTablePanel', options: TABLE_PANEL_OPTIONS },
+	[TABLE_BLOCK]: {
+		component: 'DmsBuilderTablePanel',
+		options: TABLE_PANEL_OPTIONS,
+		tabs: ['content', 'actions', 'style'],
+	},
 	[CHART_CARD_BLOCK]: {
 		component: 'DmsBuilderChartCardPanel',
 		options: CHART_CARD_PANEL_OPTIONS,
+		tabs: ['content', 'data', 'style'],
 	},
-	[SPACER_BLOCK]: { component: 'DmsBuilderSpacerPanel', options: SPACER_PANEL_OPTIONS },
-	[TABS_BLOCK]: { component: 'DmsBuilderTabsPanel', options: TABS_PANEL_OPTIONS },
-	[KPI_CARD_BLOCK]: { component: 'DmsBuilderKpiCardPanel', options: KPI_CARD_PANEL_OPTIONS },
-	[TOP_LIST_BLOCK]: { component: 'DmsBuilderTopListPanel', options: TOP_LIST_PANEL_OPTIONS },
+	[SPACER_BLOCK]: {
+		component: 'DmsBuilderSpacerPanel',
+		options: SPACER_PANEL_OPTIONS,
+		tabs: ['content', 'style'],
+	},
+	[TABS_BLOCK]: {
+		component: 'DmsBuilderTabsPanel',
+		options: TABS_PANEL_OPTIONS,
+		tabs: ['content', 'style'],
+	},
+	[KPI_CARD_BLOCK]: {
+		component: 'DmsBuilderKpiCardPanel',
+		options: KPI_CARD_PANEL_OPTIONS,
+		tabs: ['content', 'data', 'style'],
+	},
+	[TOP_LIST_BLOCK]: {
+		component: 'DmsBuilderTopListPanel',
+		options: TOP_LIST_PANEL_OPTIONS,
+		tabs: ['content', 'data', 'style'],
+	},
 }
 
 const panel = computed(() =>
@@ -340,6 +388,57 @@ const advanced = computed(() =>
 		: undefined,
 )
 
+/** Where an option group lands among the tabs: its look apart, its data apart. */
+const STYLE_GROUPS = new Set(['appearance', 'layout'])
+
+function tabOfGroup(id: string): InspectorTab {
+	if (STYLE_GROUPS.has(id)) {
+		return 'style'
+	}
+	if (id === 'data' && tabs.value.includes('data')) {
+		return 'data'
+	}
+	return tabs.value[0] ?? 'content'
+}
+
+/** The tabs this block has, those with nothing in them left out. */
+const tabs = computed<InspectorTab[]>(() => {
+	if (panel.value) {
+		return panel.value.tabs.filter(
+			(tab) =>
+				tab !== 'style' ||
+				plainGroups.value.some((group) => STYLE_GROUPS.has(group.id)) ||
+				slots.value.length > 0 ||
+				Object.keys(childMeta.value).length > 0 ||
+				PANEL_STYLE_SECTIONS.has(block.value?.type ?? ''),
+		)
+	}
+	const filled = new Set<InspectorTab>(['content'])
+	for (const group of plainGroups.value) {
+		filled.add(STYLE_GROUPS.has(group.id) ? 'style' : group.id === 'data' ? 'data' : 'content')
+	}
+	if (descriptor.value?.controllerArg) {
+		filled.add('data')
+	}
+	if (slots.value.length || Object.keys(childMeta.value).length) {
+		filled.add('style')
+	}
+	return (['content', 'data', 'style'] as InspectorTab[]).filter((tab) => filled.has(tab))
+})
+
+/** The panels that file a section of their own under Style. */
+const PANEL_STYLE_SECTIONS = new Set([CHART_CARD_BLOCK, TABS_BLOCK])
+
+const chosenTab = ref<InspectorTab>('content')
+// Another block opens on its first tab.
+watch(path, () => {
+	chosenTab.value = tabs.value[0] ?? 'content'
+})
+/** The tab on show: the one picked, or the first when this block has no such tab. */
+const tab = computed<InspectorTab>(() =>
+	tabs.value.includes(chosenTab.value) ? chosenTab.value : (tabs.value[0] ?? 'content'),
+)
+
 /* ---- what lives on the resource rather than on the block ---------------- */
 
 const resource = computed(() =>
@@ -390,6 +489,32 @@ async function setSearchField(name: string): Promise<void> {
 	</div>
 
 	<div v-else class="flex flex-col gap-3">
+		<!-- The block's settings by what they are about; the tabs stay where
+		they are from block to block, the first one open on each. -->
+		<nav
+			v-if="tabs.length > 1 && !block.preserve"
+			role="tablist"
+			aria-label="Settings"
+			class="-mx-4 -mt-4 mb-1 flex gap-0.5 border-b border-default px-2"
+		>
+			<button
+				v-for="entry in tabs"
+				:key="entry"
+				type="button"
+				role="tab"
+				:aria-selected="tab === entry"
+				class="relative inline-flex h-9 items-center px-2 text-[12.5px] hover:text-highlighted"
+				:class="
+					tab === entry
+						? 'font-semibold text-highlighted after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-t-sm after:bg-primary'
+						: 'font-medium text-muted'
+				"
+				@click="chosenTab = entry"
+			>
+				{{ TAB_LABELS[entry] }}
+			</button>
+		</nav>
+
 		<div
 			v-if="block.preserve"
 			class="flex flex-col gap-2 rounded-md border border-default bg-elevated p-3 text-sm text-dimmed"
@@ -419,6 +544,7 @@ async function setSearchField(name: string): Promise<void> {
 
 			<section
 				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
+				v-show="tab === tabOfGroup('data')"
 				:class="PANEL_CARD"
 				aria-label="Table"
 			>
@@ -491,10 +617,11 @@ async function setSearchField(name: string): Promise<void> {
 				</div>
 			</section>
 
-			<component :is="panel.component" v-if="panel" :key="path" :path="path" />
+			<component :is="panel.component" v-if="panel" :key="path" :path="path" :tab="tab" />
 
 			<section
 				v-for="group in plainGroups"
+				v-show="tabOfGroup(group.id) === tab"
 				:key="group.id"
 				:class="PANEL_CARD"
 				:aria-label="group.label"
@@ -547,7 +674,12 @@ async function setSearchField(name: string): Promise<void> {
 			<!-- A block dropped in lands in the region on screen; this is how it is
 			moved to another one afterwards. Named after the container rather than
 			called a slot, which is a word the gesture exists to spare anyone. -->
-			<section v-if="slots.length" :class="PANEL_CARD" :aria-label="regionLabel">
+			<section
+				v-if="slots.length"
+				v-show="tab === 'style'"
+				:class="PANEL_CARD"
+				:aria-label="regionLabel"
+			>
 				<label class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 					<UIcon name="i-ph-squares-four-light" class="size-4 text-primary" />
 					{{ regionLabel }}
@@ -563,6 +695,7 @@ async function setSearchField(name: string): Promise<void> {
 
 			<section
 				v-if="Object.keys(childMeta).length"
+				v-show="tab === 'style'"
 				:class="PANEL_CARD"
 				aria-label="Placement"
 			>
@@ -580,7 +713,12 @@ async function setSearchField(name: string): Promise<void> {
 				/>
 			</section>
 
-			<section v-if="advanced" :class="PANEL_CARD" aria-label="Advanced">
+			<section
+				v-if="advanced"
+				v-show="tab === (tabs[0] ?? 'content')"
+				:class="PANEL_CARD"
+				aria-label="Advanced"
+			>
 				<button
 					type="button"
 					class="flex w-full items-center gap-2 text-sm font-semibold text-highlighted"

@@ -26,7 +26,16 @@ import type { BlockDraft, DynamicSlots } from '../runtime/types'
  * per setting. Shortcuts, avatars and what a hidden tab keeps are the advanced
  * view's.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** The inspector's tab on show; every section when the panel stands alone. */
+	tab?: string
+}>()
+
+/** Whether a section belongs to the tab on show. */
+function shows(tab: string): boolean {
+	return !props.tab || props.tab === tab
+}
 
 const { block, config, options, has, text, write } = useBlockPanel(() => props.path)
 const builder = useBuilder()
@@ -212,7 +221,7 @@ const colours = computed(() => {
 
 <template>
 	<div class="flex flex-col gap-3">
-		<section :class="PANEL_CARD" aria-label="Tabs">
+		<section v-show="shows('content')" :class="PANEL_CARD" aria-label="Tabs">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-tabs-light" class="size-4 text-primary" />
 				Tabs
@@ -327,7 +336,7 @@ const colours = computed(() => {
 			/>
 		</section>
 
-		<section :class="PANEL_CARD" aria-label="Look">
+		<section v-show="shows('style')" :class="PANEL_CARD" aria-label="Look">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-palette-light" class="size-4 text-primary" />
 				Look
@@ -379,8 +388,8 @@ const colours = computed(() => {
 		</section>
 
 		<section
-			v-if="has('persistState')"
-			class="flex items-center gap-2.5 rounded-lg border border-default bg-elevated px-3.5 py-3"
+			v-if="has('persistState')" v-show="shows('content')"
+			class="flex items-center gap-2.5 border-t border-(--ui-border-muted) pt-4"
 			aria-label="Behavior"
 		>
 			<UIcon name="i-ph-lightning-light" class="size-4 shrink-0 text-primary" />

@@ -9,7 +9,16 @@ import { PANEL_CARD } from '../runtime/form-panel'
  * folded behind a line saying how it is set. Routes, scopes and the values
  * shown without a source are the advanced view's.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** The inspector's tab on show; every section when the panel stands alone. */
+	tab?: string
+}>()
+
+/** Whether a section belongs to the tab on show. */
+function shows(tab: string): boolean {
+	return !props.tab || props.tab === tab
+}
 
 const { block, config, options, has, value, set, patch } = useFigureBlock(() => props.path)
 
@@ -26,7 +35,11 @@ const style = computed(() => String(value('variant') ?? STYLES[0].value))
 
 <template>
 	<div class="flex flex-col gap-3">
-		<section v-if="has('fetchUrl') && block" :class="PANEL_CARD" aria-label="Data">
+		<section
+			v-if="has('fetchUrl') && block" v-show="shows('data')"
+			:class="PANEL_CARD"
+			aria-label="Data"
+		>
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
@@ -41,7 +54,7 @@ const style = computed(() => String(value('variant') ?? STYLES[0].value))
 			/>
 		</section>
 
-		<DmsBuilderOnThePage :path="path" with-icon>
+		<DmsBuilderOnThePage v-show="shows('content')" :path="path" with-icon>
 			<div v-if="has('variant')" class="flex flex-col gap-1.5">
 				<span class="text-sm text-muted">Style</span>
 				<div role="group" aria-label="Style" class="grid grid-cols-2 gap-2">
@@ -82,7 +95,7 @@ const style = computed(() => String(value('variant') ?? STYLES[0].value))
 			</div>
 		</DmsBuilderOnThePage>
 
-		<DmsBuilderValueFold :path="path" />
-		<DmsBuilderTrendFold :path="path" />
+		<DmsBuilderValueFold v-show="shows('content')" :path="path" />
+		<DmsBuilderTrendFold v-show="shows('content')" :path="path" />
 	</div>
 </template>

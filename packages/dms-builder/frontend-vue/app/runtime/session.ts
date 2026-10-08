@@ -17,6 +17,7 @@ import {
 	ROW_WRAPPER,
 	SESSION_STATE_KEY,
 	TOAST_MS,
+	UNDO_GROUP_MS,
 } from './constants'
 import {
 	draggedType,
@@ -34,7 +35,7 @@ import {
 	type PointerBox,
 } from './dropping'
 import { draftChanges, revertChange, type DraftChange } from './changes'
-import { formTableOf } from './form-table'
+import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
@@ -307,6 +308,10 @@ function emptySession(): BuilderSession {
 }
 
 let previewTimer: ReturnType<typeof setTimeout> | undefined
+/** The thing the edits under way are about, while they are made as one step. */
+let editGroup: string | null = null
+/** The last step of undo pushed, and what it was about. */
+let lastStep: { group: string | null; at: number } = { group: null, at: 0 }
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 let previewToken = 0
 
@@ -387,6 +392,8 @@ export interface BuilderController {
 	stayOnPage: () => string | null
 	/** Lay a starting layout on the page, as one edit. */
 	applyLayout: (layout: PageLayout) => void
+	/** Count the edits `run` makes, with those about `key` just before, as one step. */
+	grouped: (key: string, run: () => void) => void
 	/** Add a block below the selection, or beside it. */
 	addNextTo: (type: string, beside?: boolean) => void
 	loadResourceFields: (ref: string) => Promise<void>
@@ -466,13 +473,30 @@ export function useBuilder(): BuilderController {
 		const found: Array<{ path: string; settings: MissingSetting[] }> = []
 		walkDraft(draft.blocks, (block, path) => {
 			const descriptor = descriptorOf(session.value.catalog, block.type)
-			const settings = missingSettings(descriptor, block)
+			const settings = [...missingSettings(descriptor, block), ...unaskedOf(block)]
 			if (settings.length > 0) {
 				found.push({ path, settings })
 			}
 		})
 		return found
 	})
+
+	/**
+	 * A form saving into a table that does not ask for a column the table
+	 * requires: every submit would be refused, so it is a gap like an empty
+	 * required setting. Known once the table has been read.
+	 */
+	function unaskedOf(block: BlockDraft): MissingSetting[] {
+		if (block.type !== FORM_BLOCK) {
+			return []
+		}
+		const table = formTableOf(block.config, session.value.resources)
+		const structure = table ? session.value.resourceStructures[table.ref] : undefined
+		return unaskedRequired(block.config, structure).map((column) => ({
+			path: ['fields'],
+			label: `${column.label ?? column.name}, which the table requires`,
+		}))
+	}
 	/**
 	 * The blocks standing between the draft and a page that saves: the ones with
 	 * a required option still empty, plus the ones the last preview refused.
@@ -567,6 +591,25 @@ export function useBuilder(): BuilderController {
 		session.value.dirtySince ??= Date.now()
 	}
 
+	/** Start the next edit on a step of its own, whatever it is about. */
+	function newStep(): void {
+		lastStep = { group: null, at: 0 }
+	}
+
+	/**
+	 * Make the edits `run` makes count, with those made about `key` just before,
+	 * as one step of undo.
+	 */
+	function grouped(key: string, run: () => void): void {
+		const previous = editGroup
+		editGroup = key
+		try {
+			run()
+		} finally {
+			editGroup = previous
+		}
+	}
+
 	/** Put one change of the list back, as one edit the author can undo. */
 	function revert(change: DraftChange): void {
 		mutate((draft) => revertChange(draft, change.revert, servedQueries()))
@@ -652,6 +695,7 @@ export function useBuilder(): BuilderController {
 		session.value.baseline = cloneDraft(draft)
 		session.value.history = []
 		session.value.future = []
+		newStep()
 		session.value.dirtySince = null
 		session.value.conflict = false
 		session.value.error = null
@@ -865,7 +909,19 @@ export function useBuilder(): BuilderController {
 		const followed = followedBlocks(next)
 		tidyLayout(next, session.value.catalog, current)
 		fitSpacerColumns(next)
-		pushHistory()
+		// Edits of one thing in quick succession are one step to undo: picking
+		// a table, a measure and a grouping is building one data source.
+		const now = Date.now()
+		if (
+			editGroup !== null &&
+			lastStep.group === editGroup &&
+			now - lastStep.at < UNDO_GROUP_MS
+		) {
+			session.value.future = []
+		} else {
+			pushHistory()
+		}
+		lastStep = { group: editGroup, at: now }
 		session.value.draft = next
 		session.value.lastSave = null
 		noteDirty()
@@ -1635,6 +1691,7 @@ export function useBuilder(): BuilderController {
 		session.value.future = [cloneDraft(session.value.draft), ...session.value.future]
 		session.value.history = session.value.history.slice(0, -1)
 		session.value.draft = previous
+		newStep()
 		noteDirty()
 		reselect()
 		schedulePreview()
@@ -1648,6 +1705,7 @@ export function useBuilder(): BuilderController {
 		session.value.history = [...session.value.history, cloneDraft(session.value.draft)]
 		session.value.future = session.value.future.slice(1)
 		session.value.draft = next
+		newStep()
 		noteDirty()
 		reselect()
 		schedulePreview()
@@ -1702,6 +1760,7 @@ export function useBuilder(): BuilderController {
 			session.value.baseline = cloneDraft(draft)
 			session.value.history = []
 			session.value.future = []
+			newStep()
 			session.value.lastSave = { outcome: 'saved', at: Date.now() }
 			noteDirty()
 			report(result, 'Page saved')
@@ -2394,6 +2453,7 @@ export function useBuilder(): BuilderController {
 		stayOnPage,
 		applyLayout,
 		addNextTo,
+		grouped,
 		loadResourceFields,
 		loadResource,
 		loadQueryTemplates,

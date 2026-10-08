@@ -10,12 +10,15 @@ import {
 	askedColumns,
 	boundTo,
 	destinationOf,
+	fieldFor,
 	fillableColumns,
+	unaskedRequired,
 } from './form-table'
 import { useBuilder } from './session'
+import type { ResourceFieldStructure } from './types'
 
 /** The block the simple mode edits with a panel of its own. */
-export const FORM_BLOCK = 'Form'
+export { FORM_BLOCK } from './form-table'
 
 /**
  * The options that panel edits, or decides: a form saving into a table is an
@@ -43,7 +46,7 @@ export const FIELD_ORIENTATION_DEFAULT = 'horizontal'
  * its data, what it shows on the page, what it does once sent.
  */
 export const PANEL_CARD =
-	'flex flex-col gap-3.5 rounded-lg border border-default bg-elevated p-3.5'
+	'flex flex-col gap-3.5 border-b border-(--ui-border-muted) pb-4 last:border-b-0 last:pb-0'
 /** A setting's label inside a card, quieter than the card's title. */
 export const CARD_FIELD_UI = { label: 'font-normal text-muted' }
 
@@ -64,6 +67,14 @@ export function useFormBlock(path: () => string) {
 	)
 	const columns = computed(() => fillableColumns(structure.value))
 	const asked = computed(() => askedColumns(config.value.fields))
+	/** What the table requires and the form does not ask for. */
+	const unasked = computed(() => unaskedRequired(config.value, structure.value))
+
+	/** Ask for one more column of the table, at the end of the form. */
+	function askFor(column: ResourceFieldStructure): void {
+		const fields = Array.isArray(config.value.fields) ? config.value.fields : []
+		builder.patchConfig(path(), { fields: [...fields, fieldFor(column)] })
+	}
 	/**
 	 * Save the form into a table: every column a row is written with becomes a
 	 * field of it, and it submits to the table's create route. The fields a form
@@ -90,6 +101,8 @@ export function useFormBlock(path: () => string) {
 		structure,
 		columns,
 		asked,
+		unasked,
+		askFor,
 		bindTo,
 	}
 }

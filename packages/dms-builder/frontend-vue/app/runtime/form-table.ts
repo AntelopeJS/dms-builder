@@ -18,6 +18,9 @@ import type {
 	ResourceSummary,
 } from './types'
 
+/** The form block, which saves into a table its author picks. */
+export const FORM_BLOCK = 'Form'
+
 /** Where a form hands its values to a table, which creates a row of them. */
 const CREATE_SEGMENT = '/new'
 /** The method that route takes, as the DMS spells it. */
@@ -112,6 +115,22 @@ export function boundTo(
 		fetchUrlMethod: undefined,
 		fields: columns.map(fieldFor),
 	}
+}
+
+/**
+ * The columns a table will not take a row without, which the form does not
+ * ask for: every submit of such a form is refused. A column made required
+ * after the form was set up is the usual way to get one — the form's fields
+ * were the table's columns when it was picked, and nothing follows them since.
+ */
+export function unaskedRequired(
+	config: Record<string, unknown> | undefined,
+	table: ResourceStructure | undefined,
+): ResourceFieldStructure[] {
+	const asked = askedColumns(config?.fields)
+	return fillableColumns(table).filter(
+		(column) => column.required && !asked.has(column.name),
+	)
 }
 
 /** The columns a form asks for: the names its fields are sent under. */

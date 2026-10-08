@@ -139,6 +139,33 @@ function turnCreateOn(): void {
 					:summary="`${columnsTaken(askedCount, form.columns.value.length)} in the form`"
 					:warning="`Fields belong to the table: ${SHARED_TABLE_WARNING}`"
 				/>
+				<!-- The one mistake that makes every submit fail: a column the
+				table will not take a row without, which the form does not ask
+				for. Caught here, and by Save, before anyone fills the form in. -->
+				<div
+					v-for="column in form.unasked.value"
+					:key="column.name"
+					role="alert"
+					class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5 text-xs leading-relaxed text-toned"
+				>
+					<span class="flex gap-2">
+						<UIcon name="i-ph-warning-light" class="mt-px size-4 shrink-0 text-warning" />
+						<span>
+							<b class="font-semibold text-highlighted">{{ column.label ?? column.name }}</b>
+							is required by {{ destination.table.ref }}: every submit fails until the
+							form asks for it.
+						</span>
+					</span>
+					<UButton
+						icon="i-ph-plus-light"
+						size="xs"
+						color="warning"
+						variant="soft"
+						:label="`Add ${column.label ?? column.name}`"
+						class="self-start"
+						@click="form.askFor(column)"
+					/>
+				</div>
 			</template>
 		</template>
 

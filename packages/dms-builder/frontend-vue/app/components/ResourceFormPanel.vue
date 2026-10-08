@@ -18,7 +18,16 @@ import {
  * the row id is read from, and what every submit adds, are the advanced
  * view's.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** The inspector's tab on show; every section when the panel stands alone. */
+	tab?: string
+}>()
+
+/** Whether a section belongs to the tab on show. */
+function shows(tab: string): boolean {
+	return !props.tab || props.tab === tab
+}
 
 const builder = useBuilder()
 const session = builder.session
@@ -73,7 +82,7 @@ function setMode(next: ResourceFormMode): void {
 
 <template>
 	<div class="flex flex-col gap-3">
-		<section :class="PANEL_CARD" aria-label="Data">
+		<section v-show="shows('fields')" :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
@@ -124,9 +133,13 @@ function setMode(next: ResourceFormMode): void {
 			/>
 		</section>
 
-		<DmsBuilderOnThePage :path="path" />
+		<DmsBuilderOnThePage v-show="shows('fields')" :path="path" />
 
 		<!-- Showing a row sends nothing: there is no button, and nowhere to go. -->
-		<DmsBuilderSubmitSettings v-if="mode !== 'view'" :path="path" :saved-row="savedRow" />
+		<DmsBuilderSubmitSettings
+			v-if="mode !== 'view'" v-show="shows('after')"
+			:path="path"
+			:saved-row="savedRow"
+		/>
 	</div>
 </template>

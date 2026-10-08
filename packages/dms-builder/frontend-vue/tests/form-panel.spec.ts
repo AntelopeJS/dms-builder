@@ -492,3 +492,27 @@ describe('what a form says and does once it is sent', () => {
 		).toEqual(['Data', 'On the page', 'Custom submit'])
 	})
 })
+
+describe('a form missing a column its table requires', () => {
+	/** The orders, once "status" has been made required since the form was set up. */
+	const stricter = (): ResourceStructure =>
+		orders({
+			fields: orders().fields.map((field) =>
+				field.name === 'status' ? { ...field, required: true } : field,
+			),
+		})
+
+	it('says every submit would fail, and adds the column in one click', async () => {
+		const root = await formPanel({ ...BOUND, fields: [BOUND.fields[0]] }, stricter())
+
+		expect(textOf(root)).toContain('every submit fails until the form asks for it')
+		expect(builder.problems.value, 'and Save stops at it').toEqual(['form'])
+
+		fire(button(root, 'Add Status'), 'click')
+		await settle()
+
+		expect(keys()).toEqual(['amount', 'status'])
+		expect(builder.problems.value).toEqual([])
+		expect(has(root, 'Add Status')).toBe(false)
+	})
+})

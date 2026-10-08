@@ -25,6 +25,8 @@ export interface TestNode {
 	children: TestNode[]
 	parent: TestNode | null
 	text: string
+	/** What `v-show` writes: `display: none` on a section another tab holds. */
+	style: Record<string, string>
 	/** Zero, for the components that place themselves by measuring an element. */
 	getBoundingClientRect: () => TestRect
 }
@@ -44,6 +46,7 @@ function node(kind: TestNode['kind'], tag: string, text = ''): TestNode {
 		tag,
 		text,
 		props: {},
+		style: {},
 		children: [],
 		parent: null,
 		getBoundingClientRect: () => EMPTY_RECT,

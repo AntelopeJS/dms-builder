@@ -16,7 +16,16 @@ import type { ResourceFieldStructure } from '../runtime/types'
  * and are named, what it is called, and what people can do with the rows.
  * Forms, tabs and displays are the advanced view's.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** The inspector's tab on show; every section when the panel stands alone. */
+	tab?: string
+}>()
+
+/** Whether a section belongs to the tab on show. */
+function shows(tab: string): boolean {
+	return !props.tab || props.tab === tab
+}
 
 /**
  * The one choice of a menu that means no column. A menu item cannot stand for
@@ -166,7 +175,25 @@ const nameItems = computed(() => {
 
 <template>
 	<div class="flex flex-col gap-3">
-		<section :class="PANEL_CARD" aria-label="Data">
+		<section v-if="table.has('caption')" v-show="shows('content')" :class="PANEL_CARD" aria-label="On the page">
+			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+				<UIcon name="i-ph-text-t-light" class="size-4 text-primary" />
+				On the page
+			</p>
+			<UFormField label="Title" :ui="CARD_FIELD_UI">
+				<UInput
+					class="w-full"
+					:model-value="caption"
+					size="lg"
+					placeholder="Optional"
+					@update:model-value="
+						table.patch({ caption: String($event) === '' ? undefined : String($event) })
+					"
+				/>
+			</UFormField>
+		</section>
+
+		<section v-show="shows('content')" :class="PANEL_CARD" aria-label="Data">
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
@@ -260,26 +287,9 @@ const nameItems = computed(() => {
 			</template>
 		</section>
 
-		<section v-if="table.has('caption')" :class="PANEL_CARD" aria-label="On the page">
-			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-				<UIcon name="i-ph-text-t-light" class="size-4 text-primary" />
-				On the page
-			</p>
-			<UFormField label="Title" :ui="CARD_FIELD_UI">
-				<UInput
-					class="w-full"
-					:model-value="caption"
-					size="lg"
-					placeholder="Optional"
-					@update:model-value="
-						table.patch({ caption: String($event) === '' ? undefined : String($event) })
-					"
-				/>
-			</UFormField>
-		</section>
 
 		<DmsBuilderTableActions
-			v-if="table.table.value && table.structure.value"
+			v-if="table.table.value && table.structure.value" v-show="shows('actions')"
 			:path="path"
 		/>
 	</div>

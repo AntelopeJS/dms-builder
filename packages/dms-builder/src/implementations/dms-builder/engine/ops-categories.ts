@@ -37,6 +37,7 @@ import {
 } from "./writable";
 import {
   applyPatch,
+  optionsPatch,
   commit,
   duplicate,
   invalidDataType,
@@ -168,7 +169,7 @@ export function configureCategory(
     resolveRef: resourceRefResolver(),
   });
   try {
-    applyPatch(optionsArg, scalar as Record<string, unknown>, false, ctx);
+    applyPatch(optionsArg, optionsPatch(scalar as Record<string, unknown>), false, ctx);
   } catch (error) {
     transaction.rollback();
     if (error instanceof UnknownDataTypeError) {

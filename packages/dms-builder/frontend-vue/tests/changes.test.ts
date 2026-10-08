@@ -225,3 +225,45 @@ describe('a layout to start from', () => {
 		expect(builder.session.value.history).toHaveLength(1)
 	})
 })
+
+describe('the edits of one data source', () => {
+	let builder: BuilderController
+
+	beforeEach(async () => {
+		vi.useFakeTimers()
+		installFakeHost()
+		builder = useBuilder()
+		builder.close()
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+	})
+
+	afterEach(() => {
+		builder.close()
+		vi.useRealTimers()
+	})
+
+	function pick(template: string): void {
+		builder.grouped('source:revenue', () => {
+			builder.setDraftQuery({ name: 'revenue', resource: 'orders', template })
+			builder.patchConfig('title', { fetchUrl: '/reports/sales/stats/revenue' })
+		})
+	}
+
+	it('are one step to undo while they are being picked', () => {
+		pick('count')
+		pick('aggregate')
+		pick('sum')
+		expect(builder.session.value.history).toHaveLength(1)
+
+		builder.undo()
+		expect(builder.session.value.draft?.queries).toBeUndefined()
+	})
+
+	it('start a new step once the author has paused', () => {
+		pick('count')
+		vi.setSystemTime(Date.now() + 2000)
+		pick('aggregate')
+		expect(builder.session.value.history).toHaveLength(2)
+	})
+})

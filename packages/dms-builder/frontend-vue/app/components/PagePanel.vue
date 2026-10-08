@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
 import { categoryOptions, categoryRoute } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
@@ -41,42 +41,37 @@ const categoryLabel = computed(
 			?.displayName ?? meta.value?.category,
 )
 const moving = ref(false)
-const ordering = ref(false)
 
-// The permission as typed: written on change, and put back to the page's own
-// whenever that is read again.
-const permission = ref('')
-watch(
-	() => meta.value?.permission?.id,
-	(id) => {
-		permission.value = typeof id === 'string' ? id : ''
-	},
-	{ immediate: true },
-)
+/** The page's permission as the draft holds it: the saved one unless changed. */
+const permission = computed(() => {
+	const drafted = patch.value.permission
+	const held = drafted === undefined ? meta.value?.permission : drafted
+	const id = (held as { id?: unknown } | null | undefined)?.id
+	return typeof id === 'string' ? id : ''
+})
 
 /**
- * The page's rank among its siblings. The order is not staged with the
- * blocks: it is written at once, so one write is let through at a time.
+ * Who can see the page, staged with the rest: an emptied field takes the
+ * permission off the page, which the wire can only say as null.
  */
-async function saveOrder(order: number | null | undefined): Promise<void> {
-	if (typeof order !== 'number' || ordering.value) return
-	ordering.value = true
-	try {
-		await builder.savePageMeta({ order })
-	} finally {
-		ordering.value = false
-	}
+function setPermission(id: string): void {
+	const trimmed = id.trim()
+	builder.patchPage({
+		permission: trimmed
+			? { id: trimmed, title: value('displayName', meta.value?.displayName) }
+			: null,
+	})
 }
 
-async function savePermission(): Promise<void> {
-	await builder.savePageMeta({
-		permission: permission.value
-			? {
-					id: permission.value,
-					title: value('displayName', meta.value?.displayName),
-				}
-			: undefined,
-	})
+/** The page's place among its siblings, staged with the rest. */
+const order = computed(() => value<number | undefined>('order', meta.value?.order) ?? 0)
+
+/** `1st`, `2nd`, `3rd`, `4th`: a place, as the menu shows it. */
+function ordinal(place: number): string {
+	const tens = place % 100
+	const suffix =
+		tens >= 11 && tens <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[place % 10] ?? 'th')
+	return `${place}${suffix}`
 }
 
 async function move(category: string): Promise<void> {
@@ -119,14 +114,6 @@ async function move(category: string): Promise<void> {
 
 <template>
 	<div v-if="meta" class="flex flex-col gap-6">
-		<UBadge
-			icon="i-ph-lightning-light"
-			color="neutral"
-			variant="outline"
-			label="Applies now — the rest waits for Save"
-			class="self-start"
-		/>
-
 		<div class="flex flex-col gap-3">
 			<UFormField label="Title">
 				<div class="flex gap-2">
@@ -156,33 +143,30 @@ async function move(category: string): Promise<void> {
 		</div>
 
 		<div class="flex flex-col gap-3">
-			<p class="text-xs font-semibold text-toned">In the menu</p>
+			<DmsEyebrow>In the menu</DmsEyebrow>
 			<UFormField
-				label="Hidden"
-				description="Left out of the menu, still reachable at its address."
+				label="Show in the menu"
+				description="Left out, it is still reachable at its address."
 				orientation="horizontal"
 			>
 				<USwitch
-					:model-value="value('hidden', meta.hidden ?? false)"
-					@update:model-value="builder.patchPage({ hidden: $event })"
+					:model-value="!value('hidden', meta.hidden ?? false)"
+					@update:model-value="builder.patchPage({ hidden: !$event })"
 				/>
 			</UFormField>
 			<UFormField
 				label="Position"
-				:description="`Among the pages of ${categoryLabel}, lowest first.`"
+				:description="`${ordinal(order + 1)} among the pages of ${categoryLabel}, lowest first.`"
 				orientation="horizontal"
 			>
-				<template #hint>
-					<UBadge v-bind="NOW" />
-				</template>
 				<UInputNumber
-					:model-value="meta.order ?? 0"
+					:model-value="order"
 					size="sm"
-					:disabled="ordering"
+					:min="0"
 					:increment="{ 'aria-label': 'Later in the menu' }"
 					:decrement="{ 'aria-label': 'Earlier in the menu' }"
 					class="w-28"
-					@update:model-value="saveOrder"
+					@update:model-value="builder.patchPage({ order: $event ?? 0 })"
 				/>
 			</UFormField>
 		</div>
@@ -215,18 +199,20 @@ async function move(category: string): Promise<void> {
 		</div>
 
 		<UFormField
-			label="Permission"
-			help="Only people holding it see the page. Leave empty for none."
+			label="Who can see it"
+			:help="
+				permission
+					? 'Only the roles holding this permission see the page.'
+					: 'Left empty, the page has a permission of its own, named after it: the roles granted it see the page.'
+			"
 		>
-			<template #hint>
-				<UBadge v-bind="NOW" />
-			</template>
 			<UInput
-				v-model="permission"
+				:model-value="permission"
 				icon="i-ph-shield-light"
 				placeholder="shop.products"
 				class="w-full font-mono"
-				@change="savePermission"
+				aria-label="Permission"
+				@update:model-value="setPermission(String($event))"
 			/>
 		</UFormField>
 

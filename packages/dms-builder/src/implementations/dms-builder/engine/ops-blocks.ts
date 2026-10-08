@@ -57,6 +57,7 @@ import {
 } from "./writable";
 import {
   applyPatch,
+  optionsPatch,
   checkVersion,
   childArgsOf,
   clampIndex,
@@ -414,7 +415,7 @@ export function configurePage(
     resolveRef: resourceRefResolver(),
   });
   try {
-    applyPatch(optionsArg, scalar as Record<string, unknown>, false, ctx);
+    applyPatch(optionsArg, optionsPatch(scalar as Record<string, unknown>), false, ctx);
   } catch (error) {
     transaction.rollback();
     if (error instanceof UnknownDataTypeError) {

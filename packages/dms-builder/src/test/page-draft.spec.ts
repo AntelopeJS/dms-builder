@@ -213,6 +213,39 @@ describe("the page draft", () => {
       ]);
     });
 
+    it("writes the page's own options with the blocks, and takes out one sent empty", async function () {
+      this.timeout(OP_TIMEOUT);
+      const blocks = (await structure()).blocks.map((block) => ({
+        name: block.name,
+        type: block.type ?? undefined,
+        config: block.config,
+      }));
+      const ordered = expectOk(
+        await SetPageBlocks(
+          PAGE,
+          { page: { order: 3, permission: { id: "shop.board" } }, blocks },
+          { expectedVersion: (await structure()).version },
+        ),
+        "SetPageBlocks",
+      );
+      expect(app.read(PAGE_FILE)).to.contain("order: 3");
+      expect(app.read(PAGE_FILE)).to.contain('permission: { id: "shop.board" }');
+
+      // Cleared in the editor: JSON carries no `undefined`, so it says null.
+      expectOk(
+        await SetPageBlocks(
+          PAGE,
+          // The declared draft has no null; the wire does.
+          { page: { order: null, permission: null } as unknown as undefined, blocks },
+          { expectedVersion: ordered.version },
+        ),
+        "SetPageBlocks",
+      );
+      expect(app.read(PAGE_FILE)).to.not.contain("order:");
+      expect(app.read(PAGE_FILE)).to.not.contain("permission:");
+      expect(app.read(PAGE_FILE), "and nothing written as null").to.not.contain("null");
+    });
+
     it("refuses a write based on a version that has moved", async function () {
       this.timeout(OP_TIMEOUT);
       const result = await SetPageBlocks(

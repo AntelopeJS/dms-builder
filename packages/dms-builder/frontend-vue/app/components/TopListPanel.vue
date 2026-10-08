@@ -10,7 +10,16 @@ import { CARD_FIELD_UI, PANEL_CARD } from '../runtime/form-panel'
  * behind a line saying how it is set. Its height, the colour of its period
  * badge, routes and the rows shown without a source are the advanced view's.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** The inspector's tab on show; every section when the panel stands alone. */
+	tab?: string
+}>()
+
+/** Whether a section belongs to the tab on show. */
+function shows(tab: string): boolean {
+	return !props.tab || props.tab === tab
+}
 
 const { block, config, options, has, text, write, value, set, patch } = useFigureBlock(
 	() => props.path,
@@ -33,7 +42,11 @@ function setHighlighted(count: number | null | undefined): void {
 
 <template>
 	<div class="flex flex-col gap-3">
-		<section v-if="has('fetchUrl') && block" :class="PANEL_CARD" aria-label="Data">
+		<section
+			v-if="has('fetchUrl') && block" v-show="shows('data')"
+			:class="PANEL_CARD"
+			aria-label="Data"
+		>
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-table-light" class="size-4 text-primary" />
 				Data
@@ -48,7 +61,7 @@ function setHighlighted(count: number | null | undefined): void {
 			/>
 		</section>
 
-		<DmsBuilderOnThePage :path="path">
+		<DmsBuilderOnThePage v-show="shows('content')" :path="path">
 			<UFormField v-if="has('emptyLabel')" label="When empty" :ui="CARD_FIELD_UI">
 				<UInput
 					class="w-full"
@@ -60,9 +73,10 @@ function setHighlighted(count: number | null | undefined): void {
 			</UFormField>
 		</DmsBuilderOnThePage>
 
-		<DmsBuilderValueFold :path="path" />
+		<DmsBuilderValueFold v-show="shows('content')" :path="path" />
 
 		<DmsBuilderFoldCard
+			v-show="shows('content')"
 			v-if="has('showRank')"
 			icon="i-ph-list-numbers-light"
 			title="Ranking"
@@ -106,6 +120,6 @@ function setHighlighted(count: number | null | undefined): void {
 			</div>
 		</DmsBuilderFoldCard>
 
-		<DmsBuilderTrendFold :path="path" />
+		<DmsBuilderTrendFold v-show="shows('content')" :path="path" />
 	</div>
 </template>

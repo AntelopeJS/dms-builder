@@ -190,6 +190,20 @@ function ensureOptionsObject(target: BlockTarget): ObjectLiteralExpression {
   return target.factoryCall.getArguments()[index] as ObjectLiteralExpression;
 }
 
+/**
+ * A patch of a page's or a category's own options, as the wire carries it.
+ *
+ * JSON has no `undefined`: an option the editor clears — a page's permission,
+ * its position — arrives as `null`, which no option of a page means. It is
+ * read as what the editor meant, an option to take out of the file, rather
+ * than written as a `null` the page's types refuse.
+ */
+export function optionsPatch(patch: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => [key, value === null ? undefined : value]),
+  );
+}
+
 export function applyPatch(
   obj: ObjectLiteralExpression,
   patch: Record<string, unknown>,

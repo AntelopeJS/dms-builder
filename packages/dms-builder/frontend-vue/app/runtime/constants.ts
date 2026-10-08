@@ -48,6 +48,11 @@ export const SUGGESTED_ICONS = [
 	'i-ph-gear',
 ] as const
 export const HISTORY_LIMIT = 50
+/**
+ * How close together the edits of one thing — the selects of one data source,
+ * picked one after the other — have to come to count as one step of undo.
+ */
+export const UNDO_GROUP_MS = 1500
 export const TOAST_MS = 2600
 
 export const OPTION_GROUPS = [

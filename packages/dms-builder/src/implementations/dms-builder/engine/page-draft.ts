@@ -20,6 +20,7 @@ import { applyImportRef, blockCallText, childArgText } from "./emit";
 import { getExtendsCall, stringLiteralValue } from "./literals";
 import {
   applyPatch,
+  optionsPatch,
   checkVersion,
   commit,
   invalidConfig,
@@ -313,7 +314,7 @@ function applyPageMeta(
       "page options are not a plain object literal",
     );
   }
-  applyPatch(optionsArg, scalar, false, ctx);
+  applyPatch(optionsArg, optionsPatch(scalar), false, ctx);
   return undefined;
 }
 

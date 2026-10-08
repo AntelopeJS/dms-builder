@@ -24,7 +24,16 @@ import type { OptionSchema } from '../runtime/types'
  * and its look fold away behind a line each. Routes and scopes are the advanced
  * view's.
  */
-const props = defineProps<{ path: string }>()
+const props = defineProps<{
+	path: string
+	/** The inspector's tab on show; every section when the panel stands alone. */
+	tab?: string
+}>()
+
+/** Whether a section belongs to the tab on show. */
+function shows(tab: string): boolean {
+	return !props.tab || props.tab === tab
+}
 
 const builder = useBuilder()
 const session = builder.session
@@ -198,7 +207,7 @@ const showingMore = ref(false)
 <template>
 	<div class="flex flex-col gap-3">
 		<DmsBuilderFoldCard
-			v-if="has('fetchUrl') && block"
+			v-if="has('fetchUrl') && block" v-show="shows('data')"
 			icon="i-ph-table-light"
 			title="Data"
 			:summary="dataSummary"
@@ -215,9 +224,13 @@ const showingMore = ref(false)
 			/>
 		</DmsBuilderFoldCard>
 
-		<DmsBuilderOnThePage :path="path" />
+		<DmsBuilderOnThePage v-show="shows('content')" :path="path" />
 
-		<section v-if="chartTypes.length" :class="PANEL_CARD" aria-label="Chart">
+		<section
+			v-if="chartTypes.length" v-show="shows('content')"
+			:class="PANEL_CARD"
+			aria-label="Chart"
+		>
 			<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
 				<UIcon name="i-ph-chart-line-light" class="size-4 text-primary" />
 				Chart
@@ -254,7 +267,7 @@ const showingMore = ref(false)
 
 		<div class="flex flex-col gap-3">
 			<DmsBuilderFoldCard
-				v-if="has('valueFormat') || has('showDelta')"
+				v-if="has('valueFormat') || has('showDelta')" v-show="shows('content')"
 				icon="i-ph-trend-up-light"
 				title="Headline"
 				:summary="headlineSummary"
@@ -347,6 +360,7 @@ const showingMore = ref(false)
 			</DmsBuilderFoldCard>
 
 			<DmsBuilderFoldCard
+				v-show="shows('style')"
 				icon="i-ph-sliders-horizontal-light"
 				title="Look"
 				:summary="lookSummary"

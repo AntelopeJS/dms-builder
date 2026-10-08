@@ -419,7 +419,6 @@ async function apply(): Promise<void> {
 		return
 	}
 	const input = queryInput()
-	builder.setDraftQuery(input)
 	const patch: Record<string, unknown> = { [PROP]: endpoint.value }
 	if (props.periodOption) {
 		// Binding a period means two options: the source, and the scope the block
@@ -427,7 +426,12 @@ async function apply(): Promise<void> {
 		// nobody sends.
 		patch[props.periodOption] = followPeriod.value ? PAGE_PERIOD_SCOPE : undefined
 	}
-	emit('patch', patch)
+	// The source and the block's pointer to it, and every choice picked on the
+	// way to a source that reads right, are one step to undo.
+	builder.grouped(`source:${input.name}`, () => {
+		builder.setDraftQuery(input)
+		emit('patch', patch)
+	})
 	await readPreview()
 }
 
@@ -714,7 +718,7 @@ watch(
 				class="divide-y divide-default overflow-hidden rounded-lg border border-default"
 			>
 				<div class="flex items-center gap-2 px-2.5 py-1.5">
-					<span class="w-18 shrink-0 text-xs text-muted">Measure</span>
+					<span class="w-18 shrink-0 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-dimmed uppercase">Measure</span>
 					<USelectMenu
 						v-model="measure"
 						:items="MEASURES"
@@ -734,7 +738,7 @@ watch(
 					/>
 				</div>
 				<div v-if="wantsSeries" class="flex items-center gap-2 px-2.5 py-1.5">
-					<span class="w-18 shrink-0 text-xs text-muted">Split by</span>
+					<span class="w-18 shrink-0 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-dimmed uppercase">Split by</span>
 					<USelectMenu
 						:model-value="groupBy"
 						:items="groupableFields"
@@ -778,7 +782,7 @@ watch(
 						v-if="entry.kind === 'sort'"
 						class="flex items-center gap-2 px-2.5 py-1.5"
 					>
-						<span class="w-18 shrink-0 text-xs text-muted">Sorted</span>
+						<span class="w-18 shrink-0 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-dimmed uppercase">Sorted</span>
 						<USelectMenu
 							:model-value="`${orderBy}:${direction}`"
 							:items="sortItems"
@@ -793,7 +797,7 @@ watch(
 						v-else-if="entry.kind === 'top'"
 						class="flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted"
 					>
-						<span class="w-18 shrink-0">Keep</span>
+						<span class="w-18 shrink-0 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-dimmed uppercase">Keep</span>
 						<span>the first</span>
 						<UInput
 							type="number"
@@ -818,7 +822,7 @@ watch(
 							:key="at"
 							class="flex items-center gap-1.5"
 						>
-							<span class="w-18 shrink-0 text-xs text-muted">
+							<span class="w-18 shrink-0 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-dimmed uppercase">
 								{{ at ? 'and' : 'Where' }}
 							</span>
 							<USelectMenu
@@ -864,7 +868,7 @@ watch(
 						v-else-if="entry.kind === 'period'"
 						class="flex items-baseline gap-2 px-2.5 py-2"
 					>
-						<span class="w-18 shrink-0 text-xs text-muted">Period</span>
+						<span class="w-18 shrink-0 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-dimmed uppercase">Period</span>
 						<div class="flex min-w-0 flex-1 flex-col gap-2">
 							<div class="flex items-center gap-2">
 								<span class="text-sm text-default">The page's period</span>

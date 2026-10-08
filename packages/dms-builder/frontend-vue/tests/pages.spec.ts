@@ -486,16 +486,19 @@ describe("a page's settings", () => {
 		expect(builder.session.value.leftTab).toBe('pages')
 	})
 
-	it('move the page down the menu at once', async () => {
+	it('move the page in the menu with the rest of the draft, not at once', async () => {
 		const root = await settings()
 
 		write(findAll(root, (node) => node.tag === 'UInputNumber')[0]!, 1)
 		await settle()
 
-		expect(sent('POST', '/api/builder/page/configure')).toEqual({
-			page: '/reports/sales',
-			patch: { order: 1 },
-		})
+		expect(sent('POST', '/api/builder/page/configure'), 'nothing written yet').toBe(
+			undefined,
+		)
+		expect(builder.session.value.draft?.page).toEqual({ order: 1 })
+		expect(builder.unsaved.value.map((change) => change.title)).toEqual([
+			'Page · Position in the menu',
+		])
 	})
 
 	it('ask before moving the page, naming its new address', async () => {
@@ -525,7 +528,7 @@ describe("a page's settings", () => {
 		})
 	})
 
-	it('write the permission once it is changed', async () => {
+	it('stage the permission with the rest, and clear it as an option to take out', async () => {
 		const root = await settings()
 		const permission = findAll(
 			root,
@@ -533,12 +536,16 @@ describe("a page's settings", () => {
 		)[0]!
 
 		write(permission, 'shop.orders')
-		fire(permission, 'change')
 		await settle()
-
-		expect(sent('POST', '/api/builder/page/configure')).toEqual({
-			page: '/reports/sales',
-			patch: { permission: { id: 'shop.orders', title: 'Sales' } },
+		expect(sent('POST', '/api/builder/page/configure')).toBe(undefined)
+		expect(builder.session.value.draft?.page).toEqual({
+			permission: { id: 'shop.orders', title: 'Sales' },
 		})
+
+		// The wire has no undefined: an emptied field says null, which the
+		// module reads as taking the permission out.
+		write(permission, '')
+		await settle()
+		expect(builder.session.value.draft?.page).toEqual({ permission: null })
 	})
 })
