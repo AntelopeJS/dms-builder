@@ -87,12 +87,29 @@ watch(
 // The list counts each table's fields from its structure: the summary's count
 // takes the row id in, and is not refreshed when a field is added.
 watch(
-	() => (table.value ? [] : session.value.resources.map((entry) => entry.ref)),
+	() => session.value.resources.map((entry) => entry.ref),
 	(refs) => {
 		for (const ref_ of refs) void builder.loadResource(ref_)
 	},
 	{ immediate: true },
 )
+
+/** What the open table is, under its name: where it answers, who reads it. */
+const headline = computed(() => {
+	const read = structure.value
+	const ref_ = table.value?.ref
+	if (!read || !ref_) {
+		return ''
+	}
+	const readersHere = readBy(ref_)
+	return [
+		`${plural(read.fields.length, 'field')}`,
+		`served at ${read.route}`,
+		readersHere ? `read by ${plural(readersHere, 'block')} on this page` : '',
+	]
+		.filter(Boolean)
+		.join(' · ')
+})
 
 function readBy(ref_: string): number {
 	return readers.value[ref_] ?? 0
@@ -159,157 +176,229 @@ async function addField(spec: FieldSpec): Promise<void> {
 </script>
 
 <template>
-	<!-- A field being added: a step of its own, back returns to the grid. -->
-	<DmsBuilderFieldForm
-		v-if="table?.adding"
-		:resource="table.ref"
-		:busy="addingField"
-		@cancel="setAdding(false)"
-		@submit="addField"
-	/>
-
-	<div v-else-if="table" class="flex flex-col gap-4">
-		<div class="flex flex-wrap gap-2">
-			<UBadge
-				color="neutral"
-				variant="outline"
-				icon="i-ph-lightning-light"
-				label="Saved as you edit — no Save needed"
-			/>
-			<UBadge
-				v-if="readBy(table.ref)"
-				color="neutral"
-				variant="outline"
-				icon="i-ph-squares-four-light"
-				:label="`Read by ${plural(readBy(table.ref), 'block')} on this page`"
-			/>
-		</div>
-
-		<UTabs
-			:items="tabs"
-			:model-value="table.tab"
-			:content="false"
-			variant="link"
-			@update:model-value="setTab"
-		/>
-
-		<p v-if="unreadable" class="text-sm text-muted">
-			This table could not be read. It may have been removed from the code.
-		</p>
-		<p
-			v-else-if="!structure"
-			class="flex items-center gap-2 text-sm text-muted"
+	<!-- The tables in a list that stays, the open one beside it: going from one
+	table to another is one click, not back and forth. -->
+	<div class="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
+		<aside
+			class="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-default bg-(--dms-bg-sidebar) p-3"
+			aria-label="Tables"
 		>
-			<UIcon name="i-ph-circle-notch-light" class="size-4 animate-spin" />
-			Reading the table…
-		</p>
-		<DmsBuilderFieldGrid
-			v-else-if="table.tab === 'fields'"
-			:resource="table.ref"
-			@add="setAdding(true)"
-		/>
-		<DmsBuilderTableApi v-else-if="table.tab === 'api'" :resource="table.ref" />
-		<DmsBuilderTableSettings
-			v-else
-			:resource="table.ref"
-			:read-by="readBy(table.ref)"
-		/>
-	</div>
-
-	<div v-else class="flex flex-col gap-3.5">
-		<div v-if="session.resources.length" class="flex items-center gap-2">
-			<UInput
-				v-model="query"
-				icon="i-ph-magnifying-glass-light"
-				placeholder="Find a table"
-				aria-label="Find a table"
-				class="flex-1"
-			/>
-			<UButton
-				icon="i-ph-plus-light"
-				label="New table"
-				:variant="composerOpen ? 'soft' : 'solid'"
-				@click="composerOpen ? cancelComposing() : (composing = true)"
-			/>
-		</div>
-
-		<div
-			v-if="composerOpen"
-			class="flex flex-col gap-3.5 rounded-lg border border-accented bg-elevated p-3.5"
-		>
-			<p class="text-sm font-semibold text-highlighted">New table</p>
-			<UFormField
-				label="Name"
-				help="Names the table and its API. It can't be renamed afterwards."
-			>
+			<div class="flex items-center gap-2">
 				<UInput
-					v-model="newName"
-					placeholder="Product"
-					autofocus
-					class="w-full"
-					@keydown.enter="create"
-				/>
-			</UFormField>
-			<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
-				<span>Starts with</span>
-				<UBadge color="neutral" variant="subtle" icon="i-ph-text-t-light">
-					Title
-					<span v-if="advanced" class="font-mono text-muted">title</span>
-				</UBadge>
-				<span>— add the rest once it exists.</span>
-			</div>
-			<div class="flex gap-2">
-				<UButton
-					label="Create table"
-					:disabled="!newName.trim()"
-					@click="create"
+					v-model="query"
+					icon="i-ph-magnifying-glass-light"
+					placeholder="Find a table"
+					aria-label="Find a table"
+					size="sm"
+					class="min-w-0 flex-1"
 				/>
 				<UButton
-					v-if="session.resources.length"
-					label="Cancel"
-					color="neutral"
-					variant="ghost"
-					@click="cancelComposing"
+					icon="i-ph-plus-light"
+					label="Table"
+					size="sm"
+					:variant="composerOpen ? 'soft' : 'solid'"
+					aria-label="New table"
+					@click="composerOpen ? cancelComposing() : (composing = true)"
 				/>
 			</div>
-		</div>
 
-		<template v-if="session.resources.length">
-			<p class="pt-1 text-xs font-medium text-muted">
-				{{ plural(session.resources.length, 'table') }}
-			</p>
-			<div class="overflow-hidden rounded-lg border border-default">
-				<UButton
-					v-for="entry in listed"
-					:key="entry.ref"
-					color="neutral"
-					variant="ghost"
-					block
-					trailing-icon="i-ph-caret-right-light"
-					class="justify-start gap-3 rounded-none border-t border-default px-3 py-2.5 text-left font-normal first:border-t-0"
-					@click="open(entry.ref)"
+			<div
+				v-if="composerOpen"
+				class="flex flex-col gap-3 rounded-lg border border-accented bg-default p-3"
+			>
+				<p class="text-sm font-semibold text-highlighted">New table</p>
+				<UFormField
+					label="Name"
+					help="Names the table and its API. It can't be renamed afterwards."
 				>
-					<span
-						class="flex size-8 shrink-0 items-center justify-center rounded-md border border-default bg-accented text-muted"
+					<UInput
+						v-model="newName"
+						placeholder="Product"
+						autofocus
+						class="w-full"
+						@keydown.enter="create"
+					/>
+				</UFormField>
+				<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
+					<span>Starts with</span>
+					<UBadge color="neutral" variant="subtle" icon="i-ph-text-t-light">
+						Title
+						<span v-if="advanced" class="font-mono text-muted">title</span>
+					</UBadge>
+					<span>— add the rest once it exists.</span>
+				</div>
+				<div class="flex gap-2">
+					<UButton
+						label="Create table"
+						:disabled="!newName.trim()"
+						@click="create"
+					/>
+					<UButton
+						v-if="session.resources.length"
+						label="Cancel"
+						color="neutral"
+						variant="ghost"
+						@click="cancelComposing"
+					/>
+				</div>
+			</div>
+
+			<template v-if="session.resources.length">
+				<DmsEyebrow class="px-1">{{ plural(session.resources.length, 'table') }}</DmsEyebrow>
+				<div class="flex flex-col gap-0.5">
+					<UButton
+						v-for="entry in listed"
+						:key="entry.ref"
+						color="neutral"
+						variant="ghost"
+						block
+						class="justify-start gap-2.5 px-2 py-2 text-left font-normal"
+						:class="table?.ref === entry.ref ? 'bg-primary/10' : ''"
+						:aria-current="table?.ref === entry.ref ? 'true' : undefined"
+						@click="open(entry.ref)"
 					>
-						<UIcon name="i-ph-database-light" class="size-4" />
-					</span>
-					<span class="flex min-w-0 flex-1 flex-col gap-0.5">
-						<span class="truncate text-sm font-medium text-default">
-							{{ entry.ref }}
+						<span
+							class="flex size-7.5 shrink-0 items-center justify-center rounded-md border border-default bg-default text-toned"
+						>
+							<UIcon name="i-ph-database-light" class="size-4" />
 						</span>
-						<span class="truncate text-xs text-muted">
-							{{ describe(entry) }}
+						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+							<span
+								class="truncate text-[13px] font-semibold"
+								:class="table?.ref === entry.ref ? 'text-primary' : 'text-highlighted'"
+							>
+								{{ entry.ref }}
+							</span>
+							<span class="truncate font-mono text-[11px] text-muted">
+								{{ describe(entry) }}
+							</span>
 						</span>
+					</UButton>
+					<p v-if="!listed.length" class="px-2 py-2 text-xs text-muted">
+						No table matches “{{ query.trim() }}”.
+					</p>
+				</div>
+			</template>
+			<p v-else-if="!composerOpen" class="text-xs text-muted">
+				No table yet — name the first one above.
+			</p>
+		</aside>
+
+		<section class="flex min-h-0 min-w-0 flex-col overflow-y-auto">
+			<!-- A field being added: a step of its own, back returns to the grid. -->
+			<div v-if="table?.adding" class="mx-auto w-full max-w-3xl p-6">
+				<DmsBuilderFieldForm
+					:resource="table.ref"
+					:busy="addingField"
+					@cancel="setAdding(false)"
+					@submit="addField"
+				/>
+			</div>
+
+			<div v-else-if="table" class="flex flex-col">
+				<header class="flex items-start gap-3 px-6 pt-5 pb-3">
+					<span
+						class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-(--dms-accent-tint) text-primary ring-1 ring-(--dms-accent-line) ring-inset"
+					>
+						<UIcon name="i-ph-database-light" class="size-[19px]" />
 					</span>
-				</UButton>
-				<p v-if="!listed.length" class="px-3 py-3 text-xs text-muted">
-					No table matches “{{ query.trim() }}”.
+					<div class="min-w-0 flex-1">
+						<p class="flex items-center gap-2">
+							<b class="truncate text-xl font-semibold tracking-tight text-highlighted">
+								{{ table.ref }}
+							</b>
+							<span
+								v-if="structure"
+								class="rounded-md border border-default px-1.5 font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase"
+							>
+								{{ structure.tableName }}
+							</span>
+						</p>
+						<p class="truncate font-mono text-xs text-muted">
+							{{ headline }}
+						</p>
+					</div>
+					<UButton
+						icon="i-ph-plus-light"
+						label="Add field"
+						size="sm"
+						:disabled="!structure"
+						@click="setTab('fields'); setAdding(true)"
+					/>
+				</header>
+
+				<div class="px-6">
+					<UTabs
+						:items="tabs"
+						:model-value="table.tab"
+						:content="false"
+						variant="link"
+						@update:model-value="setTab"
+					/>
+				</div>
+
+				<div class="flex flex-col gap-4 px-6 py-5">
+					<div
+						class="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-toned"
+					>
+						<UIcon name="i-ph-lightning-light" class="mt-px size-4 shrink-0 text-warning" />
+						<span>
+							<b class="font-semibold text-highlighted">Written at once.</b>
+							A change here goes straight to the project, for every page reading
+							{{ table.ref }}; Save and Discard leave it as it is. The change list
+							keeps a note of it.
+						</span>
+					</div>
+
+					<p v-if="unreadable" class="text-sm text-muted">
+						This table could not be read. It may have been removed from the code.
+					</p>
+					<div v-else-if="!structure" class="flex flex-col gap-2" aria-busy="true">
+						<USkeleton v-for="line in 4" :key="line" class="h-11 w-full" />
+						<span class="sr-only">Reading the table…</span>
+					</div>
+					<DmsBuilderFieldGrid
+						v-else-if="table.tab === 'fields'"
+						:resource="table.ref"
+						@add="setAdding(true)"
+					/>
+					<DmsBuilderTableApi v-else-if="table.tab === 'api'" :resource="table.ref" />
+					<DmsBuilderTableSettings
+						v-else
+						:resource="table.ref"
+						:read-by="readBy(table.ref)"
+					/>
+				</div>
+			</div>
+
+			<div
+				v-else-if="session.resources.length"
+				class="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center"
+			>
+				<span
+					class="grid size-10 place-items-center rounded-lg bg-elevated text-muted ring-1 ring-default ring-inset"
+				>
+					<UIcon name="i-ph-database-light" class="size-5" />
+				</span>
+				<p class="text-sm font-semibold text-highlighted">Pick a table</p>
+				<p class="max-w-sm text-xs text-muted">
+					Its fields, its API and its settings open here. A table stores rows
+					— orders, customers — and gives them an API the blocks read.
 				</p>
 			</div>
-		</template>
-		<p v-else class="text-xs text-muted">
-			No table yet — name the first one above.
-		</p>
+
+			<div v-else class="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
+				<span
+					class="grid size-10 place-items-center rounded-lg bg-elevated text-muted ring-1 ring-default ring-inset"
+				>
+					<UIcon name="i-ph-database-light" class="size-5" />
+				</span>
+				<p class="text-sm font-semibold text-highlighted">No table yet</p>
+				<p class="max-w-sm text-xs text-muted">
+					A table stores rows — orders, customers — and gives them an API the
+					blocks read. Name the first one in the list.
+				</p>
+			</div>
+		</section>
 	</div>
 </template>

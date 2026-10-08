@@ -10,7 +10,14 @@ import type { FieldFlag, ResourceFieldStructure } from '../runtime/types'
  * The aspects worth seeing for every field at once, one column each. The rest
  * of a field — its label, type and form rules — is a click away, under it.
  */
-const COLUMNS = fieldFlags('listable', 'searchable', 'sortable', 'filterable', 'required')
+const COLUMNS = fieldFlags(
+	'listable',
+	'searchable',
+	'sortable',
+	'filterable',
+	'exported',
+	'required',
+)
 
 const props = defineProps<{ resource: string }>()
 const emit = defineEmits<{ add: [] }>()

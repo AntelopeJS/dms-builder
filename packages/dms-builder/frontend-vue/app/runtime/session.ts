@@ -1810,7 +1810,8 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		try {
-			session.value.queryTemplates = await api.queryTemplates()
+			const templates = await api.queryTemplates()
+			session.value.queryTemplates = Array.isArray(templates) ? templates : []
 		} catch (error) {
 			unread('The query templates', error)
 		}
