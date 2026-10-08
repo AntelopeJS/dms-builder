@@ -410,12 +410,14 @@ describe("a page's settings", () => {
 		return root
 	}
 
-	it('are left for the pages they are listed among', async () => {
+	it('close back to the selection, the menu still beside them', async () => {
 		await settings()
+		builder.setView('pages')
 
 		builder.back()
 
-		expect(builder.session.value.view).toBe('pages')
+		expect(builder.session.value.inspector).toBe('block')
+		expect(builder.session.value.leftTab).toBe('pages')
 	})
 
 	it('move the page down the menu at once', async () => {

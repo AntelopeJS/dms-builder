@@ -31,8 +31,10 @@ import {
 	type DropWrap,
 	type PointerBox,
 } from './dropping'
+import { draftChanges, revertChange, type DraftChange } from './changes'
 import { formTableOf } from './form-table'
 import { deriveKeys } from './keys'
+import { blockTitle } from './naming'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
@@ -82,16 +84,67 @@ import type {
 	ValidationIssue,
 } from './types'
 
+/**
+ * A place in the editor, as the controls that lead to one name it: a tab of the
+ * side rail, what the inspector shows, or a workspace of the bar.
+ */
 export type RailView =
 	| 'pages'
 	| 'library'
+	| 'layers'
 	| 'config'
 	| 'page'
 	| 'json'
+	| 'changes'
 	| 'resource'
 	| 'query'
 
+/**
+ * What the editor is working on, picked in the bar: the page, or one of the two
+ * kinds of thing every page draws on — the tables and the data sources — which
+ * get the whole width rather than a rail squeezed beside the page.
+ */
+export type Workspace = 'page' | 'tables' | 'data'
+
+/** The tabs of the side rail, which stay whatever is selected. */
+export type LeftTab = 'add' | 'layers' | 'pages'
+
+/** What the inspector beside the page is showing. */
+export type InspectorView = 'block' | 'page' | 'json' | 'changes'
+
+/** The layouts an empty page can start from. */
+export type PageLayout = 'dashboard' | 'list' | 'form'
+
+/** What each layout lays down, row by row; a row of several sits side by side. */
+const PAGE_LAYOUTS: Record<PageLayout, string[][]> = {
+	dashboard: [
+		['PeriodSelector'],
+		['KpiCard', 'KpiCard', 'KpiCard'],
+		['ChartCard', 'TopListCard'],
+	],
+	list: [['TableView']],
+	form: [['Form']],
+}
+
+const LEFT_TABS: Record<'library' | 'layers' | 'pages', LeftTab> = {
+	library: 'add',
+	layers: 'layers',
+	pages: 'pages',
+}
+
+const INSPECTOR_VIEWS: Record<'config' | 'page' | 'json' | 'changes', InspectorView> =
+	{ config: 'block', page: 'page', json: 'json', changes: 'changes' }
+
 export type TableTab = 'fields' | 'api' | 'settings'
+
+/** A write that went straight to the project, as the change list shows it. */
+export interface AppliedChange {
+	id: number
+	title: string
+	/** What else it reaches: a table, the menu. */
+	scope?: string
+	at: number
+}
 
 /** Where the Tables view stands inside a table: which tab, or a field being added. */
 export interface TableFocus {
@@ -125,10 +178,11 @@ export interface BuilderSession {
 	history: PageDraft[]
 	future: PageDraft[]
 	selection: string | null
-	view: RailView
+	workspace: Workspace
+	leftTab: LeftTab
+	inspector: InspectorView
 	/** The table the Tables view has open; null is the list of every table. */
 	table: TableFocus | null
-	railOpen: boolean
 	preview: Record<string, ComponentPreview>
 	/** The page as the DMS serves it, for blocks the preview cannot build. */
 	served: Record<string, ComponentPreview>
@@ -161,8 +215,21 @@ export interface BuilderSession {
 	/** Keys of the write-through operations in flight, e.g. `product#price`. */
 	pending: string[]
 	toast: string | null
+	/** Whether the toast offers to undo what it reports. */
+	toastUndo: boolean
 	/** What the module warned about on writes that went through, until dismissed. */
 	warnings: OpWarning[]
+	/**
+	 * The writes made straight to the project's files since the editor opened:
+	 * a table's fields, its API, the menu, a data source. They are not part of
+	 * the draft — Discard does not take them back — and the change list says so
+	 * rather than leaving them out.
+	 */
+	applied: AppliedChange[]
+	/** When the draft last went from saved to holding changes; null while saved. */
+	dirtySince: number | null
+	/** How the last save went, until the draft is edited again. */
+	lastSave: { outcome: 'saved' | 'failed'; at: number } | null
 	dragging: DragPayload | null
 	/**
 	 * Where the drag would land, as the pointer's last position resolved it.
@@ -200,9 +267,10 @@ function emptySession(): BuilderSession {
 		history: [],
 		future: [],
 		selection: null,
-		view: 'library',
+		workspace: 'page',
+		leftTab: 'add',
+		inspector: 'block',
 		table: null,
-		railOpen: true,
 		preview: {},
 		served: {},
 		degraded: [],
@@ -218,7 +286,11 @@ function emptySession(): BuilderSession {
 		menu: null,
 		pending: [],
 		toast: null,
+		toastUndo: false,
 		warnings: [],
+		applied: [],
+		dirtySince: null,
+		lastSave: null,
 		dragging: null,
 		dropTarget: null,
 		hovered: null,
@@ -248,6 +320,7 @@ export interface BuilderController {
 	followRoute: (path: string) => void
 	resolvePending: (keep: boolean) => Promise<void>
 	select: (path: string | null, view?: RailView) => void
+	setWorkspace: (workspace: Workspace) => void
 	back: () => void
 	openRegion: (path: string, slot: string) => void
 	openMenu: (path: string, x: number, y: number) => void
@@ -297,7 +370,15 @@ export interface BuilderController {
 	redo: () => void
 	cancel: () => void
 	save: () => Promise<void>
-	notify: (message: string) => void
+	notify: (message: string, options?: { undo?: boolean }) => void
+	/** Every unsaved change of the draft, as the change list shows it. */
+	unsaved: ComputedRef<DraftChange[]>
+	/** Put one change back, as one edit. */
+	revert: (change: DraftChange) => void
+	/** Answer the move to another page with "stay": the page to go back to. */
+	stayOnPage: () => string | null
+	/** Lay a starting layout on the page, as one edit. */
+	applyLayout: (layout: PageLayout) => void
 	loadResourceFields: (ref: string) => Promise<void>
 	loadResource: (ref: string, force?: boolean) => Promise<void>
 	loadQueryTemplates: () => Promise<void>
@@ -434,12 +515,51 @@ export function useBuilder(): BuilderController {
 		return null
 	})
 
-	function notify(message: string): void {
+	/**
+	 * Say what just happened, where the author is looking. `undo` offers to take
+	 * it back from the toast itself, for a change that is one edit of the draft.
+	 */
+	function notify(message: string, options: { undo?: boolean } = {}): void {
 		session.value.toast = message
+		session.value.toastUndo = options.undo === true
 		clearTimeout(toastTimer)
-		toastTimer = setTimeout(() => {
-			session.value.toast = null
-		}, TOAST_MS)
+		toastTimer = setTimeout(
+			() => {
+				session.value.toast = null
+				session.value.toastUndo = false
+			},
+			// An offer to undo stays long enough to be taken up.
+			options.undo ? TOAST_MS * 2 : TOAST_MS,
+		)
+	}
+
+	/**
+	 * Every unsaved change of the draft, in the terms of the page: what the
+	 * bar counts, and the list it opens.
+	 */
+	const unsaved = computed(() =>
+		draftChanges(
+			session.value.baseline,
+			session.value.draft,
+			session.value.catalog,
+			(session.value.structure?.page ?? {}) as Record<string, unknown>,
+			servedQueries(),
+		),
+	)
+
+	/** Keep track of when the draft started to differ from the page. */
+	function noteDirty(): void {
+		if (!dirty.value) {
+			session.value.dirtySince = null
+			return
+		}
+		session.value.dirtySince ??= Date.now()
+	}
+
+	/** Put one change of the list back, as one edit the author can undo. */
+	function revert(change: DraftChange): void {
+		mutate((draft) => revertChange(draft, change.revert, servedQueries()))
+		reselect()
 	}
 
 	async function refreshPreview(): Promise<void> {
@@ -521,6 +641,7 @@ export function useBuilder(): BuilderController {
 		session.value.baseline = cloneDraft(draft)
 		session.value.history = []
 		session.value.future = []
+		session.value.dirtySince = null
 		session.value.conflict = false
 		session.value.error = null
 		session.value.previewState = 'pending'
@@ -652,6 +773,16 @@ export function useBuilder(): BuilderController {
 		void open(path)
 	}
 
+	/**
+	 * Answer the pending move with "stay": nothing is saved or dropped, and the
+	 * router is taken back to the page being edited — it had already moved
+	 * on behind the editor. Answers that page, for the caller to navigate to.
+	 */
+	function stayOnPage(): string | null {
+		session.value.pendingRoute = null
+		return session.value.pageRef
+	}
+
 	/** Answer the pending move: `keep` saves the draft first, else it is dropped. */
 	async function resolvePending(keep: boolean): Promise<void> {
 		const target = session.value.pendingRoute
@@ -718,6 +849,8 @@ export function useBuilder(): BuilderController {
 		fitSpacerColumns(next)
 		pushHistory()
 		session.value.draft = next
+		session.value.lastSave = null
+		noteDirty()
 		refollow(next, followed)
 		schedulePreview()
 		return true
@@ -759,22 +892,54 @@ export function useBuilder(): BuilderController {
 		session.value.openRegions = regions
 	}
 
+	/**
+	 * Select a block, or nothing. A block is configured in the inspector; with
+	 * nothing selected the inspector says so, unless it was showing something
+	 * other than a block — the page's settings stay open over a click on the
+	 * canvas around the blocks.
+	 */
 	function select(path: string | null, view: RailView = 'config'): void {
 		session.value.selection = path
-		session.value.view = path ? view : 'library'
-		session.value.railOpen = true
+		if (path) {
+			setView(view)
+		}
 	}
 
+	/** Open a place of the editor, keeping whatever the others show. */
 	function setView(view: RailView): void {
-		if (view === 'resource') {
-			// Reached from a block that reads a table, the tables open on that
-			// one; from anywhere else, on the list of them.
-			const ref = selected.value?.controller
-			session.value.table = ref ? { ref, tab: 'fields', adding: false } : null
-		}
-		session.value.view = view
-		session.value.railOpen = true
 		session.value.menu = null
+		switch (view) {
+			case 'resource': {
+				// Reached from a block that reads a table, the tables open on that
+				// one; from anywhere else, on the list of them.
+				const ref = selected.value?.controller
+				session.value.table = ref ? { ref, tab: 'fields', adding: false } : null
+				session.value.workspace = 'tables'
+				return
+			}
+			case 'query':
+				session.value.workspace = 'data'
+				return
+			case 'library':
+			case 'layers':
+			case 'pages':
+				session.value.workspace = 'page'
+				session.value.leftTab = LEFT_TABS[view]
+				return
+			default:
+				session.value.workspace = 'page'
+				session.value.inspector = INSPECTOR_VIEWS[view]
+		}
+	}
+
+	/** Switch the bar's workspace, the page's own state left as it was. */
+	function setWorkspace(workspace: Workspace): void {
+		session.value.menu = null
+		if (workspace === 'tables' && session.value.workspace !== 'tables') {
+			setView('resource')
+			return
+		}
+		session.value.workspace = workspace
 	}
 
 	function openTable(ref: string): void {
@@ -782,33 +947,22 @@ export function useBuilder(): BuilderController {
 		session.value.table = { ref, tab: 'fields', adding: false }
 	}
 
-	// The rail is reached through what you are doing, not through a tab strip:
-	// these views are opened from somewhere and hand control back to it.
-	const SUB_VIEWS = new Set<RailView>([
-		'resource',
-		'query',
-		'json',
-		'pages',
-		'page',
-	])
-
+	/**
+	 * Climb one step back: inside the tables, out of the field being added, then
+	 * out of the table, then back to the page; on the page, from whatever the
+	 * inspector was showing back to the selection.
+	 */
 	function back(): void {
-		if (!SUB_VIEWS.has(session.value.view)) {
-			return
-		}
-		// Inside the tables, back climbs one step: out of the field being
-		// added, then out of the table, to the list.
 		const table = session.value.table
-		if (session.value.view === 'resource' && table) {
+		if (session.value.workspace === 'tables' && table) {
 			session.value.table = table.adding ? { ...table, adding: false } : null
 			return
 		}
-		// A page's settings sit under the pages they are listed among.
-		if (session.value.view === 'page') {
-			setView('pages')
+		if (session.value.workspace !== 'page') {
+			session.value.workspace = 'page'
 			return
 		}
-		setView(session.value.selection ? 'config' : 'library')
+		session.value.inspector = 'block'
 	}
 
 	/**
@@ -1075,6 +1229,49 @@ export function useBuilder(): BuilderController {
 	}
 
 	/**
+	 * Lay a starting layout on the page, as one edit: rows of blocks, a row of
+	 * several placed side by side the way a drop beside a block places them.
+	 * Types the project's DMS does not declare are left out.
+	 */
+	function applyLayout(layout: PageLayout): void {
+		const catalog = session.value.catalog
+		const rows = PAGE_LAYOUTS[layout]
+			.map((row) => row.filter((type) => descriptorOf(catalog, type)))
+			.filter((row) => row.length > 0)
+		if (!rows.length) {
+			return
+		}
+		mutate((draft) => {
+			for (const row of rows) {
+				let first: string | undefined
+				let rowParent: string | null = null
+				for (const [column, type] of row.entries()) {
+					const descriptor = descriptorOf(catalog, type)
+					if (!descriptor) {
+						continue
+					}
+					let placement: Placement = { parent: null, index: null }
+					if (first !== undefined && column === 1) {
+						placement = hostFor(draft, placement, type, {
+							around: first,
+							type: ROW_WRAPPER,
+							index: 1,
+						})
+						rowParent = placement.parent
+					} else if (column > 1) {
+						placement = { parent: rowParent, index: null }
+					}
+					const placed = newBlockDraft(descriptor, rankOf(draft, type))
+					placed.name = nameOnPage(draft, placed.name)
+					const path = insertNode(draft, placement.parent, placement.index, placed)
+					first ??= path
+				}
+			}
+		})
+		notify('Layout added', { undo: true })
+	}
+
+	/**
 	 * A spacer put between stacked blocks is a line high from the start.
 	 *
 	 * Stacked, the room it takes is lines — a page or a tab leaves none free —
@@ -1132,6 +1329,9 @@ export function useBuilder(): BuilderController {
 	}
 
 	function remove(path: string): void {
+		const block = session.value.draft
+			? findNode(session.value.draft, path)
+			: undefined
 		let removed = false
 		mutate((draft) => {
 			removed = removeNode(draft, path)
@@ -1142,7 +1342,12 @@ export function useBuilder(): BuilderController {
 		if (session.value.selection === path) {
 			select(null)
 		}
-		notify('Block removed')
+		// Named, and undone from where it is said: one key took it away, so
+		// one click brings it back.
+		notify(
+			block ? `Removed ${blockTitle(block, session.value.catalog)}` : 'Block removed',
+			{ undo: true },
+		)
 	}
 
 	function duplicate(path: string): void {
@@ -1367,9 +1572,6 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		session.value.selection = null
-		if (session.value.view === 'config') {
-			session.value.view = 'library'
-		}
 	}
 
 	function undo(): void {
@@ -1380,6 +1582,7 @@ export function useBuilder(): BuilderController {
 		session.value.future = [cloneDraft(session.value.draft), ...session.value.future]
 		session.value.history = session.value.history.slice(0, -1)
 		session.value.draft = previous
+		noteDirty()
 		reselect()
 		schedulePreview()
 	}
@@ -1392,6 +1595,7 @@ export function useBuilder(): BuilderController {
 		session.value.history = [...session.value.history, cloneDraft(session.value.draft)]
 		session.value.future = session.value.future.slice(1)
 		session.value.draft = next
+		noteDirty()
 		reselect()
 		schedulePreview()
 	}
@@ -1403,10 +1607,10 @@ export function useBuilder(): BuilderController {
 		pushHistory()
 		session.value.draft = cloneDraft(session.value.baseline)
 		session.value.selection = null
-		session.value.view = 'library'
 		session.value.error = null
+		noteDirty()
 		schedulePreview()
-		notify('Changes discarded')
+		notify('Changes discarded', { undo: true })
 	}
 
 	async function save(): Promise<void> {
@@ -1437,6 +1641,7 @@ export function useBuilder(): BuilderController {
 			if (!result.ok) {
 				session.value.error = result.error
 				session.value.conflict = result.error.code === 'stale'
+				session.value.lastSave = { outcome: 'failed', at: Date.now() }
 				return
 			}
 			session.value.version = result.data.version
@@ -1444,6 +1649,8 @@ export function useBuilder(): BuilderController {
 			session.value.baseline = cloneDraft(draft)
 			session.value.history = []
 			session.value.future = []
+			session.value.lastSave = { outcome: 'saved', at: Date.now() }
+			noteDirty()
 			report(result, 'Page saved')
 		} finally {
 			session.value.saving = false
@@ -1526,10 +1733,20 @@ export function useBuilder(): BuilderController {
 	 * Warnings pile up until dismissed: the next write succeeding says nothing
 	 * about the column the previous one had to store as a string.
 	 */
-	function report(result: OpResult<unknown>, message: string): boolean {
+	function report(
+		result: OpResult<unknown>,
+		message: string,
+		applied?: { title: string; scope?: string },
+	): boolean {
 		if (!result.ok) {
 			session.value.error = result.error
 			return false
+		}
+		if (applied) {
+			session.value.applied = [
+				...session.value.applied,
+				{ id: session.value.applied.length + 1, at: Date.now(), ...applied },
+			]
 		}
 		const known = new Set(session.value.warnings.map((entry) => entry.message))
 		const fresh = (result.warnings ?? []).filter(
@@ -1546,6 +1763,18 @@ export function useBuilder(): BuilderController {
 	 * Resource and query writes touch files the page only references, so they
 	 * are applied straight away rather than staged in the draft.
 	 */
+	/** A page as the menu names it, else by its address. */
+	function pageName(ref: string): string {
+		return session.value.pages.find((page) => page.ref === ref)?.displayName ?? ref
+	}
+
+	/** A category as the menu names it, else by its ref. */
+	function categoryName(ref: string): string {
+		return (
+			session.value.categories.find((entry) => entry.ref === ref)?.displayName ?? ref
+		)
+	}
+
 	/** The pages and categories the builder can create alongside, and navigate to. */
 	async function loadSiteTree(): Promise<void> {
 		try {
@@ -1567,7 +1796,10 @@ export function useBuilder(): BuilderController {
 	 */
 	async function createPage(input: CreatePageInput): Promise<string | undefined> {
 		const result = await api.createPage(input)
-		if (!report(result, `Page ${input.name} created`)) {
+		if (!report(result, `Page ${input.displayName} created`, {
+				title: `Created the page ${input.displayName}`,
+				scope: 'menu',
+			})) {
 			return undefined
 		}
 		await loadSiteTree()
@@ -1576,7 +1808,10 @@ export function useBuilder(): BuilderController {
 
 	async function createCategory(input: CreateCategoryInput): Promise<void> {
 		const result = await api.createCategory(input)
-		if (!report(result, `Category ${input.name} created`)) {
+		if (!report(result, `Category ${input.displayName} created`, {
+				title: `Created the category ${input.displayName}`,
+				scope: 'menu',
+			})) {
 			return
 		}
 		await loadSiteTree()
@@ -1589,7 +1824,10 @@ export function useBuilder(): BuilderController {
 	 */
 	async function deletePage(ref: string): Promise<boolean> {
 		const result = await api.deletePage(ref)
-		if (!report(result, 'Page deleted')) {
+		if (!report(result, 'Page deleted', {
+				title: `Deleted the page ${pageName(ref)}`,
+				scope: 'menu',
+			})) {
 			return false
 		}
 		if (session.value.pageRef === ref) {
@@ -1609,7 +1847,10 @@ export function useBuilder(): BuilderController {
 
 	async function deleteCategory(ref: string): Promise<void> {
 		const result = await api.deleteCategory(ref)
-		if (!report(result, 'Category deleted')) {
+		if (!report(result, 'Category deleted', {
+				title: `Deleted the category ${categoryName(ref)}`,
+				scope: 'menu',
+			})) {
 			return
 		}
 		await loadSiteTree()
@@ -1621,7 +1862,10 @@ export function useBuilder(): BuilderController {
 		fields: FieldSpec[],
 	): Promise<string | undefined> {
 		const result = await api.createResource({ name, fields })
-		if (!report(result, `Resource ${name} created`) || !result.ok) {
+		if (!report(result, `Table ${name} created`, {
+				title: `Created the table ${name}`,
+				scope: 'tables',
+			}) || !result.ok) {
 			return undefined
 		}
 		await loadResources()
@@ -1635,7 +1879,10 @@ export function useBuilder(): BuilderController {
 	/** Delete a resource and every row it holds; answer whether it went. */
 	async function deleteResource(ref: string): Promise<boolean> {
 		const result = await api.deleteResource(ref)
-		if (!report(result, 'Resource deleted')) {
+		if (!report(result, 'Table deleted', {
+				title: `Deleted the table ${ref} and its rows`,
+				scope: 'tables',
+			})) {
 			return false
 		}
 		await loadResources()
@@ -1644,7 +1891,10 @@ export function useBuilder(): BuilderController {
 
 	async function addField(resource: string, field: FieldSpec): Promise<void> {
 		const result = await api.addField(resource, field)
-		if (!report(result, `Field ${field.name} added`)) {
+		if (!report(result, `Field ${field.name} added`, {
+				title: `${resource} · added the field ${field.name}`,
+				scope: resource,
+			})) {
 			return
 		}
 		await loadResource(resource, true)
@@ -1655,7 +1905,10 @@ export function useBuilder(): BuilderController {
 		patch: Record<string, unknown>,
 	): Promise<void> {
 		const result = await api.configureCategory(category, patch)
-		if (!report(result, 'Category updated')) {
+		if (!report(result, 'Category updated', {
+				title: `Changed the category ${categoryName(category)}`,
+				scope: 'menu',
+			})) {
 			return
 		}
 		await loadSiteTree()
@@ -1666,7 +1919,10 @@ export function useBuilder(): BuilderController {
 		patch: Record<string, unknown>,
 	): Promise<void> {
 		const result = await api.configureQuery(query, patch)
-		if (!report(result, 'Query updated')) {
+		if (!report(result, 'Data source updated', {
+				title: `Changed the data source ${queryName(query)}`,
+				scope: 'data',
+			})) {
 			return
 		}
 		await refresh()
@@ -1693,7 +1949,10 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		const result = await api.configurePage(pageRef, patch)
-		if (!report(result, 'Page updated')) {
+		if (!report(result, 'Page updated', {
+				title: 'Changed where the page shows in the menu',
+				scope: 'menu',
+			})) {
 			return
 		}
 		// The pages panel lists the page by its order too.
@@ -1716,7 +1975,10 @@ export function useBuilder(): BuilderController {
 		startPending(pageRef)
 		try {
 			const result = await api.configurePage(pageRef, { category })
-			if (!report(result, 'Page moved') || !result.ok) {
+			if (!report(result, 'Page moved', {
+				title: `Moved the page to ${categoryName(category)}`,
+				scope: 'menu',
+			}) || !result.ok) {
 				return undefined
 			}
 			// An unsaved draft is the same page at its new address, and goes
@@ -1744,7 +2006,10 @@ export function useBuilder(): BuilderController {
 		startPending(resource)
 		try {
 			const result = await api.configureResource(resource, { routes })
-			report(result, 'Resource updated')
+			report(result, 'Table API updated', {
+				title: `${resource} · changed what its API serves`,
+				scope: resource,
+			})
 			await loadResource(resource, true)
 		} finally {
 			endPending(resource)
@@ -1798,7 +2063,10 @@ export function useBuilder(): BuilderController {
 		applyLocally(resource ?? '', field ?? '', patch)
 		try {
 			const result = await api.configureField(path, patch)
-			if (!report(result, 'Field updated')) {
+			if (!report(result, 'Field updated', {
+					title: `${resource} · changed the field ${field}`,
+					scope: resource,
+				})) {
 				// The optimistic value was a guess; the resource says otherwise.
 				await loadResource(resource ?? '', true)
 				return
@@ -1837,7 +2105,10 @@ export function useBuilder(): BuilderController {
 				const result = await api.configureField(`${resource}#${entry.name}`, {
 					order: entry.order,
 				})
-				if (!report(result, 'Columns moved')) {
+				if (!report(result, 'Fields moved', {
+						title: `${resource} · moved the field ${entry.name}`,
+						scope: resource,
+					})) {
 					break
 				}
 			}
@@ -1849,7 +2120,10 @@ export function useBuilder(): BuilderController {
 
 	async function removeField(path: string): Promise<void> {
 		const result = await api.removeField(path)
-		if (!report(result, 'Field removed')) {
+		if (!report(result, 'Field removed', {
+				title: `${path.split('#')[0]} · removed the field ${path.split('#')[1]} and its data`,
+				scope: path.split('#')[0],
+			})) {
 			return
 		}
 		await loadResource(path.split('#')[0] ?? '', true)
@@ -1861,7 +2135,10 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		const result = await api.addQuery(pageRef, input)
-		if (!report(result, `Query ${input.name} added`)) {
+		if (!report(result, `Data source ${input.name} added`, {
+				title: `Added the data source ${input.name}`,
+				scope: 'data',
+			})) {
 			return
 		}
 		await refresh()
@@ -1870,7 +2147,10 @@ export function useBuilder(): BuilderController {
 
 	async function removeQuery(ref: string): Promise<void> {
 		const result = await api.removeQuery(ref)
-		if (!report(result, 'Query removed')) {
+		if (!report(result, 'Data source removed', {
+				title: `Removed the data source ${queryName(ref)}`,
+				scope: 'data',
+			})) {
 			return
 		}
 		await refresh()
@@ -2020,6 +2300,7 @@ export function useBuilder(): BuilderController {
 		stayOpen,
 		select,
 		setView,
+		setWorkspace,
 		openTable,
 		back,
 		openRegion,
@@ -2046,6 +2327,10 @@ export function useBuilder(): BuilderController {
 		cancel,
 		save,
 		notify,
+		unsaved,
+		revert,
+		stayOnPage,
+		applyLayout,
 		loadResourceFields,
 		loadResource,
 		loadQueryTemplates,

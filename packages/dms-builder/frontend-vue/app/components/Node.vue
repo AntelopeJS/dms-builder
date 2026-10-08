@@ -24,6 +24,8 @@ import {
 	withDraftSource,
 } from '../runtime/canvas-options'
 import { sourceQuery } from '../runtime/data-source'
+import { useBuilderMode } from '../runtime/mode'
+import { blockTitle } from '../runtime/naming'
 import { joinPath, useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
@@ -39,6 +41,9 @@ const session = builder.session
 const descriptor = computed(() =>
 	descriptorOf(session.value.catalog, props.block.type),
 )
+const { advanced } = useBuilderMode()
+/** What the page calls the block: its title, never its name in the code. */
+const title = computed(() => blockTitle(props.block, session.value.catalog))
 const selected = computed(() => session.value.selection === props.path)
 const hovered = computed(() => session.value.hovered === props.path)
 const missing = computed(() => missingConfig(descriptor.value, props.block))
@@ -295,16 +300,16 @@ const frame = computed(() => {
 			: 'outline outline-2 outline-primary'
 	}
 	if (selected.value) {
-		return 'outline outline-2 outline-primary'
+		return 'outline outline-2 outline-primary shadow-(--dms-halo-accent)'
 	}
 	if (dragging.value) {
 		return ''
 	}
 	if (hovered.value) {
-		return 'outline outline-1 outline-primary/40'
+		return 'outline outline-1 outline-(--dms-accent-line)'
 	}
 	return missing.value.length
-		? 'outline outline-1 outline-dashed outline-warning'
+		? 'outline outline-[1.5px] outline-dashed outline-warning'
 		: ''
 })
 
@@ -438,13 +443,15 @@ function answerCursor(event: DragEvent): void {
 		would not. -->
 		<div
 			v-if="receiving"
-			class="absolute -top-6 left-0 z-20 flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-inverted"
-			:class="refused ? 'bg-error' : 'bg-primary'"
+			class="absolute -top-6 left-0 z-20 flex h-5.5 items-center gap-1 whitespace-nowrap rounded-[6px_6px_6px_2px] px-2 text-[11px] font-semibold shadow-sm"
+			:class="refused ? 'bg-error text-inverted' : 'bg-(--dms-accent-fill) text-(--dms-accent-on-fill)'"
 			:data-drop-into="path"
 		>
 			<UIcon v-if="descriptor?.icon" :name="descriptor.icon" class="size-3" />
-			<span>{{ block.name }}</span>
-			<span class="opacity-70">· {{ label }}</span>
+			<span>{{ title }}</span>
+			<span v-if="title !== label" class="font-mono text-[10.5px] font-medium opacity-70">{{
+				label
+			}}</span>
 			<span v-if="target?.refusal" class="font-normal">
 				· {{ target.refusal }}
 			</span>
@@ -452,10 +459,18 @@ function answerCursor(event: DragEvent): void {
 
 		<div
 			v-if="(selected || hovered) && !dragging"
-			class="absolute -top-6 left-0 z-10 flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-inverted"
+			class="absolute -top-6 left-0 z-10 flex h-5.5 items-center gap-1 rounded-[6px_6px_6px_2px] pr-0.5 pl-2 text-[11px] font-semibold whitespace-nowrap shadow-sm"
+			:class="
+				selected
+					? 'bg-(--dms-accent-fill) text-(--dms-accent-on-fill)'
+					: 'border border-(--dms-accent-line) bg-elevated text-toned'
+			"
 		>
 			<UIcon v-if="descriptor?.icon" :name="descriptor.icon" class="size-3" />
-			<span>{{ block.name }}</span>
+			<span>{{ title }}</span>
+			<span v-if="advanced" class="font-mono text-[10.5px] font-medium opacity-70">
+				#{{ block.name }}
+			</span>
 			<!-- A block the builder cannot rewrite carries no type in the draft,
 			so its label would only say "Block". -->
 			<template v-if="block.preserve">
@@ -464,8 +479,10 @@ function answerCursor(event: DragEvent): void {
 				<span class="opacity-70">set up in code</span>
 			</template>
 			<template v-else>
-				<span class="opacity-70">· {{ label }}</span>
-				<span v-if="served" class="opacity-70">· as saved</span>
+				<span v-if="title !== label" class="font-mono text-[10.5px] font-medium opacity-70">{{
+					label
+				}}</span>
+				<span v-if="served" class="font-mono text-[10.5px] font-medium opacity-70">· as saved</span>
 			</template>
 			<UIcon
 				v-if="missing.length"
@@ -474,7 +491,7 @@ function answerCursor(event: DragEvent): void {
 			/>
 			<button
 				type="button"
-				class="-mr-1 ml-0.5 rounded px-1 hover:bg-inverted/10"
+				class="ml-0.5 grid h-4.5 w-5 place-items-center rounded bg-current/10 hover:bg-current/20"
 				aria-label="Block actions"
 				@click.stop="
 					builder.openMenu(

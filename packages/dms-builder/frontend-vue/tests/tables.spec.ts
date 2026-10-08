@@ -6,7 +6,7 @@ import FieldDetail from '../app/components/FieldDetail.vue'
 import FieldForm from '../app/components/FieldForm.vue'
 import FieldGrid from '../app/components/FieldGrid.vue'
 import Option from '../app/components/Option.vue'
-import Overlay from '../app/components/Overlay.vue'
+import Banners from '../app/components/Banners.vue'
 import ResourcePanel from '../app/components/ResourcePanel.vue'
 import TableApi from '../app/components/TableApi.vue'
 import TableSettings from '../app/components/TableSettings.vue'
@@ -196,9 +196,13 @@ describe('the tables, from the bar', () => {
 		const { root } = mount(Bar)
 		await nextTick()
 
-		fire(buttonLabelled(root, 'Tables'), 'click')
+		const workspaces = findAll(
+			root,
+			(node) => node.tag === 'DmsSegmented' && node.props['aria-label'] === 'Workspace',
+		)[0]!
+		fire(workspaces, 'update:modelValue', 'tables' as never)
 
-		expect(builder.session.value.view).toBe('resource')
+		expect(builder.session.value.workspace).toBe('tables')
 		expect(builder.session.value.table).toBeNull()
 	})
 
@@ -268,9 +272,9 @@ describe('the tables, from the bar', () => {
 		})
 		builder.back()
 		expect(builder.session.value.table, 'out of the table').toBeNull()
-		expect(builder.session.value.view).toBe('resource')
+		expect(builder.session.value.workspace).toBe('tables')
 		builder.back()
-		expect(builder.session.value.view, 'out of the tables').toBe('library')
+		expect(builder.session.value.workspace, 'out of the tables').toBe('page')
 	})
 })
 
@@ -503,12 +507,6 @@ describe('a new field', () => {
 })
 
 describe('a write that went through with a warning', () => {
-	const shell = (): Record<string, Component> => ({
-		DmsBuilderBar: stub('DmsBuilderBar'),
-		DmsBuilderCanvas: stub('DmsBuilderCanvas'),
-		DmsBuilderRail: stub('DmsBuilderRail'),
-		DmsBuilderBlockMenu: stub('DmsBuilderBlockMenu'),
-	})
 	const fallback = {
 		code: 'datatype_fallback',
 		message: 'field "rank" dataType "made_up" has no DB-type mapping',
@@ -526,15 +524,17 @@ describe('a write that went through with a warning', () => {
 		const field = { name: 'rank', dataType: { $dataType: 'made_up' } }
 		await builder.addField('ticket', field)
 		await builder.addField('ticket', field)
-		const { root } = mount(Overlay, { components: shell() })
+		const { root } = mount(Banners)
 		await nextTick()
 
 		const listed = findAll(root, (node) => node.tag === 'li').map(textOf)
 		expect(listed).toEqual([fallback.message])
 
-		const alert = findAll(root, (node) => node.tag === 'UAlert')[0]!
-		expect(alert.props.close).toMatchObject({ 'aria-label': 'Dismiss the warnings' })
-		fire(alert, 'update:open')
+		const dismiss = findAll(
+			root,
+			(node) => node.props['aria-label'] === 'Dismiss the warnings',
+		)[0]!
+		fire(dismiss, 'click')
 		await nextTick()
 		expect(findAll(root, (node) => node.tag === 'li')).toHaveLength(0)
 	})

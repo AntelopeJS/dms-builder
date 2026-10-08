@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDmsRoute as useRoute } from '#dms/frontend-module'
 import { useContentAnchor } from '../runtime/anchor'
-import { describeError, errorDetail } from '../runtime/errors'
+import { placedPaths } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
@@ -22,22 +22,24 @@ const style = computed(() => ({
 	height: `${anchor.value.height}px`,
 }))
 
-const message = computed(() =>
-	session.value.error
-		? describeError(session.value.error, session.value.draft)
-		: '',
-)
-/** The module's own wording, folded away until someone asks for it. */
-const detail = computed(() =>
-	session.value.error ? errorDetail(session.value.error) : [],
-)
-const detailOpen = ref(false)
-watch(
-	() => session.value.error,
-	() => {
-		detailOpen.value = false
-	},
-)
+/**
+ * The frame's columns: the side rail, the page and the inspector, the
+ * inspector widened for what needs the room; a workspace takes it all.
+ */
+const columns = computed(() => {
+	if (session.value.workspace !== 'page') {
+		return 'grid-cols-[minmax(0,1fr)]'
+	}
+	return session.value.inspector === 'json'
+		? 'grid-cols-[264px_minmax(0,1fr)_560px]'
+		: 'grid-cols-[264px_minmax(0,1fr)_348px]'
+})
+
+function undoFromToast(): void {
+	builder.undo()
+	session.value.toast = null
+	session.value.toastUndo = false
+}
 
 const isTyping = (target: EventTarget | null): boolean => {
 	const element = target as HTMLElement | null
@@ -104,11 +106,45 @@ function isOnControl(target: EventTarget | null): boolean {
 	)
 }
 
+/**
+ * Step the selection to the block before or after it, top to bottom, the way
+ * the layers list them; with nothing selected, the first or the last.
+ */
+function step(delta: number): void {
+	const draft = session.value.draft
+	if (!draft) {
+		return
+	}
+	const paths = placedPaths(draft, session.value.catalog)
+	if (!paths.length) {
+		return
+	}
+	const at = session.value.selection ? paths.indexOf(session.value.selection) : -1
+	const next =
+		at === -1
+			? delta > 0
+				? 0
+				: paths.length - 1
+			: Math.min(Math.max(at + delta, 0), paths.length - 1)
+	builder.select(paths[next] ?? null)
+}
+
 function onKeydown(event: KeyboardEvent): void {
+	const modifier = event.metaKey || event.ctrlKey
+	// The same key opens the editor on the page being looked at and leaves
+	// it, asking first about a draft nobody saved.
+	if (modifier && event.key.toLowerCase() === 'b' && !elementOf(event.target)?.closest('[contenteditable]')) {
+		event.preventDefault()
+		if (session.value.active) {
+			builder.leave()
+		} else {
+			void builder.open(route.path)
+		}
+		return
+	}
 	if (!session.value.active) {
 		return
 	}
-	const modifier = event.metaKey || event.ctrlKey
 	if (modifier && event.key.toLowerCase() === 's') {
 		event.preventDefault()
 		void builder.save()
@@ -144,8 +180,23 @@ function onKeydown(event: KeyboardEvent): void {
 		}
 		return
 	}
+	if (isOnControl(event.target) || session.value.workspace !== 'page') {
+		return
+	}
+	const arrow = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
 	const path = session.value.selection
-	if (!path || isOnControl(event.target)) {
+	// The arrows walk the page; with Alt, they carry the selected block.
+	if (arrow && !event.altKey) {
+		event.preventDefault()
+		step(arrow)
+		return
+	}
+	if (!path) {
+		return
+	}
+	if (arrow) {
+		event.preventDefault()
+		builder.nudge(path, arrow)
 		return
 	}
 	if (modifier && event.key.toLowerCase() === 'd') {
@@ -158,9 +209,9 @@ function onKeydown(event: KeyboardEvent): void {
 		builder.remove(path)
 		return
 	}
-	if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+	if (event.key === 'Enter') {
 		event.preventDefault()
-		builder.nudge(path, event.key === 'ArrowUp' ? -1 : 1)
+		builder.setView('config')
 	}
 }
 
@@ -189,155 +240,64 @@ onUnmounted(() => {
 <template>
 	<div
 		v-if="session.active"
-		class="fixed z-50 flex flex-col overflow-hidden border border-default bg-default shadow-lg"
+		class="fixed z-50 flex flex-col overflow-hidden border border-accented bg-muted"
 		:style="style"
 	>
 		<DmsBuilderBar />
+		<DmsBuilderBanners />
 
-		<!-- Leaving drops the draft, so it is asked before it happens rather than
-		reported after. -->
+		<!-- Opening reads the page, its tables and its menu: the frame stands
+		in the page's shape meanwhile rather than as a bare spinner. -->
 		<div
-			v-if="session.pendingClose"
-			class="flex flex-wrap items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
+			v-if="session.loading"
+			class="grid min-h-0 flex-1 grid-cols-[264px_minmax(0,1fr)_348px]"
+			aria-busy="true"
+			:aria-label="`Opening ${session.pageRef ?? 'the page'}`"
 		>
-			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
-			<span class="flex-1">
-				{{ session.pageRef }} has changes nobody has saved. Leaving the editor
-				drops them.
-			</span>
-			<UButton
-				size="xs"
-				color="warning"
-				variant="soft"
-				label="Save and leave"
-				:loading="session.saving"
-				@click="builder.resolveClose(true)"
-			/>
-			<UButton
-				size="xs"
-				color="neutral"
-				variant="ghost"
-				label="Leave without saving"
-				@click="builder.resolveClose(false)"
-			/>
-			<UButton
-				size="xs"
-				color="neutral"
-				variant="ghost"
-				label="Stay"
-				@click="builder.stayOpen()"
-			/>
-		</div>
-
-		<div
-			v-else-if="session.pendingRoute"
-			class="flex items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
-		>
-			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
-			<span class="flex-1">
-				Unsaved changes on {{ session.pageRef }} — save them before moving to
-				{{ session.pendingRoute }}.
-			</span>
-			<UButton
-				size="xs"
-				color="warning"
-				variant="soft"
-				label="Save and continue"
-				:loading="session.saving"
-				@click="builder.resolvePending(true)"
-			/>
-			<UButton
-				size="xs"
-				color="neutral"
-				variant="ghost"
-				label="Discard"
-				@click="builder.resolvePending(false)"
-			/>
-		</div>
-
-		<div
-			v-else-if="session.conflict"
-			class="flex items-center gap-3 border-b border-warning bg-warning/10 px-4 py-2 text-xs text-warning"
-		>
-			<UIcon name="i-ph-warning" class="size-4 shrink-0" />
-			<span class="flex-1">
-				This page changed outside the builder. Reload it before saving.
-			</span>
-			<UButton
-				size="xs"
-				color="warning"
-				variant="soft"
-				label="Reload"
-				@click="builder.reload()"
-			/>
-		</div>
-
-		<div
-			v-else-if="session.error"
-			class="flex items-start gap-3 border-b border-error bg-error/10 px-4 py-2 text-xs text-error"
-		>
-			<UIcon name="i-ph-x-circle" class="mt-0.5 size-4 shrink-0" />
-			<div class="flex min-w-0 flex-1 flex-col gap-1">
-				<span>{{ message }}</span>
-				<button
-					v-if="detail.length"
-					type="button"
-					class="self-start underline decoration-dotted underline-offset-2 opacity-80 hover:opacity-100"
-					@click="detailOpen = !detailOpen"
-				>
-					{{ detailOpen ? 'Hide the details' : 'Details' }}
-				</button>
-				<ul v-if="detailOpen" class="flex flex-col gap-0.5 font-mono opacity-80">
-					<li v-for="line in detail" :key="line">{{ line }}</li>
-				</ul>
+			<div class="border-r border-default bg-(--dms-bg-sidebar)" />
+			<div class="flex flex-col gap-4 p-8">
+				<USkeleton class="h-10 w-72" />
+				<div class="grid grid-cols-3 gap-4">
+					<USkeleton v-for="cell in 3" :key="cell" class="h-28" />
+				</div>
+				<USkeleton class="h-64" />
 			</div>
-			<UButton
-				icon="i-ph-x"
-				size="xs"
-				color="error"
-				variant="ghost"
-				aria-label="Dismiss"
-				@click="session.error = null"
-			/>
+			<div class="border-l border-default bg-(--dms-bg-sidebar)" />
 		</div>
 
-		<!-- A write that went through can still have had to settle for less —
-		a column stored as a string, a query kept alive. Outside the chain above:
-		it stays true whatever else is being asked. -->
-		<UAlert
-			v-if="session.warnings.length"
-			color="warning"
-			variant="subtle"
-			icon="i-ph-warning"
-			:close="{ 'aria-label': 'Dismiss the warnings' }"
-			class="rounded-none py-2"
-			@update:open="session.warnings = []"
-		>
-			<template #description>
-				<ul class="flex flex-col gap-0.5">
-					<li v-for="entry in session.warnings" :key="entry.message">
-						{{ entry.message }}
-					</li>
-				</ul>
+		<div v-else class="grid min-h-0 flex-1" :class="columns">
+			<template v-if="session.workspace === 'page'">
+				<DmsBuilderLeftRail />
+				<DmsBuilderCanvas />
+				<DmsBuilderInspector />
 			</template>
-		</UAlert>
-
-		<div v-if="session.loading" class="flex flex-1 items-center justify-center">
-			<UIcon name="i-ph-circle-notch" class="size-6 animate-spin text-dimmed" />
-		</div>
-
-		<div v-else class="flex min-h-0 flex-1">
-			<DmsBuilderCanvas />
-			<DmsBuilderRail v-if="session.railOpen" />
+			<DmsBuilderWorkspace v-else />
 		</div>
 
 		<DmsBuilderBlockMenu />
 
+		<!-- Said where the author is looking, and announced: a removal says
+		what went and offers it back. -->
 		<div
-			v-if="session.toast"
-			class="pointer-events-none absolute bottom-4 left-1/2 z-[70] -translate-x-1/2 whitespace-nowrap rounded-lg bg-inverted px-4 py-2 text-xs text-inverted shadow-lg"
+			role="status"
+			aria-live="polite"
+			class="pointer-events-none absolute bottom-4 left-1/2 z-[70] -translate-x-1/2"
 		>
-			{{ session.toast }}
+			<div
+				v-if="session.toast"
+				class="pointer-events-auto flex items-center gap-3 rounded-lg bg-inverted px-4 py-2 text-xs whitespace-nowrap text-inverted shadow-lg"
+			>
+				<span>{{ session.toast }}</span>
+				<button
+					v-if="session.toastUndo"
+					type="button"
+					class="flex items-center gap-1.5 font-semibold underline-offset-2 hover:underline"
+					@click="undoFromToast"
+				>
+					Undo
+					<span class="font-mono text-[10px] opacity-70">⌘Z</span>
+				</button>
+			</div>
 		</div>
 	</div>
 </template>

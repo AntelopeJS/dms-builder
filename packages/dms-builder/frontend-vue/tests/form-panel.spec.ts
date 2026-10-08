@@ -336,7 +336,7 @@ describe('a form saving into a table', () => {
 		fire(button(root, 'Open the table'), 'click')
 		await nextTick()
 
-		expect(builder.session.value.view).toBe('resource')
+		expect(builder.session.value.workspace).toBe('tables')
 		expect(builder.session.value.table).toEqual({
 			ref: 'order',
 			tab: 'fields',

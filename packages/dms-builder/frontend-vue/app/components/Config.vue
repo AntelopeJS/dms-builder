@@ -610,32 +610,5 @@ async function setSearchField(name: string): Promise<void> {
 				</div>
 			</section>
 		</template>
-
-		<div class="flex flex-wrap gap-2 border-t border-default pt-4">
-			<UButton
-				icon="i-ph-copy"
-				size="xs"
-				color="neutral"
-				variant="outline"
-				label="Duplicate"
-				@click="builder.duplicate(path)"
-			/>
-			<UButton
-				icon="i-ph-export"
-				size="xs"
-				color="neutral"
-				variant="outline"
-				label="Export"
-				@click="builder.setView('json')"
-			/>
-			<UButton
-				icon="i-ph-trash"
-				size="xs"
-				color="error"
-				variant="soft"
-				label="Delete"
-				@click="builder.remove(path)"
-			/>
-		</div>
 	</div>
 </template>

@@ -378,7 +378,7 @@ describe('a table form in the simple mode', () => {
 			(node) => node.tag === 'UButton' && node.props.label === 'Open the table',
 		)[0]!
 		fire(open, 'click')
-		expect(builder.session.value.view).toBe('resource')
+		expect(builder.session.value.workspace).toBe('tables')
 		expect(builder.session.value.table?.ref).toBe('order')
 	})
 

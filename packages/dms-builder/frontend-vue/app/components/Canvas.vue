@@ -1,10 +1,53 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { DEVICE_WIDTHS, useCanvasView } from '../runtime/canvas-view'
 import { effectOfDrag, namedHost } from '../runtime/dropping'
-import { useBuilder } from '../runtime/session'
+import { useBuilder, type PageLayout } from '../runtime/session'
 
 const builder = useBuilder()
 const session = builder.session
+const view = useCanvasView()
+
+/**
+ * The page at the zoom and width picked in the bar. The zoom is the page's
+ * own, so what it lays out at a smaller size is what it would at that width.
+ */
+const pageStyle = computed(() => {
+	const width = DEVICE_WIDTHS[view.device.value]
+	return {
+		zoom: view.zoom.value === 100 ? undefined : `${view.zoom.value}%`,
+		maxWidth: width ? `${width}px` : undefined,
+	}
+})
+
+/** The layouts an empty page offers to start from. */
+const LAYOUTS: { id: PageLayout; label: string; icon: string; description: string }[] = [
+	{
+		id: 'dashboard',
+		label: 'Dashboard',
+		icon: 'i-ph-squares-four-light',
+		description: 'A period, three figures, a chart and a ranking',
+	},
+	{
+		id: 'list',
+		label: 'List',
+		icon: 'i-ph-table-light',
+		description: 'The rows of a table, a page at a time',
+	},
+	{
+		id: 'form',
+		label: 'Form',
+		icon: 'i-ph-note-pencil-light',
+		description: 'A form that adds a row',
+	},
+]
+
+// The canvas's dotted ground, so the page reads as a page laid on it.
+const GROUND = {
+	backgroundImage:
+		'radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ui-text-highlighted) 7%, transparent) 1px, transparent 0)',
+	backgroundSize: '18px 18px',
+}
 
 const blocks = computed(() => session.value.draft?.blocks ?? [])
 const page = computed(() => {
@@ -87,29 +130,32 @@ function answerCursor(event: DragEvent): void {
 
 <template>
 	<div
-		class="flex-1 overflow-auto bg-muted/40 p-8"
+		class="min-w-0 overflow-auto bg-muted px-7.5 pt-6.5 pb-10"
+		:style="GROUND"
 		@click="builder.select(null)"
 		@dragenter.prevent="answerCursor"
 		@dragover.prevent="onDragOver"
 		@drop.prevent="builder.drop()"
 	>
-		<div class="mx-auto">
-			<header class="mb-8 flex items-center gap-4">
-				<div
-					class="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary"
+		<div class="mx-auto" :style="pageStyle">
+			<header class="mb-6 flex items-start gap-3">
+				<span
+					class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-(--dms-accent-tint) text-primary ring-1 ring-(--dms-accent-line) ring-inset"
 				>
-					<UIcon :name="page.icon" class="size-6" />
-				</div>
+					<UIcon :name="page.icon" class="size-[19px]" />
+				</span>
 				<div class="min-w-0 flex-1">
-					<h1 class="truncate text-xl font-semibold text-highlighted">
+					<h1 class="truncate text-xl font-semibold tracking-tight text-highlighted">
 						{{ page.displayName }}
 					</h1>
 					<p class="truncate text-sm text-muted">
-						{{ page.description || 'No description' }}
+						{{ page.description || 'No description yet' }}
 					</p>
 				</div>
 				<UButton
-					icon="i-ph-pencil-simple"
+					icon="i-ph-sliders-horizontal-light"
+					label="Page settings"
+					size="xs"
 					color="neutral"
 					variant="ghost"
 					:aria-label="'Edit page metadata'"
@@ -119,26 +165,34 @@ function answerCursor(event: DragEvent): void {
 
 			<div
 				v-if="!blocks.length"
-				class="relative flex flex-col items-center gap-3 rounded-xl border border-dashed p-16 text-center"
-				:class="receiving ? 'border-primary' : 'border-default'"
+				class="relative flex flex-col items-center gap-3 rounded-xl border-[1.5px] border-dashed p-16 text-center"
+				:class="receiving ? 'border-primary bg-primary/5' : 'border-(--dms-border-top)'"
 			>
 				<DmsBuilderPlaceholder v-if="gapAt !== undefined" axis="horizontal" />
-				<UIcon name="i-ph-stack" class="size-8 text-dimmed" />
-				<p class="text-base font-medium text-default">This page is empty</p>
+				<span
+					class="grid size-10 place-items-center rounded-lg bg-elevated text-muted ring-1 ring-default ring-inset"
+				>
+					<UIcon name="i-ph-stack-light" class="size-5" />
+				</span>
+				<p class="text-base font-semibold text-highlighted">This page is empty</p>
 				<p class="max-w-sm text-sm text-muted">
-					Drop a component here, or open the library to add the first block.
+					Drag a block from the side rail, or start from a layout.
 				</p>
-				<div class="flex gap-2">
+				<div class="flex flex-wrap justify-center gap-2">
 					<UButton
+						icon="i-ph-plus"
 						label="Add a block"
-						color="primary"
 						@click.stop="builder.setView('library')"
 					/>
 					<UButton
-						label="Pages and categories"
+						v-for="layout in LAYOUTS"
+						:key="layout.id"
+						:icon="layout.icon"
+						:label="layout.label"
+						:title="layout.description"
 						color="neutral"
 						variant="outline"
-						@click.stop="builder.setView('pages')"
+						@click.stop="builder.applyLayout(layout.id)"
 					/>
 				</div>
 			</div>
@@ -157,8 +211,12 @@ function answerCursor(event: DragEvent): void {
 					:class="refusal ? 'outline-dashed outline-error' : 'outline-primary'"
 				>
 					<span
-						class="absolute -top-5 left-0 rounded-md px-2 py-0.5 text-xs font-medium text-inverted"
-						:class="refusal ? 'bg-error' : 'bg-primary'"
+						class="absolute -top-5 left-0 rounded-md px-2 py-0.5 text-xs font-medium"
+						:class="
+							refusal
+								? 'bg-error text-inverted'
+								: 'bg-(--dms-accent-fill) text-(--dms-accent-on-fill)'
+						"
 						data-drop-into="page"
 					>
 						{{ page.displayName || 'Page' }} · Page
@@ -181,7 +239,7 @@ function answerCursor(event: DragEvent): void {
 				the way a container's own does for the container. -->
 				<button
 					type="button"
-					class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-default p-4 text-sm text-dimmed hover:border-primary hover:text-primary"
+					class="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-(--dms-border-top) font-mono text-sm text-dimmed hover:border-(--dms-accent-line) hover:text-primary"
 					data-way-in="page"
 					@click.stop="builder.setView('library')"
 					@dragenter.prevent.stop="answerCursor"
@@ -189,7 +247,8 @@ function answerCursor(event: DragEvent): void {
 					@drop.prevent.stop="builder.drop()"
 				>
 					<UIcon name="i-ph-plus" class="size-4" />
-					Add a block
+					Drop a block, or press
+					<UKbd value="/" size="sm" />
 				</button>
 			</div>
 		</div>

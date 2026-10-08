@@ -296,7 +296,9 @@ describe('the layout the editor takes back', () => {
 		builder.remove('grid/gridRow/note')
 
 		expect(names()).toEqual(['title', 'intro', 'card'])
-		expect(builder.session.value.toast).toBe('Block removed')
+		// Named as the page shows it, and offered back from where it is said.
+		expect(builder.session.value.toast).toBe('Removed Text')
+		expect(builder.session.value.toastUndo).toBe(true)
 	})
 
 	it('follows the block it gives back when that block is the one selected', () => {
@@ -1068,8 +1070,9 @@ describe('undo, redo and discard', () => {
 		builder.undo()
 		expect(builder.session.value.selection).toBe(null)
 		expect(builder.selected.value).toBe(undefined)
-		// An empty configuration panel for a block that is gone is no panel at all.
-		expect(builder.session.value.view).toBe('library')
+		// The inspector says nothing is selected rather than configuring a block
+		// that is gone.
+		expect(builder.session.value.inspector).toBe('block')
 	})
 
 	it('keeps a selection the undone step did not touch', () => {
@@ -1079,7 +1082,7 @@ describe('undo, redo and discard', () => {
 		builder.remove('section/text')
 		builder.undo()
 		expect(builder.session.value.selection).toBe('section')
-		expect(builder.session.value.view).toBe('config')
+		expect(builder.session.value.inspector).toBe('block')
 	})
 
 	it('drops the selection on a block redo takes away again', () => {
@@ -1092,7 +1095,7 @@ describe('undo, redo and discard', () => {
 		builder.redo()
 		expect(names()).toEqual(['title', 'intro'])
 		expect(builder.session.value.selection).toBe(null)
-		expect(builder.session.value.view).toBe('library')
+		expect(builder.selected.value).toBe(undefined)
 	})
 
 	it('undoes a deletion', () => {

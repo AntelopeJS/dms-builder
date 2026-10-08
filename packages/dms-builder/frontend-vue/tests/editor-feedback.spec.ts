@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { h, nextTick, type Component } from 'vue'
+import Banners from '../app/components/Banners.vue'
 import Bar from '../app/components/Bar.vue'
 import BlockMenu from '../app/components/BlockMenu.vue'
 import Children from '../app/components/Children.vue'
@@ -93,23 +94,38 @@ afterEach(() => {
 	vi.useRealTimers()
 })
 
-describe('the badge in the bar', () => {
-	it('vouches for the page once the module has built it', async () => {
+describe('the status in the bar', () => {
+	function status(root: TestNode): { kind: string; label: string } {
+		const button = findAll(
+			root,
+			(node) => node.tag === 'button' && node.props['data-status'] !== undefined,
+		)[0]
+		if (!button) {
+			throw new Error('no status in the bar')
+		}
+		return { kind: String(button.props['data-status']), label: textOf(button) }
+	}
+
+	it('says the page is saved while the draft holds nothing new', async () => {
 		await openWith([editable('title', 'Text')])
 		const { root } = mount(Bar)
 		await nextTick()
-		expect(badges(root)).toEqual(['All blocks configured'])
+		expect(status(root)).toEqual({ kind: 'clean', label: 'All changes saved' })
 	})
 
-	it('vouches for nothing while an edit is still waiting on the preview', async () => {
+	it('counts the changes waiting for Save, and opens their list', async () => {
 		await openWith([editable('title', 'Text')])
 		const { root } = mount(Bar)
 		builder.addBlock('Text')
 		await nextTick()
-		expect(badges(root)).toEqual(['Checking…'])
+		expect(status(root)).toEqual({ kind: 'dirty', label: '1 unsaved change' })
+
+		const button = findAll(root, (node) => node.props['data-status'] === 'dirty')[0]!
+		fire(button, 'click')
+		expect(builder.session.value.inspector).toBe('changes')
 	})
 
-	it('counts the block the module refused rather than going green on it', async () => {
+	it('puts the block the module refused before the count', async () => {
 		await openWith([editable('title', 'Text')])
 		const { root } = mount(Bar)
 		refuseTheRow()
@@ -119,8 +135,24 @@ describe('the badge in the bar', () => {
 		await vi.advanceTimersByTimeAsync(200)
 		await nextTick()
 
-		expect(badges(root)).toEqual(['1 to fix'])
+		expect(status(root)).toEqual({ kind: 'fix', label: '1 to fix · 1 unsaved' })
 		expect(builder.problems.value).toEqual(['grid/gridRow'])
+	})
+
+	it('says a failed save failed, and that nothing was written', async () => {
+		await openWith([editable('title', 'Text')])
+		const { root } = mount(Bar)
+		builder.addBlock('Text')
+		backend.save = {
+			ok: false,
+			error: { code: 'unsupported', detail: 'the disk is full' },
+		}
+		await builder.save()
+		await nextTick()
+		expect(status(root)).toEqual({
+			kind: 'error',
+			label: 'Save failed · nothing written',
+		})
 	})
 })
 
@@ -133,7 +165,11 @@ describe('the mode switch in the bar', () => {
 		setMode('simple')
 		await openWith([editable('title', 'Text')])
 		const { root } = mount(Bar)
-		const switcher = findAll(root, (node) => node.tag === 'DmsSegmented')[0]!
+		const switcher = findAll(
+			root,
+			(node) =>
+				node.tag === 'DmsSegmented' && node.props['aria-label'] === 'Builder mode',
+		)[0]!
 		expect(switcher.props['model-value']).toBe('simple')
 
 		write(switcher, 'advanced')
@@ -880,21 +916,11 @@ describe('the way out of the editor', () => {
 		const bar = mount(Bar)
 		await nextTick()
 
-		// The × in the bar is one of the two ways out; both go through `leave`.
-		const close = findAll(
-			bar.root,
-			(node) => node.props['aria-label'] === 'Leave the builder',
-		)[0]
+		// Done in the bar is one of the ways out; they all go through `leave`.
+		const close = findAll(bar.root, (node) => node.props.label === 'Done')[0]
 		fire(close!, 'click')
 
-		const { root } = mount(Overlay, {
-			components: {
-				DmsBuilderBar: stub('DmsBuilderBar'),
-				DmsBuilderCanvas: stub('DmsBuilderCanvas'),
-				DmsBuilderRail: stub('DmsBuilderRail'),
-				DmsBuilderBlockMenu: stub('DmsBuilderBlockMenu'),
-			},
-		})
+		const { root } = mount(Banners)
 		await nextTick()
 
 		expect(builder.session.value.active, 'nothing closed yet').toBe(true)
@@ -915,10 +941,13 @@ describe('the data sources', () => {
 		const bar = mount(Bar)
 		await nextTick()
 
-		const data = findAll(bar.root, (node) => node.props.label === 'Data')[0]
-		fire(data!, 'click')
+		const workspaces = findAll(
+			bar.root,
+			(node) => node.tag === 'DmsSegmented' && node.props['aria-label'] === 'Workspace',
+		)[0]
+		write(workspaces!, 'data')
 
-		expect(builder.session.value.view).toBe('query')
+		expect(builder.session.value.workspace).toBe('data')
 	})
 })
 
@@ -941,7 +970,7 @@ describe('the keys', () => {
 			components: {
 				DmsBuilderBar: stub('DmsBuilderBar'),
 				DmsBuilderCanvas: stub('DmsBuilderCanvas'),
-				DmsBuilderRail: stub('DmsBuilderRail'),
+				DmsBuilderLeftRail: stub('DmsBuilderLeftRail'),
 				DmsBuilderBlockMenu: stub('DmsBuilderBlockMenu'),
 			},
 		})
@@ -995,12 +1024,12 @@ describe('the keys', () => {
 
 	it('Escape leaves an open panel alone when nothing is selected', async () => {
 		await openWith([editable('title', 'Text')])
-		builder.setView('resource')
+		builder.setView('page')
 		const press = overlayKeys()
 
 		press(key('Escape'))
 
-		expect(builder.session.value.view).toBe('resource')
+		expect(builder.session.value.inspector).toBe('page')
 	})
 
 	it('leaves the block alone when the key is for a control of the panel', async () => {

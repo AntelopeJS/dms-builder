@@ -6,7 +6,7 @@ import Children from '../app/components/Children.vue'
 import Library from '../app/components/Library.vue'
 import Node from '../app/components/Node.vue'
 import Placeholder from '../app/components/Placeholder.vue'
-import Rail from '../app/components/Rail.vue'
+import LeftRail from '../app/components/LeftRail.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	byClass,
@@ -303,7 +303,7 @@ describe('the canvas at rest', () => {
 
 		expect(gaps(root)).toEqual([])
 		expect(into(root)).toBe(null)
-		expect(textOf(root)).toContain('Add a block')
+		expect(textOf(root)).toContain('Drop a block, or press')
 	})
 })
 
@@ -360,7 +360,7 @@ describe('the moment the drag starts', () => {
 		expect(gaps(root)).toEqual([])
 		expect(into(root)).toBe(null)
 		// The way in stays where it is, rather than being swapped for a landing.
-		expect(textOf(root)).toContain('Add a block')
+		expect(textOf(root)).toContain('Drop a block, or press')
 	})
 })
 
@@ -466,8 +466,10 @@ describe('aiming into a container', () => {
 		await nextTick()
 
 		expect(into(root)?.path).toBe('row')
-		expect(into(root)?.says).toContain('row')
+		// Named as the page shows it — an untitled section is a Section — and
+		// never by the name the code gives it.
 		expect(into(root)?.says).toContain('Section')
+		expect(into(root)?.says).not.toContain('row')
 		expect(frameOf(root, 'row')).toContain('outline-primary')
 		expect(gaps(root)).toEqual(['end of row'])
 
@@ -1365,9 +1367,9 @@ describe('the palette', () => {
 		}
 	}
 
-	/** The rail around the palette, whose heading says where a click adds. */
+	/** The rail around the palette, whose footing says where a click adds. */
 	function mountRail(): TestNode {
-		return mount(Rail, {
+		return mount(LeftRail, {
 			components: { DmsBuilderLibrary: Library as Component },
 		}).root
 	}
@@ -1617,6 +1619,5 @@ describe('the canvas after undo', () => {
 		await nextTick()
 		expect(builder.session.value.selection).toBe(null)
 		expect(builder.selected.value).toBe(undefined)
-		expect(builder.session.value.view).toBe('library')
 	})
 })
