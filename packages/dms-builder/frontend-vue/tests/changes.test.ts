@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { draftChanges, revertChange, summary } from '../app/runtime/changes'
 import { cloneDraft } from '../app/runtime/draft'
-import { blockPosition, blockTitle, placedPaths } from '../app/runtime/naming'
+import { blockPosition, blockTitle, dropSentence, placedPaths } from '../app/runtime/naming'
 import { saveStatus } from '../app/runtime/save-status'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockDraft, PageDraft } from '../app/runtime/types'
@@ -265,5 +265,29 @@ describe('the edits of one data source', () => {
 		vi.setSystemTime(Date.now() + 2000)
 		pick('aggregate')
 		expect(builder.session.value.history).toHaveLength(2)
+	})
+})
+
+describe('where a drop would land, in words', () => {
+	it('names the block it goes beside, below, or the end of the page', () => {
+		const draft = page(text('title', 'Sales'), text('intro', 'Welcome'))
+		const base = { index: 1, axis: 'horizontal' as const }
+		expect(
+			dropSentence(
+				draft,
+				{ ...base, parent: null, wrap: { around: 'title', type: 'Grid', index: 1 } },
+				catalog,
+			),
+		).toBe('Beside “Sales” · new column')
+		expect(
+			dropSentence(draft, { parent: null, index: 2, axis: 'vertical' }, catalog),
+		).toBe('At the end of the page')
+		expect(
+			dropSentence(
+				draft,
+				{ parent: null, index: 2, axis: 'vertical', refusal: "Text can't hold other blocks" },
+				catalog,
+			),
+		).toBe("Text can't hold other blocks")
 	})
 })

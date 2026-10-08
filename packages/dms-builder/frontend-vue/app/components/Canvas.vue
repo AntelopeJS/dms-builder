@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { DEVICE_WIDTHS, useCanvasView } from '../runtime/canvas-view'
 import { effectOfDrag, namedHost } from '../runtime/dropping'
+import { dropSentence } from '../runtime/naming'
 import { useBuilder, type PageLayout } from '../runtime/session'
 
 const builder = useBuilder()
@@ -59,6 +60,11 @@ const page = computed(() => {
 		icon: (patch.icon as string) ?? meta?.icon ?? 'i-ph-file',
 	}
 })
+
+/** Where the block being carried would land, said before it is let go. */
+const landing = computed(() =>
+	dropSentence(session.value.draft, session.value.dropTarget, session.value.catalog),
+)
 
 /** Whether the drop would land in the page itself rather than in a container. */
 const receiving = computed(() => {
@@ -251,6 +257,27 @@ function answerCursor(event: DragEvent): void {
 					<UKbd value="/" size="sm" />
 				</button>
 			</div>
+		</div>
+
+		<!-- Once a carried block is aimed somewhere, where it would land, in
+		words; nothing is added before then, so the page stays as it was. -->
+		<div
+			v-if="session.dragging && session.dropTarget"
+			class="pointer-events-none sticky bottom-3 z-30 mx-auto mt-4 flex w-fit max-w-full items-center gap-2 truncate rounded-full border px-3 py-1 font-mono text-[11px] font-semibold shadow-(--dms-shadow-pop)"
+			:class="
+				session.dropTarget?.refusal
+					? 'border-error/40 bg-default text-error'
+					: 'border-(--dms-accent-line) bg-default text-primary'
+			"
+			role="status"
+			aria-live="polite"
+			data-landing
+		>
+			<UIcon
+				:name="session.dropTarget?.refusal ? 'i-ph-prohibit-light' : 'i-ph-arrow-elbow-down-right-light'"
+				class="size-3.5 shrink-0"
+			/>
+			{{ landing }}
 		</div>
 	</div>
 </template>

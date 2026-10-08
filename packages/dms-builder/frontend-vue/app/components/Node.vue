@@ -274,6 +274,19 @@ function onClick(event: MouseEvent): void {
 	builder.select(props.path)
 }
 
+/**
+ * Reached with Tab, a block is selected as a click would select it: the
+ * keyboard gets the same chip, the same settings and the same keys.
+ */
+function onFocus(event: FocusEvent): void {
+	if (structural.value || event.target !== event.currentTarget) {
+		return
+	}
+	if (session.value.selection !== props.path) {
+		builder.select(props.path)
+	}
+}
+
 function onMouseEnter(event: MouseEvent): void {
 	if (structural.value) {
 		return
@@ -406,7 +419,7 @@ function answerCursor(event: DragEvent): void {
 	no room between them — the blocks of a tab — would otherwise have the one
 	selected drawn over the edge of the next, which reads as an overlap. -->
 	<div
-		class="relative grid min-w-0 rounded-lg -outline-offset-2 transition-[outline-color]"
+		class="relative grid min-w-0 rounded-lg -outline-offset-2 transition-[outline-color] focus-visible:outline-2 focus-visible:outline-primary"
 		:class="[
 			// A block that renders to nothing yet — a tab set with no tabs, an
 			// empty stack — would be a hairline nobody can click, and so could
@@ -430,7 +443,11 @@ function answerCursor(event: DragEvent): void {
 		:style="[spanStyle, roomStyle(block.type, options)]"
 		:data-path="path"
 		:draggable="!structural"
+		:tabindex="structural ? undefined : 0"
+		:role="structural ? undefined : 'group'"
+		:aria-label="structural ? undefined : `${title} · ${label}`"
 		@click="onClick"
+		@focus="onFocus"
 		@mouseenter="onMouseEnter"
 		@mouseleave="builder.hover(null)"
 		@dragstart.stop="onDragStart"
@@ -569,10 +586,25 @@ function answerCursor(event: DragEvent): void {
 
 		<div
 			v-else-if="!resolved"
-			class="flex flex-col gap-1 rounded-lg border border-dashed border-default bg-elevated p-6 text-center text-sm text-dimmed"
+			class="flex flex-col items-center gap-1 rounded-lg border-[1.5px] border-dashed p-6 text-center text-sm"
+			:class="
+				missing.length
+					? 'border-warning/50 bg-warning/5 text-muted'
+					: 'border-default bg-elevated text-dimmed'
+			"
 		>
 			<span class="font-medium text-default">{{ label }}</span>
 			<span>{{ standInNote }}</span>
+			<!-- What it waits on is a click away: the settings it lacks. -->
+			<UButton
+				v-if="missing.length"
+				label="Fill it in"
+				size="xs"
+				color="warning"
+				variant="soft"
+				class="mt-1"
+				@click.stop="builder.select(path)"
+			/>
 		</div>
 
 		<DmsBuilderBoundary v-else :label="label" :reset-key="options">

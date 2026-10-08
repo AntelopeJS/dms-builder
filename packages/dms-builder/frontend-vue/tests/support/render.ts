@@ -183,6 +183,7 @@ export function mount(component: Component, options: MountOptions = {}): Mounted
 		'UCheckbox',
 		'UTabs',
 		'UCollapsible',
+		'UModal',
 		'DmsSegmented',
 		'DmsChart',
 		'DmsTrendBadge',

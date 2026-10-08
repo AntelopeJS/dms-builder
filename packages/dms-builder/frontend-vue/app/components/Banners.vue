@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
 import { describeError, errorDetail } from '../runtime/errors'
+import { clockTime } from '../runtime/save-status'
 import { useBuilder } from '../runtime/session'
 
 /**
@@ -55,43 +56,117 @@ async function stay(): Promise<void> {
 	}
 }
 
+/** The draft as JSON, to keep somewhere before reloading drops it. */
+async function copyDraft(): Promise<void> {
+	await navigator.clipboard?.writeText(JSON.stringify(session.value.draft ?? {}, null, 2))
+	builder.notify('Copied the draft as JSON')
+}
+
 const STRIP =
 	'flex min-h-10.5 items-center gap-2.5 border-b px-3.5 py-1.5 text-[12.5px] text-toned'
 const WARNING = `${STRIP} border-warning/40 bg-warning/10`
 const ERROR = `${STRIP} border-error/40 bg-error/10`
+const INFO = `${STRIP} border-info/40 bg-info/10`
 </script>
 
 <template>
 	<div class="grid shrink-0">
-		<!-- Leaving drops the draft, so it is asked before it happens rather than
-		reported after. -->
-		<div v-if="session.pendingClose" :class="WARNING" role="alert">
-			<UIcon name="i-ph-warning-light" class="size-4 shrink-0 text-warning" />
+		<!-- Leaving is asked before it happens rather than reported after: the
+		draft can be saved, kept on this device for next time, or dropped. -->
+		<UModal
+			:open="session.pendingClose"
+			title="Save before leaving?"
+			:description="`${title} has changes nobody has saved.`"
+			@update:open="(open: boolean) => !open && builder.stayOpen()"
+		>
+			<template #body>
+				<p class="text-sm text-toned">
+					Kept on this device, they are offered again next time you edit this
+					page, for seven days. Nothing is written until they are saved.
+				</p>
+			</template>
+			<template #footer>
+				<div class="flex w-full flex-wrap justify-end gap-2">
+					<UButton
+						label="Stay"
+						color="neutral"
+						variant="ghost"
+						@click="builder.stayOpen()"
+					/>
+					<UButton
+						label="Leave without saving"
+						color="error"
+						variant="ghost"
+						@click="builder.resolveClose(false)"
+					/>
+					<UButton
+						label="Leave, keep the draft"
+						color="neutral"
+						variant="outline"
+						@click="builder.resolveClose(false, true)"
+					/>
+					<UButton
+						label="Save and leave"
+						:loading="session.saving"
+						@click="builder.resolveClose(true)"
+					/>
+				</div>
+			</template>
+		</UModal>
+
+		<!-- A draft kept from an earlier visit: put back, or offered when the
+		page has moved on since it was made. -->
+		<div v-if="session.restored" :class="session.restored.stale ? WARNING : INFO">
+			<UIcon
+				:name="
+					session.restored.stale
+						? 'i-ph-clock-counter-clockwise-light'
+						: 'i-ph-arrow-u-up-left-light'
+				"
+				class="size-4 shrink-0"
+				:class="session.restored.stale ? 'text-warning' : 'text-info'"
+			/>
 			<span class="flex-1">
-				<b class="font-semibold text-highlighted">{{ title }}</b> has changes nobody
-				has saved. Leaving the editor drops them.
+				<template v-if="session.restored.stale">
+					Unsaved changes from {{ clockTime(session.restored.at) }} were made on an
+					older version of this page; putting them back undoes what changed since.
+				</template>
+				<template v-else>
+					<b class="font-semibold text-highlighted">Your unsaved changes are back</b>,
+					kept on this device since {{ clockTime(session.restored.at) }}.
+				</template>
 			</span>
 			<UButton
+				v-if="session.restored.stale"
 				size="xs"
 				color="warning"
 				variant="soft"
-				label="Save and leave"
-				:loading="session.saving"
-				@click="builder.resolveClose(true)"
+				label="Put them back"
+				@click="builder.restoreAnyway()"
+			/>
+			<UButton
+				v-else
+				size="xs"
+				color="neutral"
+				variant="outline"
+				label="Review"
+				@click="builder.setView('changes')"
 			/>
 			<UButton
 				size="xs"
 				color="neutral"
 				variant="ghost"
-				label="Leave without saving"
-				@click="builder.resolveClose(false)"
+				label="Discard"
+				@click="builder.dropRestored()"
 			/>
 			<UButton
+				v-if="!session.restored.stale"
+				icon="i-ph-x-light"
 				size="xs"
 				color="neutral"
-				variant="outline"
-				label="Stay"
-				@click="builder.stayOpen()"
+				variant="ghost"
+				aria-label="Dismiss"
+				@click="session.restored = null"
 			/>
 		</div>
 
@@ -130,13 +205,28 @@ const ERROR = `${STRIP} border-error/40 bg-error/10`
 		<div v-if="session.conflict" :class="WARNING" role="alert">
 			<UIcon name="i-ph-git-diff-light" class="size-4 shrink-0 text-warning" />
 			<span class="flex-1">
-				This page changed outside the builder since it was opened. Reloading it
-				drops the changes you have not saved.
+				This page changed outside the builder since it was opened. Keep your
+				version to write it over those changes, or reload and drop yours.
 			</span>
+			<UButton
+				size="xs"
+				color="neutral"
+				variant="ghost"
+				icon="i-ph-copy-light"
+				label="Copy my draft"
+				@click="copyDraft"
+			/>
 			<UButton
 				size="xs"
 				color="warning"
 				variant="soft"
+				label="Keep my version"
+				@click="builder.keepMine()"
+			/>
+			<UButton
+				size="xs"
+				color="neutral"
+				variant="outline"
 				label="Reload the page"
 				@click="builder.reload()"
 			/>

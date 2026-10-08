@@ -35,6 +35,7 @@ import {
 	type PointerBox,
 } from './dropping'
 import { draftChanges, revertChange, type DraftChange } from './changes'
+import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-store'
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
@@ -238,6 +239,11 @@ export interface BuilderSession {
 	 * opens there — the page is written empty, the layout is the first edit.
 	 */
 	startLayout: { ref: string; layout: PageLayout } | null
+	/**
+	 * A draft kept on this device from an earlier visit: put back as it was,
+	 * or — made on a version of the page that has moved since — offered.
+	 */
+	restored: { at: number; stale: boolean; kept?: StoredDraft } | null
 	dragging: DragPayload | null
 	/**
 	 * Where the drag would land, as the pointer's last position resolved it.
@@ -300,6 +306,7 @@ function emptySession(): BuilderSession {
 		dirtySince: null,
 		lastSave: null,
 		startLayout: null,
+		restored: null,
 		dragging: null,
 		dropTarget: null,
 		hovered: null,
@@ -327,7 +334,7 @@ export interface BuilderController {
 	open: (pageRef: string) => Promise<void>
 	close: () => void
 	leave: () => void
-	resolveClose: (keep: boolean) => Promise<void>
+	resolveClose: (keep: boolean, onDevice?: boolean) => Promise<void>
 	stayOpen: () => void
 	reload: () => Promise<void>
 	followRoute: (path: string) => void
@@ -396,6 +403,15 @@ export interface BuilderController {
 	grouped: (key: string, run: () => void) => void
 	/** Add a block below the selection, or beside it. */
 	addNextTo: (type: string, beside?: boolean) => void
+	/**
+	 * Answer a page changed on disk with "keep mine": the draft stays, and the
+	 * next save writes it over what changed outside the editor.
+	 */
+	keepMine: () => Promise<void>
+	/** Lay the draft kept from an earlier visit, made on an older page, all the same. */
+	restoreAnyway: () => void
+	/** Throw away the draft kept from an earlier visit. */
+	dropRestored: () => void
 	loadResourceFields: (ref: string) => Promise<void>
 	loadResource: (ref: string, force?: boolean) => Promise<void>
 	loadQueryTemplates: () => Promise<void>
@@ -709,6 +725,7 @@ export function useBuilder(): BuilderController {
 			session.value.startLayout?.ref === pageRef
 				? session.value.startLayout.layout
 				: undefined
+		const kept = storedDraft(pageRef)
 		session.value = { ...emptySession(), active: true, loading: true, pageRef }
 		try {
 			const [catalog, resources] = await Promise.all([
@@ -724,6 +741,7 @@ export function useBuilder(): BuilderController {
 				if (start && !session.value.draft?.blocks.length) {
 					applyLayout(start)
 				}
+				restoreKept(kept)
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
 			}
 		} catch (error) {
@@ -756,8 +774,14 @@ export function useBuilder(): BuilderController {
 		close()
 	}
 
-	/** Answer that question: `keep` saves the draft first, else it is dropped. */
-	async function resolveClose(keep: boolean): Promise<void> {
+	/**
+	 * Answer that question: `keep` saves the draft first; else it is dropped, or
+	 * — `onDevice` — left kept on this device for the next visit.
+	 */
+	async function resolveClose(keep: boolean, onDevice = false): Promise<void> {
+		if (!keep && !onDevice && session.value.pageRef) {
+			forgetDraft(session.value.pageRef)
+		}
 		if (keep) {
 			await save()
 			// A save the module — or the panel — turned down leaves the editor
@@ -856,6 +880,8 @@ export function useBuilder(): BuilderController {
 			if (session.value.error) {
 				return
 			}
+		} else if (session.value.pageRef) {
+			forgetDraft(session.value.pageRef)
 		}
 		session.value.pendingRoute = null
 		await open(target)
@@ -925,6 +951,7 @@ export function useBuilder(): BuilderController {
 		session.value.draft = next
 		session.value.lastSave = null
 		noteDirty()
+		keepDraft()
 		refollow(next, followed)
 		schedulePreview()
 		return true
@@ -1338,6 +1365,102 @@ export function useBuilder(): BuilderController {
 	}
 
 	/**
+	 * Keep the draft on this device while it holds changes, and forget it once
+	 * it holds none: saved, discarded, or undone back to the page.
+	 */
+	function keepDraft(): void {
+		const { pageRef, draft, version } = session.value
+		if (!pageRef || !draft) {
+			return
+		}
+		if (dirty.value) {
+			storeDraft(pageRef, { draft, version, at: session.value.dirtySince ?? Date.now() })
+		} else {
+			forgetDraft(pageRef)
+		}
+	}
+
+	/** Lay a kept draft on the page, as one edit Undo takes back. */
+	function layKept(kept: StoredDraft): void {
+		mutate((draft) => {
+			draft.blocks = cloneDraft(kept.draft.blocks)
+			if (kept.draft.page) {
+				draft.page = cloneDraft(kept.draft.page)
+			}
+			if (kept.draft.queries) {
+				draft.queries = cloneDraft(kept.draft.queries)
+			}
+		})
+		session.value.dirtySince = kept.at
+		keepDraft()
+	}
+
+	/**
+	 * Put back the draft kept from an earlier visit. Made on the page as it still
+	 * is, it is laid on it and said so; made on a version that has moved since,
+	 * laying it would quietly undo what changed — so it is only offered.
+	 */
+	function restoreKept(kept: StoredDraft | undefined): void {
+		const pageRef = session.value.pageRef
+		if (!kept || !pageRef) {
+			return
+		}
+		if (JSON.stringify(kept.draft) === JSON.stringify(session.value.baseline)) {
+			forgetDraft(pageRef)
+			return
+		}
+		if (kept.version === session.value.version) {
+			layKept(kept)
+			session.value.restored = { at: kept.at, stale: false }
+			return
+		}
+		session.value.restored = { at: kept.at, stale: true, kept }
+	}
+
+	async function keepMine(): Promise<void> {
+		const pageRef = session.value.pageRef
+		if (!pageRef) {
+			return
+		}
+		const result = await api.structure(pageRef)
+		if (!result.ok) {
+			session.value.error = result.error
+			return
+		}
+		session.value.structure = result.data
+		session.value.version = result.data.version
+		session.value.conflict = false
+		session.value.error = null
+		keepDraft()
+		schedulePreview()
+	}
+
+	/** Lay a kept draft made on an older version of the page, all the same. */
+	function restoreAnyway(): void {
+		const kept = session.value.restored?.kept
+		if (kept) {
+			layKept(kept)
+			session.value.restored = { at: kept.at, stale: false }
+		}
+	}
+
+	/** Throw away the draft kept from an earlier visit. */
+	function dropRestored(): void {
+		const restored = session.value.restored
+		session.value.restored = null
+		if (!restored) {
+			return
+		}
+		if (restored.stale) {
+			if (session.value.pageRef) {
+				forgetDraft(session.value.pageRef)
+			}
+			return
+		}
+		cancel()
+	}
+
+	/**
 	 * Lay a starting layout on the page, as one edit: rows of blocks, a row of
 	 * several placed side by side the way a drop beside a block places them.
 	 * Types the project's DMS does not declare are left out.
@@ -1693,6 +1816,7 @@ export function useBuilder(): BuilderController {
 		session.value.draft = previous
 		newStep()
 		noteDirty()
+		keepDraft()
 		reselect()
 		schedulePreview()
 	}
@@ -1707,6 +1831,7 @@ export function useBuilder(): BuilderController {
 		session.value.draft = next
 		newStep()
 		noteDirty()
+		keepDraft()
 		reselect()
 		schedulePreview()
 	}
@@ -1720,6 +1845,7 @@ export function useBuilder(): BuilderController {
 		session.value.selection = null
 		session.value.error = null
 		noteDirty()
+		keepDraft()
 		schedulePreview()
 		notify('Changes discarded', { undo: true })
 	}
@@ -1763,6 +1889,7 @@ export function useBuilder(): BuilderController {
 			newStep()
 			session.value.lastSave = { outcome: 'saved', at: Date.now() }
 			noteDirty()
+			keepDraft()
 			report(result, 'Page saved')
 		} finally {
 			session.value.saving = false
@@ -1952,6 +2079,8 @@ export function useBuilder(): BuilderController {
 			})) {
 			return false
 		}
+		// A draft kept for a page that is gone has nothing to come back to.
+		forgetDraft(ref)
 		if (session.value.pageRef === ref) {
 			// The draft edits a file that is gone. Kept, it would offer a Save
 			// that has nothing to write to, and stop the move off the page to
@@ -2455,6 +2584,9 @@ export function useBuilder(): BuilderController {
 		applyLayout,
 		addNextTo,
 		grouped,
+		restoreAnyway,
+		dropRestored,
+		keepMine,
 		loadResourceFields,
 		loadResource,
 		loadQueryTemplates,

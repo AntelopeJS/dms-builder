@@ -4,7 +4,9 @@
  * source gives it, which nobody looking at the page has ever read.
  */
 import { descriptorOf, isStructural } from './catalog'
+import { COLUMN_CONTAINER, ROW_WRAPPER } from './constants'
 import { findNode, parentPath } from './draft'
+import type { DropTarget } from './dropping'
 import type { BlockCatalog, BlockDraft, PageDraft } from './types'
 
 /** The options a block's own heading is written in, most telling first. */
@@ -119,4 +121,56 @@ export function blockPosition(
 	}
 	const container = findNode(draft, placed)
 	return container ? `in ${blockTitle(container, catalog)}` : 'full width'
+}
+
+/**
+ * Where a drop would land, in words: "Beside “Top customers” · new column",
+ * "Below “Revenue”", "Into “Details”" — said before the block is let go, so the
+ * landing is never a surprise.
+ */
+export function dropSentence(
+	draft: PageDraft | null,
+	target: DropTarget | null,
+	catalog: BlockCatalog | null,
+): string | undefined {
+	if (!draft || !target) {
+		return undefined
+	}
+	if (target.refusal) {
+		return target.refusal
+	}
+	// A row is named by the block it starts with: nobody sees the row.
+	const named = (path: string): string => {
+		let block = findNode(draft, path)
+		while (block && isStructural(catalog, block.type) && block.children?.length) {
+			block = block.children[0]
+		}
+		return block ? `“${blockTitle(block, catalog)}”` : 'the block'
+	}
+	const wrap = target.wrap
+	if (wrap?.type === ROW_WRAPPER) {
+		return `${wrap.index ? 'Beside' : 'Before'} ${named(wrap.around)} · new column`
+	}
+	if (wrap?.type === COLUMN_CONTAINER) {
+		return `${wrap.index ? 'Below' : 'Above'} ${named(wrap.around)}`
+	}
+	if (target.parent === null) {
+		const blocks = draft.blocks
+		return target.index >= blocks.length
+			? 'At the end of the page'
+			: target.index === 0
+				? 'At the top of the page'
+				: `Under ${named(blocks[target.index - 1]?.name ?? '')}`
+	}
+	const holder = findNode(draft, target.parent)
+	if (holder && isStructural(catalog, holder.type)) {
+		const placed = placedParent(draft, `${target.parent}/x`, catalog)
+		const column = (target.index ?? 0) + 1
+		return target.axis === 'horizontal'
+			? `In a new column ${column} of the row`
+			: placed
+				? `Into ${named(placed)}`
+				: 'On the page'
+	}
+	return `Into ${named(target.parent)}`
 }

@@ -1588,6 +1588,10 @@ describe('what the canvas shows when there is nothing to show', () => {
 		// other two are dashed boxes with nothing the user can act on. It is named
 		// the way the panel names it, not by the key the catalog carries it under.
 		expect(textOf(placeholders[2]!)).toBe('TableWaiting on Database table')
+		expect(
+			findAll(placeholders[2]!, (node) => node.props.label === 'Fill it in'),
+			'and leads to what it waits on',
+		).toHaveLength(1)
 	})
 })
 

@@ -924,10 +924,13 @@ describe('the way out of the editor', () => {
 		await nextTick()
 
 		expect(builder.session.value.active, 'nothing closed yet').toBe(true)
-		expect(textOf(root)).toContain('Leaving the editor drops them')
+		const dialog = findAll(root, (node) => node.tag === 'UModal')[0]!
+		expect(dialog.props.open).toBe(true)
+		expect(dialog.props.title).toBe('Save before leaving?')
 		expect(buttons(root)).toEqual(
 			expect.arrayContaining([
 				'Save and leave',
+				'Leave, keep the draft',
 				'Leave without saving',
 				'Stay',
 			]),
