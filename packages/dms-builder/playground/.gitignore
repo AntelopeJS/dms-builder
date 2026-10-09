@@ -2,3 +2,4 @@ node_modules/
 dist/
 .antelope/
 .dev-session-secret
+.dev-login.json
