@@ -19,6 +19,7 @@ import type {
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
+	PageAccess,
 	PageImpact,
 	PermissionChoice,
 	TableUsage,
@@ -120,6 +121,12 @@ export function useBuilderApi() {
 		tableUsage: () => get<TableUsage>('/tables/usage'),
 		pageImpact: (ref: string) => get<PageImpact>('/page/impact', { ref }),
 		permissions: () => get<PermissionChoice[]>('/permissions'),
+		/** `permission`: another the draft gives the page, read too. */
+		pageAccess: (ref: string, permission?: string) =>
+			get<PageAccess>(
+				'/page/access',
+				permission ? { ref, permission } : { ref },
+			),
 		resource: (ref: string) => read<ResourceStructure>('/resource', { ref }),
 		preview: (page: string, draft: PageDraft) =>
 			post<PageLayoutPreview>('/page/preview', { page, draft }),

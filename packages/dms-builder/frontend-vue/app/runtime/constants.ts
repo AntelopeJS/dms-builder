@@ -293,3 +293,9 @@ export const DATA_TYPES: Record<string, DataTypeInfo> = {
 
 /** The icon of a DataType a project registered itself. */
 export const OTHER_DATA_TYPE_ICON = 'i-ph-dots-three-circle'
+
+/**
+ * The DMS's roles settings, where a role is given a page, a block or an
+ * action: what the editor sends someone to when it says a role lost one.
+ */
+export const ROLES_PAGE_PATH = '/settings/workspace/roles'

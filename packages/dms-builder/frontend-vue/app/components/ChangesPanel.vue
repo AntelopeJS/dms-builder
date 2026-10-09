@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ChangeGroup, ChangeKind, DraftChange } from '../runtime/changes'
+import { ROLES_PAGE_PATH } from '../runtime/constants'
 import { findNode } from '../runtime/draft'
 import { blockTitle } from '../runtime/naming'
 import { clockTime } from '../runtime/save-status'
@@ -8,8 +9,9 @@ import { useBuilder } from '../runtime/session'
 
 /**
  * Every pending edit in plain words, grouped by what it reaches, each one
- * revertible on its own; then what Save will do, step by step; then what was
- * already written straight to the project and is not part of the draft.
+ * revertible on its own; then who would stop seeing what once it is saved;
+ * then what Save will do, step by step; then what was already written straight
+ * to the project and is not part of the draft.
  */
 
 const GROUPS: { id: ChangeGroup; label: string }[] = [
@@ -55,6 +57,14 @@ const toFix = computed(() => {
 })
 
 const applied = computed(() => [...session.value.applied].reverse())
+
+/**
+ * The roles settings, beside the editor rather than instead of it: the draft
+ * stays open, and who sees what is read again on the way back.
+ */
+function openRoles(): void {
+	window.open(ROLES_PAGE_PATH, '_blank', 'noopener')
+}
 
 function go(change: DraftChange): void {
 	if (change.path) {
@@ -158,6 +168,47 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 					/>
 				</li>
 			</ul>
+		</section>
+
+		<!-- Saving does not ask the roles: what they would stop seeing is said
+		here, before it, with the way to give it back. -->
+		<section v-if="builder.accessWarnings.value.length" class="flex flex-col gap-1">
+			<DmsEyebrow>{{ `Who sees it · ${builder.accessWarnings.value.length}` }}</DmsEyebrow>
+			<ul class="flex flex-col">
+				<li
+					v-for="warning in builder.accessWarnings.value"
+					:key="warning.id"
+					class="flex items-start gap-2.5 border-b border-(--ui-border-muted) py-2.5 last:border-b-0"
+					:data-access-warning="warning.id"
+				>
+					<span
+						class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-warning/10 text-warning"
+					>
+						<UIcon name="i-ph-lock-simple-light" class="size-3.5" />
+					</span>
+					<button
+						type="button"
+						class="min-w-0 flex-1 text-left"
+						:class="warning.path ? 'cursor-pointer' : 'cursor-default'"
+						:title="warning.path ? 'Go to the block' : undefined"
+						@click="warning.path && builder.select(warning.path)"
+					>
+						<span class="block text-[13px] font-semibold text-highlighted">
+							{{ warning.title }}
+						</span>
+						<span class="block text-xs text-muted">{{ warning.detail }}</span>
+					</button>
+				</li>
+			</ul>
+			<UButton
+				icon="i-ph-arrow-square-out-light"
+				label="Open Roles"
+				size="xs"
+				color="neutral"
+				variant="outline"
+				class="self-start"
+				@click="openRoles"
+			/>
 		</section>
 
 		<section v-if="builder.dirty.value" class="flex flex-col gap-2">

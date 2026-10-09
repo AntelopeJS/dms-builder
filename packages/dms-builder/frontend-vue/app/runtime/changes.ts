@@ -162,6 +162,65 @@ function match(saved: Placed[], drafted: Placed[]): Map<Placed, Placed> {
 	return pairs
 }
 
+/** A block the author placed in the draft, and the saved block it is. */
+export interface PairedBlock {
+	block: BlockDraft
+	/** Its path in the draft, the editor's own rows and columns included. */
+	path: string
+	/** Its path counting only the blocks an author placed. */
+	shown: string
+	/** The saved block's path, and shown path; absent for a block added. */
+	was?: { path: string; shown: string }
+}
+
+/** A block's own settings, without what it holds nor what it is called. */
+function unnamed(block: BlockDraft): BlockDraft {
+	const { name: _name, ...rest } = own(block)
+	return { ...rest, name: '' }
+}
+
+/**
+ * Every block the author placed in the draft, top to bottom, paired with the
+ * saved block it is — the pairing the list reads its moves from, and then a
+ * block left alone but for its name, which the list counts as one removed and
+ * one added but which is still the same block to whoever was shown it.
+ */
+export function pairedBlocks(
+	saved: PageDraft,
+	draft: PageDraft,
+	catalog: BlockCatalog | null,
+): PairedBlock[] {
+	const before = placedBlocks(saved, catalog)
+	const after = placedBlocks(draft, catalog)
+	const was = new Map<Placed, Placed>()
+	for (const [old, now] of match(before, after)) {
+		was.set(now, old)
+	}
+	const unpaired = before.filter((entry) => ![...was.values()].includes(entry))
+	for (const entry of after) {
+		if (was.has(entry)) {
+			continue
+		}
+		const renamed = unpaired.find(
+			(old) =>
+				old.block.type === entry.block.type &&
+				same(unnamed(old.block), unnamed(entry.block)),
+		)
+		if (renamed) {
+			was.set(entry, renamed)
+			unpaired.splice(unpaired.indexOf(renamed), 1)
+		}
+	}
+	return after.map((entry) => {
+		const paired: PairedBlock = { block: entry.block, path: entry.path, shown: entry.shown }
+		const old = was.get(entry)
+		if (old) {
+			paired.was = { path: old.path, shown: old.shown }
+		}
+		return paired
+	})
+}
+
 /** The longest run of items both sequences keep in the same order. */
 function keptInOrder<T>(left: T[], right: T[]): Set<T> {
 	const table = left.map(() => right.map(() => 0))

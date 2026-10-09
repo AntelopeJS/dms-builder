@@ -263,6 +263,7 @@ async function move(category: string): Promise<void> {
 					aria-label="Permission"
 					@update:model-value="setPermission(String($event))"
 				/>
+				<DmsBuilderAccess />
 			</div>
 		</UFormField>
 

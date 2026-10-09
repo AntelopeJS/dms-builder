@@ -159,7 +159,15 @@ before or after, `⌥↑`/`⌥↓` move it, `↵` opens its settings, `/` search
 blocks — while the focus is on the page, not on a control of the panel.
 `Escape` closes the block menu, then deselects; it never leaves the editor.
 A page that changed on disk while you were editing refuses the write, and
-offers to keep your version or to reload. A table's fields and API, the menu's
+offers to keep your version or to reload.
+
+The DMS gives each block a permission of its own, named after where it sits —
+the page's, then the name of every block down to it, the rows and columns the
+editor writes included — and a role holds ids, not prefixes. So adding a
+block, renaming it, moving it, or laying it in a row the editor wrote all hand
+it a permission no role holds yet. The change list says so before Save (*Support
+loses Revenue*, *No role sees Notes yet*), and the inspector says who sees the
+selected block and who opens the page. A table's fields and API, the menu's
 order and a category are still written at once, for every page reading them;
 the change list keeps a note of each, with what it reached.
 

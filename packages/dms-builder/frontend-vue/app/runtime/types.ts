@@ -461,3 +461,47 @@ export interface PermissionChoice {
 	icon?: string
 	group: string
 }
+
+/**
+ * How the roles of a workspace reach a page: by its permission and a
+ * permission per block (`blocks`), by its permission alone (`page`), all of
+ * it without a role (`everyone`), or not by roles at all (`unmanaged`).
+ */
+export type PageAccessMode = 'blocks' | 'page' | 'everyone' | 'unmanaged'
+
+/** An action of a block a role can be granted or not: export, delete… */
+export interface BlockAction {
+	id: string
+	title: string
+}
+
+/** A role of the workspace, with what it holds of the page. */
+export interface RoleAccess {
+	id: string
+	name: string
+	members: number
+	/** Whether it holds every permission there is. */
+	all: boolean
+	/** The permissions it holds under the page, the page's own included. */
+	permissions: string[]
+}
+
+/** Who reaches the page and each of its blocks, as the DMS decides it. */
+export interface PageAccess {
+	mode: PageAccessMode
+	/** The page's id in the DMS, which its permission defaults to. */
+	fullId: string
+	/** The permission the page opens under, as saved. */
+	permission: string
+	/** The actions of each saved block, by the block's permission. */
+	actions: Record<string, BlockAction[]>
+	/**
+	 * The blocks each saved block holds through its settings — a card's chart —
+	 * which the DMS gives a permission of their own, under the holder's.
+	 */
+	held: Record<string, BlockAction[]>
+	/** The permissions under the page every member holds without a role. */
+	granted: string[]
+	/** The workspace's roles; null when they could not be read. */
+	roles: RoleAccess[] | null
+}

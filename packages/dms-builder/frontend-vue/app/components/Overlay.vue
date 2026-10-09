@@ -238,13 +238,26 @@ function onBeforeUnload(event: BeforeUnloadEvent): void {
 	event.preventDefault()
 }
 
+/**
+ * Coming back to the editor is often coming back from the roles settings,
+ * opened beside it to give a role what the editor said it lost: who sees what
+ * is read again then, so the warnings and the canvas follow.
+ */
+function onFocus(): void {
+	if (session.value.active && session.value.access) {
+		void builder.loadAccess()
+	}
+}
+
 onMounted(() => {
 	document.addEventListener('keydown', onKeydown)
 	window.addEventListener('beforeunload', onBeforeUnload)
+	window.addEventListener('focus', onFocus)
 })
 onUnmounted(() => {
 	document.removeEventListener('keydown', onKeydown)
 	window.removeEventListener('beforeunload', onBeforeUnload)
+	window.removeEventListener('focus', onFocus)
 })
 </script>
 

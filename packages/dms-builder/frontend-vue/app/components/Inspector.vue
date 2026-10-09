@@ -138,6 +138,14 @@ function openMenu(event: MouseEvent): void {
 				/>
 			</header>
 
+			<!-- A block's access follows where it sits, so it is said where the
+			block is looked at. -->
+			<DmsBuilderAccess
+				v-if="session.inspector === 'block' && session.selection"
+				:path="session.selection"
+				class="px-3.5 pb-2.5"
+			/>
+
 			<div class="min-h-0 flex-1 overflow-y-auto border-t border-default px-4 py-4">
 				<DmsBuilderPagePanel v-if="session.inspector === 'page'" />
 				<DmsBuilderJsonPanel v-else-if="session.inspector === 'json'" />

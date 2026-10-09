@@ -34,6 +34,11 @@ import {
 	type DropWrap,
 	type PointerBox,
 } from './dropping'
+import {
+	accessWarnings as warnAccess,
+	draftPermission,
+	type AccessWarning,
+} from './access'
 import { draftChanges, revertChange, type DraftChange } from './changes'
 import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-store'
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
@@ -79,6 +84,7 @@ import type {
 	FieldSpec,
 	OpResult,
 	OpWarning,
+	PageAccess,
 	PageStructure,
 	PageSummary,
 	PreviewState,
@@ -180,6 +186,8 @@ export interface BuilderSession {
 	resourceStructures: Record<string, ResourceStructure>
 	/** What each table reaches and holds, once read; null until then. */
 	tableUsage: TableUsage | null
+	/** Who reaches the page and its blocks, once read; null until then. */
+	access: PageAccess | null
 	queryTemplates: QueryTemplateDescriptor[]
 	draft: PageDraft | null
 	baseline: PageDraft | null
@@ -280,6 +288,7 @@ function emptySession(): BuilderSession {
 		resourceFields: {},
 		resourceStructures: {},
 		tableUsage: null,
+		access: null,
 		queryTemplates: [],
 		draft: null,
 		baseline: null,
@@ -401,6 +410,12 @@ export interface BuilderController {
 	unsaved: ComputedRef<DraftChange[]>
 	/** The pages reading a table, once known: what a change to it reaches. */
 	readersOf: (table: string) => TableReader[] | undefined
+	/** Who would stop seeing what once the draft is saved. */
+	accessWarnings: ComputedRef<AccessWarning[]>
+	/** The permission the page opens under in the draft, once its access is read. */
+	pagePermission: ComputedRef<string | null>
+	/** Read who reaches the page again, with the permission the draft gives it. */
+	loadAccess: () => Promise<void>
 	/** Put one change back, as one edit. */
 	revert: (change: DraftChange) => void
 	/** Answer the move to another page with "stay": the page to go back to. */
@@ -608,6 +623,58 @@ export function useBuilder(): BuilderController {
 		),
 	)
 
+	const pagePermission = computed(() => {
+		const access = session.value.access
+		return access ? draftPermission(access, session.value.draft?.page) : null
+	})
+
+	const accessWarnings = computed(() =>
+		warnAccess(
+			session.value.access,
+			session.value.baseline,
+			session.value.draft,
+			session.value.catalog,
+		),
+	)
+
+	/**
+	 * Who reaches the page, read in the background: it only ever adds to what
+	 * the editor says, so a failure leaves it unsaid. The permission the draft
+	 * gives the page is asked about too, for the roles holding it.
+	 */
+	async function loadAccess(): Promise<void> {
+		const pageRef = session.value.pageRef
+		if (!pageRef) {
+			return
+		}
+		const staged = session.value.access
+			? draftPermission(session.value.access, session.value.draft?.page)
+			: undefined
+		try {
+			const access = await api.pageAccess(
+				pageRef,
+				staged && staged !== session.value.access?.permission ? staged : undefined,
+			)
+			// Only an answer of the right shape, and for the page still open.
+			if (
+				session.value.pageRef === pageRef &&
+				access &&
+				typeof access.mode === 'string' &&
+				typeof access.permission === 'string'
+			) {
+				session.value.access = {
+					...access,
+					actions: access.actions ?? {},
+					held: access.held ?? {},
+					granted: access.granted ?? [],
+					roles: Array.isArray(access.roles) ? access.roles : null,
+				}
+			}
+		} catch {
+			// An older module, or a DMS that did not answer: nothing is said.
+		}
+	}
+
 	function readersOf(table: string): TableReader[] | undefined {
 		const usage = session.value.tableUsage
 		return usage ? (usage.readers[table] ?? []) : undefined
@@ -758,6 +825,7 @@ export function useBuilder(): BuilderController {
 					applyLayout(start)
 				}
 				restoreKept(kept)
+				void loadAccess()
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
 			}
 		} catch (error) {
@@ -1796,6 +1864,10 @@ export function useBuilder(): BuilderController {
 		mutate((draft) => {
 			draft.page = { ...(draft.page ?? {}), ...patch }
 		})
+		// Who holds the permission the page is given now is read with it.
+		if ('permission' in patch) {
+			void loadAccess()
+		}
 	}
 
 	function setDraft(draft: PageDraft): void {
@@ -1906,8 +1978,10 @@ export function useBuilder(): BuilderController {
 			session.value.lastSave = { outcome: 'saved', at: Date.now() }
 			noteDirty()
 			keepDraft()
-			// What reads each table may have changed with the page.
+			// What reads each table may have changed with the page, and the
+			// actions the DMS registered for the blocks it now holds.
 			void loadTableUsage()
+			void loadAccess()
 			report(result, 'Page saved')
 		} finally {
 			session.value.saving = false
@@ -2665,6 +2739,9 @@ export function useBuilder(): BuilderController {
 		notify,
 		unsaved,
 		readersOf,
+		accessWarnings,
+		pagePermission,
+		loadAccess,
 		revert,
 		stayOnPage,
 		applyLayout,
