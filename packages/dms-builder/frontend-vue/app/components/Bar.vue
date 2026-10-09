@@ -6,6 +6,7 @@ import {
 	useCanvasView,
 	type CanvasDevice,
 } from '../runtime/canvas-view'
+import { rolesDecide } from '../runtime/access'
 import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { saveStatus, type SaveStatusKind } from '../runtime/save-status'
 import { useBuilder, type Workspace } from '../runtime/session'
@@ -67,6 +68,35 @@ const status = computed(() =>
 		lastSave: session.value.lastSave,
 	}),
 )
+
+/**
+ * Who the canvas is looked at as: the owner, shown everything, or one of the
+ * workspace's roles, with what it would not be shown veiled. Offered only on a
+ * page roles decide anything about.
+ */
+const roles = computed(() =>
+	rolesDecide(session.value.access) ? (session.value.access.roles ?? []) : [],
+)
+const viewAsItems = computed(() => [
+	[
+		{
+			label: 'You, the owner',
+			description: 'Shown everything',
+			icon: 'i-ph-crown-simple-light',
+			type: 'checkbox' as const,
+			checked: !session.value.viewAs,
+			onSelect: () => builder.setViewAs(null),
+		},
+	],
+	roles.value.map((role) => ({
+		label: role.name,
+		description: `${role.members} member${role.members === 1 ? '' : 's'}`,
+		icon: 'i-ph-user-circle-light',
+		type: 'checkbox' as const,
+		checked: session.value.viewAs === role.id,
+		onSelect: () => builder.setViewAs(role.id),
+	})),
+])
 
 /** The canvas's zoom and width, picked from one menu. */
 const viewItems = computed(() => [
@@ -162,6 +192,25 @@ const viewItems = computed(() => [
 				@click="builder.redo()"
 			/>
 			<span class="mx-1 h-4.5 w-px bg-(--ui-border)" />
+
+			<!-- Looking at the draft as a role sees it: before saving, not after. -->
+			<UDropdownMenu
+				v-if="roles.length"
+				:items="viewAsItems"
+				:content="{ align: 'end' }"
+			>
+				<UButton
+					:label="builder.viewedAs.value ? `As ${builder.viewedAs.value.name}` : undefined"
+					:icon="builder.viewedAs.value ? 'i-ph-eye' : 'i-ph-eye-light'"
+					trailing-icon="i-ph-caret-down-light"
+					size="sm"
+					:color="builder.viewedAs.value ? 'primary' : 'neutral'"
+					:variant="builder.viewedAs.value ? 'soft' : 'ghost'"
+					class="max-w-44 text-xs"
+					aria-label="View the page as a role"
+					title="View the page as a role sees it"
+				/>
+			</UDropdownMenu>
 
 			<UDropdownMenu :items="viewItems" :content="{ align: 'end' }">
 				<UButton

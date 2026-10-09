@@ -363,6 +363,35 @@ const spanStyle = computed(() => {
 
 const pageId = computed(() => session.value.structure?.page.id ?? '')
 
+// Auto-imported from the host's own layer: the DMS titles its actions with
+// translation keys, `$table.actions.export`, read in the viewer's language.
+const { processI18n } = useTranslation()
+
+/**
+ * What the role the canvas is looked at as would not be shown of this block,
+ * drawn the way the DMS's own role preview draws it: a hidden block under a
+ * hatch, one with actions withheld marked on its edge. Only a lens — the
+ * block is still edited through it.
+ */
+const veil = computed(() => builder.veils.value[props.path])
+const veilLabel = computed(() => {
+	switch (veil.value?.state) {
+		case 'hidden':
+			return `Hidden for ${builder.viewedAs.value?.name ?? 'this role'}`
+		case 'readonly':
+			return 'Read only'
+		case 'limited':
+			return 'Limited'
+		default:
+			return ''
+	}
+})
+const veilDetail = computed(() =>
+	veil.value && veil.value.state !== 'hidden'
+		? `Withheld for this role: ${veil.value.withheld.map((title) => processI18n(title)).join(', ')}`
+		: undefined,
+)
+
 function onDragStart(event: DragEvent): void {
 	event.dataTransfer?.setData('text/plain', props.path)
 	// See Library.vue: without an allowed effect the browser turns every drop
@@ -659,5 +688,32 @@ function answerCursor(event: DragEvent): void {
 		</DmsBuilderBoundary>
 
 		<DmsBuilderPlaceholder v-if="wrapGap === 'after'" :axis="wrapAxis" />
+
+		<template v-if="veil">
+			<div
+				v-if="veil.state === 'hidden'"
+				class="pointer-events-none absolute inset-0 z-[5] rounded-[inherit] bg-[repeating-linear-gradient(-45deg,color-mix(in_srgb,var(--ui-bg)_84%,transparent)_0_10px,color-mix(in_srgb,var(--ui-bg)_70%,transparent)_10px_20px)] backdrop-blur-[3px]"
+				data-veil="hidden"
+			/>
+			<UTooltip :text="veilDetail" :disabled="!veilDetail">
+				<span
+					class="absolute z-[6] inline-flex h-6 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[10.5px] font-[650] tracking-[0.08em] whitespace-nowrap uppercase backdrop-blur-md"
+					:class="
+						veil.state === 'hidden'
+							? 'pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-(--dms-error-line) bg-(--dms-error-tint) text-error'
+							: '-top-3 right-4 border-(--dms-warning-line) text-warning [background:linear-gradient(var(--dms-warning-tint),var(--dms-warning-tint)),var(--ui-bg)]'
+					"
+					role="status"
+					:tabindex="veilDetail ? 0 : undefined"
+					:data-veil-badge="veil.state"
+				>
+					<UIcon
+						:name="veil.state === 'hidden' ? 'i-ph-lock-simple' : 'i-ph-eye'"
+						class="size-[13px] shrink-0"
+					/>
+					{{ veilLabel }}
+				</span>
+			</UTooltip>
+		</template>
 	</div>
 </template>

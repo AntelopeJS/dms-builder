@@ -5,6 +5,7 @@ import {
 	draftPermission,
 	roleNames,
 	rolesSeeing,
+	veilsFor,
 } from '../app/runtime/access'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockDraft, PageAccess, PageDraft, RoleAccess } from '../app/runtime/types'
@@ -87,6 +88,47 @@ describe('the permission of a block', () => {
 	it('is everyone’s on a page every member reaches, and no one’s to check on one roles do not decide', () => {
 		expect(rolesSeeing(access({ mode: 'everyone' }), PAGE, 'intro')).toHaveLength(3)
 		expect(rolesSeeing(access({ mode: 'unmanaged' }), PAGE, 'intro')).toHaveLength(3)
+	})
+})
+
+describe('a role looking at the draft', () => {
+	it('is not shown a block it is not given, nor anything that block holds', () => {
+		const draft = page(text('title'), grid(text('kpi')))
+		expect(veilsFor(access(), finance, draft, PAGE)).toEqual({ grid: { state: 'hidden' } })
+	})
+
+	it('reads only a block whose writing actions it is not given', () => {
+		const draft = page(text('title'), text('chart'))
+		expect(veilsFor(access(), support, draft, PAGE)).toEqual({
+			chart: { state: 'readonly', withheld: ['Export'] },
+		})
+	})
+
+	it('is shown a card without the chart it holds, when it is not given the chart', () => {
+		const draft = page(text('title'))
+		const held = access({ held: { [`${PAGE}.title`]: [{ id: `${PAGE}.title.chart`, title: 'Chart' }] } })
+		expect(veilsFor(held, finance, draft, PAGE)).toEqual({
+			title: { state: 'limited', withheld: ['Chart'] },
+		})
+	})
+
+	it('does not count an action every member holds as one withheld', () => {
+		const draft = page(text('chart'))
+		const granted = access({ granted: [`${PAGE}.chart.export`] })
+		expect(veilsFor(granted, support, draft, PAGE)).toEqual({})
+	})
+
+	it('is shown nothing of a page it does not open', () => {
+		const draft = page(text('title'), text('chart'))
+		expect(veilsFor(access(), outsider, draft, PAGE)).toEqual({
+			title: { state: 'hidden' },
+			chart: { state: 'hidden' },
+		})
+	})
+
+	it('is shown everything a role holding every permission is', () => {
+		const all = { ...outsider, all: true }
+		expect(veilsFor(access(), all, page(text('intro')), PAGE)).toEqual({})
 	})
 })
 
@@ -196,6 +238,14 @@ describe('the session’s view of who sees the page', () => {
 		expect(builder.accessWarnings.value.map((warning) => warning.title)).toEqual([
 			expect.stringMatching(/^No role sees .+ yet$/),
 		])
+	})
+
+	it('veils what the role looked at as is not shown, and lets it go', () => {
+		builder.setViewAs('support')
+		expect(builder.viewedAs.value?.name).toBe('Support')
+		expect(builder.veils.value).toEqual({ intro: { state: 'hidden' } })
+		builder.setViewAs(null)
+		expect(builder.veils.value).toEqual({})
 	})
 
 	it('asks who holds the permission the draft gives the page', async () => {

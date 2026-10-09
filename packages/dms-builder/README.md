@@ -166,8 +166,11 @@ the page's, then the name of every block down to it, the rows and columns the
 editor writes included — and a role holds ids, not prefixes. So adding a
 block, renaming it, moving it, or laying it in a row the editor wrote all hand
 it a permission no role holds yet. The change list says so before Save (*Support
-loses Revenue*, *No role sees Notes yet*), and the inspector says who sees the
-selected block and who opens the page. A table's fields and API, the menu's
+loses Revenue*, *No role sees Notes yet*), the inspector says who sees the
+selected block and who opens the page, and **View as** in the bar shows the
+draft as a role sees it, with the DMS's own role-preview veils: a block hidden
+from it hatched, one whose actions it is not given marked *Read only* or
+*Limited*. A table's fields and API, the menu's
 order and a category are still written at once, for every page reading them;
 the change list keeps a note of each, with what it reached.
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useDmsRouter as useRouter } from '#dms/frontend-module'
+import { opensPage } from '../runtime/access'
 import { describeError, errorDetail } from '../runtime/errors'
 import { clockTime } from '../runtime/save-status'
 import { useBuilder } from '../runtime/session'
@@ -69,11 +70,42 @@ async function copyDraft(): Promise<void> {
  */
 const STRIP =
 	'flex min-h-10 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b py-1.5 ps-4 pe-3 text-[12.5px] text-toned'
+const ACCENT = `${STRIP} border-(--dms-accent-line) bg-(--dms-accent-tint)`
 const WARNING = `${STRIP} border-(--dms-warning-line) bg-(--dms-warning-tint)`
 const ERROR = `${STRIP} border-(--dms-error-line) bg-(--dms-error-tint)`
 const INFO = `${STRIP} border-(--dms-info-line) bg-(--dms-info-tint)`
 const SENTENCE = 'flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1'
 const ACTIONS = 'ms-auto flex shrink-0 flex-wrap items-center gap-1.5'
+
+/* ---- looking at the page as a role ------------------------------------- */
+
+const viewed = builder.viewedAs
+const roleItems = computed(() =>
+	(session.value.access?.roles ?? []).map((role) => ({
+		label: role.name,
+		value: role.id,
+		icon: 'i-ph-user-circle-light',
+	})),
+)
+/** The role does not open the page at all, under the permission the draft gives it. */
+const pageHidden = computed(() => {
+	const access = session.value.access
+	const role = viewed.value
+	const page = builder.pagePermission.value
+	return !!access && !!role && !!page && !opensPage(access, role, page)
+})
+/** What it is not shown, counted the way the canvas veils it. */
+const veiled = computed(() => {
+	const states = Object.values(builder.veils.value).map((veil) => veil.state)
+	const hidden = states.filter((state) => state === 'hidden').length
+	const limited = states.length - hidden
+	return [
+		hidden ? `${hidden} block${hidden === 1 ? '' : 's'} hidden` : '',
+		limited ? `${limited} with fewer actions` : '',
+	]
+		.filter(Boolean)
+		.join(' · ')
+})
 </script>
 
 <template>
@@ -120,6 +152,59 @@ const ACTIONS = 'ms-auto flex shrink-0 flex-wrap items-center gap-1.5'
 				</div>
 			</template>
 		</UModal>
+
+		<!-- The page as a role sees it, unsaved changes included: the DMS's own
+		role preview, but on the draft rather than on the page as saved. -->
+		<div
+			v-if="viewed && session.workspace === 'page'"
+			:class="ACCENT"
+			role="region"
+			aria-label="Role preview"
+		>
+			<span :class="SENTENCE">
+				<UIcon name="i-ph-eye" class="me-1 size-4 shrink-0 text-primary" />
+				<span>Viewing</span>
+				<b class="font-semibold text-highlighted">{{ title }}</b>
+				<span>as</span>
+				<USelectMenu
+					:model-value="viewed.id"
+					:items="roleItems"
+					value-key="value"
+					size="xs"
+					variant="ghost"
+					class="-mx-1 max-w-52 font-semibold text-highlighted"
+					aria-label="Role to view the page as"
+					@update:model-value="builder.setViewAs(String($event))"
+				/>
+				<span v-if="builder.dirty.value">· unsaved changes included</span>
+			</span>
+			<span :class="ACTIONS">
+				<UBadge
+					v-if="pageHidden"
+					color="error"
+					variant="soft"
+					size="sm"
+					icon="i-ph-lock-simple"
+					:label="`Page hidden for ${viewed.name}`"
+				/>
+				<UBadge
+					v-else-if="veiled"
+					color="warning"
+					variant="soft"
+					size="sm"
+					icon="i-ph-lock-simple"
+					:label="veiled"
+				/>
+				<UButton
+					icon="i-ph-x"
+					size="xs"
+					color="neutral"
+					variant="outline"
+					label="Exit preview"
+					@click="builder.setViewAs(null)"
+				/>
+			</span>
+		</div>
 
 		<!-- A draft kept from an earlier visit: put back, or offered when the
 		page has moved on since it was made. -->

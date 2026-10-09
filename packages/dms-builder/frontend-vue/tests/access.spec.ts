@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import Access from '../app/components/Access.vue'
+import Banners from '../app/components/Banners.vue'
 import ChangesPanel from '../app/components/ChangesPanel.vue'
+import Node from '../app/components/Node.vue'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import {
 	findAll,
@@ -16,8 +18,8 @@ import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { PageAccess } from '../app/runtime/types'
 
 /**
- * What the editor says about who sees the page: what a save would take from
- * the roles, and who is shown the block selected.
+ * What the editor says about who sees the page: the page looked at as a role,
+ * what a save would take from the roles, and who is shown the block selected.
  */
 
 let backend: FakeBackend
@@ -73,6 +75,47 @@ afterEach(() => {
 	unmount = undefined
 	builder.close()
 	vi.useRealTimers()
+})
+
+describe('the page looked at as a role', () => {
+	it('veils the block the role is not shown, the way the DMS’s preview does', async () => {
+		builder.setViewAs('support')
+		const intro = builder.session.value.draft?.blocks[1]
+		const root = show(Node, { block: intro, path: 'intro' })
+		await nextTick()
+
+		const badge = findAll(root, (node) => node.props['data-veil-badge'] === 'hidden')
+		expect(badge.map(textOf)).toEqual(['Hidden for Support'])
+		expect(findAll(root, (node) => node.props['data-veil'] === 'hidden')).toHaveLength(1)
+	})
+
+	it('leaves a block the role is shown as it is', async () => {
+		builder.setViewAs('support')
+		const title = builder.session.value.draft?.blocks[0]
+		const root = show(Node, { block: title, path: 'title' })
+		await nextTick()
+		expect(findAll(root, (node) => 'data-veil-badge' in node.props)).toHaveLength(0)
+	})
+
+	it('says so in a strip under the bar, with what is hidden, until it is left', async () => {
+		builder.setViewAs('support')
+		const root = show(Banners)
+		await nextTick()
+
+		const strip = findAll(root, (node) => node.props['aria-label'] === 'Role preview')[0]
+		expect(strip).toBeDefined()
+		// Each word its own item of the strip, which wraps them on a narrow screen.
+		const words = findAll(strip!, (node) => node.tag === 'span' || node.tag === 'b').map(textOf)
+		expect(words).toEqual(expect.arrayContaining(['Viewing', 'Sales', 'as']))
+		const badges = findAll(strip!, (node) => node.tag === 'UBadge').map((node) => node.props.label)
+		expect(badges).toEqual(['1 block hidden'])
+
+		const exit = findAll(strip!, (node) => node.props.label === 'Exit preview')[0]!
+		fire(exit, 'click')
+		await nextTick()
+		expect(builder.session.value.viewAs).toBeNull()
+		expect(findAll(root, (node) => node.props['aria-label'] === 'Role preview')).toHaveLength(0)
+	})
 })
 
 describe('what a save would take from the roles', () => {

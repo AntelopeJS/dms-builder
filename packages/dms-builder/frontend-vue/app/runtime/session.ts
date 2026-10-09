@@ -37,7 +37,10 @@ import {
 import {
 	accessWarnings as warnAccess,
 	draftPermission,
+	rolesDecide,
+	veilsFor,
 	type AccessWarning,
+	type BlockVeil,
 } from './access'
 import { draftChanges, revertChange, type DraftChange } from './changes'
 import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-store'
@@ -89,6 +92,7 @@ import type {
 	PageSummary,
 	PreviewState,
 	QueryPreview,
+	RoleAccess,
 	QueryTemplateDescriptor,
 	ResourceStructure,
 	ResourceSummary,
@@ -188,6 +192,11 @@ export interface BuilderSession {
 	tableUsage: TableUsage | null
 	/** Who reaches the page and its blocks, once read; null until then. */
 	access: PageAccess | null
+	/**
+	 * The role the canvas is looked at as, by id: what it would not be shown
+	 * of the draft is veiled. Null is the owner, who is shown everything.
+	 */
+	viewAs: string | null
 	queryTemplates: QueryTemplateDescriptor[]
 	draft: PageDraft | null
 	baseline: PageDraft | null
@@ -289,6 +298,7 @@ function emptySession(): BuilderSession {
 		resourceStructures: {},
 		tableUsage: null,
 		access: null,
+		viewAs: null,
 		queryTemplates: [],
 		draft: null,
 		baseline: null,
@@ -414,6 +424,12 @@ export interface BuilderController {
 	accessWarnings: ComputedRef<AccessWarning[]>
 	/** The permission the page opens under in the draft, once its access is read. */
 	pagePermission: ComputedRef<string | null>
+	/** The role the canvas is looked at as, if any. */
+	viewedAs: ComputedRef<RoleAccess | undefined>
+	/** What that role would not be shown of the draft, by path. */
+	veils: ComputedRef<Record<string, BlockVeil>>
+	/** Look at the canvas as a role; null goes back to the owner's view. */
+	setViewAs: (role: string | null) => void
 	/** Read who reaches the page again, with the permission the draft gives it. */
 	loadAccess: () => Promise<void>
 	/** Put one change back, as one edit. */
@@ -637,6 +653,24 @@ export function useBuilder(): BuilderController {
 		),
 	)
 
+	const viewedAs = computed(() => {
+		const id = session.value.viewAs
+		return id ? session.value.access?.roles?.find((role) => role.id === id) : undefined
+	})
+
+	const veils = computed<Record<string, BlockVeil>>(() => {
+		const access = session.value.access
+		const role = viewedAs.value
+		const draft = session.value.draft
+		return access && role && draft && pagePermission.value
+			? veilsFor(access, role, draft, pagePermission.value)
+			: {}
+	})
+
+	function setViewAs(role: string | null): void {
+		session.value.viewAs = role
+	}
+
 	/**
 	 * Who reaches the page, read in the background: it only ever adds to what
 	 * the editor says, so a failure leaves it unsaid. The permission the draft
@@ -668,6 +702,9 @@ export function useBuilder(): BuilderController {
 					held: access.held ?? {},
 					granted: access.granted ?? [],
 					roles: Array.isArray(access.roles) ? access.roles : null,
+				}
+				if (!rolesDecide(session.value.access) || !viewedAs.value) {
+					session.value.viewAs = null
 				}
 			}
 		} catch {
@@ -2741,6 +2778,9 @@ export function useBuilder(): BuilderController {
 		readersOf,
 		accessWarnings,
 		pagePermission,
+		viewedAs,
+		veils,
+		setViewAs,
 		loadAccess,
 		revert,
 		stayOnPage,

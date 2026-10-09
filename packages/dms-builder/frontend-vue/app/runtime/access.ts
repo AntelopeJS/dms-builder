@@ -14,13 +14,24 @@
  * and nobody else does.
  */
 import { pairedBlocks } from './changes'
-import { leafName } from './draft'
+import { joinPath, leafName } from './draft'
 import { blockTitle } from './naming'
-import type { BlockCatalog, PageAccess, PageDraft, RoleAccess } from './types'
+import type { BlockCatalog, BlockDraft, PageAccess, PageDraft, RoleAccess } from './types'
 
 const SEPARATOR = '.'
+/** The actions that only read: a role keeping these and no other reads only. */
+const READ_ACTIONS = new Set(['list', 'view', 'details', 'read'])
 /** Past this many, the rest of the roles are counted rather than named. */
 const NAMED_ROLES = 2
+
+/**
+ * What a role would not be shown of a block, as the DMS's preview veils it:
+ * hidden, or shown without some of what it offers — its actions, or a block
+ * it holds through its settings, a card's chart.
+ */
+export type BlockVeil =
+	| { state: 'hidden' }
+	| { state: 'readonly' | 'limited'; withheld: string[] }
 
 /** Something about who sees the page that changes on save, said before it. */
 export interface AccessWarning {
@@ -105,6 +116,60 @@ export function roleNames(roles: RoleAccess[]): string {
 	}
 	const rest = names.length - NAMED_ROLES
 	return `${names.slice(0, NAMED_ROLES).join(', ')} and ${rest} more`
+}
+
+/**
+ * What the role would not be shown of the draft, by path, as the DMS's own
+ * preview veils it: a block it is not given is hidden with all it holds; one
+ * it is given without some of its actions reads only, or is limited.
+ */
+export function veilsFor(
+	access: PageAccess,
+	role: RoleAccess,
+	draft: PageDraft,
+	page: string,
+): Record<string, BlockVeil> {
+	const veils: Record<string, BlockVeil> = {}
+	if (!rolesDecide(access)) {
+		return veils
+	}
+	const pageHidden = !opensPage(access, role, page)
+	const visit = (blocks: BlockDraft[], parent: string | null): void => {
+		for (const block of blocks) {
+			const path = joinPath(parent, block.name)
+			if (pageHidden) {
+				veils[path] = { state: 'hidden' }
+				continue
+			}
+			if (access.mode !== 'blocks') {
+				continue
+			}
+			const id = blockPermission(page, path)
+			if (!holds(access, role, id)) {
+				veils[path] = { state: 'hidden' }
+				continue
+			}
+			const actions = (access.actions[id] ?? []).filter(
+				(action) => !access.granted.includes(action.id),
+			)
+			const withheld = actions.filter((action) => !holds(access, role, action.id))
+			const missing = (access.held?.[id] ?? []).filter((part) => !holds(access, role, part.id))
+			if (withheld.length > 0 || missing.length > 0) {
+				const writes = actions.filter(
+					(action) => !READ_ACTIONS.has(action.id.split(SEPARATOR).at(-1) ?? ''),
+				)
+				const keepsWrite = writes.some((action) => holds(access, role, action.id))
+				const readsOnly = withheld.length > 0 && writes.length > 0 && !keepsWrite
+				veils[path] = {
+					state: readsOnly ? 'readonly' : 'limited',
+					withheld: [...missing, ...withheld].map((entry) => entry.title),
+				}
+			}
+			visit(block.children ?? [], path)
+		}
+	}
+	visit(draft.blocks, null)
+	return veils
 }
 
 /**
