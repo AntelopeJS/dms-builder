@@ -21,6 +21,7 @@ import {
 	type TestNode,
 } from './support/render'
 import { findNode } from '../app/runtime/draft'
+import { usePaletteView } from '../app/runtime/palette-view'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
 import type { BlockNode, ComponentPreview } from '../app/runtime/types'
 
@@ -1374,17 +1375,45 @@ describe('the palette', () => {
 		}).root
 	}
 
-	it('names each component, and says what it is for under its name', async () => {
+	it('lays the components out as tiles, what each is for behind its question mark', async () => {
 		await openWith([block('title', 'Text')])
 		const { root } = mount(Library)
 		await nextTick()
 
-		const text = paletteButton(root, 'Text')
-		const lines = findAll(text, (node) => node.tag === 'b' || node.tag === 'span')
-			.map(textOf)
-			.filter(Boolean)
-		expect(lines).toContain('Text')
-		expect(lines).toContain('A paragraph, a heading, or a line of prose.')
+		const description = 'A paragraph, a heading, or a line of prose.'
+		expect(textOf(paletteButton(root, 'Text'))).toBe('Text')
+		const about = findAll(
+			root,
+			(node) => node.props['aria-label'] === `About Text: ${description}`,
+		)[0]!
+		expect(textOf(about)).toBe('?')
+		const tooltip = findAll(root, (node) => node.tag === 'UTooltip').find((node) =>
+			findAll(node, (child) => child === about).length > 0,
+		)
+		expect(tooltip?.props.text).toBe(description)
+		// Its own button: asking what a block is does not add it.
+		expect(about.props.onClick).toBeUndefined()
+	})
+
+	it('lays them out as lines on request, saying what each is for under its name', async () => {
+		await openWith([block('title', 'Text')])
+		const { root } = mount(Library)
+		await nextTick()
+		const toList = findAll(root, (node) => node.props['aria-label'] === 'Show as a list')[0]!
+		fire(toList, 'click')
+		await nextTick()
+
+		try {
+			const text = paletteButton(root, 'Text')
+			const lines = findAll(text, (node) => node.tag === 'b' || node.tag === 'span')
+				.map(textOf)
+				.filter(Boolean)
+			expect(lines).toContain('Text')
+			expect(lines).toContain('A paragraph, a heading, or a line of prose.')
+			expect(usePaletteView().layout.value).toBe('list')
+		} finally {
+			usePaletteView().setLayout('grid')
+		}
 	})
 
 	it('appends to the page on click, as the heading over it says', async () => {

@@ -120,7 +120,8 @@ usable behind it.
   to fix, failed) that opens the change list, undo/redo, the canvas's zoom and
   width, Simple/Developer, **Save** and **Done**.
 - **Side rail** — three tabs that stay whatever is selected: **Add** (the
-  catalog, grouped and searchable by what a block is for; drag onto the page,
+  catalog, grouped and searchable by what a block is for, laid out as tiles or
+  as a list saying what each block is for; drag onto the page,
   click to add where you are working, `↵`/`⌥↵` to add below or beside the
   selection), **Layers** (every block of the page as a tree, the rows and
   columns the editor wrote shown for what they hold) and **Pages** (the menu:
