@@ -30,6 +30,7 @@ import { getRoutePrefix } from "../config";
 import { QUERY_PREVIEW_PARAMETER, ROUTES } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
+import { pageAccess } from "../implementations/dms-builder/engine/page-access";
 import { listPermissions } from "../implementations/dms-builder/engine/permissions";
 import { previewRequestFromSearch } from "../implementations/dms-builder/engine/query-preview";
 import {
@@ -214,6 +215,27 @@ export class BuilderController extends Controller(getRoutePrefix()) {
   ) {
     const impact = pageImpact(ref);
     return impact ?? new HTTPResult(404, { code: "not_found", ref });
+  }
+
+  /**
+   * Who reaches the page and each of its blocks: how the DMS gates it, the
+   * actions of its blocks, and the roles of the request's tenant with what
+   * they hold of it. `permission` is one the draft gives the page instead,
+   * read too so the editor can say who would open it.
+   */
+  @Get(ROUTES.pageAccess)
+  async pageAccess(
+    @AuthTenantOwner() _user: User,
+    @Context() context: RequestContext,
+    @Parameter("ref", "query") ref: string,
+    @Parameter("permission", "query") permission?: string,
+  ) {
+    const access = await pageAccess(
+      ref,
+      getRequestTenantId(context),
+      permission,
+    );
+    return access ?? new HTTPResult(404, { code: "not_found", ref });
   }
 
   /**

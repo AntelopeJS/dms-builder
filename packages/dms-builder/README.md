@@ -61,7 +61,7 @@ All routes sit under `/api/builder`. The operations answer with the
 interface's own `OpResult` shape — `{ ok: true, data, changes }` or
 `{ ok: false, error }` — so a client branches on `ok` rather than on the status
 code; the reads that only describe the project (`/tables/usage`,
-`/page/impact`, `/permissions`) answer with their value.
+`/page/impact`, `/page/access`, `/permissions`) answer with their value.
 
 | Method | Path | Body / query | Operation |
 | --- | --- | --- | --- |
@@ -76,6 +76,7 @@ code; the reads that only describe the project (`/tables/usage`,
 | `POST` | `/page/preview` | `{ page, draft }` | `PreviewLayout` |
 | `POST` | `/page/blocks` | `{ page, draft, expectedVersion? }` | `SetPageBlocks` |
 | `GET` | `/page/impact` | `?ref=` | What deleting the page takes: its blocks, its data sources, the pages linking to it |
+| `GET` | `/page/access` | `?ref=&permission=` | Who reaches the page and each of its blocks: how the DMS gates it, its blocks' actions and the blocks they hold, and the tenant's roles with what they hold of it (`permission`: another the draft gives the page) |
 | `GET` | `/permissions` | — | The permissions the DMS registered, flat, to pick a page's access from |
 | `GET` | `/resources` | — | `ListResources` |
 | `POST` | `/resources` | `CreateResourceInput` | `CreateResource` |

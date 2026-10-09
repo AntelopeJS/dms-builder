@@ -20,6 +20,7 @@ export const ROUTES = {
   dataSources: "/data-sources",
   tableUsage: "/tables/usage",
   pageImpact: "/page/impact",
+  pageAccess: "/page/access",
   permissions: "/permissions",
   refresh: "/refresh",
 } as const;
