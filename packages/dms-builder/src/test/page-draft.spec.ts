@@ -256,6 +256,37 @@ describe("the page draft", () => {
       );
     });
 
+    it("makes the page live with its blocks, reads it back, and takes it off", async function () {
+      this.timeout(OP_TIMEOUT);
+      const blocks = (await structure()).blocks.map((block) => ({
+        name: block.name,
+        type: block.type ?? undefined,
+        config: block.config,
+      }));
+      const live = expectOk(
+        await SetPageBlocks(
+          PAGE,
+          { page: { live: { maxRate: 5 } }, blocks },
+          { expectedVersion: (await structure()).version },
+        ),
+        "SetPageBlocks",
+      );
+      expect(app.read(PAGE_FILE)).to.contain("live: { maxRate: 5 }");
+      expect((await structure()).page.live).to.deep.equal({ maxRate: 5 });
+
+      const off = JSON.parse('{"live":null}') as PageDraft["page"];
+      expectOk(
+        await SetPageBlocks(
+          PAGE,
+          { page: off, blocks },
+          { expectedVersion: live.version },
+        ),
+        "SetPageBlocks",
+      );
+      expect(app.read(PAGE_FILE)).to.not.contain("live:");
+      expect((await structure()).page.live).to.equal(undefined);
+    });
+
     it("refuses a write based on a version that has moved", async function () {
       this.timeout(OP_TIMEOUT);
       const result = await SetPageBlocks(

@@ -47,6 +47,8 @@ export interface PageRecord {
   description?: string;
   hidden?: boolean;
   permission?: Record<string, unknown>;
+  /** The page's `live` options, when it is live and they are plain data. */
+  live?: Record<string, unknown>;
   moduleId?: string;
   classNode: ClassDeclaration;
   optionsNode?: ObjectLiteralExpression;
@@ -75,13 +77,15 @@ export function joinSlug(parentSlug: string, urlSlug: string): string {
 }
 
 /**
- * A page's `permission`, which the DMS types as `Partial<Permission> | Action`.
- * Only the literal spec is data; an `Action` reference reads back as absent.
+ * A page option written as an object literal: a page's `permission`, which the
+ * DMS types as `Partial<Permission> | Action`, or its `live` options. Only a
+ * literal is data; an `Action` or a constant reads back as absent.
  */
-function readPermission(
+function readObjectOption(
   opts: ObjectLiteralExpression,
+  name: string,
 ): Record<string, unknown> | undefined {
-  const node = getObjectProperty(opts, "permission");
+  const node = getObjectProperty(opts, name);
   if (!node || !Node.isObjectLiteralExpression(node)) {
     return undefined;
   }
@@ -208,7 +212,8 @@ class SourceScanner {
       order: getNumberProperty(optsArg, "order"),
       description: getStringProperty(optsArg, "description"),
       hidden: getBooleanProperty(optsArg, "hidden"),
-      permission: readPermission(optsArg),
+      permission: readObjectOption(optsArg, "permission"),
+      live: readObjectOption(optsArg, "live"),
       moduleId: getStringProperty(optsArg, "module"),
       classNode: cls,
       optionsNode: optsArg,

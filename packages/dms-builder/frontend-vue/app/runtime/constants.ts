@@ -138,6 +138,21 @@ export const GUARD_BLOCK = 'Guard'
  */
 export const GUARDED_BLOCKS = new Set(['Card', SECTION_BLOCK])
 
+/** The date range control the cards of a page follow, and the scope it drives. */
+export const PERIOD_SELECTOR = 'PeriodSelector'
+export const PAGE_PERIOD_SCOPE = 'page'
+
+/** The Live / Pause switch of a live page. */
+export const LIVE_TOGGLE = 'LiveToggle'
+
+/**
+ * What the simple palette leaves to the developer view, a setting placing it
+ * where it is needed: the message a container shows when there is nothing to
+ * show — "When there's nothing to show" —, and a live page's switch — the
+ * page's "Live updates".
+ */
+export const DEVELOPER_BLOCKS = new Set(['EmptyState', LIVE_TOGGLE])
+
 /**
  * The wrappers the editor writes around what an author places — a section's
  * rows, a container's guard — and so never offers, in either mode: like the

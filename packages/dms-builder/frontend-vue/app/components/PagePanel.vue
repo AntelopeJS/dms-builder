@@ -36,6 +36,23 @@ function value<T>(key: string, fallback: T): T {
 	return (patch.value[key] as T) ?? fallback
 }
 
+/** The page's live options as the draft holds them; null when it is not live. */
+const live = computed<Record<string, unknown> | null>(() => {
+	const drafted = patch.value.live
+	const held = drafted === undefined ? meta.value?.live : drafted
+	return held && typeof held === 'object' ? (held as Record<string, unknown>) : null
+})
+
+function setLiveRate(seconds: number | null | undefined): void {
+	const options: Record<string, unknown> = { ...(live.value ?? {}) }
+	if (seconds) {
+		options.maxRate = seconds
+	} else {
+		delete options.maxRate
+	}
+	builder.patchPage({ live: options })
+}
+
 const categories = computed(() => categoryOptions(session.value.categories))
 const categoryLabel = computed(
 	() =>
@@ -201,6 +218,38 @@ async function move(category: string): Promise<void> {
 					:decrement="{ 'aria-label': 'Earlier in the menu' }"
 					class="w-28"
 					@update:model-value="builder.patchPage({ order: $event ?? 0 })"
+				/>
+			</UFormField>
+		</div>
+
+		<!-- A live page holds still when asked: its switch is placed with it. -->
+		<div class="flex flex-col gap-3">
+			<DmsEyebrow>Live updates</DmsEyebrow>
+			<UFormField
+				label="Live updates"
+				description="The page reads its data again as it changes, and a Live / Pause switch at its top lets whoever reads it hold it still."
+				orientation="horizontal"
+			>
+				<USwitch
+					:model-value="live !== null"
+					aria-label="Live updates"
+					@update:model-value="builder.setLive($event ? {} : null)"
+				/>
+			</UFormField>
+			<UFormField
+				v-if="live"
+				label="At most every"
+				description="Seconds between two reads of a block. Left empty, it reads on every change."
+				orientation="horizontal"
+			>
+				<UInputNumber
+					:model-value="typeof live.maxRate === 'number' ? live.maxRate : undefined"
+					size="sm"
+					:min="1"
+					placeholder="—"
+					class="w-28"
+					aria-label="Seconds between two reads"
+					@update:model-value="setLiveRate($event)"
 				/>
 			</UFormField>
 		</div>

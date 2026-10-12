@@ -24,6 +24,7 @@ function toPageMeta(page: PageRecord): PageMeta {
     description: page.description,
     hidden: page.hidden,
     permission: page.permission,
+    live: page.live,
     filepath: page.filepath,
   };
 }

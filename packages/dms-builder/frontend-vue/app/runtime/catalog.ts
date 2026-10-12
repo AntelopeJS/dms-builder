@@ -6,6 +6,7 @@ import {
 	LAYOUT_BLOCKS,
 	OPTION_GROUPS,
 	OTHER_DATA_TYPE_ICON,
+	DEVELOPER_BLOCKS,
 	RETIRED_BLOCKS,
 	WRAPPER_BLOCKS,
 } from './constants'
@@ -182,7 +183,8 @@ export function heldTypes(catalog: BlockCatalog): Map<string, string[]> {
  *
  * The simple mode leaves out a type the DMS never declared as well: the
  * builder only inferred it from a factory, and it comes with no name, no
- * description and no option written for whoever builds a page.
+ * description and no option written for whoever builds a page. And the types a
+ * setting places where they are needed — see `DEVELOPER_BLOCKS`.
  *
  * A block the DMS has since removed is left out of both modes.
  */
@@ -211,7 +213,7 @@ export function paletteGroups(
 			structural.has(block.type) ||
 			hidden.has(block.type) ||
 			RETIRED_BLOCKS.has(block.type) ||
-			(!advanced && block.shapeSource === 'inferred')
+			(!advanced && (block.shapeSource === 'inferred' || DEVELOPER_BLOCKS.has(block.type)))
 		) {
 			continue
 		}

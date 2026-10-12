@@ -11,6 +11,13 @@ import type { ResourceRef } from "./resources";
  */
 export type PagePermission = Record<string, unknown>;
 
+/**
+ * A page's Direct / Pause valve over the realtime of its blocks, mirroring the
+ * DMS `MenuOptions.live`: `maxRate`, `slowRateAfter`, `rememberKey`. Present,
+ * even empty, the page is live; absent, it refetches on every event.
+ */
+export type PageLive = Record<string, unknown>;
+
 /** Page metadata the builder can read. */
 export interface PageMeta {
   ref: PageRef;
@@ -22,6 +29,7 @@ export interface PageMeta {
   description?: string;
   hidden?: boolean;
   permission?: PagePermission;
+  live?: PageLive;
   /** Resolved by the builder's source index, NOT the runtime registry. */
   filepath: string;
 }
@@ -35,6 +43,7 @@ export interface EditablePageMeta {
   description?: string;
   hidden?: boolean;
   permission?: PagePermission;
+  live?: PageLive;
 }
 
 /** A single block in a page's tree. */

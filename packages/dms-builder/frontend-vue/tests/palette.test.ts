@@ -110,7 +110,7 @@ describe('the components the palette lists', () => {
 	})
 
 	it('offers every other type the catalog carries', () => {
-		expect(offered(catalog)).toEqual([
+		expect(offered(catalog, '', true)).toEqual([
 			'Section',
 			'Tab',
 			'PeriodSelector',
@@ -122,6 +122,12 @@ describe('the components the palette lists', () => {
 		])
 	})
 
+	it('leaves to the developer view a block a setting places where it is needed', () => {
+		// "When there's nothing to show" writes the message where it is due.
+		expect(offered(catalog)).not.toContain('EmptyState')
+		expect(offered(catalog, '', true)).toContain('EmptyState')
+	})
+
 	it('masks the layout and the row, and nothing else', () => {
 		const declaring = catalog.blocks
 			.filter((block) => block.allowedChildren !== undefined)
@@ -130,7 +136,7 @@ describe('the components the palette lists', () => {
 
 		const hidden = catalog.blocks
 			.map((block) => block.type)
-			.filter((type) => !offered(catalog).includes(type))
+			.filter((type) => !offered(catalog, '', true).includes(type))
 		expect(hidden).toEqual(['HStack', 'VStack', 'Grid', 'GridRow'])
 	})
 

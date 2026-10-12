@@ -23,7 +23,7 @@ import {
 	withDraftEdits,
 	withDraftSource,
 } from '../runtime/canvas-options'
-import { GUARD_BLOCK } from '../runtime/constants'
+import { GUARD_BLOCK, LIVE_TOGGLE } from '../runtime/constants'
 import { sourceQuery } from '../runtime/data-source'
 import { useBuilderMode } from '../runtime/mode'
 import { blockTitle } from '../runtime/naming'
@@ -86,6 +86,17 @@ const rendered = computed(() => {
 	return served.value ?? props.preview
 })
 /**
+ * A live page's switch draws nothing on a page that is not live, and the
+ * canvas never is: it is drawn as the page will draw it, Live / Pause, so the
+ * block an author placed — or the page's live setting did — is there to see.
+ */
+const live = computed(() => props.block.type === LIVE_TOGGLE)
+const LIVE_STATES = [
+	{ label: 'Live', value: 'live' },
+	{ label: 'Pause', value: 'pause' },
+]
+
+/**
  * A guard is drawn as what it holds, never as the message it would show:
  * on the page, a source saying there is nothing gives the content's place to
  * the message, and the canvas is where that content is built — an author
@@ -93,7 +104,7 @@ const rendered = computed(() => {
  * container's panel.
  */
 const resolved = computed(() =>
-	rendered.value && props.block.type !== GUARD_BLOCK
+	rendered.value && props.block.type !== GUARD_BLOCK && !live.value
 		? resolveDmsComponent(rendered.value.componentName)
 		: undefined,
 )
@@ -573,6 +584,17 @@ function answerCursor(event: DragEvent): void {
 		>
 			<UIcon name="i-ph-lock-simple-light" class="size-4" />
 			<span>{{ block.name }} is set up in code and can't be changed here</span>
+		</div>
+
+		<div v-else-if="live" class="flex items-center gap-2 py-1" data-live-stand-in>
+			<DmsSegmented
+				model-value="live"
+				:items="LIVE_STATES"
+				size="xs"
+				aria-label="Live or paused"
+				class="pointer-events-none"
+			/>
+			<span class="text-xs text-dimmed">updated just now</span>
 		</div>
 
 		<!-- Structure the editor wrote for itself stands in as nothing but what

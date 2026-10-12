@@ -136,6 +136,8 @@ export interface PageMeta {
 	description?: string
 	hidden?: boolean
 	permission?: Record<string, unknown>
+	/** The page's Direct / Pause options: present, even empty, the page is live. */
+	live?: Record<string, unknown>
 	filepath: string
 }
 

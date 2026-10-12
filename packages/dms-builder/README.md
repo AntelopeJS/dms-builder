@@ -154,6 +154,12 @@ usable behind it.
   instead of their content when a source says there is nothing to show: turned
   on in their panel, the condition picked like any data source (a count of
   rows), and the `Guard` doing it written inside them, around their content.
+- **Page controls** — placed for what the blocks need rather than looked for:
+  binding a card's source to the page's period puts a period selector at the
+  top of a page that has none (once; one the author takes off stays off), and
+  the page's **Live updates** setting writes its `live` options with its
+  Live / Pause switch at the top, taking every switch off with it. The empty
+  state and the live switch are left out of the simple palette for it.
 - **Tables** and **Data** — workspaces of their own: the tables with their
   fields, API and settings, each saying how many rows it holds and which pages
   read it; the page's data sources, read as a sentence, with who uses them and

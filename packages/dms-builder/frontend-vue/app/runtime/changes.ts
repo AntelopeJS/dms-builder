@@ -63,6 +63,7 @@ const PAGE_SETTING_LABELS: Record<string, string> = {
 	hidden: 'Shown in the menu',
 	order: 'Position in the menu',
 	permission: 'Who can see it',
+	live: 'Live updates',
 }
 
 const SUMMARY_LENGTH = 40
@@ -470,13 +471,14 @@ function pageChanges(
 			continue
 		}
 		const shown = key === 'hidden'
+		const onOff = (value: unknown): string => (value ? 'on' : 'off')
 		changes.push({
 			id: `page:${key}`,
 			group: MENU_SETTINGS.has(key) ? 'menu' : 'page',
 			kind: 'edited',
 			title: `Page · ${PAGE_SETTING_LABELS[key] ?? key}`,
-			before: shown ? (from ? 'hidden' : 'shown') : summary(from),
-			after: shown ? (to ? 'hidden' : 'shown') : summary(to),
+			before: shown ? (from ? 'hidden' : 'shown') : key === 'live' ? onOff(from) : summary(from),
+			after: shown ? (to ? 'hidden' : 'shown') : key === 'live' ? onOff(to) : summary(to),
 			revert: {
 				kind: 'restore-page',
 				key,

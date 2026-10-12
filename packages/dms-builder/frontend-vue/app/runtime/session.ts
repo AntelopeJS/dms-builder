@@ -53,6 +53,7 @@ import { blockTitle } from './naming'
 import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { ownerOf, tidyWrappers } from './wrappers'
+import { ensurePeriodSelector, setPageLive } from './page-controls'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
@@ -414,6 +415,8 @@ export interface BuilderController {
 	setController: (path: string, resource: string | undefined) => void
 	setSlot: (path: string, slot: string | undefined) => void
 	patchPage: (patch: Record<string, unknown>) => void
+	/** Make the page live with these options, or not with null. */
+	setLive: (live: Record<string, unknown> | null) => void
 	setDraft: (draft: PageDraft) => void
 	undo: () => void
 	redo: () => void
@@ -1073,6 +1076,8 @@ export function useBuilder(): BuilderController {
 		// And the wrappers it writes around a block: a section's rows, a
 		// container's guard, which the blocks arriving in them go into.
 		tidyWrappers(next, session.value.catalog, current)
+		// And the period the cards bound to the page's period follow.
+		const periodPlaced = ensurePeriodSelector(next, session.value.catalog, current)
 		fitSpacerColumns(next)
 		// Edits of one thing in quick succession are one step to undo: picking
 		// a table, a measure and a grouping is building one data source.
@@ -1093,6 +1098,9 @@ export function useBuilder(): BuilderController {
 		keepDraft()
 		refollow(next, followed)
 		schedulePreview()
+		if (periodPlaced) {
+			notify('Added a period selector at the top of the page, for the card to follow')
+		}
 		return true
 	}
 
@@ -1921,6 +1929,14 @@ export function useBuilder(): BuilderController {
 				block.slot = slot
 			}
 		})
+	}
+
+	/**
+	 * Make the page live, its Live / Pause switch placed at its top, or not,
+	 * every switch taken off: one edit, saved with the page.
+	 */
+	function setLive(live: Record<string, unknown> | null): void {
+		mutate((draft) => setPageLive(draft, session.value.catalog, live))
 	}
 
 	function patchPage(patch: Record<string, unknown>): void {
@@ -2794,6 +2810,7 @@ export function useBuilder(): BuilderController {
 		setController,
 		setSlot,
 		patchPage,
+		setLive,
 		setDraft,
 		undo,
 		redo,
