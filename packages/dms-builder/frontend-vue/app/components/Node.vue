@@ -23,6 +23,7 @@ import {
 	withDraftEdits,
 	withDraftSource,
 } from '../runtime/canvas-options'
+import { GUARD_BLOCK } from '../runtime/constants'
 import { sourceQuery } from '../runtime/data-source'
 import { useBuilderMode } from '../runtime/mode'
 import { blockTitle } from '../runtime/naming'
@@ -84,9 +85,19 @@ const rendered = computed(() => {
 	}
 	return served.value ?? props.preview
 })
+/**
+ * A guard is drawn as what it holds, never as the message it would show:
+ * on the page, a source saying there is nothing gives the content's place to
+ * the message, and the canvas is where that content is built — an author
+ * cannot edit what a message stands in front of. The message is set up in its
+ * container's panel.
+ */
 const resolved = computed(() =>
-	rendered.value ? resolveDmsComponent(rendered.value.componentName) : undefined,
+	rendered.value && props.block.type !== GUARD_BLOCK
+		? resolveDmsComponent(rendered.value.componentName)
+		: undefined,
 )
+
 /**
  * What the block is rendered with: what was served for it, with the draft's
  * edits the served shape cannot carry — a setting typed since the page was

@@ -146,6 +146,14 @@ usable behind it.
   settings, the page as JSON, and the **change list**: every unsaved edit in
   plain words, revertible one by one, then what Save will check and write,
   then what was already written straight to the project.
+- **Rows and guards** — written by the editor, like a grid's rows and columns,
+  and offered in neither mode. A control placed in a section — a meter, a live
+  switch, a period picker — gets the section's row around it, its label, help
+  text and layout set with the control; a form, a list or a notice goes in as
+  it is. A card, a section and each tab of a tab set can show one message
+  instead of their content when a source says there is nothing to show: turned
+  on in their panel, the condition picked like any data source (a count of
+  rows), and the `Guard` doing it written inside them, around their content.
 - **Tables** and **Data** — workspaces of their own: the tables with their
   fields, API and settings, each saying how many rows it holds and which pages
   read it; the page's data sources, read as a sentence, with who uses them and

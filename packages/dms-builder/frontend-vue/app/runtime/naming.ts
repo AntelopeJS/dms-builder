@@ -4,7 +4,7 @@
  * source gives it, which nobody looking at the page has ever read.
  */
 import { descriptorOf, isStructural } from './catalog'
-import { COLUMN_CONTAINER, ROW_WRAPPER } from './constants'
+import { COLUMN_CONTAINER, ROW_CONTAINERS, ROW_WRAPPER } from './constants'
 import { findNode, parentPath } from './draft'
 import type { DropTarget } from './dropping'
 import type { BlockCatalog, BlockDraft, PageDraft } from './types'
@@ -108,7 +108,7 @@ export function blockPosition(
 ): string {
 	const parent = parentPath(path)
 	const holder = parent === null ? undefined : findNode(draft, parent)
-	if (holder && isStructural(catalog, holder.type)) {
+	if (holder && ROW_CONTAINERS.has(holder.type ?? '')) {
 		const columns = holder.children ?? []
 		const at = columns.findIndex((child) => child.name === path.split('/').at(-1))
 		if (columns.length > 1 && at !== -1) {

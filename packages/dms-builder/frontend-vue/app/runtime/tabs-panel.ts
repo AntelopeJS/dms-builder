@@ -8,6 +8,7 @@
  * when it moves, and go with it when it goes.
  */
 import { regionAfter, slotIdFor } from './catalog'
+import { GUARD_BLOCK } from './constants'
 import { cloneDraft, uniqueName } from './draft'
 import type { BlockDraft, DynamicSlots } from './types'
 
@@ -99,7 +100,13 @@ export function tabLines(block: BlockDraft | undefined, dynamic: DynamicSlots | 
 				icon: typeof entry.icon === 'string' ? entry.icon : undefined,
 				badge: badgeText(entry.badge),
 				disabled: entry.disabled === true,
-				blocks: children.filter((child) => child.slot === id).length,
+				blocks: children
+					.filter((child) => child.slot === id)
+					.reduce(
+						(total, child) =>
+							total + (child.type === GUARD_BLOCK ? (child.children?.length ?? 0) : 1),
+						0,
+					),
 			},
 		]
 	})

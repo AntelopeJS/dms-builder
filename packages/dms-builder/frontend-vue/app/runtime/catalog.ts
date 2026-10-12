@@ -7,6 +7,7 @@ import {
 	OPTION_GROUPS,
 	OTHER_DATA_TYPE_ICON,
 	RETIRED_BLOCKS,
+	WRAPPER_BLOCKS,
 } from './constants'
 import type {
 	BlockCatalog,
@@ -112,7 +113,9 @@ export function descriptorOf(
  *
  * The layout blocks join them: the page is a grid the author never sees, and
  * the editor writes the rows and columns a placement takes — see
- * `LAYOUT_BLOCKS`.
+ * `LAYOUT_BLOCKS`. So do the wrappers it writes around a block — a section's
+ * row, a container's guard —, whose settings are the wrapped block's: see
+ * `WRAPPER_BLOCKS`.
  *
  * The same rule answers a second question: what the canvas must not name. A
  * block of a type nobody can place is one the editor placed, and the user is
@@ -125,7 +128,7 @@ export function structuralTypes(catalog: BlockCatalog): Set<string> {
 		if (only !== undefined) {
 			structural.add(only)
 		}
-		if (LAYOUT_BLOCKS.has(type)) {
+		if (LAYOUT_BLOCKS.has(type) || WRAPPER_BLOCKS.has(type)) {
 			structural.add(type)
 		}
 	}

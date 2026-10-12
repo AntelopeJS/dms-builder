@@ -463,6 +463,50 @@ export function testStructure(): PageStructure {
 	}
 }
 
+/** The test catalog, with what a DMS 0.7 declares besides. */
+export function withWrappers(catalog: BlockCatalog = testCatalog()): BlockCatalog {
+	const block = (type: string, extra: Record<string, unknown> = {}) => ({
+		type,
+		componentName: `Dms${type}`,
+		label: type,
+		group: 'layout',
+		container: false,
+		config: {},
+		shapeSource: 'test',
+		...extra,
+	})
+	return {
+		...catalog,
+		blocks: [
+			...catalog.blocks,
+			block('FieldRow', {
+				label: 'Field row',
+				container: true,
+				config: {
+					label: { type: 'string', optional: true, ui: { label: 'Label', group: 'content' } },
+					layout: {
+						type: 'string',
+						optional: true,
+						enum: ['inline', 'form', 'stack'],
+						ui: { label: 'Layout', group: 'layout' },
+					},
+				},
+			}),
+			block('Guard', {
+				label: 'Guard',
+				container: true,
+				config: {
+					fetchUrl: { type: 'string', ui: { label: 'Data source', widget: 'dataSource' } },
+					when: { type: 'string', optional: true, enum: ['empty', 'notFound'], default: 'empty' },
+					field: { type: 'string', optional: true },
+				},
+			}),
+			block('Meter', { label: 'Meter', group: 'visualization' }),
+			block('Card', { label: 'Card', container: true }),
+		],
+	} as BlockCatalog
+}
+
 export function installFakeHost(): FakeBackend {
 	const backend: FakeBackend = {
 		calls: [],

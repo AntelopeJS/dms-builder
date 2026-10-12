@@ -115,6 +115,37 @@ export const LAYOUT_BLOCKS = new Set(['Grid', 'GridRow', 'HStack', 'VStack'])
  */
 export const RETIRED_BLOCKS = new Set(['Tree'])
 
+/** A titled block of settings, laid out as rows. */
+export const SECTION_BLOCK = 'Section'
+
+/** One row of a section: a label beside the one block it holds. */
+export const FIELD_ROW = 'FieldRow'
+
+/**
+ * What a section holds in a row of its own, a label beside it: the controls a
+ * row is for — a meter, a switch, a picker. Everything else is a section's
+ * content as it is: a form lays its fields out as the section's rows, a list or
+ * a table has rows of its own, and a notice, a chart or code spans the section.
+ */
+export const ROW_CONTROLS = new Set(['Meter', 'LiveToggle', 'PeriodSelector'])
+
+/** What shows a message in place of what it holds, when a source says there is nothing. */
+export const GUARD_BLOCK = 'Guard'
+
+/**
+ * The containers whose content can give way to a message, in their own panel;
+ * a tab set does it tab by tab, in its own.
+ */
+export const GUARDED_BLOCKS = new Set(['Card', SECTION_BLOCK])
+
+/**
+ * The wrappers the editor writes around what an author places — a section's
+ * rows, a container's guard — and so never offers, in either mode: like the
+ * rows and columns of a grid, nobody has to place them, and their settings are
+ * those of the block they wrap.
+ */
+export const WRAPPER_BLOCKS = new Set([FIELD_ROW, GUARD_BLOCK])
+
 /**
  * The container the editor builds to put two blocks side by side where nothing
  * lays them out in columns yet: a grid of one row, the row holding them both.

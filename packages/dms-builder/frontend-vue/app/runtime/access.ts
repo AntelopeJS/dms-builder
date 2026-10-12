@@ -276,6 +276,6 @@ function reasonOf(
 		return 'It was renamed'
 	}
 	return was.shown === now.shown
-		? 'The editor laid it in another row or column'
+		? 'The editor laid it in another row, column or guard'
 		: 'It was moved'
 }

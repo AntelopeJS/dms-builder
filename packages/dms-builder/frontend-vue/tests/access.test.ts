@@ -167,7 +167,7 @@ describe('what a save would take from the roles', () => {
 			'Support and Finance lose title',
 			'No role sees Notes yet',
 		])
-		expect(warnings[0]?.detail).toContain('laid it in another row or column')
+		expect(warnings[0]?.detail).toContain('laid it in another row, column or guard')
 	})
 
 	it('says nothing again of what a block already said holds', () => {

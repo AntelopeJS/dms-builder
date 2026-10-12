@@ -321,6 +321,8 @@ const colours = computed(() => {
 								@update:model-value="patch(tab.id, { disabled: $event === true ? true : undefined })"
 							/>
 						</div>
+						<!-- What the tab shows when a source says there is nothing in it. -->
+						<DmsBuilderGuardSettings :path="path" :region="tab.id" inline class="pt-2" />
 					</div>
 				</div>
 			</div>

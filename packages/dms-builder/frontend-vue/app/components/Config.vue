@@ -10,6 +10,7 @@ import {
 	slotsOf,
 } from '../runtime/catalog'
 import { CHART_CARD_BLOCK, CHART_CARD_PANEL_OPTIONS } from '../runtime/chart-card'
+import { FIELD_ROW, GUARDED_BLOCKS } from '../runtime/constants'
 import { findNode } from '../runtime/draft'
 import {
 	KPI_CARD_BLOCK,
@@ -201,6 +202,25 @@ const missing = computed(() =>
 		: [],
 )
 const childMeta = computed(() => parentDescriptor.value?.childMeta ?? {})
+
+/**
+ * The row of a section the block sits in, which the editor wrote around it: its
+ * label, help text and layout are set here, as the block's own.
+ */
+const row = computed(() => {
+	const parent = path.value ? parentPath(path.value) : null
+	if (!parent || parentBlock.value?.type !== FIELD_ROW) {
+		return undefined
+	}
+	const schema = parentDescriptor.value?.config ?? {}
+	return {
+		path: parent,
+		config: parentBlock.value.config ?? {},
+		options: Object.entries(schema)
+			.filter(([, option]) => offeredIn(option, advancedMode.value))
+			.map(([key, option]) => ({ key, schema: option })),
+	}
+})
 const slots = computed(() => slotsOf(parentDescriptor.value, parentBlock.value))
 const regionLabel = computed(() =>
 	parentDescriptor.value?.label
@@ -617,6 +637,26 @@ async function setSearchField(name: string): Promise<void> {
 				</div>
 			</section>
 
+			<section
+				v-if="row"
+				v-show="tab === (tabs[0] ?? 'content')"
+				:class="PANEL_CARD"
+				aria-label="Its row"
+			>
+				<p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+					<UIcon name="i-ph-text-columns-light" class="size-4 text-primary" />
+					Its row in the section
+				</p>
+				<DmsBuilderOption
+					v-for="option in row.options"
+					:key="option.key"
+					:name="option.key"
+					:schema="option.schema"
+					:model-value="row.config[option.key]"
+					@update:model-value="builder.patchConfig(row.path, { [option.key]: $event })"
+				/>
+			</section>
+
 			<component :is="panel.component" v-if="panel" :key="path" :path="path" :tab="tab" />
 
 			<section
@@ -670,6 +710,12 @@ async function setSearchField(name: string): Promise<void> {
 					/>
 				</template>
 			</section>
+
+			<DmsBuilderGuardSettings
+				v-if="GUARDED_BLOCKS.has(block.type ?? '')"
+				v-show="tab === (tabs[0] ?? 'content')"
+				:path="path"
+			/>
 
 			<!-- A block dropped in lands in the region on screen; this is how it is
 			moved to another one afterwards. Named after the container rather than

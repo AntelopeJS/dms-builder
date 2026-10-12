@@ -12,12 +12,15 @@ import {
 } from './catalog'
 import {
 	COLUMN_CONTAINER,
+	FIELD_ROW,
+	GUARD_BLOCK,
 	HISTORY_LIMIT,
 	PREVIEW_DEBOUNCE_MS,
 	ROW_WRAPPER,
 	SESSION_STATE_KEY,
 	TOAST_MS,
 	UNDO_GROUP_MS,
+	WRAPPER_BLOCKS,
 } from './constants'
 import {
 	draggedType,
@@ -49,6 +52,7 @@ import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
 import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
+import { ownerOf, tidyWrappers } from './wrappers'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
@@ -531,9 +535,21 @@ export function useBuilder(): BuilderController {
 		walkDraft(draft.blocks, (block, path) => {
 			const descriptor = descriptorOf(session.value.catalog, block.type)
 			const settings = [...missingSettings(descriptor, block), ...unaskedOf(block)]
-			if (settings.length > 0) {
-				found.push({ path, settings })
+			if (settings.length === 0) {
+				return
 			}
+			// A guard's settings are its container's, under the line naming them.
+			if (block.type === GUARD_BLOCK) {
+				found.push({
+					path: ownerOf(draft, path) ?? path,
+					settings: settings.map((setting) => ({
+						...setting,
+						label: `When there's nothing to show · ${setting.label}`,
+					})),
+				})
+				return
+			}
+			found.push({ path, settings })
 		})
 		return found
 	})
@@ -595,11 +611,10 @@ export function useBuilder(): BuilderController {
 		const draft = session.value.draft
 		let path = session.value.selection
 		while (draft && path) {
-			const descriptor = descriptorOf(
-				session.value.catalog,
-				findNode(draft, path)?.type,
-			)
-			if (descriptor?.container) {
+			const type = findNode(draft, path)?.type
+			// A row or a guard the editor wrote is not where anything is added:
+			// the section or the container holding it is, and wraps what comes.
+			if (descriptorOf(session.value.catalog, type)?.container && !WRAPPER_BLOCKS.has(type ?? '')) {
 				return path
 			}
 			path = parentPath(path)
@@ -1055,6 +1070,9 @@ export function useBuilder(): BuilderController {
 		// the editor holds by path follows the block rather than the path.
 		const followed = followedBlocks(next)
 		tidyLayout(next, session.value.catalog, current)
+		// And the wrappers it writes around a block: a section's rows, a
+		// container's guard, which the blocks arriving in them go into.
+		tidyWrappers(next, session.value.catalog, current)
 		fitSpacerColumns(next)
 		// Edits of one thing in quick succession are one step to undo: picking
 		// a table, a measure and a grouping is building one data source.
@@ -1121,7 +1139,10 @@ export function useBuilder(): BuilderController {
 	 * canvas around the blocks.
 	 */
 	function select(path: string | null, view: RailView = 'config'): void {
-		session.value.selection = path
+		// A wrapper is selected through the block it wraps, whose panel holds
+		// its settings: a row's block, a guard's container.
+		const draft = session.value.draft
+		session.value.selection = path && draft ? ownerOf(draft, path) : path
 		if (path) {
 			setView(view)
 		}
@@ -1770,6 +1791,11 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		const parent = parentPath(path)
+		// A control moves with its row, which is what its section lays out.
+		if (parent !== null && findNode(draft, parent)?.type === FIELD_ROW) {
+			nudge(parent, delta)
+			return
+		}
 		const siblings = siblingsAt(draft, parent)
 		if (!siblings) {
 			return

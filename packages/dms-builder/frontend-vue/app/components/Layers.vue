@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { descriptorOf, isStructural, lineIcon } from '../runtime/catalog'
+import { WRAPPER_BLOCKS } from '../runtime/constants'
 import { joinPath } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockTitle } from '../runtime/naming'
@@ -71,8 +72,9 @@ const rows = computed<LayerRow[]>(() => {
 			const path = joinPath(parent, block.name)
 			const children = block.children ?? []
 			if (isStructural(catalog, block.type)) {
-				// A row of one is no row anyone sees: its block stands alone.
-				if (children.length > 1) {
+				// A row of one is no row anyone sees: its block stands alone. Nor
+				// is a section's row or a guard, whose settings are its block's.
+				if (children.length > 1 && !WRAPPER_BLOCKS.has(block.type ?? '')) {
 					lines.push({
 						key: path,
 						kind: 'row',
