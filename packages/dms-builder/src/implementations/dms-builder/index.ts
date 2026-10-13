@@ -61,10 +61,10 @@ import { listQueryTemplates } from "./engine/query-template";
 import { registerBuiltinQueryTemplates } from "./engine/query-template-emit";
 import { listResourceSummaries } from "./engine/resource-index";
 import { createResource } from "./engine/resource-ops";
+import { configureResource } from "./engine/resource-configure";
 import {
   addField,
   configureField,
-  configureResource,
   deleteResource,
   removeField,
 } from "./engine/resource-ops-delete";

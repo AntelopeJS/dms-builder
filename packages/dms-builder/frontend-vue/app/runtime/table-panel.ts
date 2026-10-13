@@ -14,7 +14,7 @@ import type { TableRoute } from './table-routes'
 import type { ResourceFieldStructure } from './types'
 
 /** The block the simple mode edits with a panel of its own. */
-export const TABLE_BLOCK = 'TableView'
+export { TABLE_BLOCK } from './constants'
 
 /**
  * The options that panel edits. Whatever else the block declares is still

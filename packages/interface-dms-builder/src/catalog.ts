@@ -255,6 +255,13 @@ export interface BlockCatalog {
    * rather than carrying its own copy of the list.
    */
   reservedFieldNames: string[];
+  /**
+   * Whether the DMS takes a table icon (`@TableIcon` from
+   * `@antelopejs/interface-dms/base/table-view`). A DMS that predates it draws
+   * every table with the generic icon, and `ConfigureResource` refuses an
+   * `icon` with `unsupported`.
+   */
+  tableIcons?: boolean;
   /** Cache key; invalidated on module-source change. */
   generatedAt: string;
 }

@@ -82,6 +82,7 @@ const parts = (): Record<string, Component> => ({
 	DmsBuilderFieldForm: FieldForm as Component,
 	DmsBuilderTableApi: TableApi as Component,
 	DmsBuilderTableSettings: TableSettings as Component,
+	DmsBuilderIconPicker: stub('DmsBuilderIconPicker'),
 })
 
 async function openEditor(blocks: BlockNode[] = []): Promise<void> {
@@ -282,7 +283,8 @@ describe('a table, open', () => {
 	async function panelOnTicket(
 		structure: ResourceStructure = ticket(),
 	): Promise<TestNode> {
-		backend.answers[RESOURCES] = [summary('ticket')]
+		// Listed as the module lists it: with its icon, when it declares one.
+		backend.answers[RESOURCES] = [{ ...summary('ticket'), icon: structure.icon }]
 		backend.answers[RESOURCE] = { ok: true, data: structure, changes: [] }
 		await openEditor()
 		builder.setView('resource')
@@ -398,6 +400,54 @@ describe('a table, open', () => {
 
 		expect(deletions()).toEqual(['DELETE /api/builder/resource'])
 		expect(builder.session.value.table, 'back on the list').toBeNull()
+	})
+
+	it('is drawn with its own icon, picked and taken off from its settings', async () => {
+		backend.catalog = { ...backend.catalog, tableIcons: true }
+		const root = await panelOnTicket(ticket({ icon: 'i-ph-ticket' }))
+		const icons = findAll(root, (node) => node.tag === 'UIcon').map(
+			(node) => node.props.name,
+		)
+		expect(icons, 'in the list and over the table').toEqual(
+			expect.arrayContaining(['i-ph-ticket-light']),
+		)
+		expect(icons).not.toContain('i-ph-database-light')
+
+		openTab(root, 'Settings')
+		await nextTick()
+		const picker = control(
+			root,
+			'DmsBuilderIconPicker',
+			'label',
+			'Change the table’s icon',
+		)
+		expect(picker.props['model-value']).toBe('i-ph-ticket')
+		write(picker, 'i-ph-lifebuoy')
+		await settle()
+		write(picker, undefined)
+		await settle()
+
+		const patches = backend.calls
+			.filter((call) => call.path === '/api/builder/resource/configure')
+			.map((call) => call.body)
+		expect(patches).toEqual([
+			{ resource: 'ticket', patch: { icon: 'i-ph-lifebuoy' } },
+			{ resource: 'ticket', patch: { icon: null } },
+		])
+	})
+
+	it('offers no icon on a DMS that predates it, and draws the generic one', async () => {
+		const root = await panelOnTicket()
+		openTab(root, 'Settings')
+		await nextTick()
+
+		expect(
+			findAll(root, (node) => node.tag === 'DmsBuilderIconPicker'),
+		).toHaveLength(0)
+		expect(textOf(root)).toContain('draws every table with the same icon')
+		expect(
+			findAll(root, (node) => node.tag === 'UIcon').map((node) => node.props.name),
+		).toContain('i-ph-database-light')
 	})
 
 	it('never switches off the last route it serves', async () => {

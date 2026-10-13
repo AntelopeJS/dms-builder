@@ -118,6 +118,9 @@ export const RETIRED_BLOCKS = new Set(['Tree'])
 /** A titled block of settings, laid out as rows. */
 export const SECTION_BLOCK = 'Section'
 
+/** The block listing a table's rows, which the DMS draws with that table's icon. */
+export const TABLE_BLOCK = 'TableView'
+
 /** One row of a section: a label beside the one block it holds. */
 export const FIELD_ROW = 'FieldRow'
 

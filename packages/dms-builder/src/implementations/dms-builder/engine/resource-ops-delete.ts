@@ -11,10 +11,9 @@ import type {
   MutationOpts,
   OpResult,
   OpWarning,
-  ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
 import { Node, type Project, type SourceFile } from "ts-morph";
-import { applyImportRef, ensureNamedImport } from "./emit";
+import { applyImportRef } from "./emit";
 import { dropResourceData } from "./resource-data";
 import {
   findResourceRecord,
@@ -33,7 +32,7 @@ import {
   UnknownDataTypeError,
 } from "./value";
 import { findImporters, Transaction } from "./writable";
-import { commit, duplicate, invalidConfig, invalidDataType } from "./ops";
+import { commit, duplicate, invalidDataType } from "./ops";
 import {
   openResource,
   parseFieldPath,
@@ -46,19 +45,14 @@ import {
   tableFieldText,
 } from "./resource-emit-types";
 import { contentVersion } from "./page-structure";
-import {
-  routeMapExpr,
-  TABLE_VIEW_MODULE,
-  withDefaultIndex,
-} from "./resource-emit";
-import { getExtendsCall } from "./literals";
+import { withDefaultIndex } from "./resource-emit";
 function resourceVersion(
   databaseFile: SourceFile,
   dataApiFile: SourceFile,
 ): string {
   return contentVersion(databaseFile.getFullText() + dataApiFile.getFullText());
 }
-function checkVersion(
+export function checkVersion(
   ref: string,
   databaseFile: SourceFile,
   dataApiFile: SourceFile,
@@ -393,63 +387,6 @@ export function configureField(
     applyImportRef(opened.dataApiFile, importRef);
   }
   return commit(transaction, undefined, built.warnings);
-}
-
-const TABLE_VIEW_ROUTES_IMPORT = "TableViewRoutes";
-
-/**
- * Rewrite the route map of a resource's DataController. The map is the second
- * argument of its `extends` call, and the emitter already knows how to write
- * one, so patching is a matter of replacing that argument.
- */
-export function configureResource(
-  ref: string,
-  patch: { routes?: ResourceRoute[] },
-  opts?: MutationOpts,
-): OpResult {
-  const record = findResourceRecord(ref);
-  if (!record) {
-    return notFound(ref);
-  }
-  const opened = openResource(record);
-  if (!opened) {
-    return notFound(ref);
-  }
-  const stale = checkVersion(
-    ref,
-    opened.databaseFile,
-    opened.dataApiFile,
-    opts,
-  );
-  if (stale) {
-    return stale;
-  }
-  if (!patch.routes) {
-    return { ok: true, data: undefined, changes: [] };
-  }
-  if (patch.routes.length === 0) {
-    return invalidConfig("a resource must expose at least one route");
-  }
-  const extendsCall = getExtendsCall(opened.dataApiClass);
-  const routeMap = extendsCall?.getArguments()[1];
-  if (!extendsCall || !routeMap) {
-    return {
-      ok: false,
-      error: {
-        code: "unsupported",
-        detail: "the DataController call has no route map to patch",
-      },
-    };
-  }
-  const transaction = new Transaction(opened.project);
-  transaction.track(opened.dataApiFile);
-  routeMap.replaceWithText(routeMapExpr(patch.routes));
-  ensureNamedImport(
-    opened.dataApiFile,
-    TABLE_VIEW_ROUTES_IMPORT,
-    TABLE_VIEW_MODULE,
-  );
-  return commit(transaction, undefined);
 }
 
 export function removeField(fieldPath: string, opts?: MutationOpts): OpResult {

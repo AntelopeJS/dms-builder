@@ -110,6 +110,8 @@ export interface BlockCatalog {
 	blocks: BlockTypeDescriptor[]
 	dataTypes: DataTypeDescriptor[]
 	reservedFieldNames: string[]
+	/** Whether the DMS takes a table icon (`@TableIcon`); absent from one that predates it. */
+	tableIcons?: boolean
 	generatedAt: string
 }
 
@@ -335,6 +337,17 @@ export interface ResourceSummary {
 	tableName: string
 	route: string
 	fieldCount: number
+	/** The icon the table declares (`@TableIcon`), when it declares one. */
+	icon?: string
+}
+
+/**
+ * What `ConfigureResource` changes of a table beside its fields; a key left
+ * out is left alone, and a `null` icon is taken off.
+ */
+export interface ResourcePatch {
+	routes?: string[]
+	icon?: string | null
 }
 
 export interface FieldAspects {
@@ -372,6 +385,8 @@ export interface ResourceStructure {
 	route: string
 	fields: ResourceFieldStructure[]
 	routes?: string[]
+	/** As `ResourceSummary.icon`. */
+	icon?: string
 	version: string
 }
 

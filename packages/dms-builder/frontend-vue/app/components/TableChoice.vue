@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useBuilder } from '../runtime/session'
+import { TABLE_BLOCK_ICON, tableIcon } from '../runtime/table-icon'
 import type { ResourceStructure } from '../runtime/types'
 
 /**
@@ -42,6 +43,13 @@ const builder = useBuilder()
 const session = builder.session
 
 const listing = computed(() => !props.modelValue || open.value)
+/** The picked table's own icon, else the one the DMS draws a table with. */
+const icon = computed(() =>
+	tableIcon(
+		session.value.resources.find((entry) => entry.ref === props.modelValue),
+		TABLE_BLOCK_ICON,
+	),
+)
 
 function choose(ref: string): void {
 	open.value = false
@@ -74,7 +82,7 @@ function choose(ref: string): void {
 							: 'border-primary/35 bg-primary/10 text-primary'
 					"
 				>
-					<UIcon name="i-ph-table-light" class="size-4" />
+					<UIcon :name="icon" class="size-4" />
 				</span>
 			</template>
 			<span class="flex min-w-0 flex-1 flex-col">

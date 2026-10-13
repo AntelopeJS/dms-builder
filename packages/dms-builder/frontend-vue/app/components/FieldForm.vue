@@ -5,6 +5,7 @@ import { DEFAULT_DATA_TYPE, fieldFlags } from '../runtime/constants'
 import { keyFrom } from '../runtime/keys'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
+import { tableIcon } from '../runtime/table-icon'
 import type { FieldSpec } from '../runtime/types'
 
 /** What a new field starts as; every one of them is set on the field later. */
@@ -67,7 +68,10 @@ const isRelation = computed(
 const targets = computed(() =>
 	session.value.resources
 		.filter((entry) => entry.ref !== props.resource)
-		.map((entry) => ({ label: entry.ref, value: entry.ref })),
+		.map((entry) => ({ label: entry.ref, value: entry.ref, icon: tableIcon(entry) })),
+)
+const targetIcon = computed(() =>
+	tableIcon(session.value.resources.find((entry) => entry.ref === target.value)),
 )
 const targetFields = computed(() =>
 	(session.value.resourceFields[target.value ?? ''] ?? []).map((field) => ({
@@ -184,7 +188,7 @@ function submit(): void {
 						<USelectMenu
 							:model-value="target"
 							:items="targets"
-							icon="i-ph-database-light"
+							:icon="targetIcon"
 							value-key="value"
 							placeholder="Choose a table…"
 							class="w-full"

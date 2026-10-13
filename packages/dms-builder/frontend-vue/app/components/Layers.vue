@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { descriptorOf, isStructural, lineIcon } from '../runtime/catalog'
+import { descriptorOf, isStructural } from '../runtime/catalog'
 import { WRAPPER_BLOCKS } from '../runtime/constants'
 import { joinPath } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
+import { blockLineIcon } from '../runtime/table-icon'
 import type { BlockDraft } from '../runtime/types'
 
 /**
@@ -56,7 +57,9 @@ function blockRow(block: BlockDraft, path: string, depth: number): LayerRow {
 		path,
 		depth,
 		label: blockTitle(block, catalog),
-		icon: block.preserve ? 'i-ph-lock-simple-light' : lineIcon(descriptor?.icon),
+		icon: block.preserve
+			? 'i-ph-lock-simple-light'
+			: blockLineIcon(block, descriptor?.icon, session.value.resources),
 		detail: blockKind(block, catalog),
 		name: block.name,
 		warning: problems.value.has(path),

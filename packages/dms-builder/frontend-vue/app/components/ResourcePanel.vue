@@ -4,6 +4,7 @@ import { DEFAULT_DATA_TYPE, TABLE_ROUTES } from '../runtime/constants'
 import { walkDraft } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder, type TableTab } from '../runtime/session'
+import { tableIcon } from '../runtime/table-icon'
 import { servedRoutes } from '../runtime/table-routes'
 import type { FieldSpec, ResourceSummary } from '../runtime/types'
 
@@ -31,6 +32,13 @@ const addingField = ref(false)
 const table = computed(() => session.value.table)
 const structure = computed(() =>
 	table.value ? session.value.resourceStructures[table.value.ref] : undefined,
+)
+/** The open table's icon: its structure's, the list's while that loads. */
+const openIcon = computed(() =>
+	tableIcon(
+		structure.value ??
+			session.value.resources.find((entry) => entry.ref === table.value?.ref),
+	),
 )
 // With no table at all, naming the first one is the only thing to do here.
 const composerOpen = computed(
@@ -281,7 +289,7 @@ async function addField(spec: FieldSpec): Promise<void> {
 						<span
 							class="flex size-7.5 shrink-0 items-center justify-center rounded-md border border-default bg-default text-toned"
 						>
-							<UIcon name="i-ph-database-light" class="size-4" />
+							<UIcon :name="tableIcon(entry)" class="size-4" />
 						</span>
 						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
 							<span
@@ -321,7 +329,7 @@ async function addField(spec: FieldSpec): Promise<void> {
 					<span
 						class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-(--dms-accent-tint) text-primary ring-1 ring-(--dms-accent-line) ring-inset"
 					>
-						<UIcon name="i-ph-database-light" class="size-[19px]" />
+						<UIcon :name="openIcon" class="size-[19px]" />
 					</span>
 					<div class="min-w-0 flex-1">
 						<p class="flex items-center gap-2">

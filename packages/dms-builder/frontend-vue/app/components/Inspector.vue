@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { lineIcon } from '../runtime/catalog'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockPosition, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
+import { blockLineIcon } from '../runtime/table-icon'
 
 /**
  * The column beside the page: the selected block's settings, the page's own,
@@ -71,7 +71,11 @@ const heading = computed<Heading | undefined>(() => {
 			return {
 				icon: selected.preserve
 					? 'i-ph-lock-simple-light'
-					: lineIcon(builder.selectedDescriptor.value?.icon),
+					: blockLineIcon(
+							selected,
+							builder.selectedDescriptor.value?.icon,
+							session.value.resources,
+						),
 				title: blockTitle(selected, catalog),
 				subtitle: [
 					blockKind(selected, catalog),
