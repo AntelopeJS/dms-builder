@@ -22,6 +22,12 @@ import { fitsEditor, typedEditor } from '../runtime/typed-values'
 import { mergePatch } from '../runtime/object'
 import { useBuilder } from '../runtime/session'
 import type { OptionSchema } from '../runtime/types'
+import { enumColour, enumLabel } from '../runtime/value-labels'
+import { codeSpans } from '../runtime/inline-code'
+import { linkedPage, linksToPage, pageLinkItems } from '../runtime/page-links'
+
+/** A word the help quotes from code, drawn as code. */
+const CODE_CLASS = 'rounded bg-elevated px-1 font-mono text-[11px] text-toned'
 
 const props = defineProps<{
 	name: string
@@ -100,7 +106,7 @@ const unfilled = computed(
 
 /** An enum value under the name its block gives it, or as it is spelled. */
 function valueLabel(schema: OptionSchema, value: unknown): string {
-	return schema.ui?.valueLabels?.[String(value)] ?? String(value)
+	return schema.ui?.valueLabels?.[String(value)] ?? enumLabel(value)
 }
 
 /**
@@ -158,11 +164,27 @@ const widget = computed(() => {
 	return props.schema.type
 })
 
-const enumItems = computed(() =>
-	(props.schema.enum ?? []).map((value) => ({
-		label: valueLabel(props.schema, value),
-		value,
+/** A link a reader follows to another page: the project's pages beside the box. */
+const pageLink = computed(() => linksToPage(props.name, widget.value))
+const linkTargets = computed(() =>
+	pageLinkItems(session.value.pages).map((item) => ({
+		label: item.label,
+		icon: item.icon,
+		onSelect: () => set(item.ref),
 	})),
+)
+const linkedTo = computed(() => linkedPage(session.value.pages, props.modelValue))
+
+/** Each choice in words, and a tone drawn in its own colour. */
+const enumItems = computed(() =>
+	(props.schema.enum ?? []).map((value) => {
+		const colour = enumColour(value)
+		return {
+			label: valueLabel(props.schema, value),
+			value,
+			...(colour ? { chip: { color: colour } } : {}),
+		}
+	}),
 )
 
 function setEntry(key: string, text: string): void {
@@ -692,7 +714,10 @@ const nestedProperties = computed(() =>
 		<div class="min-w-0 flex-1">
 			<p class="text-sm text-default">{{ label }}</p>
 			<p v-if="schema.description" class="mt-0.5 text-xs text-dimmed">
-				{{ schema.description }}
+				<template v-for="(part, at) in codeSpans(schema.description)" :key="at">
+					<code v-if="part.code" :class="CODE_CLASS">{{ part.text }}</code>
+					<template v-else>{{ part.text }}</template>
+				</template>
 			</p>
 		</div>
 	</div>
@@ -701,7 +726,7 @@ const nestedProperties = computed(() =>
 		<div v-if="!hideLabel" class="flex items-center gap-2">
 			<label class="text-sm font-medium text-default">
 				{{ label }}
-				<span v-if="required" class="text-warning" title="Required">*</span>
+				<span v-if="required && !parentUnset" class="text-warning" title="Required">*</span>
 			</label>
 			<UButton
 				v-if="clearable"
@@ -1107,6 +1132,36 @@ const nestedProperties = computed(() =>
 			@update:model-value="set($event)"
 		/>
 
+		<!-- Typed, for an anchor or a site elsewhere; or picked among the pages by
+		name, which writes the page's address. -->
+		<div v-else-if="pageLink" class="flex flex-col gap-1">
+			<div class="flex gap-1.5">
+				<UInput
+					:model-value="modelValue as string"
+					:placeholder="ui.placeholder ?? '/a/page, #anchor or https://…'"
+					class="min-w-0 flex-1"
+					@update:model-value="set($event === '' ? undefined : $event)"
+				/>
+				<UDropdownMenu
+					:items="linkTargets"
+					:content="{ align: 'end' }"
+					:ui="{ content: 'max-h-72 min-w-48' }"
+				>
+					<UButton
+						icon="i-ph-files-light"
+						color="neutral"
+						variant="outline"
+						:aria-label="`Link to a page: ${label}`"
+						title="Pick a page"
+					/>
+				</UDropdownMenu>
+			</div>
+			<p v-if="linkedTo" class="flex items-center gap-1 text-xs text-muted">
+				<UIcon :name="linkedTo.icon ?? 'i-ph-file-light'" class="size-3.5" />
+				Leads to {{ linkedTo.displayName }}
+			</p>
+		</div>
+
 		<UInput
 			v-else
 			:model-value="modelValue as string"
@@ -1121,7 +1176,10 @@ const nestedProperties = computed(() =>
 		<!-- An icon is picked by sight; how its name is spelled is the picker's
 		to say, when one is typed. -->
 		<p v-else-if="schema.description && widget !== 'icon'" class="text-xs text-dimmed">
-			{{ schema.description }}
+			<template v-for="(part, at) in codeSpans(schema.description)" :key="at">
+				<code v-if="part.code" :class="CODE_CLASS">{{ part.text }}</code>
+				<template v-else>{{ part.text }}</template>
+			</template>
 		</p>
 	</div>
 </template>

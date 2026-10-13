@@ -1,6 +1,13 @@
 import path from "node:path";
 import { expect } from "chai";
 import { Controller } from "@antelopejs/interface-api";
+import { GetMetadata } from "@antelopejs/interface-core";
+import { Listable } from "@antelopejs/interface-data-api/metadata";
+import { DefaultDataTypes } from "@antelopejs/interface-dms/base/data-types/default-types";
+import {
+  Column,
+  TableViewMeta,
+} from "@antelopejs/interface-dms/base/table-view";
 import {
   CreateCategory,
   CreatePage,
@@ -20,6 +27,18 @@ const PAGE = "/shop/board";
 
 let app: Fixture;
 let loadedFile: string;
+
+// The app's compiled DataAPI, as the core would have loaded it: a listed column
+// its table views show.
+class ticketDataAPI extends Controller("/api/ticket") {
+  @Listable()
+  @Column({
+    name: "Title",
+    type: new DefaultDataTypes.StringType(),
+    validate: false,
+  })
+  declare title: string;
+}
 
 /** What a preview built in place of one block, as the canvas receives it. */
 async function previewOf(block: Record<string, unknown>) {
@@ -63,8 +82,6 @@ describe("previewing a block over a table", () => {
       }),
       "CreateResource",
     );
-    // The app's compiled DataAPI, as the core would have loaded it.
-    class ticketDataAPI extends Controller("/api/ticket") {}
     loadedFile = path.join(app.root, "dist", "ticket", "data-api.js");
     Object.assign(require.cache, {
       [loadedFile]: { exports: { ticketDataAPI } },
@@ -87,13 +104,38 @@ describe("previewing a block over a table", () => {
     expect(component.options).to.include({ label: "Table — choose its table" });
   });
 
-  it("leaves a table view to the saved page, even with its class loaded", async function () {
+  it("shows a table view's rows through its list route, leaving its class as it found it", async function () {
     this.timeout(60_000);
     // Its factory writes options, guards and a gate flag onto the class every
-    // page mounting that table shares: building one here would reach the app.
+    // page mounting that table shares: the preview reads the same rows through
+    // a read-only table over the route instead.
     const { degraded, component } = await previewOf({
       type: "TableView",
       controller: "ticket",
+      config: { caption: "Tickets", rowActions: { delete: false } },
+    });
+
+    expect(degraded).to.deep.equal([]);
+    expect(component.componentName).to.equal("dms-table-view");
+    const options = component.options ?? {};
+    expect(options).to.include({ caption: "Tickets" });
+    expect(options.source).to.deep.include({
+      fetchUrl: "/api/ticket/list",
+    });
+    const columns = options.columns as Array<{ id: string; header: string }>;
+    expect(columns.map((column) => [column.id, column.header])).to.deep.equal([
+      ["title", "Title"],
+    ]);
+    const meta = GetMetadata(ticketDataAPI, TableViewMeta);
+    expect(meta.componentBuilders).to.have.length(0);
+    expect(meta.options).to.deep.equal({});
+  });
+
+  it("waits on the running page for a table view whose class is not loaded", async function () {
+    this.timeout(60_000);
+    const { degraded, component } = await previewOf({
+      type: "TableView",
+      controller: "invoice",
       config: {},
     });
 

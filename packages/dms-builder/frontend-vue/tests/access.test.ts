@@ -153,6 +153,23 @@ describe('what a save would take from the roles', () => {
 		expect(warning).toMatchObject({ title: 'No role sees Notes yet', path: 'notes' })
 	})
 
+	it('says once that no role sees the blocks added, naming them', () => {
+		const added = ['Notes', 'Totals', 'Orders', 'Refunds', 'Returns', 'Stock']
+		const draft = page(
+			text('title'),
+			text('chart'),
+			...added.map((title) => text(title.toLowerCase(), title)),
+		)
+		const warnings = accessWarnings(access(), saved, draft, catalog)
+		expect(warnings).toHaveLength(1)
+		expect(warnings[0]).toMatchObject({
+			id: 'access:new',
+			title: 'No role sees the 6 new blocks yet',
+		})
+		expect(warnings[0]?.detail).toContain('Notes, Totals, Orders, Refunds and 2 more')
+		expect(warnings[0]?.path).toBeUndefined()
+	})
+
 	it('says who loses a block renamed, and why', () => {
 		const draft = page({ ...text('title'), name: 'heading' }, text('chart'))
 		const [warning] = accessWarnings(access(), saved, draft, catalog)

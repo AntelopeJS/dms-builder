@@ -133,6 +133,16 @@ describe('what a save would take from the roles', () => {
 	})
 })
 
+describe('what Save stops at', () => {
+	it('names the block and the settings it still lacks', async () => {
+		builder.addBlock('TableView')
+		const root = show(ChangesPanel)
+		await nextTick()
+
+		expect(textOf(root)).toContain('Table 1 — Database table to fill in')
+	})
+})
+
 describe('who is shown a block, or opens the page', () => {
 	it('names the roles, or says only the owner is', async () => {
 		const seen = show(Access, { path: 'title' })

@@ -128,6 +128,25 @@ describe('the components the palette lists', () => {
 		expect(offered(catalog, '', true)).toContain('EmptyState')
 	})
 
+	it('leaves source code to the developer view', () => {
+		const withCode = {
+			...catalog,
+			blocks: [
+				...catalog.blocks,
+				{
+					type: 'CodeBlock',
+					label: 'Code',
+					group: 'content',
+					container: false,
+					shapeSource: 'test',
+					config: {},
+				},
+			],
+		} as typeof catalog
+		expect(offered(withCode)).not.toContain('CodeBlock')
+		expect(offered(withCode, '', true)).toContain('CodeBlock')
+	})
+
 	it('masks the layout and the row, and nothing else', () => {
 		const declaring = catalog.blocks
 			.filter((block) => block.allowedChildren !== undefined)

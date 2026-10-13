@@ -227,6 +227,56 @@ describe('a ranking read from a table', () => {
 		})
 	})
 
+	it('ranks largest first before anyone sorts it, and previews the ranking', async () => {
+		backend.answers['GET /api/builder/resources'] = [
+			{ ref: 'order', className: 'Order', tableName: 'orders', route: '/api/order', fieldCount: 2 },
+		]
+		backend.answers['GET /api/builder/resource'] = {
+			ok: true,
+			data: orders(),
+			changes: [],
+		}
+		backend.answers['POST /api/builder/query-preview'] = {
+			ok: true,
+			data: { body: { items: [{ id: 'BE', title: 'BE', value: 12 }] } },
+			changes: [],
+		}
+		await builder.open('/reports/sales')
+		await vi.advanceTimersByTimeAsync(200)
+		const { root } = mount(DataSource, {
+			components: tableParts(),
+			props: {
+				modelValue: undefined,
+				responseShape: 'items',
+				blockName: 'topCountries',
+			},
+		})
+		await nextTick()
+
+		pickTable(root, 'order')
+		await settle()
+		expect(textOf(root), 'what it still waits on').toContain(
+			'Choose how to split the rows.',
+		)
+		write(
+			findAll(
+				root,
+				(node) => node.tag === 'USelectMenu' && node.props['aria-label'] === 'Split by',
+			)[0]!,
+			'country',
+		)
+		await settle()
+
+		expect(draftQuery()).toMatchObject({ orderBy: 'measure', direction: 'desc' })
+		const sort = findAll(
+			root,
+			(node) => node.tag === 'UCheckbox' && node.props.label === 'Sort',
+		)[0]!
+		expect(sort.props['model-value'], 'the default, not a refinement').toBe(false)
+		expect(textOf(root)).not.toContain('No rows match.')
+		expect(findAll(root, (node) => node.tag === 'DmsChart')).toHaveLength(1)
+	})
+
 	it('shows what a source already configured answers when it is reopened', async () => {
 		backend.answers['GET /api/builder/resources'] = [
 			{ ref: 'order', className: 'Order', tableName: 'orders', route: '/api/order', fieldCount: 2 },
@@ -800,5 +850,147 @@ describe('a chart a card holds', () => {
 
 		expect(textOf(root)).toContain('Show grid')
 		expect(textOf(root)).not.toContain('Data source')
+	})
+})
+
+describe('a setting of an object left unset', () => {
+	const schema: OptionSchema = {
+		type: 'object',
+		optional: true,
+		ui: { label: 'Empty state' },
+		properties: {
+			title: { type: 'string', ui: { label: 'Title' } },
+			description: { type: 'string', optional: true, ui: { label: 'Description' } },
+		},
+	}
+
+	const stars = (root: TestNode) =>
+		findAll(root, (node) => node.props.title === 'Required')
+
+	it('is not marked required while nothing asks for it', async () => {
+		const { root } = mount(Option, {
+			props: { name: 'emptyState', schema, modelValue: undefined },
+			components: { DmsBuilderOption: Option as Component },
+		})
+		await nextTick()
+		expect(stars(root)).toHaveLength(0)
+	})
+
+	it('is marked once the object is set', async () => {
+		const { root } = mount(Option, {
+			props: { name: 'emptyState', schema, modelValue: { description: 'Soon' } },
+			components: { DmsBuilderOption: Option as Component },
+		})
+		await nextTick()
+		expect(stars(root)).toHaveLength(1)
+	})
+})
+
+describe('a choice read as words', () => {
+	it('names sizes as letters and draws tones in their colour', async () => {
+		const sizes = mount(Option, {
+			props: {
+				name: 'size',
+				schema: { type: 'string', enum: ['xs', 'sm', 'md'], ui: { label: 'Size' } },
+				modelValue: 'sm',
+			},
+		})
+		await nextTick()
+		const segmented = findAll(sizes.root, (node) => node.tag === 'DmsSegmented')[0]!
+		expect(
+			(segmented.props.items as Array<{ label: string }>).map((item) => item.label),
+		).toEqual(['XS', 'S', 'M'])
+
+		const tones = mount(Option, {
+			props: {
+				name: 'tone',
+				schema: {
+					type: 'string',
+					enum: ['neutral', 'primary', 'warning', 'error', 'muted'],
+					ui: { label: 'Tone', widget: 'select' },
+				},
+				modelValue: undefined,
+			},
+		})
+		await nextTick()
+		const select = findAll(tones.root, (node) => node.tag === 'USelectMenu')[0]!
+		expect(select.props.items).toEqual([
+			{ label: 'Neutral', value: 'neutral', chip: { color: 'neutral' } },
+			{ label: 'Primary', value: 'primary', chip: { color: 'primary' } },
+			{ label: 'Warning', value: 'warning', chip: { color: 'warning' } },
+			{ label: 'Error', value: 'error', chip: { color: 'error' } },
+			{ label: 'Muted', value: 'muted' },
+		])
+	})
+
+	it('draws the words its help quotes from code as code', async () => {
+		const { root } = mount(Option, {
+			props: {
+				name: 'size',
+				schema: {
+					type: 'string',
+					optional: true,
+					description: '`sm` is the compact one-line banner.',
+					ui: { label: 'Size', widget: 'text' },
+				},
+				modelValue: undefined,
+			},
+		})
+		await nextTick()
+		const code = findAll(root, (node) => node.tag === 'code')
+		expect(code.map((node) => textOf(node))).toEqual(['sm'])
+		expect(textOf(root)).not.toContain('`')
+	})
+})
+
+describe('a link to another page', () => {
+	const schema: OptionSchema = {
+		type: 'string',
+		optional: true,
+		ui: { label: 'Link', widget: 'url' },
+	}
+
+	function pages(): void {
+		builder.session.value.pages = [
+			{ ref: '/shop/orders', id: 'orders', displayName: 'Orders', category: 'pages.shop', filepath: '' },
+		]
+	}
+
+	it('is picked among the pages by name, which writes the address', async () => {
+		pages()
+		const written: unknown[] = []
+		const { root } = mount(Option, {
+			props: {
+				name: 'to',
+				schema,
+				modelValue: undefined,
+				'onUpdate:modelValue': (value: unknown) => written.push(value),
+			},
+		})
+		await nextTick()
+		const menu = findAll(root, (node) => node.tag === 'UDropdownMenu')[0]!
+		const items = menu.props.items as Array<{ label: string; onSelect: () => void }>
+		expect(items.map((item) => item.label)).toEqual(['Orders'])
+		items[0]!.onSelect()
+		expect(written).toEqual(['/shop/orders'])
+	})
+
+	it('names the page it leads to, and still takes an address typed', async () => {
+		pages()
+		const { root } = mount(Option, {
+			props: { name: 'to', schema, modelValue: '/shop/orders' },
+		})
+		await nextTick()
+		expect(textOf(root)).toContain('Leads to Orders')
+		expect(findAll(root, (node) => node.tag === 'UInput')).toHaveLength(1)
+	})
+
+	it('is not offered for a route the page calls', async () => {
+		pages()
+		const { root } = mount(Option, {
+			props: { name: 'submitUrl', schema, modelValue: undefined },
+		})
+		await nextTick()
+		expect(findAll(root, (node) => node.tag === 'UDropdownMenu')).toHaveLength(0)
 	})
 })

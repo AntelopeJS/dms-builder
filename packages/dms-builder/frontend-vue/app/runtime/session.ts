@@ -352,11 +352,19 @@ let lastStep: { group: string | null; at: number } = { group: null, at: 0 }
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 let previewToken = 0
 
+/** A block with settings still empty, and which ones. */
+export interface BlockGap {
+	path: string
+	settings: MissingSetting[]
+}
+
 export interface BuilderController {
 	session: Ref<BuilderSession>
 	dirty: ComputedRef<boolean>
 	blockCount: ComputedRef<number>
 	problems: ComputedRef<string[]>
+	/** The settings each block still leaves empty, by its path. */
+	gaps: ComputedRef<BlockGap[]>
 	selected: ComputedRef<BlockDraft | undefined>
 	selectedDescriptor: ComputedRef<BlockTypeDescriptor | undefined>
 	/** The container a click in the palette adds to; `null` is the page. */
@@ -531,12 +539,12 @@ export function useBuilder(): BuilderController {
 	 * source, which is no help to whoever left a field empty. Knowing the gaps
 	 * here is what lets the panel mark the field and Save say which one.
 	 */
-	const gaps = computed<Array<{ path: string; settings: MissingSetting[] }>>(() => {
+	const gaps = computed<BlockGap[]>(() => {
 		const draft = session.value.draft
 		if (!draft) {
 			return []
 		}
-		const found: Array<{ path: string; settings: MissingSetting[] }> = []
+		const found: BlockGap[] = []
 		walkDraft(draft.blocks, (block, path) => {
 			const descriptor = descriptorOf(session.value.catalog, block.type)
 			const settings = [...missingSettings(descriptor, block), ...unaskedOf(block)]
@@ -2804,6 +2812,7 @@ export function useBuilder(): BuilderController {
 		dirty,
 		blockCount,
 		problems,
+		gaps,
 		selected,
 		selectedDescriptor,
 		paletteTarget,

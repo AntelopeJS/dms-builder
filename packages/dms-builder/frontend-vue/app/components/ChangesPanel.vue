@@ -44,14 +44,25 @@ const groups = computed(() =>
 	})).filter((group) => group.entries.length > 0),
 )
 
-/** The blocks Save would stop at, by name. */
+/**
+ * The blocks Save would stop at, by name, and what each still lacks: the
+ * settings left empty, or — refused by the last preview — that it cannot be
+ * built as it stands.
+ */
 const toFix = computed(() => {
 	const draft = session.value.draft
 	return builder.problems.value.map((path) => {
 		const block = draft ? findNode(draft, path) : undefined
+		const missing =
+			builder.gaps.value
+				.find((gap) => gap.path === path)
+				?.settings.map((setting) => setting.label) ?? []
 		return {
 			path,
 			title: block ? blockTitle(block, session.value.catalog) : path,
+			detail: missing.length
+				? `${missing.join(', ')} to fill in`
+				: 'cannot be built as it stands',
 		}
 	})
 })
@@ -234,7 +245,9 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 					:key="entry.path"
 					class="flex items-center gap-2 text-xs text-warning"
 				>
-					<span class="min-w-0 flex-1 truncate">{{ entry.title }} needs a setting</span>
+					<span class="min-w-0 flex-1 truncate" :title="`${entry.title} — ${entry.detail}`"
+						>{{ entry.title }} — {{ entry.detail }}</span
+					>
 					<UButton
 						label="Go to block"
 						size="xs"

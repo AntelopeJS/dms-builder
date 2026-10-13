@@ -113,8 +113,20 @@ const measureField = ref<string | undefined>(undefined)
 const groupBy = ref<string | undefined>(undefined)
 const bucket = ref<string | undefined>('month')
 const filters = ref<DraftFilter[]>([])
-const orderBy = ref<'group' | 'measure'>('group')
-const direction = ref<'asc' | 'desc'>('asc')
+/**
+ * The arrangements that rank their groups: a top list reads largest first until
+ * someone sorts it otherwise, where a chart keeps its groups along their axis.
+ */
+const RANKED_SHAPES = new Set(['items'])
+const ranked = computed(() => RANKED_SHAPES.has(String(props.responseShape)))
+const defaultOrderBy = computed<'group' | 'measure'>(() =>
+	ranked.value ? 'measure' : 'group',
+)
+const defaultDirection = computed<'asc' | 'desc'>(() =>
+	ranked.value ? 'desc' : 'asc',
+)
+const orderBy = ref<'group' | 'measure'>(defaultOrderBy.value)
+const direction = ref<'asc' | 'desc'>(defaultDirection.value)
 const limit = ref<number | undefined>(undefined)
 const followPeriod = ref(false)
 /** The date column a period bounds, when the groups are not dates themselves. */
@@ -249,6 +261,13 @@ function setLimit(value: string | number): void {
 
 const needsMeasureField = computed(() => measure.value !== 'count')
 
+/** What the source still waits on, said where its preview would be. */
+const waitingOn = computed(() =>
+	needsMeasureField.value && !measureField.value
+		? 'Choose what to measure.'
+		: 'Choose how to split the rows.',
+)
+
 const ready = computed(() => {
 	if (!resource.value) {
 		return false
@@ -280,7 +299,10 @@ function refined(kind: Refinement): boolean {
 	}
 	switch (kind) {
 		case 'sort':
-			return orderBy.value !== 'group' || direction.value !== 'asc'
+			return (
+				orderBy.value !== defaultOrderBy.value ||
+				direction.value !== defaultDirection.value
+			)
 		case 'top':
 			return limit.value !== undefined
 		case 'conditions':
@@ -299,8 +321,8 @@ function refine(kind: Refinement, on: boolean): void {
 	}
 	opened.value = next
 	if (kind === 'sort' && !on) {
-		orderBy.value = 'group'
-		direction.value = 'asc'
+		orderBy.value = defaultOrderBy.value
+		direction.value = defaultDirection.value
 	}
 	if (kind === 'top' && !on) {
 		limit.value = undefined
@@ -534,11 +556,29 @@ const previewDelta = computed(() => {
 	return typeof delta === 'number' ? delta : undefined
 })
 
+/** A ranking's entries as points: each group by its title, at its value. */
+function itemPoints(items: unknown): QueryPoint[] {
+	if (!Array.isArray(items)) {
+		return []
+	}
+	return items
+		.filter(
+			(item): item is { id?: unknown; title?: unknown; value: number } =>
+				typeof (item as { value?: unknown })?.value === 'number',
+		)
+		.map((item) => ({ x: String(item.title ?? item.id ?? ''), y: item.value }))
+}
+
 /**
  * The points behind the body, wherever its arrangement put them: a plain route
- * answers them directly, a card hands them over inside a chart series.
+ * answers them directly, a card hands them over inside a chart series, and a
+ * ranking lists them as entries.
  */
-const previewPoints = computed(() => pointsOf(preview.value?.body?.series))
+const previewPoints = computed(() => {
+	const body = preview.value?.body
+	const series = pointsOf(body?.series)
+	return series.length ? series : itemPoints(body?.items)
+})
 const previousPoints = computed(() =>
 	pointsOf(preview.value?.body?.comparisonSeries),
 )
@@ -700,7 +740,7 @@ watch(
 					v-else-if="previewValue === undefined && !previewing"
 					class="text-xs text-dimmed"
 				>
-					{{ ready ? 'No rows match.' : 'Choose what to measure.' }}
+					{{ ready ? 'No rows match.' : waitingOn }}
 				</p>
 			</div>
 

@@ -21,16 +21,85 @@ import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
+const TABLE_VIEW_MODULE = `${BASE_MODULE}/table-view`;
 const PLACEHOLDER_TYPE = "Placeholder";
 const PLACEHOLDER_HEIGHT = "96px";
+const TABLE_VIEW_TYPE = "TableView";
 
 /**
  * The blocks over a table whose factory only reads the controller, so building
  * one for the preview leaves the running app as it found it. A TableView is not
  * one: it writes its options, guards and gate flag onto the controller's own
- * metadata, which every page mounting that table shares.
+ * metadata, which every page mounting that table shares — it previews as a
+ * read-only table over the same rows instead (`tablePreview`).
  */
 const READ_ONLY_CONTROLLER_BLOCKS = new Set(["ResourceForm"]);
+
+/**
+ * The options of a Table block a read-only table over its rows shows as the
+ * page will: its title, its look, its search, sort, tabs and filters. Its
+ * actions and forms are the page's alone.
+ */
+const TABLE_PREVIEW_OPTIONS = [
+  "caption",
+  "layout",
+  "density",
+  "maxHeight",
+  "pageSize",
+  "searchPlaceholder",
+  "labelKey",
+  "defaultSort",
+  "emptyStates",
+  "tabs",
+  "quickFilters",
+  "card",
+  "rowIdKey",
+];
+
+/** What a column of a source table takes of a `@Column`'s options. */
+const SOURCE_COLUMN_OPTIONS = [
+  "name",
+  "description",
+  "type",
+  "order",
+  "isVisible",
+  "filterable",
+  "cellWrap",
+  "size",
+  "display",
+];
+
+/** What a data controller's list route handles itself: all of it. */
+const LIST_ROUTE_CAPABILITIES = {
+  search: true,
+  sort: true,
+  paginate: true,
+  filter: true,
+};
+
+/** A column as a table's metadata describes it to its views. */
+interface DescribedColumn {
+  id: string;
+  listable: boolean;
+  enableSorting: boolean;
+}
+
+/** What the preview reads of a table's metadata, never writes. */
+interface TableMetadata {
+  columns: Record<string, Record<string, unknown>>;
+  config: { location: string; columns: DescribedColumn[] };
+}
+
+/** The metadata class a table's views read, as `GetMetadata` takes it. */
+interface TableMetadataClass {
+  new (target: ControllerClass): TableMetadata;
+  key: symbol;
+}
+
+interface TableViewModule {
+  TableViewMeta?: TableMetadataClass;
+  tableViewFromSource?: (options: Record<string, unknown>) => PreviewBuilder;
+}
 
 /** The subset of `ComponentBuilder` the preview drives. */
 interface PreviewBuilder {
@@ -321,8 +390,11 @@ function buildBlock(block: BlockDraft): unknown {
   if (descriptor.controllerArg && !block.controller) {
     throw new DegradedBlockError(`${label} — choose its table`);
   }
+  const previewed =
+    READ_ONLY_CONTROLLER_BLOCKS.has(descriptor.type) ||
+    descriptor.type === TABLE_VIEW_TYPE;
   const controller =
-    descriptor.controllerArg && READ_ONLY_CONTROLLER_BLOCKS.has(descriptor.type)
+    descriptor.controllerArg && previewed
       ? loadedController(block.controller)
       : undefined;
   if (descriptor.controllerArg && !controller) {
@@ -332,9 +404,63 @@ function buildBlock(block: BlockDraft): unknown {
     withoutUnfinishedEntries(descriptor.config, block.config ?? {}),
   ) as Record<string, unknown>;
   const options = { ...descriptor.defaults, ...config };
+  if (descriptor.type === TABLE_VIEW_TYPE) {
+    return tablePreview(controller, options);
+  }
   return controller
     ? factoryFor(descriptor.type)(controller, options)
     : factoryFor(descriptor.type)(options);
+}
+
+function picked(
+  source: Record<string, unknown>,
+  keys: string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    keys
+      .filter((key) => source[key] !== undefined)
+      .map((key) => [key, source[key]]),
+  );
+}
+
+/** The columns the table lists, as a source table takes them. */
+function listedColumns(meta: TableMetadata): Record<string, unknown> {
+  return Object.fromEntries(
+    meta.config.columns
+      .filter((column) => column.listable)
+      .map((column) => [
+        column.id,
+        {
+          ...picked(meta.columns[column.id] ?? {}, SOURCE_COLUMN_OPTIONS),
+          sortable: column.enableSorting,
+        },
+      ]),
+  );
+}
+
+/**
+ * A Table block as the canvas shows it: the table's columns and rows, read
+ * through its own list route by a read-only table over that route.
+ *
+ * The block itself is not built: `TableView()` writes its options, guards and
+ * forms onto the table's metadata, which every page mounting that table shares.
+ * Its actions are what the saved page adds; the rows are the ones it will list.
+ */
+function tablePreview(
+  controller: unknown,
+  options: Record<string, unknown>,
+): PreviewBuilder {
+  const module = loadModule(TABLE_VIEW_MODULE) as TableViewModule;
+  if (!module.TableViewMeta || !module.tableViewFromSource) {
+    throw new DegradedBlockError("Table — needs the running page");
+  }
+  const meta = GetMetadata(controller as ControllerClass, module.TableViewMeta);
+  return module.tableViewFromSource({
+    ...picked(options, TABLE_PREVIEW_OPTIONS),
+    columns: listedColumns(meta),
+    fetchUrl: `${meta.config.location}/list`,
+    capabilities: LIST_ROUTE_CAPABILITIES,
+  });
 }
 
 function instantiateBlock(

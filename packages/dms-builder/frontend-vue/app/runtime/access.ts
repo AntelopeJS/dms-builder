@@ -105,17 +105,52 @@ export function rolesSeeing(access: PageAccess, page: string, path: string): Rol
 	return (access.roles ?? []).filter((role) => seesBlock(access, role, page, path))
 }
 
-/** Roles as a sentence names them: `Support`, `Admin and Support`, `Admin, Support and 2 more`. */
-export function roleNames(roles: RoleAccess[]): string {
-	const names = roles.map((role) => role.name)
+/** Names as a sentence lists them: `A`, `A and B`, `A, B and 2 more`. */
+function namesList(names: string[], named: number): string {
 	if (names.length <= 1) {
 		return names[0] ?? ''
 	}
-	if (names.length <= NAMED_ROLES + 1) {
+	if (names.length <= named + 1) {
 		return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 	}
-	const rest = names.length - NAMED_ROLES
-	return `${names.slice(0, NAMED_ROLES).join(', ')} and ${rest} more`
+	const rest = names.length - named
+	return `${names.slice(0, named).join(', ')} and ${rest} more`
+}
+
+/** Roles as a sentence names them: `Support`, `Admin and Support`, `Admin, Support and 2 more`. */
+export function roleNames(roles: RoleAccess[]): string {
+	return namesList(
+		roles.map((role) => role.name),
+		NAMED_ROLES,
+	)
+}
+
+/** How many new blocks a grouped warning names before counting the rest. */
+const NAMED_BLOCKS = 4
+
+/**
+ * What no role sees yet among the blocks just added: one block by its name and
+ * a way to it, several said once — a page laid out from scratch would
+ * otherwise list the same sentence once per block.
+ */
+function unseenWarning(unseen: Array<{ path: string; title: string }>): AccessWarning {
+	const [first] = unseen
+	if (unseen.length === 1 && first) {
+		return {
+			id: `access:new:${first.path}`,
+			path: first.path,
+			title: `No role sees ${first.title} yet`,
+			detail: 'A new block is shown to the owner only, until a role is given it in Roles.',
+		}
+	}
+	return {
+		id: 'access:new',
+		title: `No role sees the ${unseen.length} new blocks yet`,
+		detail: `New blocks are shown to the owner only, until a role is given them in Roles: ${namesList(
+			unseen.map((entry) => entry.title),
+			NAMED_BLOCKS,
+		)}.`,
+	}
 }
 
 /**
@@ -232,6 +267,8 @@ export function accessWarnings(
 		return warnings
 	}
 	const said: string[] = []
+	const unseen: Array<{ path: string; title: string }> = []
+	let unseenAt = -1
 	for (const entry of blocks) {
 		if (said.some((path) => entry.path.startsWith(`${path}/`))) {
 			continue
@@ -241,12 +278,8 @@ export function accessWarnings(
 		if (!entry.was) {
 			if (now.length === 0) {
 				said.push(entry.path)
-				warnings.push({
-					id: `access:new:${entry.path}`,
-					path: entry.path,
-					title: `No role sees ${title} yet`,
-					detail: 'A new block is shown to the owner only, until a role is given it in Roles.',
-				})
+				unseenAt = unseenAt === -1 ? warnings.length : unseenAt
+				unseen.push({ path: entry.path, title })
 			}
 			continue
 		}
@@ -263,6 +296,9 @@ export function accessWarnings(
 			title: `${roleNames(lost)} ${lost.length === 1 ? 'loses' : 'lose'} ${title}`,
 			detail: `${reasonOf(entry.was, entry)}, so it takes a new permission — a block’s is named after where it sits. Give it again in Roles.`,
 		})
+	}
+	if (unseen.length > 0) {
+		warnings.splice(unseenAt, 0, unseenWarning(unseen))
 	}
 	return warnings
 }

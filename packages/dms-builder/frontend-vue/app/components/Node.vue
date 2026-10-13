@@ -234,6 +234,16 @@ const regions = computed(() =>
 		children: slotted.value.filter((child) => child.block.slot === slot.id),
 	})),
 )
+/**
+ * Whether the block's own body holds nothing, and offers a way in. A tab set's
+ * tabs are its body, so it has none of its own while it has a tab; a card's
+ * head actions and footer are beside a body that still takes blocks.
+ */
+const bodyEmpty = computed(
+	() =>
+		!plain.value.length &&
+		(!descriptor.value?.dynamicSlots || !regions.value.length),
+)
 /** Whether this block lays its own children out side by side. */
 const inner = computed(() => isRowContainer(props.block.type))
 /** Whether the editor wrote this block itself, rather than the user placing it. */
@@ -641,7 +651,7 @@ function answerCursor(event: DragEvent): void {
 				<DmsBuilderChildren
 					:path="path"
 					:children="plain"
-					:empty="!children.length && !regions.length"
+					:empty="bodyEmpty"
 				/>
 			</div>
 		</div>
@@ -692,6 +702,7 @@ function answerCursor(event: DragEvent): void {
 							:children="region.children"
 							:empty="!region.children.length"
 							:region="region.id"
+							:label="region.label"
 						/>
 					</template>
 					<template #default>
@@ -708,12 +719,7 @@ function answerCursor(event: DragEvent): void {
 						<DmsBuilderChildren
 							:path="path"
 							:children="plain"
-							:empty="
-								!structural &&
-								descriptor?.container === true &&
-								!children.length &&
-								!regions.length
-							"
+							:empty="!structural && descriptor?.container === true && bodyEmpty"
 						/>
 					</template>
 				</component>

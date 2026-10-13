@@ -130,9 +130,11 @@ usable behind it.
   as it is typed).
 - **Canvas** — the page rendered by its real components. The layout comes from
   `PreviewLayout`, so a card fetches its real data and a grid lays itself out
-  exactly as it will once saved. Blocks the preview cannot build faithfully
-  (a `TableView`, whose DataAPI class only the running page holds) render as a
-  labelled stand-in rather than a lie. A drop is aimed at a block that is
+  exactly as it will once saved. A `TableView` shows its columns and rows
+  through the table's own list route, read-only — its actions are the saved
+  page's — since building one would write onto the table every page shares.
+  Blocks the preview cannot build faithfully (a table the running app has not
+  loaded yet) render as a labelled stand-in rather than a lie. A drop is aimed at a block that is
   already there, and every block of a grid answers on all four of its sides:
   its left and right quarters place the block in the column before or after it,
   the bands across its top and bottom above or below it, and the middle of a
@@ -143,7 +145,11 @@ usable behind it.
   words (`Top list · column 2 of 3`), its settings in tabs (Content, Data,
   Style; a table adds Actions, a form Fields and After submit). Blocks with a
   panel of their own are set up in the words of whoever builds the page; the
-  rest get a panel generated from their schema. It also shows the page's own
+  rest get a panel generated from their schema, in words too: a choice reads
+  `S`/`M`/`L` or `Elevated` rather than `sm` or `elevated`, a tone is drawn in
+  its colour, a link to another page is picked among the pages by name (the box
+  still takes an anchor or an address elsewhere), and a setting still to fill
+  in is named `Cards 1 · Title`. It also shows the page's own
   settings, the page as JSON, and the **change list**: every unsaved edit in
   plain words, revertible one by one, then what Save will check and write,
   then what was already written straight to the project.
@@ -160,7 +166,8 @@ usable behind it.
   top of a page that has none (once; one the author takes off stays off), and
   the page's **Live updates** setting writes its `live` options with its
   Live / Pause switch at the top, taking every switch off with it. The empty
-  state and the live switch are left out of the simple palette for it.
+  state and the live switch are left out of the simple palette for it, and so
+  is a block of source code, which is for developers to show.
 - **Tables** and **Data** — workspaces of their own: the tables with their
   fields, API and settings, each saying how many rows it holds and which pages
   read it; the page's data sources, read as a sentence, with who uses them and

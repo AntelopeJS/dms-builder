@@ -149,12 +149,13 @@ export const PAGE_PERIOD_SCOPE = 'page'
 export const LIVE_TOGGLE = 'LiveToggle'
 
 /**
- * What the simple palette leaves to the developer view, a setting placing it
- * where it is needed: the message a container shows when there is nothing to
- * show — "When there's nothing to show" —, and a live page's switch — the
- * page's "Live updates".
+ * What the simple palette leaves to the developer view: blocks a setting
+ * places where they are needed — the message a container shows when there is
+ * nothing to show ("When there's nothing to show"), a live page's switch (the
+ * page's "Live updates") — and a block of source code, which is shown to
+ * developers rather than made by someone building a page.
  */
-export const DEVELOPER_BLOCKS = new Set(['EmptyState', LIVE_TOGGLE])
+export const DEVELOPER_BLOCKS = new Set(['EmptyState', LIVE_TOGGLE, 'CodeBlock'])
 
 /**
  * The wrappers the editor writes around what an author places — a section's

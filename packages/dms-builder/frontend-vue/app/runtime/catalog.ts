@@ -481,11 +481,14 @@ export function panelConfig(
 	}
 }
 
+/** Between the steps naming a nested setting: `Cards 1 · Title`. */
+const SETTING_PATH_SEPARATOR = ' · '
+
 /** One setting still to fill in, addressed and named the way the panel is. */
 export interface MissingSetting {
 	/** The keys walked from the block's own options, array indices included. */
 	path: string[]
-	/** What the panel calls it: `Tabs #2 → Label` for a tab with no title. */
+	/** What the panel calls it: `Tabs 2 · Label` for a tab with no title. */
 	label: string
 }
 
@@ -510,7 +513,7 @@ function collectMissing(
 ): void {
 	if (value === undefined || value === null || value === '') {
 		if (isRequired(schema)) {
-			found.push({ path, label: labels.join(' → ') })
+			found.push({ path, label: labels.join(SETTING_PATH_SEPARATOR) })
 		}
 		return
 	}
@@ -546,7 +549,7 @@ function collectMissing(
 				items,
 				entry,
 				[...path, String(index)],
-				[`${labels.join(' → ')} #${index + 1}`],
+				[`${labels.join(SETTING_PATH_SEPARATOR)} ${index + 1}`],
 				found,
 			)
 		})
@@ -693,7 +696,7 @@ export function dataTypeGroups(catalog: BlockCatalog | null): DataTypeGroup[] {
  * Distinct from the name the editor gives a block: that one is the property of
  * the generated source and is never read by anyone looking at the page.
  */
-const VISIBLE_NAME_KEYS = ['title', 'label']
+const VISIBLE_NAME_KEYS = ['title', 'label', 'caption']
 
 /**
  * Wording the page renders that has one obvious default, by the option that
@@ -708,10 +711,21 @@ const VISIBLE_TEXT_DEFAULTS: Record<string, string> = {
 	submitLabel: 'Submit',
 }
 
+/**
+ * Whether an option takes plain text: a string, or a union one of whose kinds
+ * is — a banner's title is text or a translated, composed one.
+ */
+function takesText(schema: OptionSchema): boolean {
+	return (
+		schema.type === 'string' ||
+		(schema.oneOf ?? []).some((branch) => branch.type === 'string')
+	)
+}
+
 /** Whether an option carries text the page renders, demanded or not. */
 function showsText(key: string, schema: OptionSchema): boolean {
 	return (
-		schema.type === 'string' &&
+		takesText(schema) &&
 		(VISIBLE_NAME_KEYS.includes(key) || key in VISIBLE_TEXT_DEFAULTS)
 	)
 }
@@ -816,7 +830,7 @@ function seedFor(
 		const type = schema.ui?.blockTypes?.[0]
 		return type === undefined ? undefined : { $block: { type, config: {} } }
 	}
-	if (schema.type === 'string') {
+	if (schema.type === 'string' || showsText(key, schema)) {
 		// An id is read back by other blocks, so it reads as a name, not a title.
 		// A title is numbered, or a page with two of a type says the same word
 		// twice and neither the canvas nor the panel tells them apart.

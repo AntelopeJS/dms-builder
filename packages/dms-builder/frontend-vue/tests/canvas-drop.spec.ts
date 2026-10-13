@@ -7,7 +7,11 @@ import Library from '../app/components/Library.vue'
 import Node from '../app/components/Node.vue'
 import Placeholder from '../app/components/Placeholder.vue'
 import LeftRail from '../app/components/LeftRail.vue'
-import { installFakeHost, type FakeBackend } from './support/builder-harness'
+import {
+	installFakeHost,
+	withWrappers,
+	type FakeBackend,
+} from './support/builder-harness'
 import {
 	byClass,
 	fakeEvent,
@@ -972,12 +976,12 @@ describe('a container the preview has not answered for yet', () => {
 		await openWith([block('row', 'Section')], {})
 		const { root } = mount(Canvas, { components: globals() })
 		await nextTick()
-		expect(textOf(root)).toContain('Empty container — add a block')
+		expect(textOf(root)).toContain('Add a block here')
 
 		builder.beginDrag({ type: 'Text' })
 		await nextTick()
 		// The way in is still there mid-drag; it used to be hidden exactly then.
-		expect(textOf(root)).toContain('Empty container — add a block')
+		expect(textOf(root)).toContain('Add a block here')
 
 		aim(root, 'row', 50)
 		await nextTick()
@@ -990,6 +994,33 @@ describe('a container the preview has not answered for yet', () => {
 		// And what it holds is rendered, rather than hidden behind a placeholder.
 		expect(findAll(root, (node) => node.props['data-path'] === 'row/text'))
 			.toHaveLength(1)
+	})
+
+	it("keeps a card's body open beside its head actions and footer, each named", async () => {
+		const catalog = withWrappers()
+		backend.catalog = {
+			...catalog,
+			blocks: catalog.blocks.map((entry) =>
+				entry.type === 'Card'
+					? {
+							...entry,
+							slots: [
+								{ id: 'actions', label: 'Head actions' },
+								{ id: 'footer', label: 'Footer' },
+							],
+						}
+					: entry,
+			),
+		}
+		await openWith([block('card', 'Card')], {})
+		const { root } = mount(Canvas, { components: globals() })
+		await nextTick()
+
+		// Standing in for itself, the card names each region above its way in.
+		const text = textOf(root)
+		expect(text).toContain('Head actions')
+		expect(text).toContain('Footer')
+		expect(text.match(/Add a block here/g), 'its two regions and its body').toHaveLength(3)
 	})
 })
 

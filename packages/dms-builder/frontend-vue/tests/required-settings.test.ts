@@ -49,7 +49,7 @@ describe('what the catalog says is still empty', () => {
 			tabBlock([{ slot: 'orders', label: 'Orders' }, { slot: 'sends' }]),
 		)
 
-		expect(gaps.map((gap) => gap.label)).toEqual(['Tabs #2 → Label'])
+		expect(gaps.map((gap) => gap.label)).toEqual(['Tabs 2 · Label'])
 		expect(gaps[0]?.path, 'and addresses it in the options').toEqual([
 			'items',
 			'1',
@@ -63,7 +63,7 @@ describe('what the catalog says is still empty', () => {
 			tabBlock([{ slot: 'orders', label: '' }]),
 		)
 
-		expect(gaps.map((gap) => gap.label)).toEqual(['Tabs #1 → Label'])
+		expect(gaps.map((gap) => gap.label)).toEqual(['Tabs 1 · Label'])
 	})
 
 	it('says nothing about the region id, which the editor writes itself', () => {
@@ -100,8 +100,8 @@ describe('what the catalog says is still empty', () => {
 		})
 
 		expect(gaps.map((gap) => gap.label)).toEqual([
-			'Fields #1 → Key',
-			'Fields #1 → Type',
+			'Fields 1 · Key',
+			'Fields 1 · Type',
 		])
 		expect(gaps[0]?.path).toEqual(['fields', '0', 'id'])
 	})
@@ -146,7 +146,7 @@ describe('Save on a page with a setting left empty', () => {
 		expect(
 			describeError(builder.session.value.error!, builder.session.value.draft),
 		).toBe(
-			'Tabs #1 → Label is still empty. Fill in the settings marked in the panel, then save.',
+			'Tabs 1 · Label is still empty. Fill in the settings marked in the panel, then save.',
 		)
 	})
 

@@ -333,7 +333,7 @@ describe('a setting the page needs and nobody filled in', () => {
 		expect(
 			findAll(root, (node) => node.tag === 'li').map(textOf),
 			'named where the panel can be opened on it',
-		).toEqual(['Tabs #1 → Label'])
+		).toEqual(['Tabs 1 · Label'])
 		expect(shown, 'and on the field itself').toContain(
 			'Required — the page cannot be built until this is filled in.',
 		)
@@ -413,7 +413,7 @@ describe('a tab set the preview cannot build', () => {
 		// says so: without a surface of its own, the only box under the pointer
 		// was the tab set's, whose ends aim beside it rather than into the tab.
 		expect(textOf(named[0]!), 'an empty tab is still named').toBe(
-			'Orders Empty container — add a block',
+			'Orders Add a block here',
 		)
 		expect(textOf(named[1]!)).toContain('Sends')
 		expect(

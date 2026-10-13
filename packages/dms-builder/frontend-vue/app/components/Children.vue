@@ -33,6 +33,8 @@ const props = defineProps<{
 	empty?: boolean
 	/** The container's own region this list shows, when it is one of them. */
 	region?: string
+	/** What the region is called, for its way in to say where a block goes. */
+	label?: string
 }>()
 
 const builder = useBuilder()
@@ -104,6 +106,6 @@ function answerCursor(event: DragEvent): void {
 		@drop.prevent.stop="builder.drop()"
 	>
 		<UIcon name="i-ph-plus-light" class="size-4" />
-		Empty container — add a block
+		{{ label ? `Add a block to ${label}` : 'Add a block here' }}
 	</button>
 </template>
