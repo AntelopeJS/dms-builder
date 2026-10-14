@@ -41,7 +41,8 @@ export type DuplicateScope =
   | "siblings"
   | "category"
   | "resource"
-  | "query";
+  | "query"
+  | "module";
 
 /** Every way an operation can fail. */
 export type BuilderError =

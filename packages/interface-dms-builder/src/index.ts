@@ -2,6 +2,7 @@ export * from "./addressing";
 export * from "./catalog";
 export * from "./drafts";
 export * from "./operations";
+export * from "./project";
 export * from "./queries";
 export * from "./resources";
 export * from "./results";
