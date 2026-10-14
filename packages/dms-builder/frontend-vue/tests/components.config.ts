@@ -12,9 +12,9 @@ import { defineConfig, transformWithOxc, type Plugin } from 'vite'
  * the one component carrying one says in CSS what it would otherwise have
  * needed a transition, and a real DOM, to say.
  *
- * Run with `npx vitest run --config tests/components.config.ts`. The suite
- * matches `*.spec.ts`, so the package's own `vitest.config.ts` — which matches
- * `*.test.ts` — is untouched and `pnpm test` keeps working as before.
+ * Run with `pnpm test:components`. The suite matches `*.spec.ts`, so the
+ * package's own `vitest.config.ts` — which matches `*.test.ts` — is untouched
+ * and `pnpm test` keeps working as before.
  */
 function singleFileComponents(): Plugin {
 	return {

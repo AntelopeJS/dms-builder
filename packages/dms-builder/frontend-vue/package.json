@@ -12,7 +12,8 @@
 		"typecheck": "ajs dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
-		"test": "vitest run"
+		"test": "vitest run",
+		"test:components": "vitest run --config tests/components.config.ts"
 	},
 	"dependencies": {
 		"vue": "^3.5.18"

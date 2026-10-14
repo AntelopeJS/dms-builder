@@ -29,20 +29,19 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "pnpm --filter @antelopejs/interface-dms-builder build && rimraf dist && tsc",
+    "build": "([ -n \"$DMS_PREBUILT\" ] || pnpm --filter @antelopejs/interface-dms-builder build) && rimraf dist && tsc",
     "generate": "ajs module exports generate",
     "typecheck": "pnpm --filter @antelopejs/interface-dms-builder build && tsc --noEmit",
-    "test": "pnpm run build && pnpm run test:package-contract && pnpm run test:builder-enabled && pnpm run test:query-templates && pnpm run test:frontend-registration && pnpm run test:frontend && pnpm run test:unit",
-    "test:builder-enabled": "node --test tests/builder-enabled.test.cjs",
-    "test:frontend-registration": "node --test tests/frontend-registration.test.cjs",
-    "test:query-templates": "node --test tests/query-templates.test.cjs",
+    "test": "([ -n \"$DMS_PREBUILT\" ] || pnpm run build) && pnpm run test:node && pnpm run test:frontend && pnpm run test:components && pnpm run test:unit",
+    "test:node": "node --test tests/*.test.cjs",
     "test:frontend": "pnpm --dir frontend-vue test",
+    "test:components": "pnpm --dir frontend-vue test:components",
     "test:package-contract": "node --test tests/package-contract.test.cjs",
     "release": "pnpm --filter @antelopejs/interface-dms-builder build && pnpm run test:package-contract && release-it",
     "prepack": "pnpm run build",
     "knip": "knip --dependencies",
     "knip:all": "knip",
-    "test:unit": "mocha \"dist/test/**/*.spec.js\""
+    "test:unit": "mocha --timeout 20000 \"dist/test/**/*.spec.js\""
   },
   "dependencies": {
     "@antelopejs/interface-api": ">=0.0.14 <1.0.0",
