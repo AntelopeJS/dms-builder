@@ -193,16 +193,18 @@ export function moduleOfFile(filepath: string): ModuleRoot | undefined {
 /**
  * The project's sources and every other module's, in one ts-morph project: each file resolves its
  * imports from its own module's `node_modules`, and one typecheck covers every module an operation
- * touched.
+ * touched. The project's `rootDir` names its own `src` and the other modules lie outside it; the
+ * builder never emits, so the shared project checks types without one.
  */
 export function createModulesProject(): Project {
   const project = createProject(resolveProjectRoot());
-  for (const module of projectModules()) {
-    if (!module.isProject) {
-      project.addSourceFilesAtPaths(
-        path.join(module.root, "src", "**", "*.ts"),
-      );
-    }
+  const others = projectModules().filter((module) => !module.isProject);
+  if (others.length === 0) {
+    return project;
+  }
+  project.compilerOptions.set({ rootDir: undefined });
+  for (const module of others) {
+    project.addSourceFilesAtPaths(path.join(module.root, "src", "**", "*.ts"));
   }
   return project;
 }

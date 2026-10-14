@@ -30,6 +30,7 @@ const TSCONFIG = {
     strict: true,
     skipLibCheck: true,
     esModuleInterop: true,
+    rootDir: "src",
   },
   include: ["src"],
 };
