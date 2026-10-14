@@ -23,7 +23,7 @@ const dmsSource = DMS_MODULE_PATH
   : {
       type: "package" as const,
       package: "@antelopejs/dms",
-      version: ">=0.7.11 <1.0.0",
+      version: ">=0.8.0 <1.0.0",
     };
 
 export default defineConfig({
