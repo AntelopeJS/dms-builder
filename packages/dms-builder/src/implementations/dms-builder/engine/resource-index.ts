@@ -11,12 +11,8 @@ import {
   type SourceFile,
 } from "ts-morph";
 import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
-import {
-  createProject,
-  resolveProjectRoot,
-  sourcesChanged,
-  stampSources,
-} from "./project";
+import { createModulesProject, moduleOfFile } from "./modules";
+import { sourcesChanged, stampSources } from "./project";
 import { CORE_SCHEMA_NAME_VALUE, routesFromRouteMap } from "./resource-emit";
 import { type EmitContext, UnknownReferenceError } from "./value";
 
@@ -224,7 +220,7 @@ function getResourceIndex(): Map<string, ResourceRecord> {
   if (cached && stamps && !sourcesChanged(stamps)) {
     return cached;
   }
-  const project = createProject(resolveProjectRoot());
+  const project = createModulesProject();
   cached = new ResourceScanner(project).scan();
   stamps = stampSources(project);
   return cached;
@@ -279,14 +275,21 @@ export function findResourceBySymbol(
 }
 
 export function listResourceSummaries(): ResourceSummary[] {
-  return listResourceRecords().map((record) => ({
-    ref: record.ref,
-    className: record.className,
-    tableName: record.tableName,
-    route: record.route,
-    fieldCount: record.apiClass
-      .getProperties()
-      .filter((prop) => prop.getName() !== "model").length,
-    files: { database: record.databaseFile, dataApi: record.dataApiFile },
-  }));
+  return listResourceRecords().map((record) => {
+    const summary: ResourceSummary = {
+      ref: record.ref,
+      className: record.className,
+      tableName: record.tableName,
+      route: record.route,
+      fieldCount: record.apiClass
+        .getProperties()
+        .filter((prop) => prop.getName() !== "model").length,
+      files: { database: record.databaseFile, dataApi: record.dataApiFile },
+    };
+    const source = moduleOfFile(record.databaseFile);
+    if (source && !source.isProject) {
+      summary.sourceModule = source.id;
+    }
+    return summary;
+  });
 }

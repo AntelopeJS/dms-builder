@@ -39,6 +39,7 @@ import {
   duplicate,
   invalidConfig,
   invalidDataType,
+  moduleError,
   unsupported,
 } from "./ops";
 import { UnknownDataTypeError, UnknownReferenceError } from "./value";
@@ -106,6 +107,7 @@ interface ResolvedPlacement {
 function resolveResourceBaseDir(
   src: string,
   location: ResourceLocation | undefined,
+  module: string | undefined,
 ): string | OpResult<CreateData> {
   if (location === undefined) {
     return src;
@@ -126,6 +128,14 @@ function resolveResourceBaseDir(
         `unknown category "${location.category}"`,
       );
     }
+    const misplaced = moduleError<CreateData>(
+      module,
+      category.importModule,
+      `category "${location.category}"`,
+    );
+    if (misplaced) {
+      return misplaced;
+    }
     return category.importModule?.endsWith(".ts")
       ? path.dirname(category.importModule)
       : src;
@@ -134,6 +144,14 @@ function resolveResourceBaseDir(
   if (!page) {
     return invalidConfig<CreateData>(`unknown page "${location.page}"`);
   }
+  const misplaced = moduleError<CreateData>(
+    module,
+    page.filepath,
+    `page "${location.page}"`,
+  );
+  if (misplaced) {
+    return misplaced;
+  }
   return path.dirname(page.filepath);
 }
 
@@ -141,11 +159,15 @@ function resolveResourcePlacement(
   project: Project,
   input: CreateResourceInput,
 ): ResolvedPlacement | OpResult<CreateData> {
-  const src = srcDir(project);
+  const unknownModule = moduleError<CreateData>(input.module, undefined, "");
+  if (unknownModule) {
+    return unknownModule;
+  }
+  const src = srcDir(project, input.module);
   if (!src) {
     return unsupported<CreateData>("no root barrel (src/index.ts) found");
   }
-  const baseDir = resolveResourceBaseDir(src, input.location);
+  const baseDir = resolveResourceBaseDir(src, input.location, input.module);
   if (typeof baseDir !== "string") {
     return baseDir;
   }

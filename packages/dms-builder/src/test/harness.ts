@@ -34,6 +34,42 @@ const TSCONFIG = {
   include: ["src"],
 };
 
+/** Other local modules of the fixture's project, each under `modules/<id>`. */
+export interface FixtureOptions {
+  modules?: string[];
+}
+
+/** The project's id for its own module in a fixture that declares others. */
+export const PROJECT_MODULE = "app";
+
+function ModuleEntry(id: string, relativePath: string): string {
+  return `    ${JSON.stringify(id)}: { source: { type: "local", path: ${JSON.stringify(relativePath)} } },`;
+}
+
+/** An `antelope.config.ts` naming the project's own module and each extra one, as a project writes it. */
+function ProjectConfig(modules: string[]): string {
+  const entries = [
+    ModuleEntry(PROJECT_MODULE, "."),
+    ...modules.map((id) => ModuleEntry(id, `modules/${id}`)),
+  ];
+  return `import { defineConfig } from "@antelopejs/interface-core/config";\n\nexport default defineConfig({\n  name: "fixture",\n  modules: {\n${entries.join("\n")}\n  },\n});\n`;
+}
+
+function WriteModules(modules: string[]): void {
+  if (modules.length === 0) {
+    return;
+  }
+  fs.writeFileSync(
+    path.join(FIXTURE_ROOT, "antelope.config.ts"),
+    ProjectConfig(modules),
+  );
+  for (const id of modules) {
+    const src = path.join(FIXTURE_ROOT, "modules", id, "src");
+    fs.mkdirSync(src, { recursive: true });
+    fs.writeFileSync(path.join(src, "index.ts"), "export {};\n");
+  }
+}
+
 export interface Fixture {
   /** Absolute path of the app root the engine is pointed at. */
   root: string;
@@ -53,7 +89,7 @@ export interface Fixture {
  * project, the source and resource indexes and the catalog are all resolved once
  * per process, so a suite that skipped this would read the previous test's app.
  */
-export function createFixture(): Fixture {
+export function createFixture(options: FixtureOptions = {}): Fixture {
   fs.rmSync(FIXTURE_ROOT, { recursive: true, force: true });
   fs.mkdirSync(path.join(FIXTURE_ROOT, "src"), { recursive: true });
   fs.writeFileSync(
@@ -61,6 +97,7 @@ export function createFixture(): Fixture {
     `${JSON.stringify(TSCONFIG, null, 2)}\n`,
   );
   fs.writeFileSync(path.join(FIXTURE_ROOT, "src", "index.ts"), "export {};\n");
+  WriteModules(options.modules ?? []);
 
   resetWritableProject();
   invalidateSourceIndex();

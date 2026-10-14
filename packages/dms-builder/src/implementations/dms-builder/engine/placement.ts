@@ -3,8 +3,8 @@ import type { Project, SourceFile } from "ts-morph";
 import { relativeModule } from "./emit";
 import { resolveRootBarrel } from "./writable";
 
-export function srcDir(project: Project): string | undefined {
-  const root = resolveRootBarrel(project);
+export function srcDir(project: Project, module?: string): string | undefined {
+  const root = resolveRootBarrel(project, module);
   return root ? path.dirname(root.getFilePath()) : undefined;
 }
 
