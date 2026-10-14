@@ -45,6 +45,7 @@ import {
 import { UnknownDataTypeError, UnknownReferenceError } from "./value";
 import { getWritableProject, refreshFromDisk, Transaction } from "./writable";
 import { describeValue } from "./describe-value";
+import { mappedConnectionOfModule } from "./mapped-modules";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
 
 const API_ROUTE_PREFIX = "/api/";
@@ -162,6 +163,12 @@ function resolveResourcePlacement(
   const unknownModule = moduleError<CreateData>(input.module, undefined, "");
   if (unknownModule) {
     return unknownModule;
+  }
+  const mapped = mappedConnectionOfModule(input.module);
+  if (mapped) {
+    return invalidConfig<CreateData>(
+      `module "${input.module}" mirrors the "${mapped}" database, where no table is created; map its relations with MapResources`,
+    );
   }
   const src = srcDir(project, input.module);
   if (!src) {

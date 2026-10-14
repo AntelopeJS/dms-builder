@@ -1,5 +1,8 @@
 import type {
   AddBlockInput,
+  MapResourcesInput,
+  MapResourcesResult,
+  MappedRelationDescription,
   ModuleEntryInput,
   ProjectConfigOpts,
   ProjectConfigResult,
@@ -39,6 +42,7 @@ import type {
   ResourceStructure,
   ResourceSummary,
 } from "@antelopejs/interface-dms-builder";
+import { mapResources } from "./engine/map-resources";
 import { configureProject } from "./engine/project-config-ops";
 import {
   buildCatalog,
@@ -203,6 +207,13 @@ export async function RemoveBlock(
   opts?: MutationOpts,
 ): Promise<OpResult> {
   return removeBlock(path, opts);
+}
+
+export async function MapResources(
+  input: MapResourcesInput,
+  descriptions: MappedRelationDescription[],
+): Promise<OpResult<MapResourcesResult>> {
+  return mapResources(input, descriptions);
 }
 
 export async function ConfigureProject(

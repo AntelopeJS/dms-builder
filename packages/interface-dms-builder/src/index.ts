@@ -1,6 +1,7 @@
 export * from "./addressing";
 export * from "./catalog";
 export * from "./drafts";
+export * from "./mapping";
 export * from "./operations";
 export * from "./project";
 export * from "./queries";

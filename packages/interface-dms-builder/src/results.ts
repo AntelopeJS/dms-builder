@@ -31,7 +31,11 @@ export interface OpWarning {
     | "datatype_fallback"
     | "data_not_dropped"
     /** A page moved category, so its route changed and old links break. */
-    | "route_changed";
+    | "route_changed"
+    /** A mapped resource was deleted; its rows belong to the external database and were kept. */
+    | "data_kept"
+    /** A mapped relation's tables were written, but its TableView page could not be. */
+    | "page_not_written";
   message: string;
 }
 

@@ -251,6 +251,13 @@ function splitTopLevel(text: string): string[] {
   return parts;
 }
 
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
+/** A property name as a class declares it: bare where it can be, quoted otherwise. */
+function propertyName(name: string): string {
+  return IDENTIFIER.test(name) ? name : JSON.stringify(name);
+}
+
 export function tableFieldText(field: FieldSpec): {
   text: string;
   symbols: string[];
@@ -274,7 +281,10 @@ export function tableFieldText(field: FieldSpec): {
   decorators.push(`@Field(${db.field})`);
   const optional = field.dbField?.optional ? "?" : "";
   return {
-    text: fieldDeclaration(decorators, `${field.name}${optional}: ${db.ts}`),
+    text: fieldDeclaration(
+      decorators,
+      `${propertyName(field.name)}${optional}: ${db.ts}`,
+    ),
     symbols,
     warnings: fallbackWarning(field, db),
   };
@@ -358,6 +368,8 @@ export interface DatabaseFileSpec {
   fields: FieldSpec[];
   seeds?: Record<string, unknown>[];
   resolveRef?: EmitContext["resolveRef"];
+  /** Whether the table declares `_id`; a relation without a key has none. Defaults to true. */
+  idField?: boolean;
 }
 
 export interface DataApiFileSpec {
@@ -391,7 +403,10 @@ export function buildDatabaseFile(spec: DatabaseFileSpec): {
 
   const warnings: OpWarning[] = [];
   const indent = indentationText(resolveProjectRoot());
-  const memberLines = [indentDeclaration(idTableFieldText(), indent)];
+  const memberLines =
+    spec.idField === false
+      ? []
+      : [indentDeclaration(idTableFieldText(), indent)];
   for (const field of fields) {
     const built = tableFieldText(field);
     memberLines.push(indentDeclaration(built.text, indent));
