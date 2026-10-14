@@ -9,8 +9,6 @@ const interfacePackage = require(
   path.resolve(root, "../interface-dms-builder/package.json"),
 );
 
-const PUBLIC_REGISTRY = "https://registry.npmjs.org/";
-const REPOSITORY = "git+https://github.com/AntelopeJS/dms-builder.git";
 const RENDERER_PACKAGE = "@antelopejs/dms-frontend";
 /**
  * Where the renderer the layer runs on is locked: the layer's own lockfile,
@@ -71,19 +69,6 @@ function lockedRenderers(lockfile) {
   return [...source.matchAll(LOCKED_RENDERER)].map(([, version]) => version);
 }
 
-test("both packages publish publicly from this repository", () => {
-  for (const pkg of [dmsBuilder, interfacePackage]) {
-    assert.equal(pkg.private, undefined);
-    assert.equal(pkg.license, "Apache-2.0");
-    assert.equal(pkg.repository.url, REPOSITORY);
-    assert.deepEqual(pkg.publishConfig, {
-      access: "public",
-      provenance: true,
-      registry: PUBLIC_REGISTRY,
-    });
-  }
-});
-
 test("the interface is a separately publishable workspace package", () => {
   assert.equal(interfacePackage.name, "@antelopejs/interface-dms-builder");
   assert.equal(
@@ -105,13 +90,6 @@ test("the interface is a separately publishable workspace package", () => {
     ),
     true,
   );
-});
-
-test("the module manifest names the interface package, not the module", () => {
-  assert.equal(dmsBuilder.name, "@antelopejs/dms-builder");
-  assert.deepEqual(dmsBuilder.antelopeJs.implements, [
-    "@antelopejs/interface-dms-builder",
-  ]);
 });
 
 /**

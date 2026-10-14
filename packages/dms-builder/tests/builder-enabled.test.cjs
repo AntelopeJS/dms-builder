@@ -136,8 +136,16 @@ test("mounts the routes and the frontend module in development", async () => {
   await booted.index.construct();
   await booted.index.start();
   assert.deepEqual(booted.loadedRoutes, ["./routes"]);
-  assert.equal(booted.registrations.length, 1);
-  assert.deepEqual(booted.registrations[0].options, { enabled: true });
+  assert.deepEqual(booted.registrations, [
+    {
+      name: "@antelopejs/dms-builder-frontend-vue",
+      sourcePath: path.resolve(__dirname, "../frontend-vue"),
+      renderer: { name: "vue", version: "3" },
+      configKey: "dmsBuilder",
+      priority: 100,
+      options: { enabled: true },
+    },
+  ]);
 });
 
 test("mounts both when an override enables the builder outside development", async () => {
