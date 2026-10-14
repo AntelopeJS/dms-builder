@@ -7,7 +7,9 @@
 </div>
 
 Programmatic editing of an AntelopeJS DMS project's source tree, and the public
-interface contract that describes it.
+interface contract that describes it. User guide:
+[dms.antelopejs.com/docs/modules/builder](https://dms.antelopejs.com/docs/modules/builder)
+(source in [`packages/dms-builder/docs`](./packages/dms-builder/docs)).
 
 | Package | Directory | Description |
 | --- | --- | --- |

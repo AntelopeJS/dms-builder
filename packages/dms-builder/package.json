@@ -12,7 +12,8 @@
     "dist",
     "!dist/test",
     "!dist/.tsbuildinfo",
-    "frontend-vue"
+    "frontend-vue",
+    "skills"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -72,6 +73,9 @@
     "baseUrl": "dist",
     "implements": [
       "@antelopejs/interface-dms-builder"
+    ],
+    "skills": [
+      "./skills"
     ]
   }
 }
