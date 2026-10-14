@@ -87,6 +87,24 @@ function objectAt(
   return current;
 }
 
+/**
+ * The indent unit the configuration itself uses: a tab when its lines are tab-indented, else its
+ * smallest run of spaces. The file's own layout outranks the project's, which may say nothing.
+ */
+function configIndent(text: string): string | undefined {
+  const indents = text
+    .split("\n")
+    .map((line) => /^([\t ]+)\S/.exec(line)?.[1])
+    .filter((indent): indent is string => indent !== undefined);
+  if (indents.length === 0) {
+    return undefined;
+  }
+  if (indents.some((indent) => indent.startsWith("\t"))) {
+    return "\t";
+  }
+  return " ".repeat(Math.min(...indents.map((indent) => indent.length)));
+}
+
 /** Opens the configuration for editing, refusing one the builder cannot edit safely. */
 export function openDraft(configPath: string): ConfigDraft {
   const before = fs.readFileSync(configPath, "utf8");
@@ -98,7 +116,7 @@ export function openDraft(configPath: string): ConfigDraft {
     path: configPath,
     before,
     file,
-    unit: indentationText(resolveProjectRoot()),
+    unit: configIndent(before) ?? indentationText(resolveProjectRoot()),
     scaffolds: [],
     variables: [],
   };

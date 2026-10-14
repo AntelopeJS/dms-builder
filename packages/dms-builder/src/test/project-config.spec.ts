@@ -247,6 +247,17 @@ describe("project-config operations", function () {
     );
   });
 
+  it("writes in the configuration's own indentation, whatever the project's", async () => {
+    fs.writeFileSync(
+      configPath(),
+      PROJECT_CONFIG.replace(/^( +)/gm, (spaces) => spaces.repeat(2)),
+    );
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.include(
+      '\n        "postgres-erp": {\n            source: {\n',
+    );
+  });
+
   it("adds the variable to .env.example when the project has one", async () => {
     const example = path.join(app.root, ".env.example");
     fs.writeFileSync(example, "MONGODB_URL=\n");
