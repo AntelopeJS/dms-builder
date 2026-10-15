@@ -41,14 +41,6 @@ export function markMapped(module: string, connection: string): void {
   );
 }
 
-/** The connection a module mirrors, when it is a mapped module. */
-export function mappedConnectionOfModule(
-  module: string | undefined,
-): string | undefined {
-  const root = targetModule(module)?.root;
-  return root ? readManifest(root).dmsBuilder?.mapped : undefined;
-}
-
 /** The connection the module holding a file mirrors, when that module is a mapped one. */
 export function mappedConnectionOfFile(filepath: string): string | undefined {
   const root = moduleOfFile(filepath)?.root;

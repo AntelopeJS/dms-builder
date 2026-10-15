@@ -45,7 +45,8 @@ import {
 import { UnknownDataTypeError, UnknownReferenceError } from "./value";
 import { getWritableProject, refreshFromDisk, Transaction } from "./writable";
 import { describeValue } from "./describe-value";
-import { mappedConnectionOfModule } from "./mapped-modules";
+import { mappedConnectionOfFile } from "./mapped-modules";
+import { moduleOfFile } from "./modules";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
 
 const API_ROUTE_PREFIX = "/api/";
@@ -164,12 +165,6 @@ function resolveResourcePlacement(
   if (unknownModule) {
     return unknownModule;
   }
-  const mapped = mappedConnectionOfModule(input.module);
-  if (mapped) {
-    return invalidConfig<CreateData>(
-      `module "${input.module}" mirrors the "${mapped}" database, where no table is created; map its relations with MapResources`,
-    );
-  }
   const src = srcDir(project, input.module);
   if (!src) {
     return unsupported<CreateData>("no root barrel (src/index.ts) found");
@@ -177,6 +172,12 @@ function resolveResourcePlacement(
   const baseDir = resolveResourceBaseDir(src, input.location, input.module);
   if (typeof baseDir !== "string") {
     return baseDir;
+  }
+  const mapped = mappedConnectionOfFile(baseDir);
+  if (mapped) {
+    return invalidConfig<CreateData>(
+      `module "${moduleOfFile(baseDir)?.id}" mirrors the "${mapped}" database, where no table is created; map its relations with MapResources`,
+    );
   }
   const barrel = findNearestBarrel(project, baseDir);
   if (!barrel) {
