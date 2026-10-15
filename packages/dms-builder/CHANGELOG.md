@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.7...v0.3.0)
+
+### 💅 Refactors
+
+- ⚠️  Remove pre-DMS-0.8 compatibility, dead code and duplicated helpers ([#41](https://github.com/AntelopeJS/dms-builder/pull/41))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.2.0 ([eb66bc3](https://github.com/AntelopeJS/dms-builder/commit/eb66bc3))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Remove pre-DMS-0.8 compatibility, dead code and duplicated helpers ([#41](https://github.com/AntelopeJS/dms-builder/pull/41))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.2.7
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.6...v0.2.7)
