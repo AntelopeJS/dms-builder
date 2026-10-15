@@ -8,6 +8,8 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import {
   AddField,
+  AddQuery,
+  CreatePage,
   CreateResource,
   DeleteResource,
   ListPages,
@@ -272,20 +274,38 @@ describe("mapping a database the project does not own", function () {
     );
   });
 
-  it("gives a relation without a key a table and model only: no _id, controller or page", () => {
-    const rawLog = moduleFile("sales/raw-log/database.ts");
-    expect(rawLog).to.not.include("_id");
-    expect(
-      fs.existsSync(
-        path.join(
-          app.root,
-          "modules",
-          MODULE,
-          "src",
-          "sales/raw-log/data-api.ts",
-        ),
-      ),
-    ).to.equal(false);
+  it("gives a relation without a key no _id, no route and no page", async () => {
+    expect(moduleFile("sales/raw-log/database.ts")).to.not.include("_id");
+    expect(moduleFile("sales/raw-log/data-api.ts")).to.include(
+      "DataController(RawLog, {  },",
+    );
+    const pages = (await ListPages()).map((page) => page.id);
+    expect(pages).to.not.include("sales-raw-log");
+  });
+
+  it("lets a stats query read a relation mapped without a TableView, under the connection's category", async () => {
+    expectOk(result, "MapResources");
+    if (!result.ok) {
+      return;
+    }
+    expect(result.data.category).to.equal("pages.erp");
+    const page = expectOk(
+      await CreatePage({
+        name: "log-stats",
+        displayName: "Log stats",
+        category: "pages.erp",
+        module: MODULE,
+      }),
+      "CreatePage",
+    );
+    expectOk(
+      await AddQuery(page.ref, {
+        name: "logLines",
+        resource: "erp/sales/raw-log",
+        template: "count",
+      }),
+      "AddQuery over a stats-only relation",
+    );
   });
 
   it("declares a column named like a controller member on the table only, and reports it", () => {

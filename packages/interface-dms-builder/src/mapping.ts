@@ -1,5 +1,5 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
-import type { PageRef } from "./addressing";
+import type { CategoryRef, PageRef } from "./addressing";
 import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
 
@@ -88,7 +88,10 @@ export interface MappedResource {
   className?: string;
   /** The column relation columns pointing here show, and the TableView's `labelKey`. */
   label?: string;
-  /** False maps the table and its model only, for stats pages. Forced false without a key. */
+  /**
+   * False maps the relation for stats only: its controller serves no route, so queries can name
+   * it as a resource, and it gets no TableView or page. Forced false without a key.
+   */
   tableView: boolean;
   /** False serves the TableView without new, edit and delete, every field read-only. */
   writable: boolean;
@@ -115,8 +118,8 @@ export interface LeftOutColumn {
 /** What was written for one mapped relation. */
 export interface MappedResult {
   relation: string;
-  /** The resource, for a relation mapped with a TableView. */
-  ref?: ResourceRef;
+  /** The resource queries name it by, TableView or not. */
+  ref: ResourceRef;
   page?: PageRef;
   files: string[];
 }
@@ -125,6 +128,8 @@ export interface MappedResult {
 export interface MapResourcesResult {
   resources: MappedResult[];
   leftOut: LeftOutColumn[];
+  /** The connection's category in the module, which the pages are in and stats pages go under. */
+  category?: CategoryRef;
 }
 
 /**

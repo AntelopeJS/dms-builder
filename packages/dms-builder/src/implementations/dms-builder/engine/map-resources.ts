@@ -38,7 +38,6 @@ const DECORATORS_MODULE = "@antelopejs/interface-database-decorators";
 const REGISTER_SCHEMA = "RegisterSchema";
 const START = "start";
 const TABLE_BLOCK = "table";
-const DATABASE_ONLY_INDEX = `export * from "./database";\n`;
 const FULL_INDEX = `export * from "./database";\nexport * from "./data-api";\n`;
 
 /** Resolves a resource ref to one of this batch's controllers, or to one the project has already. */
@@ -64,7 +63,7 @@ function batchResolver(plan: MappingPlan): EmitContext["resolveRef"] {
 
 interface ResourceFiles {
   database: string;
-  dataApi?: string;
+  dataApi: string;
   index: string;
 }
 
@@ -76,6 +75,7 @@ function writeResource(
 ): ResourceFiles {
   const files: ResourceFiles = {
     database: path.join(resource.folder, "database.ts"),
+    dataApi: path.join(resource.folder, "data-api.ts"),
     index: path.join(resource.folder, "index.ts"),
   };
   const database = buildDatabaseFile({
@@ -89,22 +89,18 @@ function writeResource(
     project.createSourceFile(files.database, database.text),
     true,
   );
-  if (resource.tableView) {
-    files.dataApi = path.join(resource.folder, "data-api.ts");
-    const dataApi = buildDataApiFile({
-      names: resource.names,
-      filePath: files.dataApi,
-      fields: resource.apiFields,
-      routes: resource.routes,
-      resolveRef,
-    });
-    transaction.track(
-      project.createSourceFile(files.dataApi, dataApi.text),
-      true,
-    );
-  }
-  const index = resource.tableView ? FULL_INDEX : DATABASE_ONLY_INDEX;
-  transaction.track(project.createSourceFile(files.index, index), true);
+  const dataApi = buildDataApiFile({
+    names: resource.names,
+    filePath: files.dataApi,
+    fields: resource.apiFields,
+    routes: resource.routes,
+    resolveRef,
+  });
+  transaction.track(
+    project.createSourceFile(files.dataApi, dataApi.text),
+    true,
+  );
+  transaction.track(project.createSourceFile(files.index, FULL_INDEX), true);
   return files;
 }
 
@@ -163,7 +159,7 @@ function writeAll(
     addSortedExport(barrel, barrelSpecifier(barrel, resource.folder));
     return {
       relation: resource.relation,
-      ref: resource.tableView ? resource.ref : undefined,
+      ref: resource.ref,
       files: Object.values(files).filter(
         (file): file is string => file !== undefined,
       ),
@@ -233,6 +229,7 @@ function addPage(
 interface PagesWritten {
   changes: FileChange[];
   warnings: OpWarning[];
+  category?: string;
 }
 
 function writePages(
@@ -254,6 +251,7 @@ function writePages(
     return written;
   }
   written.changes.push(...category.changes);
+  written.category = category.data;
   for (const resource of viewed) {
     const page = addPage(input, category.data, resource);
     if (!page.ok) {
@@ -321,7 +319,11 @@ export function mapResources(
   }
   markMapped(input.module, input.connection);
   const pages = writePages(input, plan, result.data);
-  const data = { resources: result.data, leftOut: plan.leftOut };
+  const data = {
+    resources: result.data,
+    leftOut: plan.leftOut,
+    category: pages.category,
+  };
   const warnings = [...(result.warnings ?? []), ...pages.warnings];
   return warnings.length > 0
     ? {

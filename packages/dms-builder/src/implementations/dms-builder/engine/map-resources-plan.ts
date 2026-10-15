@@ -334,7 +334,7 @@ function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
       declaredFor(plan.description, column, "string");
     }
     tableFields.push(tableField(field, declared));
-    if (!plan.resource.tableView || field.listable === false) {
+    if (field.listable === false) {
       continue;
     }
     const choice = controllerField(plan, field, declared);
@@ -380,6 +380,18 @@ function targetsOf(
 }
 
 /**
+ * A TableView's routes: all of them when writable, the read ones otherwise. A stats-only relation
+ * serves none: its controller exists so queries can name it as a resource, and nothing reaches
+ * it over HTTP.
+ */
+function RoutesOf(resource: MappedResource): ResourceRoute[] | undefined {
+  if (!resource.tableView) {
+    return [];
+  }
+  return resource.writable ? undefined : READ_ROUTES;
+}
+
+/**
  * Checks every choice against the catalog's descriptions and plans what each relation becomes.
  * Throws a {@link MappingRefusal} naming the first choice it cannot honour.
  */
@@ -414,7 +426,7 @@ export function planMapping(
       apiFields,
       hasKey: description.key !== null,
       tableView: target.resource.tableView,
-      routes: target.resource.writable ? undefined : READ_ROUTES,
+      routes: RoutesOf(target.resource),
       label: target.resource.label,
       displayName: humanized(description.name),
     };
