@@ -32,6 +32,7 @@ function open(tab: LeftTab): void {
 	<aside
 		class="flex min-h-0 min-w-0 flex-col border-r border-default bg-(--dms-bg-sidebar)"
 		aria-label="Side rail"
+		data-builder-chrome
 	>
 		<nav
 			class="flex shrink-0 gap-0.5 border-b border-default px-2 pt-2"

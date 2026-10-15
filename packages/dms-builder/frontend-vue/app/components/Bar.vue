@@ -11,6 +11,7 @@ import { TABLE_ICON } from '../runtime/constants'
 import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { saveStatus, type SaveStatusKind } from '../runtime/save-status'
 import { useBuilder, type Workspace } from '../runtime/session'
+import { useThemeEditor } from '../runtime/theme'
 
 const MODES: { label: string; value: BuilderMode }[] = [
 	{ label: 'Simple', value: 'simple' },
@@ -22,6 +23,7 @@ const WORKSPACES: { label: string; value: Workspace; icon: string }[] = [
 	{ label: 'Page', value: 'page', icon: 'i-ph-browser-light' },
 	{ label: 'Tables', value: 'tables', icon: TABLE_ICON },
 	{ label: 'Data', value: 'data', icon: 'i-ph-function-light' },
+	{ label: 'Theme', value: 'theme', icon: 'i-ph-palette-light' },
 ]
 
 const STATUS_CLASSES: Record<SaveStatusKind, string> = {
@@ -47,11 +49,9 @@ const DEVICE_ICONS: Record<CanvasDevice, string> = {
 
 const builder = useBuilder()
 const session = builder.session
+const theme = useThemeEditor()
 const { mode, setMode } = useBuilderMode()
 const view = useCanvasView()
-
-const canUndo = computed(() => session.value.history.length > 0)
-const canRedo = computed(() => session.value.future.length > 0)
 
 const title = computed(
 	() =>
@@ -64,7 +64,7 @@ const status = computed(() =>
 	saveStatus({
 		saving: session.value.saving,
 		dirty: builder.dirty.value,
-		changes: builder.unsaved.value.length,
+		changes: builder.unsaved.value.length + theme.changeCount.value,
 		problems: builder.problems.value.length,
 		lastSave: session.value.lastSave,
 	}),
@@ -120,6 +120,7 @@ const viewItems = computed(() => [
 <template>
 	<header
 		class="flex h-13 min-w-0 shrink-0 items-center gap-2.5 border-b border-default bg-(--dms-bg-sidebar) pr-2.5 pl-3"
+		data-builder-chrome
 	>
 		<span
 			class="inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full bg-(--dms-accent-fill) pr-2.5 pl-2 font-mono text-[11px] font-semibold tracking-[0.06em] text-(--dms-accent-on-fill) uppercase shadow-(--dms-halo-accent)"
@@ -177,7 +178,7 @@ const viewItems = computed(() => [
 				size="sm"
 				color="neutral"
 				variant="ghost"
-				:disabled="!canUndo"
+				:disabled="!builder.canUndo.value"
 				aria-label="Undo"
 				title="Undo · ⌘Z"
 				@click="builder.undo()"
@@ -187,7 +188,7 @@ const viewItems = computed(() => [
 				size="sm"
 				color="neutral"
 				variant="ghost"
-				:disabled="!canRedo"
+				:disabled="!builder.canRedo.value"
 				aria-label="Redo"
 				title="Redo · ⌘⇧Z"
 				@click="builder.redo()"

@@ -6,6 +6,7 @@ import { findNode } from '../runtime/draft'
 import { blockTitle } from '../runtime/naming'
 import { clockTime } from '../runtime/save-status'
 import { useBuilder } from '../runtime/session'
+import { useThemeEditor } from '../runtime/theme'
 
 /**
  * Every pending edit in plain words, grouped by what it reaches, each one
@@ -36,6 +37,7 @@ const KIND_TONES: Record<ChangeKind, string> = {
 
 const builder = useBuilder()
 const session = builder.session
+const theme = useThemeEditor()
 
 const groups = computed(() =>
 	GROUPS.map((group) => ({
@@ -131,6 +133,30 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 			Kept in this editor since {{ clockTime(session.dirtySince) }}. Nothing is
 			written until you save.
 		</p>
+
+		<!-- The theme's changes are saved with the page's but listed where they
+		are made: one line here says they are part of the next save. -->
+		<section v-if="theme.dirty.value" class="flex flex-col gap-1">
+			<DmsEyebrow>{{ `Theme · ${theme.changeCount.value}` }}</DmsEyebrow>
+			<button
+				type="button"
+				class="flex items-center gap-2.5 py-2.5 text-left"
+				title="Open the theme"
+				@click="builder.setWorkspace('theme')"
+			>
+				<span class="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+					<UIcon name="i-ph-palette-light" class="size-3.5" />
+				</span>
+				<span class="min-w-0 flex-1">
+					<span class="block truncate text-[13px] font-semibold text-highlighted">
+						The project's theme
+					</span>
+					<span class="block truncate text-xs text-muted">
+						Colors, corners, fonts or logos, saved for every page
+					</span>
+				</span>
+			</button>
+		</section>
 
 		<section v-for="group in groups" :key="group.id" class="flex flex-col gap-1">
 			<DmsEyebrow>{{ `${group.label} · ${group.entries.length}` }}</DmsEyebrow>
