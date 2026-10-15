@@ -9,7 +9,7 @@ import type {
   OpResult,
   QueryRef,
 } from "@antelopejs/interface-dms-builder";
-import { type ImportDeclaration, type SourceFile, SyntaxKind } from "ts-morph";
+import { type SourceFile, SyntaxKind } from "ts-morph";
 import { applyImportRef } from "./emit";
 import {
   checkVersion,
@@ -35,7 +35,12 @@ import {
   routeModelBinding,
 } from "./query-structure";
 import { findResourceRecord } from "./resource-index";
-import { findPageClass, getWritableProject, Transaction } from "./writable";
+import {
+  bindsNothing,
+  findPageClass,
+  getWritableProject,
+  Transaction,
+} from "./writable";
 import {
   AddQueryData,
   checkCollisions,
@@ -346,15 +351,6 @@ function isReferencedOutsideImports(
         identifier.getText() === name &&
         !identifier.getFirstAncestorByKind(SyntaxKind.ImportDeclaration),
     );
-}
-
-/** Whether an import declaration still binds anything after pruning its specifiers. */
-function bindsNothing(declaration: ImportDeclaration): boolean {
-  return (
-    declaration.getNamedImports().length === 0 &&
-    !declaration.getDefaultImport() &&
-    !declaration.getNamespaceImport()
-  );
 }
 
 /**

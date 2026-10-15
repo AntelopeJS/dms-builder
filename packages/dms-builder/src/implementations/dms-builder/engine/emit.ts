@@ -227,6 +227,15 @@ export function childArgText(
   return `${JSON.stringify(id)}, ${valueText}${metaText ? `, ${metaText}` : ""}`;
 }
 
+/** The lowercase words of an identifier, split at case changes and punctuation. */
+export function words(value: string): string[] {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.toLowerCase());
+}
+
 export function pascalCase(value: string): string {
   return value
     .split(/[^A-Za-z0-9]+/)

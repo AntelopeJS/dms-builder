@@ -1,11 +1,4 @@
 import { GetRuntimeInfo } from "@antelopejs/interface-core/runtime";
-import { DEFAULT_ROUTE_PREFIX } from "./constants/routes";
-
-/** Thresholds past which the emitter factors a sub-tree into a module-level const. */
-export interface FactoringConfig {
-  depthThreshold?: number;
-  childCountThreshold?: number;
-}
 
 /** The HTTP API a builder UI talks to. */
 export interface BuilderApiConfig {
@@ -21,7 +14,6 @@ export interface BuilderApiConfig {
 export interface DmsBuilderConfig {
   /** Absolute path to the app source root where page files live. */
   projectRoot?: string;
-  factoring?: FactoringConfig;
   api?: BuilderApiConfig;
 }
 
@@ -64,12 +56,4 @@ async function resolveEnabled(): Promise<boolean> {
 export function isBuilderEnabled(): Promise<boolean> {
   enabled ??= resolveEnabled();
   return enabled;
-}
-
-/**
- * Fixed rather than configurable: the builder UI ships in this package and
- * addresses these routes, so a per-app prefix would only let the two drift.
- */
-export function getRoutePrefix(): string {
-  return DEFAULT_ROUTE_PREFIX;
 }

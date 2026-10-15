@@ -37,7 +37,7 @@ export function checkFilters(
  * reading the descriptor learns the `$param` sentinel from the schema instead of
  * from prose that has to be kept in step with it.
  */
-export function filterValueSchema(): OptionSchema {
+function filterValueSchema(): OptionSchema {
   return {
     type: "unknown",
     description:

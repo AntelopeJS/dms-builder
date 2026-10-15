@@ -289,7 +289,7 @@ export function seriesTemplate(): QueryTemplate {
       params: seriesParamsSchema(),
     },
     validate: (params, fields) => [
-      ...scanForExpr(params),
+      ...scanForExpr(params, "query params"),
       ...checkFilters(params.where, fields),
       ...checkMeasure(params, fields),
       ...checkGroup(params, fields),

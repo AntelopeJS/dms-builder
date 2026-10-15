@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import type {
   CreateResourceInput,
-  DuplicateScope,
   OpResult,
   OpWarning,
   ResourceFiles,
@@ -31,72 +30,23 @@ import {
 } from "./resource-emit-types";
 import {
   findResourceRecord,
-  invalidateResourceIndex,
   type ResourceRecord,
   resourceRefResolver,
 } from "./resource-index";
+import { findCategoryRecord, findPageRecord } from "./source-index";
 import {
-  findCategoryRecord,
-  findPageRecord,
-  invalidateSourceIndex,
-} from "./source-index";
+  commit,
+  duplicate,
+  invalidConfig,
+  invalidDataType,
+  unsupported,
+} from "./ops";
 import { UnknownDataTypeError, UnknownReferenceError } from "./value";
 import { getWritableProject, refreshFromDisk, Transaction } from "./writable";
 import { describeValue } from "./describe-value";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
 
 const API_ROUTE_PREFIX = "/api/";
-
-function duplicate<T = void>(name: string, scope: DuplicateScope): OpResult<T> {
-  return { ok: false, error: { code: "duplicate_name", name, scope } };
-}
-
-function unsupported<T = void>(detail: string): OpResult<T> {
-  return { ok: false, error: { code: "unsupported", detail } };
-}
-
-function invalidConfig<T = void>(message: string): OpResult<T> {
-  return {
-    ok: false,
-    error: { code: "invalid_config", issues: [{ pointer: "", message }] },
-  };
-}
-
-function invalidDataType<T = void>(error: UnknownDataTypeError): OpResult<T> {
-  return {
-    ok: false,
-    error: {
-      code: "invalid_config",
-      issues: [
-        {
-          pointer: "",
-          message: `${error.message}; call GetCatalog for valid DataType ids`,
-        },
-      ],
-    },
-  };
-}
-
-function commit<T>(
-  transaction: Transaction,
-  data: T,
-  warnings: OpWarning[] = [],
-): OpResult<T> {
-  const errors = transaction.typecheckErrors();
-  if (errors.length > 0) {
-    transaction.rollback();
-    return {
-      ok: false,
-      error: { code: "typecheck_failed", diagnostics: errors },
-    };
-  }
-  const changes = transaction.flush();
-  invalidateSourceIndex();
-  invalidateResourceIndex();
-  return warnings.length > 0
-    ? { ok: true, data, changes, warnings }
-    : { ok: true, data, changes };
-}
 
 interface OpenResource {
   project: Project;

@@ -22,10 +22,10 @@ const ID_SEPARATOR = ".";
  *   `authOnly` one anyone's signed in, and a page the DMS has not registered
  *   yet is nobody's to say.
  */
-export type PageAccessMode = "blocks" | "page" | "everyone" | "unmanaged";
+type PageAccessMode = "blocks" | "page" | "everyone" | "unmanaged";
 
 /** An action of a block a role can be granted or not: export, delete… */
-export interface BlockAction {
+interface BlockAction {
   id: string;
   title: string;
 }
@@ -67,14 +67,14 @@ export interface PageAccess {
   roles: RoleAccess[] | null;
 }
 
-export function pageFullId(record: PageRecord): string {
+function pageFullId(record: PageRecord): string {
   return record.categoryRef
     ? `${record.categoryRef}${ID_SEPARATOR}${record.id}`
     : record.id;
 }
 
 /** The page's permission: the one it names, else one named after it. */
-export function pagePermissionId(record: PageRecord): string {
+function pagePermissionId(record: PageRecord): string {
   const named = record.permission?.id;
   return typeof named === "string" && named.length > 0
     ? named
@@ -82,7 +82,7 @@ export function pagePermissionId(record: PageRecord): string {
 }
 
 /** A permission's node: the tree is keyed by the segments of the ids. */
-export function findPermissionNode(
+function findPermissionNode(
   tree: Record<string, PermissionTree>,
   id: string,
 ): PermissionTree | undefined {

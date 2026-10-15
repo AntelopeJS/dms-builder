@@ -13,6 +13,7 @@ import { isIdentifier } from "./paths";
 import { FILTER_OPS } from "./query-chain";
 import { describeValue } from "./describe-value";
 import { dbTypeFor } from "./resource-emit-types";
+import { isPlainObject } from "./value";
 
 /** A parameter the compiled chain needs, supplied by the route. */
 export interface MethodParam {
@@ -110,10 +111,6 @@ export function issue(pointer: string, message: string): ValidationIssue {
   return { pointer, message };
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export function isParamBinding(value: unknown): value is QueryParamBinding {
   return (
     isPlainObject(value) &&
@@ -123,23 +120,27 @@ export function isParamBinding(value: unknown): value is QueryParamBinding {
 }
 
 /**
- * Refuses `$expr` anywhere in a query's params. A query's values are data; a raw
- * expression would put uncheckable code inside a model body.
+ * Refuses `$expr` anywhere in a value. Query params and page drafts are data; a
+ * raw expression would put uncheckable code inside a model body or a page.
  */
-export function scanForExpr(value: unknown, pointer = ""): ValidationIssue[] {
+export function scanForExpr(
+  value: unknown,
+  within: string,
+  pointer = "",
+): ValidationIssue[] {
   if (Array.isArray(value)) {
     return value.flatMap((item, index) =>
-      scanForExpr(item, `${pointer}/${index}`),
+      scanForExpr(item, within, `${pointer}/${index}`),
     );
   }
   if (!isPlainObject(value)) {
     return [];
   }
   if (typeof value.$expr === "string") {
-    return [issue(pointer, "$expr is not allowed in query params")];
+    return [issue(pointer, `$expr is not allowed in ${within}`)];
   }
   return Object.entries(value).flatMap(([key, entry]) =>
-    scanForExpr(entry, `${pointer}/${key}`),
+    scanForExpr(entry, within, `${pointer}/${key}`),
   );
 }
 

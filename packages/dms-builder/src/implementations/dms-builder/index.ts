@@ -5,6 +5,7 @@ import type {
   BlockPath,
   CategoryRef,
   CategorySummary,
+  ConfigureBlockOpts,
   CreateCategoryInput,
   CreatePageInput,
   CreateResourceInput,
@@ -140,14 +141,14 @@ export async function CreatePage(
 export async function ConfigurePage(
   ref: PageRef,
   patch: Partial<EditablePageMeta>,
-  opts?: { expectedVersion?: string },
+  opts?: MutationOpts,
 ): Promise<OpResult<{ ref: PageRef }>> {
   return configurePage(ref, patch, opts);
 }
 
 export async function DeletePage(
   ref: PageRef,
-  opts?: { expectedVersion?: string },
+  opts?: MutationOpts,
 ): Promise<OpResult> {
   return deletePage(ref, opts);
 }
@@ -171,7 +172,7 @@ export async function DeleteCategory(ref: CategoryRef): Promise<OpResult> {
 
 export async function AddBlock(
   input: AddBlockInput,
-  opts?: { expectedVersion?: string },
+  opts?: MutationOpts,
 ): Promise<OpResult<{ path: BlockPath }>> {
   return addBlock(input, opts);
 }
@@ -179,11 +180,7 @@ export async function AddBlock(
 export async function ConfigureBlock(
   path: BlockPath,
   patch: Record<string, unknown>,
-  opts?: {
-    replace?: boolean;
-    meta?: Record<string, unknown>;
-    expectedVersion?: string;
-  },
+  opts?: ConfigureBlockOpts,
 ): Promise<OpResult> {
   return configureBlock(path, patch, opts);
 }
@@ -191,14 +188,14 @@ export async function ConfigureBlock(
 export async function MoveBlock(
   path: BlockPath,
   dest: MoveDest,
-  opts?: { expectedVersion?: string },
+  opts?: MutationOpts,
 ): Promise<OpResult> {
   return moveBlock(path, dest, opts);
 }
 
 export async function RemoveBlock(
   path: BlockPath,
-  opts?: { expectedVersion?: string },
+  opts?: MutationOpts,
 ): Promise<OpResult> {
   return removeBlock(path, opts);
 }

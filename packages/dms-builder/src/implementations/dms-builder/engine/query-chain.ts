@@ -40,11 +40,6 @@ interface RawChain {
   terminalArgs: Node[];
 }
 
-/** The one bound-value sentinel a template's `parse` emits inside its params. */
-export interface BindRef {
-  $bind: string;
-}
-
 export function propName(call: CallExpression): string | undefined {
   const expr = call.getExpression();
   return Node.isPropertyAccessExpression(expr) ? expr.getName() : undefined;
