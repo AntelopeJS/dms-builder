@@ -1,0 +1,42 @@
+name: setup
+description: pnpm, Node and the dependencies a ci job needs.
+
+inputs:
+  workspace:
+    description: >-
+      Also install the root workspace (both packages and the shared tooling).
+      The frontend-vue project has its own lockfile and needs nothing else.
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # Before setup-node: `cache: pnpm` needs a pnpm on PATH to locate the
+    # store. The version comes from the root `packageManager` field.
+    - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+
+    # The store cache is keyed on the lockfiles a job installs: a
+    # frontend-only job saving under the full key would leave the root
+    # packages out of it for every later run.
+    - if: inputs.workspace == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          packages/dms-builder/frontend-vue/pnpm-lock.yaml
+    - if: inputs.workspace != 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+        cache-dependency-path: packages/dms-builder/frontend-vue/pnpm-lock.yaml
+
+    # `...` pulls in the workspace interface package the runtime depends on;
+    # `{.}` adds the root, which owns the shared lint and format tooling.
+    - if: inputs.workspace == 'true'
+      shell: bash
+      run: pnpm install --filter "@antelopejs/dms-builder..." --filter "{.}" --frozen-lockfile
+    - shell: bash
+      run: pnpm --dir packages/dms-builder/frontend-vue install --frozen-lockfile
