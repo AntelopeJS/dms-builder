@@ -31,7 +31,9 @@ export interface OpWarning {
     | "datatype_fallback"
     | "data_not_dropped"
     /** A page moved category, so its route changed and old links break. */
-    | "route_changed";
+    | "route_changed"
+    /** An SVG logo carried scripts, handlers or outside references, taken out. */
+    | "svg_sanitized";
   message: string;
 }
 
