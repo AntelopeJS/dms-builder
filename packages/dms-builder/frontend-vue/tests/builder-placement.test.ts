@@ -1,12 +1,13 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { useDmsState } from '#dms/frontend-module'
+import { useDmsAppConfig, useDmsState } from '#dms/frontend-module'
 import registerBuilder from '../app/plugins/builder.client'
 import { ACTION_ID, HEADER_ACTIONS_STATE_KEY } from '../app/runtime/constants'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import { findNode } from '../app/runtime/draft'
 import { describeError } from '../app/runtime/errors'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
-import type { BlockDraft } from '../app/runtime/types'
+import { useThemeEditor } from '../app/runtime/theme'
+import type { BlockDraft, ThemeStructure } from '../app/runtime/types'
 
 /**
  * What placing a block actually does to the draft.
@@ -870,7 +871,7 @@ describe('leaving the editor', () => {
 	})
 
 	it('asks from the button that opened it, which is the same button', () => {
-		registerBuilder()
+		void registerBuilder({ hook: () => {} } as unknown as Parameters<typeof registerBuilder>[0])
 		const actions = useDmsState<
 			Array<{ id: string; onSelect: () => void }>
 		>(HEADER_ACTIONS_STATE_KEY, () => [])
@@ -1159,5 +1160,115 @@ describe('undo, redo and discard', () => {
 		expect(builder.session.value.history).toHaveLength(0)
 		builder.undo()
 		expect(names()).toEqual(['title', 'intro', 'text'])
+	})
+})
+
+describe('the theme workspace', () => {
+	const savedTheme: ThemeStructure = {
+		layer: { name: 'app-frontend', sourcePath: '/app/frontend-vue' },
+		variables: { shared: {}, light: {}, dark: {} },
+		colors: {},
+		logos: {},
+		files: {
+			stylesheet: 'app/assets/css/theme.css',
+			appConfig: 'app/app.config.ts',
+			entry: 'dms.frontend.ts',
+			assets: 'public/branding',
+		},
+		stylesheetImported: true,
+		version: 't1',
+	}
+
+	beforeEach(async () => {
+		backend.answers['GET /api/builder/theme'] = { ok: true, data: savedTheme, changes: [] }
+		backend.answers['POST /api/builder/theme'] = { ok: true, data: { version: 't2' }, changes: [] }
+		builder.setWorkspace('theme')
+		await settle()
+	})
+
+	it('undoes in the theme while it is on screen, and in the page once back there', () => {
+		const theme = useThemeEditor()
+		builder.setWorkspace('page')
+		builder.addBlock('Text')
+		builder.setWorkspace('theme')
+		theme.setVariable('light', '--ui-bg', '#fafafa')
+		builder.undo()
+		expect(theme.dirty.value).toBe(false)
+		expect(names()).toEqual(['title', 'intro', 'text'])
+		builder.redo()
+		expect(theme.state.value.draft?.variables.light).toEqual({ '--ui-bg': '#fafafa' })
+		builder.setWorkspace('page')
+		builder.undo()
+		expect(names()).toEqual(['title', 'intro'])
+		expect(theme.dirty.value, 'the theme keeps its change').toBe(true)
+	})
+
+	it('types a value as one step of undo', () => {
+		const theme = useThemeEditor()
+		for (const value of ['#f', '#fa', '#fafafa']) {
+			theme.setVariable('dark', '--ui-bg', value)
+		}
+		expect(builder.canUndo.value).toBe(true)
+		builder.undo()
+		expect(theme.state.value.draft?.variables.dark).toEqual({})
+		expect(builder.canUndo.value).toBe(false)
+	})
+
+	it('saves the theme alone when only the theme changed', async () => {
+		const theme = useThemeEditor()
+		theme.setColor('primary', 'violet')
+		expect(builder.dirty.value).toBe(true)
+		expect(builder.pageDirty.value).toBe(false)
+		await builder.save()
+		expect(backend.calledPaths()).toContain('POST /api/builder/theme')
+		expect(backend.calledPaths()).not.toContain('POST /api/builder/page/blocks')
+		expect(builder.session.value.toast).toBe('Theme saved')
+	})
+
+	it('discards the theme and the page together, each on its own history', () => {
+		const theme = useThemeEditor()
+		builder.setWorkspace('page')
+		builder.addBlock('Text')
+		builder.setWorkspace('theme')
+		theme.setVariable('shared', '--ui-radius', '0rem')
+		builder.cancel()
+		expect(builder.dirty.value).toBe(false)
+		builder.undo()
+		expect(theme.state.value.draft?.variables.shared).toEqual({ '--ui-radius': '0rem' })
+		expect(names(), 'the page stays discarded').toEqual(['title', 'intro'])
+	})
+
+	it('follows the router to another page with an unsaved theme, which it keeps on screen', async () => {
+		const theme = useThemeEditor()
+		theme.setVariable('light', '--ui-bg', '#fafafa')
+		builder.followRoute('/reports/other')
+		await settle()
+		expect(builder.session.value.pendingRoute).toBe(null)
+		expect(builder.session.value.pageRef).toBe('/reports/other')
+		expect(builder.session.value.workspace).toBe('theme')
+		expect(theme.dirty.value).toBe(true)
+	})
+
+	it('leaves the logos a save wrote on the dashboard when it closes', () => {
+		const theme = useThemeEditor()
+		const saved = '/branding/default-light-0123abcd.svg'
+		const baseline = theme.state.value.baseline
+		if (baseline) {
+			baseline.logos = { default: { light: saved } }
+		}
+		builder.close()
+		const branding = (useDmsAppConfig() as { branding?: { logo?: Record<string, Record<string, string>> } }).branding
+		expect(branding?.logo?.default?.light).toBe(saved)
+	})
+
+	it('offers to create the layer a project without one would need', async () => {
+		const theme = useThemeEditor()
+		theme.clear()
+		backend.answers['GET /api/builder/theme'] = {
+			ok: false,
+			error: { code: 'not_found', ref: '/app/frontend-vue' },
+		}
+		await theme.load(true)
+		expect(theme.state.value.missingLayer).toBe('/app/frontend-vue')
 	})
 })

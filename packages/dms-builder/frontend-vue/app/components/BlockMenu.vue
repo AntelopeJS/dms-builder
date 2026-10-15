@@ -181,6 +181,7 @@ watch(menu, (open) => {
 	<div
 		v-if="menu"
 		ref="element"
+		data-builder-chrome
 		role="menu"
 		aria-label="Block actions"
 		class="fixed z-[60] w-60 rounded-lg border border-default bg-default p-1 shadow-(--dms-shadow-pop)"

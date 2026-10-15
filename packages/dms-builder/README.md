@@ -89,6 +89,9 @@ code; the reads that only describe the project (`/tables/usage`,
 | `PUT` | `/queries` | `{ query, patch, expectedVersion? }` | `ConfigureQuery` |
 | `DELETE` | `/queries` | `?ref=` | `RemoveQuery` |
 | `POST` | `/refresh` | — | `RefreshSourceIndex` |
+| `GET` | `/theme` | — | `GetTheme` |
+| `POST` | `/theme` | `{ draft, expectedVersion? }` (logos base64, 8 MiB at most) | `SetTheme` |
+| `POST` | `/theme/layer` | — | `CreateThemeLayer` |
 
 ### Editing a whole page
 
@@ -115,7 +118,7 @@ over its content area, the DMS chrome — sidebar, header, breadcrumb — still
 usable behind it.
 
 - **Bar** — the mode, the page and its address, the workspace (**Page**,
-  **Tables**, **Data**), the save status (saved, *n* unsaved changes, saving,
+  **Tables**, **Data**, **Theme**), the save status (saved, *n* unsaved changes, saving,
   to fix, failed) that opens the change list, undo/redo, the canvas's zoom and
   width, Simple/Developer, **Save** and **Done**.
 - **Side rail** — three tabs that stay whatever is selected: **Add** (the
@@ -170,6 +173,18 @@ usable behind it.
   fields, API and settings, each saying how many rows it holds and which pages
   read it; the page's data sources, read as a sentence, with who uses them and
   a preview.
+- **Theme** — the project's colors, corners, font and logos, beside the page
+  they paint, previewed live on it and on the DMS around it. The simple mode
+  offers the accent among the palettes, the backgrounds in light and in dark,
+  a choice of corners and of font, and one logo per mode that goes everywhere
+  a logo shows — the email gets it as a PNG — with an optional square icon for
+  the folded sidebar and the browser tab. The developer mode lists every token
+  with its light and dark value, any other variable, the status colors and
+  each logo slot on its own. A **Light / Dark** switch shows the page in
+  either mode without touching the viewer's preference, the builder's own
+  frame keeps the DMS look whatever the theme does, and the theme has its own
+  undo history. **Save** writes it with the page (`SetTheme`); a project
+  without a frontend layer is offered one (`CreateThemeLayer`).
 
 Edits stay local until **Save**: undo/redo (`⌘Z` / `⌘⇧Z`) — the choices of
 one data source count as one step —, discard, and a single `SetPageBlocks`

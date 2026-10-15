@@ -109,7 +109,7 @@ const veiled = computed(() => {
 </script>
 
 <template>
-	<div class="grid shrink-0">
+	<div class="grid shrink-0" data-builder-chrome>
 		<!-- Leaving is asked before it happens rather than reported after: the
 		draft can be saved, kept on this device for next time, or dropped. -->
 		<UModal

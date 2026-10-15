@@ -22,11 +22,19 @@ import type {
 	PageImpact,
 	PermissionChoice,
 	TableUsage,
+	ThemeDraft,
+	ThemeLayer,
+	ThemeStructure,
 } from './types'
 
 interface SaveBody {
 	page: string
 	draft: PageDraft
+	expectedVersion?: string
+}
+
+interface ThemeSaveBody {
+	draft: ThemeDraft
 	expectedVersion?: string
 }
 
@@ -161,5 +169,9 @@ export function useBuilderApi() {
 				query,
 				args: args ?? {},
 			}),
+		theme: () => answered(get<OpResult<ThemeStructure>>('/theme')),
+		saveTheme: (body: ThemeSaveBody) =>
+			post<{ version: string }>('/theme', body),
+		createThemeLayer: () => post<ThemeLayer>('/theme/layer', {}),
 	}
 }
