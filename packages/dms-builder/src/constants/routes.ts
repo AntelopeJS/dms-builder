@@ -35,7 +35,15 @@ export const ROUTES = {
   databaseProject: "/database/project",
   databaseVariable: "/database/variable",
   databaseSample: "/database/sample",
+  theme: "/theme",
+  themeLayer: "/theme/layer",
 } as const;
+
+/**
+ * The body limit of a theme save. Its logos travel in it, base64-encoded: up
+ * to eight files of 512 KiB each, a third larger once encoded.
+ */
+export const THEME_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
 
 /**
  * The parameter a GET of the query preview carries its query in, as JSON.
