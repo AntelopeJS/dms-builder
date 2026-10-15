@@ -173,18 +173,29 @@ function describedAs(
   );
 }
 
-/** The fields to declare: the ones chosen, then each key column left out, read-only. */
+interface ChosenField {
+  field: MappedField;
+  onController: boolean;
+}
+
+/**
+ * The fields to declare: the ones chosen, then each key column left out. Such a key is on the
+ * controller only when a writable TableView has to set it.
+ */
 function chosenFields(
   resource: MappedResource,
   description: MappedRelationDescription,
-): MappedField[] {
-  const chosen = [...resource.fields];
+): ChosenField[] {
+  const chosen = resource.fields.map((field) => ({
+    field,
+    onController: true,
+  }));
   for (const column of description.key?.columns ?? []) {
-    if (!chosen.some((field) => field.column === column)) {
+    if (!resource.fields.some((field) => field.column === column)) {
       const settable =
         resource.writable &&
         isNaturalKey(description, columnOf(description, column));
-      chosen.push({ column, listable: settable });
+      chosen.push({ field: { column }, onController: settable });
     }
   }
   return chosen;
@@ -325,7 +336,10 @@ interface FieldPlan {
 function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
   const tableFields: FieldSpec[] = [];
   const apiFields: FieldSpec[] = [];
-  for (const field of chosenFields(plan.resource, plan.description)) {
+  for (const { field, onController } of chosenFields(
+    plan.resource,
+    plan.description,
+  )) {
     const column = columnOf(plan.description, field.column);
     const declared = field.relation
       ? "string"
@@ -334,7 +348,7 @@ function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
       declaredFor(plan.description, column, "string");
     }
     tableFields.push(tableField(field, declared));
-    if (field.listable === false) {
+    if (!onController) {
       continue;
     }
     const choice = controllerField(plan, field, declared);

@@ -5,6 +5,7 @@ import type {
   MapResourcesInput,
   MappedColumnDescription,
   MappedRelationDescription,
+  ResourceLocation,
 } from "@antelopejs/interface-dms-builder";
 import {
   AddField,
@@ -143,7 +144,7 @@ const INPUT: MapResourcesInput = {
       fields: [
         { column: "name", searchable: true, sortable: true },
         { column: "status", filterable: true },
-        { column: "revenue" },
+        { column: "revenue", listable: false },
         { column: "created_at", sortable: true },
         { column: "Order Date" },
         { column: "meta" },
@@ -265,6 +266,20 @@ describe("mapping a database the project does not own", function () {
     expect(contacts).to.not.include("TableViewRoutes.All");
   });
 
+  it("keeps a column off the list but on the controller when it is not listable", () => {
+    const accounts = moduleFile("sales/accounts/data-api.ts");
+    expect(accounts).to.match(
+      /@Access\(AccessMode\.ReadWrite\)\s*declare revenue: /,
+    );
+    const at = accounts.indexOf("declare revenue:");
+    const decorators = accounts.slice(
+      accounts.lastIndexOf("declare ", at - 1),
+      at,
+    );
+    expect(decorators).to.include("@Column(");
+    expect(decorators).to.not.include("@Listable()");
+  });
+
   it("lets a writable TableView set a key the database does not fill in, and no other key", () => {
     expect(moduleFile("sales/countries/data-api.ts")).to.match(
       /@Access\(AccessMode\.ReadWrite\)\s*declare code: string;/,
@@ -348,7 +363,7 @@ describe("mapping a database the project does not own", function () {
     expect(JSON.stringify(refused)).to.include("raw_log.msg");
   });
 
-  it("refuses to create a table or add a column in a mapped module", async () => {
+  it("refuses to create a table or add a column in a mapped module, however the table is placed", async () => {
     const created = await CreateResource({
       name: "ledger",
       module: MODULE,
@@ -357,6 +372,25 @@ describe("mapping a database the project does not own", function () {
       ],
     });
     expect(created.ok).to.equal(false);
+    const ok = expectOk(result, "MapResources");
+    const page = ok.resources.find((resource) => resource.page)?.page;
+    const locations: ResourceLocation[] = [
+      { category: ok.category! },
+      { page: page! },
+    ];
+    for (const location of locations) {
+      const placed = await CreateResource({
+        name: "ledger",
+        location,
+        fields: [
+          { name: "name", label: "Name", dataType: { $dataType: "string" } },
+        ],
+      });
+      expect(placed.ok, JSON.stringify(location)).to.equal(false);
+    }
+    expect(
+      fs.existsSync(path.join(app.root, "modules", MODULE, "src", "ledger")),
+    ).to.equal(false);
     const added = await AddField("erp/sales/accounts", {
       name: "nickname",
       label: "Nickname",
