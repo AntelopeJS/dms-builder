@@ -81,7 +81,6 @@ code; the reads that only describe the project (`/tables/usage`,
 | `GET` | `/resources` | — | `ListResources` |
 | `POST` | `/resources` | `CreateResourceInput` | `CreateResource` |
 | `GET` | `/resource` | `?ref=` | `GetResourceStructure` |
-| `POST` | `/resource/configure` | `{ resource, patch, expectedVersion? }` | `ConfigureResource`: the routes a table serves, its icon |
 | `POST` | `/resource/fields` | `{ resource, field, expectedVersion? }` | `AddField` |
 | `PUT` | `/resource/fields` | `{ path, patch, expectedVersion? }` | `ConfigureField` |
 | `DELETE` | `/resource/fields` | `?path=` | `RemoveField` |
@@ -171,11 +170,7 @@ usable behind it.
 - **Tables** and **Data** — workspaces of their own: the tables with their
   fields, API and settings, each saying how many rows it holds and which pages
   read it; the page's data sources, read as a sentence, with who uses them and
-  a preview. A table's settings pick its icon, written as `@TableIcon` on its
-  DataController: the DMS draws the table views over it with that icon, and
-  the builder draws the table, and a table block over it, with it too. The
-  icon is optional — a table without one keeps the generic icon — and a DMS
-  that predates `@TableIcon` offers none.
+  a preview.
 
 Edits stay local until **Save**: undo/redo (`⌘Z` / `⌘⇧Z`) — the choices of
 one data source count as one step —, discard, and a single `SetPageBlocks`

@@ -16,10 +16,6 @@ import { RESERVED_FIELD_NAMES } from "./reserved-names";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
 const BLOCK_TYPES_MODULE = `${BASE_MODULE}/block-types`;
-const TABLE_VIEW_MODULE = `${BASE_MODULE}/table-view`;
-
-/** The decorator giving a table its icon, beside the table view it is drawn in. */
-export const TABLE_ICON_DECORATOR = "TableIcon";
 
 /** The shape `dms-base` reports for one declared block type. */
 interface DeclaredBlockType {
@@ -43,16 +39,6 @@ interface BlockTypesModule {
 }
 
 let cached: BlockCatalog | undefined;
-
-/**
- * Whether the DMS takes a table icon. One that predates `@TableIcon` exports
- * no such decorator, and one written for it would fail the project's typecheck
- * on every save.
- */
-export function tableIconsSupported(): boolean {
-  const module = require(TABLE_VIEW_MODULE) as Record<string, unknown>;
-  return typeof module[TABLE_ICON_DECORATOR] === "function";
-}
 
 /** Read the block types `dms-base` declares. */
 function loadDeclaredBlockTypes(): DeclaredBlockType[] {
@@ -188,7 +174,6 @@ export function buildCatalog(): BlockCatalog {
     blocks: mergeBlocks(loadDeclaredBlockTypes(), inferBlocks()),
     dataTypes: inferDataTypes(),
     reservedFieldNames: [...RESERVED_FIELD_NAMES],
-    tableIcons: tableIconsSupported(),
     generatedAt: new Date().toISOString(),
   };
   return cached;

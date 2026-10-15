@@ -98,7 +98,7 @@ function commit<T>(
     : { ok: true, data, changes };
 }
 
-export interface OpenResource {
+interface OpenResource {
   project: Project;
   databaseFile: SourceFile;
   dataApiFile: SourceFile;

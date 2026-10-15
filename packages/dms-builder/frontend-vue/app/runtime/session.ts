@@ -494,8 +494,6 @@ export interface BuilderController {
 	/** Lay a table's columns out in the order of `names`, left to right. */
 	orderFields: (resource: string, names: string[]) => Promise<void>
 	configureResource: (resource: string, routes: string[]) => Promise<void>
-	/** Give a table its icon, or take it off with `null`. */
-	setTableIcon: (resource: string, icon: string | null) => Promise<void>
 	removeField: (path: string) => Promise<void>
 	addQuery: (input: AddQueryInput) => Promise<void>
 	removeQuery: (ref: string) => Promise<void>
@@ -2515,32 +2513,6 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
-	/**
-	 * Give a table its icon, or take it off. Written straight to the table's
-	 * code like the rest of it, and read again with the list it shows in.
-	 */
-	async function setTableIcon(
-		resource: string,
-		icon: string | null,
-	): Promise<void> {
-		if (session.value.pending.includes(resource)) {
-			return
-		}
-		startPending(resource)
-		try {
-			const result = await api.configureResource(resource, { icon })
-			report(result, icon ? 'Table icon set' : 'Table icon removed', {
-				title: icon
-					? `${resource} · set its icon`
-					: `${resource} · took its icon off`,
-				scope: resource,
-			})
-			await Promise.all([loadResource(resource, true), loadResources()])
-		} finally {
-			endPending(resource)
-		}
-	}
-
 	function startPending(key: string): void {
 		session.value.pending = [...session.value.pending, key]
 	}
@@ -2889,7 +2861,6 @@ export function useBuilder(): BuilderController {
 		configureField,
 		orderFields,
 		configureResource,
-		setTableIcon,
 		removeField,
 		addQuery,
 		removeQuery,

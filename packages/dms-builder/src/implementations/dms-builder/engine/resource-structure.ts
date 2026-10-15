@@ -377,6 +377,5 @@ export function buildResourceStructure(
     version: resourceVersion(record),
   };
   if (record.routes) data.routes = record.routes;
-  if (record.icon) data.icon = record.icon;
   return { ok: true, data, changes: [] };
 }

@@ -47,15 +47,13 @@ const session = useDmsState<BuilderSession | undefined>(SESSION_STATE_KEY, () =>
 const COLUMNS = 7
 
 /**
- * The icons the project already uses — its menu's and its tables' — the ones
- * an author most often wants again, so a page sits beside its siblings looking
- * like one of them.
+ * The icons the project's menu already uses: the ones an author most often
+ * wants again, so a page sits beside its siblings looking like one of them.
  */
 const used = computed(() => {
 	const icons = [
 		...(session.value?.pages ?? []).map((page) => page.icon),
 		...(session.value?.categories ?? []).map((category) => category.icon),
-		...(session.value?.resources ?? []).map((table) => table.icon),
 	].filter((icon): icon is string => typeof icon === 'string' && icon !== '')
 	return [...new Set(icons)].slice(0, COLUMNS * 2)
 })

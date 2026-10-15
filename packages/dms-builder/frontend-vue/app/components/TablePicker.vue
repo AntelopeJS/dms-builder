@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useBuilder } from '../runtime/session'
-import { TABLE_BLOCK_ICON, tableIcon } from '../runtime/table-icon'
 import type { ResourceStructure } from '../runtime/types'
 
 /**
@@ -41,7 +40,7 @@ const items = computed(() =>
 			return {
 				label: entry.ref,
 				value: entry.ref,
-				icon: tableIcon(entry, TABLE_BLOCK_ICON),
+				icon: 'i-ph-table',
 				disabled: refused !== undefined,
 				note:
 					refused ??
