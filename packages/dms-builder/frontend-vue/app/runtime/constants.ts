@@ -118,8 +118,8 @@ export const RETIRED_BLOCKS = new Set(['Tree'])
 /** A titled block of settings, laid out as rows. */
 export const SECTION_BLOCK = 'Section'
 
-/** The block listing a table's rows, which the DMS draws with that table's icon. */
-export const TABLE_BLOCK = 'TableView'
+/** The icon every table is drawn with: the Tables tab, its list, a relation's target. */
+export const TABLE_ICON = 'i-ph-database-light'
 
 /** One row of a section: a label beside the one block it holds. */
 export const FIELD_ROW = 'FieldRow'

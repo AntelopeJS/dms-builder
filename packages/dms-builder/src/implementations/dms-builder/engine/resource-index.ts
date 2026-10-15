@@ -18,7 +18,6 @@ import {
   stampSources,
 } from "./project";
 import { CORE_SCHEMA_NAME_VALUE, routesFromRouteMap } from "./resource-emit";
-import { readTableIcon } from "./resource-icon";
 import { type EmitContext, UnknownReferenceError } from "./value";
 
 export const CORE_SCHEMA_IDENTIFIER = "CORE_SCHEMA_NAME";
@@ -33,7 +32,6 @@ export interface ResourceRecord {
   route: string;
   schema: string;
   routes?: ResourceRoute[];
-  icon?: string;
   databaseFile: string;
   dataApiFile: string;
   indexFile: string;
@@ -205,7 +203,6 @@ class ResourceScanner {
       route,
       schema,
       routes,
-      icon: readTableIcon(cls),
       databaseFile: databaseFilePath,
       dataApiFile: cls.getSourceFile().getFilePath(),
       indexFile: path.join(path.dirname(databaseFilePath), "index.ts"),
@@ -282,18 +279,14 @@ export function findResourceBySymbol(
 }
 
 export function listResourceSummaries(): ResourceSummary[] {
-  return listResourceRecords().map((record) => {
-    const summary: ResourceSummary = {
-      ref: record.ref,
-      className: record.className,
-      tableName: record.tableName,
-      route: record.route,
-      fieldCount: record.apiClass
-        .getProperties()
-        .filter((prop) => prop.getName() !== "model").length,
-      files: { database: record.databaseFile, dataApi: record.dataApiFile },
-    };
-    if (record.icon) summary.icon = record.icon;
-    return summary;
-  });
+  return listResourceRecords().map((record) => ({
+    ref: record.ref,
+    className: record.className,
+    tableName: record.tableName,
+    route: record.route,
+    fieldCount: record.apiClass
+      .getProperties()
+      .filter((prop) => prop.getName() !== "model").length,
+    files: { database: record.databaseFile, dataApi: record.dataApiFile },
+  }));
 }

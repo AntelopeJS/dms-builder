@@ -182,11 +182,6 @@ export interface ResourceStructure {
    * hand-edited route map the engine could not map back to semantic names.
    */
   routes?: ResourceRoute[];
-  /**
-   * The icon the resource's DataController declares with `@TableIcon`, an
-   * Iconify name; omitted when it declares none.
-   */
-  icon?: string;
   version: string;
 }
 
@@ -198,8 +193,6 @@ export interface ResourceSummary {
   route: string;
   fieldCount: number;
   files: { database: string; dataApi: string };
-  /** As `ResourceStructure.icon`. */
-  icon?: string;
 }
 
 /** Options for `DeleteResource`. */
@@ -226,19 +219,11 @@ export interface EditableResourceMeta {
    * pass the whole list; omit the field to leave it alone.
    */
   routes?: ResourceRoute[];
-  /**
-   * The table's icon, an Iconify name written as `@TableIcon` on the
-   * DataController; `null` removes it, and the table goes back to the generic
-   * icon. Refused with `unsupported` by a DMS that predates table icons — see
-   * the catalog's `tableIcons`.
-   */
-  icon?: string | null;
 }
 
 /**
- * Patch a resource's DataAPI surface and its icon. Only what a route map and
- * `@TableIcon` can express is patchable — a resource's fields are edited with
- * `AddField`/`ConfigureField`.
+ * Patch a resource's DataAPI surface. Only what a route map can express is
+ * patchable — a resource's fields are edited with `AddField`/`ConfigureField`.
  */
 export const ConfigureResource =
   InterfaceFunction<

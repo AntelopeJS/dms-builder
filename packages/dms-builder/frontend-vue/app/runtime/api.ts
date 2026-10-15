@@ -17,7 +17,6 @@ import type {
 	DataSourceDescriptor,
 	QueryPreview,
 	QueryTemplateDescriptor,
-	ResourcePatch,
 	ResourceStructure,
 	ResourceSummary,
 	PageAccess,
@@ -170,7 +169,7 @@ export function useBuilderApi() {
 				resource,
 				field,
 			}),
-		configureResource: (resource: string, patch: ResourcePatch) =>
+		configureResource: (resource: string, patch: { routes?: string[] }) =>
 			post<void>('/resource/configure', { resource, patch }),
 		configureField: (path: string, patch: Partial<FieldAspects>) =>
 			put<void>('/resource/fields', { path, patch }),

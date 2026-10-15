@@ -7,6 +7,7 @@ import {
 	type CanvasDevice,
 } from '../runtime/canvas-view'
 import { rolesDecide } from '../runtime/access'
+import { TABLE_ICON } from '../runtime/constants'
 import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { saveStatus, type SaveStatusKind } from '../runtime/save-status'
 import { useBuilder, type Workspace } from '../runtime/session'
@@ -19,7 +20,7 @@ const MODES: { label: string; value: BuilderMode }[] = [
 /** What the editor works on: the page, or what every page draws from. */
 const WORKSPACES: { label: string; value: Workspace; icon: string }[] = [
 	{ label: 'Page', value: 'page', icon: 'i-ph-browser-light' },
-	{ label: 'Tables', value: 'tables', icon: 'i-ph-database-light' },
+	{ label: 'Tables', value: 'tables', icon: TABLE_ICON },
 	{ label: 'Data', value: 'data', icon: 'i-ph-function-light' },
 ]
 
