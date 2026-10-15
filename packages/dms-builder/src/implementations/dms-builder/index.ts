@@ -34,6 +34,9 @@ import type {
   ResourceRef,
   ResourceStructure,
   ResourceSummary,
+  ThemeDraft,
+  ThemeLayer,
+  ThemeStructure,
 } from "@antelopejs/interface-dms-builder";
 import {
   buildCatalog,
@@ -70,6 +73,8 @@ import {
   removeField,
 } from "./engine/resource-ops-delete";
 import { buildResourceStructure } from "./engine/resource-structure";
+import { getTheme, setTheme } from "./engine/theme";
+import { createThemeLayer } from "./engine/theme-scaffold";
 import {
   invalidateSourceIndex,
   listCategorySummaries,
@@ -281,4 +286,19 @@ export async function ConfigureQuery(
   opts?: MutationOpts,
 ): Promise<OpResult> {
   return configureQuery(query, patch, opts);
+}
+
+export async function GetTheme(): Promise<OpResult<ThemeStructure>> {
+  return getTheme();
+}
+
+export async function SetTheme(
+  draft: ThemeDraft,
+  opts?: MutationOpts,
+): Promise<OpResult<{ version: string }>> {
+  return setTheme(draft, opts);
+}
+
+export async function CreateThemeLayer(): Promise<OpResult<ThemeLayer>> {
+  return createThemeLayer();
 }
