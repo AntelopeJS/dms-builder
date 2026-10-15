@@ -9,6 +9,7 @@ import type {
   OpResult,
   QueryRef,
 } from "@antelopejs/interface-dms-builder";
+import { pageRoutePath } from "@antelopejs/interface-dms/page";
 import { type SourceFile, SyntaxKind } from "ts-morph";
 import { applyImportRef } from "./emit";
 import {
@@ -160,7 +161,7 @@ export function addQuery(
   }
   return commit(
     transaction,
-    { query: ref, route: `${page}${spec.endpoint}` },
+    { query: ref, route: pageRoutePath(page, spec.endpoint) },
     spec.chain.warnings ?? [],
   );
 }

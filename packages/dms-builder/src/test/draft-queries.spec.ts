@@ -40,7 +40,7 @@ const ORDER_COUNT: AddQueryInput = {
 const KPI = {
   name: "revenueKpi",
   type: "KpiCard",
-  config: { title: "Revenue", fetchUrl: `${PAGE}/stats/revenue` },
+  config: { title: "Revenue", fetchUrl: `/dms/pages${PAGE}/stats/revenue` },
 };
 
 async function structure(): Promise<PageStructure> {
@@ -309,7 +309,10 @@ describe("queries in a page draft", () => {
     const card = {
       name: "ordersCard",
       type: "KpiCard",
-      config: { title: "Orders", fetchUrl: `${PAGE}/stats/orders-card` },
+      config: {
+        title: "Orders",
+        fetchUrl: `/dms/pages${PAGE}/stats/orders-card`,
+      },
     };
     expectOk(
       await SetPageBlocks(PAGE, {

@@ -128,13 +128,13 @@ describe('a container’s message for when there is nothing to show', () => {
 		const root = await panel('card')
 		const source = findAll(settings(root), (entry) => entry.tag === 'DmsBuilderDataSource')[0]!
 		expect(source.props['response-shape']).toBe('value')
-		fire(source, 'patch', { fetchUrl: '/reports/sales/stats/guard' } as never)
+		fire(source, 'patch', { fetchUrl: '/dms/pages/reports/sales/stats/guard' } as never)
 		const title = findAll(settings(root), (entry) => entry.props['aria-label'] === 'Message title')[0]!
 		fire(title, 'update:modelValue', 'No sales yet' as never)
 
 		expect(findNode(draft(), 'card/guard')?.config).toEqual({
 			when: 'empty',
-			fetchUrl: '/reports/sales/stats/guard',
+			fetchUrl: '/dms/pages/reports/sales/stats/guard',
 			field: 'value',
 			fallback: { title: 'No sales yet' },
 		})

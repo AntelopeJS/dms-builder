@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { pageRoutePath } from '#dms-core/app/utils/pageRoutes'
 import {
 	COMPARED_SHAPES,
 	DATE_TYPES,
@@ -428,12 +429,15 @@ const summary = computed(() =>
 	),
 )
 
-/** The URL the generated route will answer at, which is what the block reads. */
-const endpoint = computed(
-	() =>
-		`${session.value.pageRef ?? ''}/stats/${queryName.value
-			.replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-			.toLowerCase()}`,
+/**
+ * The URL the generated route will answer at, which is what the block reads: a
+ * page's routes are served under the DMS's page prefix, not at the page's path.
+ */
+const endpoint = computed(() =>
+	pageRoutePath(
+		session.value.pageRef ?? '',
+		`/stats/${queryName.value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}`,
+	),
 )
 
 async function apply(): Promise<void> {

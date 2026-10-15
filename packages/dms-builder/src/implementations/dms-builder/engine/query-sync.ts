@@ -11,6 +11,7 @@ import type {
   OpWarning,
   QueryStructure,
 } from "@antelopejs/interface-dms-builder";
+import { pageRoutePath } from "@antelopejs/interface-dms/page";
 import type { ClassDeclaration, SourceFile } from "ts-morph";
 import { invalidConfig, notFound } from "./ops";
 import { queryRef } from "./query-emit";
@@ -70,7 +71,7 @@ function configuredStrings(blocks: BlockDraft[], found: Set<string>): void {
 function isRead(context: SyncContext, query: QueryStructure): boolean {
   const urls = new Set<string>();
   configuredStrings(context.blocks, urls);
-  return urls.has(`${context.page}${query.endpoint}`);
+  return urls.has(pageRoutePath(context.page, query.endpoint));
 }
 
 /** A query already written on the page, by name. */
@@ -174,7 +175,7 @@ function removeQuery(
     return [
       {
         code: "query_kept",
-        message: `query "${current.name}" is not in the draft but a block on the page still reads ${context.page}${current.endpoint}, so it was kept`,
+        message: `query "${current.name}" is not in the draft but a block on the page still reads ${pageRoutePath(context.page, current.endpoint)}, so it was kept`,
       },
     ];
   }

@@ -1,4 +1,5 @@
 import { Schema } from "@antelopejs/interface-database";
+import { pageRoutePath } from "@antelopejs/interface-dms/page";
 import type { BlockNode } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
 import { isPerTenantSchema } from "./query-emit";
@@ -174,9 +175,16 @@ export function pageImpact(ref: string): PageImpact | undefined {
     // A page the scan cannot read still goes; its count goes unsaid.
   }
   const queries = findQueryRoutes(page.classNode).map((route) => route.name);
+  // A link to the page, or a call to one of its routes, which are served under
+  // the DMS's page prefix rather than at the page's own path.
   const points = (url: string): boolean =>
-    url === ref ||
-    [`${ref}/`, `${ref}?`, `${ref}#`].some((start) => url.startsWith(start));
+    [ref, pageRoutePath(ref)].some(
+      (target) =>
+        url === target ||
+        [`${target}/`, `${target}?`, `${target}#`].some((start) =>
+          url.startsWith(start),
+        ),
+    );
   const linkedFrom: PageImpact["linkedFrom"] = [];
   for (const other of pages) {
     if (other.ref === ref) {

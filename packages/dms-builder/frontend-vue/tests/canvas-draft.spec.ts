@@ -176,7 +176,7 @@ describe('a card measuring a source built here', () => {
 			queries: [
 				{
 					name: 'sales',
-					endpoint: '/reports/sales/stats/sales',
+					endpoint: '/stats/sales',
 					resource: 'order',
 					template: 'series',
 					params: { op: 'count', groupBy: 'status' },
@@ -191,13 +191,13 @@ describe('a card measuring a source built here', () => {
 					name: 'sales',
 					type: 'ChartCard',
 					editable: true,
-					config: { title: 'Sales', fetchUrl: '/reports/sales/stats/sales' },
+					config: { title: 'Sales', fetchUrl: '/dms/pages/reports/sales/stats/sales' },
 				},
 			],
 			{
 				sales: {
 					componentName: 'DmsChartCard',
-					options: { title: 'Sales', fetchUrl: '/reports/sales/stats/sales' },
+					options: { title: 'Sales', fetchUrl: '/dms/pages/reports/sales/stats/sales' },
 				},
 			},
 		)

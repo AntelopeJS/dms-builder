@@ -246,7 +246,7 @@ describe('the edits of one data source', () => {
 	function pick(template: string): void {
 		builder.grouped('source:revenue', () => {
 			builder.setDraftQuery({ name: 'revenue', resource: 'orders', template })
-			builder.patchConfig('title', { fetchUrl: '/reports/sales/stats/revenue' })
+			builder.patchConfig('title', { fetchUrl: '/dms/pages/reports/sales/stats/revenue' })
 		})
 	}
 

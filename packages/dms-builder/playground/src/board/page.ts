@@ -91,7 +91,7 @@ export class PageShopBoard extends PageController("board", {
   static chartCard = ChartCard({
     title: "Orders by status",
     chart: ChartColumn(),
-    fetchUrl: "/shop/board/stats/chart-card",
+    fetchUrl: "/dms/pages/shop/board/stats/chart-card",
   });
   static resourceForm = ResourceForm(orderDataAPI, {
     mode: "new",
@@ -130,7 +130,7 @@ export class PageShopBoard extends PageController("board", {
   static chartCard2 = ChartCard({
     title: "Chart card 3",
     chart: ChartLine(),
-    fetchUrl: "/shop/board/stats/chart-card2",
+    fetchUrl: "/dms/pages/shop/board/stats/chart-card2",
   });
 
   @Get("/stats/chart-card")
