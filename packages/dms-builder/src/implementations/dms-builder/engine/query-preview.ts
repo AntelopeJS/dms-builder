@@ -6,6 +6,13 @@
 // saved page will answer, not an approximation of it.
 
 import { Schema } from "@antelopejs/interface-database";
+import {
+  chartCardData,
+  kpiCardData,
+  type SeriesMeasure,
+  type SeriesOptions,
+  topListData,
+} from "@antelopejs/interface-dms/base/query-response";
 import type {
   AddQueryInput,
   OpResult,
@@ -21,9 +28,7 @@ import {
   COMPARISON_PARAMETERS,
   isPerTenantSchema,
   outputForTemplate,
-  RESPONSE_HELPERS,
   RESPONSE_KEYS,
-  RESPONSE_MODULE,
   seriesNaming,
   type SeriesNaming,
 } from "./query-emit";
@@ -87,34 +92,18 @@ function openTable(
   return table as PlanStream;
 }
 
-type ResponseArranger = (
-  points: QueryPoint[],
-  options: SeriesNaming & { previous?: QueryPoint[] },
-) => QueryResponseBody;
-
 /**
- * The helper the generated route would call, from the DMS this app is running.
- *
- * Resolved at call time rather than imported: the arrangements are published by a
- * DMS newer than this module's floor, and on an older one a preview has to refuse
- * — saving the same query would fail its typecheck — rather than quietly answer a
- * different envelope than the page would serve.
+ * The helpers the generated route calls, so the preview and the page cannot
+ * diverge on a rounding, a label or a missing group.
  */
-function responseArranger(shape: string): ResponseArranger | undefined {
-  const name = RESPONSE_HELPERS[shape];
-  if (!name) {
-    return undefined;
-  }
-  try {
-    const published = require(RESPONSE_MODULE) as Record<string, unknown>;
-    const helper = published[name];
-    return typeof helper === "function"
-      ? (helper as ResponseArranger)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
+const RESPONSE_ARRANGERS: Record<
+  Exclude<QueryResponseShape, "series">,
+  (points: QueryPoint[], options: SeriesOptions) => object
+> = {
+  card: chartCardData,
+  value: kpiCardData,
+  items: topListData,
+};
 
 /** What the table answered: a figure, or the points, capped where it stopped. */
 interface ReadRows {
@@ -165,16 +154,17 @@ function arrange(
       truncated: read.truncated,
     });
   }
-  const arranger = responseArranger(shape);
-  if (!arranger) {
-    return unsupported<QueryPreview>(
-      `the installed DMS does not publish ${RESPONSE_HELPERS[shape]}, so a "${shape}" response cannot be built — the route saving it would not compile either`,
-    );
+  const options: SeriesOptions = {
+    ...naming,
+    measure: naming.measure as SeriesMeasure,
+  };
+  if (previous) {
+    options.previous = previous;
   }
   return preview({
     output,
     response: shape,
-    body: arranger(points, previous ? { ...naming, previous } : naming),
+    body: RESPONSE_ARRANGERS[shape](points, options) as QueryResponseBody,
     truncated: read.truncated,
   });
 }

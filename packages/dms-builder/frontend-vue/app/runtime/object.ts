@@ -1,5 +1,5 @@
 /** A copy of `record` without `key`, so a patch can remove an option. */
-export function withoutKey<T>(
+function withoutKey<T>(
 	record: Record<string, T>,
 	key: string,
 ): Record<string, T> {
@@ -22,4 +22,14 @@ export function mergePatch<T>(
 		next = value === undefined ? withoutKey(next, key) : { ...next, [key]: value }
 	}
 	return next
+}
+
+/** A plain object: not null, and not an array. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Whether two JSON values are equal, compared by what they serialise to. */
+export function same(a: unknown, b: unknown): boolean {
+	return a === b || JSON.stringify(a) === JSON.stringify(b)
 }

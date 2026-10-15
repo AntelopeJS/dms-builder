@@ -70,7 +70,6 @@ import {
 	parentPath,
 	pathForPointer,
 	removeNode,
-	renameNode,
 	siblingsAt,
 	structureToDraft,
 	uniqueName,
@@ -110,7 +109,7 @@ import type {
  * A place in the editor, as the controls that lead to one name it: a tab of the
  * side rail, what the inspector shows, or a workspace of the bar.
  */
-export type RailView =
+type RailView =
 	| 'pages'
 	| 'library'
 	| 'layers'
@@ -119,7 +118,6 @@ export type RailView =
 	| 'json'
 	| 'changes'
 	| 'resource'
-	| 'query'
 
 /**
  * What the editor is working on, picked in the bar: the page, or one of the two
@@ -132,7 +130,7 @@ export type Workspace = 'page' | 'tables' | 'data'
 export type LeftTab = 'add' | 'layers' | 'pages'
 
 /** What the inspector beside the page is showing. */
-export type InspectorView = 'block' | 'page' | 'json' | 'changes'
+type InspectorView = 'block' | 'page' | 'json' | 'changes'
 
 /** The layouts an empty page can start from. */
 export type PageLayout = 'dashboard' | 'list' | 'form'
@@ -160,7 +158,7 @@ const INSPECTOR_VIEWS: Record<'config' | 'page' | 'json' | 'changes', InspectorV
 export type TableTab = 'fields' | 'api' | 'settings'
 
 /** A write that went straight to the project, as the change list shows it. */
-export interface AppliedChange {
+interface AppliedChange {
 	id: number
 	title: string
 	/** What else it reaches: a table, the menu. */
@@ -169,13 +167,11 @@ export interface AppliedChange {
 }
 
 /** Where the Tables view stands inside a table: which tab, or a field being added. */
-export interface TableFocus {
+interface TableFocus {
 	ref: string
 	tab: TableTab
 	adding: boolean
 }
-
-export type { DragPayload, DropTarget, DropWrap }
 
 /** A place in the draft a block is inserted at; a null index means the end. */
 interface Placement {
@@ -353,7 +349,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined
 let previewToken = 0
 
 /** A block with settings still empty, and which ones. */
-export interface BlockGap {
+interface BlockGap {
 	path: string
 	settings: MissingSetting[]
 }
@@ -396,7 +392,6 @@ export interface BuilderController {
 	) => void
 	remove: (path: string) => void
 	duplicate: (path: string) => void
-	rename: (path: string, name: string) => void
 	move: (
 		path: string,
 		parent: string | null,
@@ -479,10 +474,8 @@ export interface BuilderController {
 		category: string,
 		patch: Record<string, unknown>,
 	) => Promise<void>
-	configureQuery: (query: string, patch: Record<string, unknown>) => Promise<void>
 	/** Move a category one place up or down the menu, written at once. */
 	moveCategory: (ref: string, delta: -1 | 1) => Promise<void>
-	savePageMeta: (patch: Record<string, unknown>) => Promise<void>
 	movePage: (category: string) => Promise<string | undefined>
 	loadSiteTree: () => Promise<void>
 	/** Create a page, which the editor lays `layout` on once it opens there. */
@@ -491,12 +484,8 @@ export interface BuilderController {
 	deletePage: (ref: string) => Promise<boolean>
 	deleteCategory: (ref: string) => Promise<void>
 	configureField: (path: string, patch: Record<string, unknown>) => Promise<void>
-	/** Lay a table's columns out in the order of `names`, left to right. */
-	orderFields: (resource: string, names: string[]) => Promise<void>
 	configureResource: (resource: string, routes: string[]) => Promise<void>
 	removeField: (path: string) => Promise<void>
-	addQuery: (input: AddQueryInput) => Promise<void>
-	removeQuery: (ref: string) => Promise<void>
 	beginDrag: (payload: DragPayload) => void
 	endDrag: () => void
 	/** Aim the drag at a block, `box` being the pointer inside it. */
@@ -715,26 +704,15 @@ export function useBuilder(): BuilderController {
 				pageRef,
 				staged && staged !== session.value.access?.permission ? staged : undefined,
 			)
-			// Only an answer of the right shape, and for the page still open.
-			if (
-				session.value.pageRef === pageRef &&
-				access &&
-				typeof access.mode === 'string' &&
-				typeof access.permission === 'string'
-			) {
-				session.value.access = {
-					...access,
-					actions: access.actions ?? {},
-					held: access.held ?? {},
-					granted: access.granted ?? [],
-					roles: Array.isArray(access.roles) ? access.roles : null,
-				}
+			// Only for the page still open.
+			if (session.value.pageRef === pageRef) {
+				session.value.access = access
 				if (!rolesDecide(session.value.access) || !viewedAs.value) {
 					session.value.viewAs = null
 				}
 			}
 		} catch {
-			// An older module, or a DMS that did not answer: nothing is said.
+			// A DMS that did not answer: nothing is said.
 		}
 	}
 
@@ -837,7 +815,7 @@ export function useBuilder(): BuilderController {
 	async function loadServedLayout(pageRef: string): Promise<void> {
 		try {
 			const payload = await api.pageLayout(pageRef)
-			session.value.served = payload.components ?? {}
+			session.value.served = payload.components
 		} catch {
 			session.value.served = {}
 		}
@@ -962,22 +940,17 @@ export function useBuilder(): BuilderController {
 	}
 
 	/**
-	 * Read the page again after a write that went straight to its file — its
-	 * order, its permission, a query — keeping whatever the draft holds.
+	 * Read the page again after a write that went straight to its file — a
+	 * move to another category — keeping whatever the draft holds.
 	 *
-	 * Those writes leave the blocks alone, so an unsaved draft still stands on
+	 * Such a write leaves the blocks alone, so an unsaved draft still stands on
 	 * the page as it now is: only what was read off it, and the version the next
 	 * save is checked against, have to catch up. Starting again from the page
 	 * here is what used to drop every unsaved edit, with no undo to get it back.
-	 * A draft with nothing in it simply starts again.
 	 */
 	async function refresh(): Promise<void> {
 		const pageRef = session.value.pageRef
 		if (!pageRef) {
-			return
-		}
-		if (!dirty.value) {
-			await reload()
 			return
 		}
 		const result = await api.structure(pageRef)
@@ -1176,9 +1149,6 @@ export function useBuilder(): BuilderController {
 				session.value.workspace = 'tables'
 				return
 			}
-			case 'query':
-				session.value.workspace = 'data'
-				return
 			case 'library':
 			case 'layers':
 			case 'pages':
@@ -1753,18 +1723,6 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
-	function rename(path: string, name: string): void {
-		let node: BlockDraft | undefined
-		mutate((draft) => {
-			const renamed = renameNode(draft, path, name)
-			node = renamed ? findNode(draft, renamed) : undefined
-		})
-		const renamed = node && placedAt(node)
-		if (renamed) {
-			select(renamed)
-		}
-	}
-
 	/**
 	 * Tried on a copy first, and written back only once it worked.
 	 *
@@ -1862,26 +1820,6 @@ export function useBuilder(): BuilderController {
 				...(query.compare ? { compare: true } : {}),
 				endpoint: query.endpoint,
 			}))
-	}
-
-	/**
-	 * Bring queries just written straight to the page into a draft that keeps
-	 * its own list of them: that list goes out whole with the next save, and
-	 * would otherwise undo the write. Each name is taken as the page now serves
-	 * it — there, or gone. The saved state takes it too, or the write would read
-	 * as an unsaved change.
-	 */
-	function carryQueries(names: string[]): void {
-		const served = servedQueries().filter((query) => names.includes(query.name))
-		for (const draft of [session.value.draft, session.value.baseline]) {
-			if (!draft?.queries) {
-				continue
-			}
-			draft.queries = [
-				...draft.queries.filter((query) => !names.includes(query.name)),
-				...served,
-			]
-		}
 	}
 
 	function setDraftQuery(input: AddQueryInput): void {
@@ -2117,7 +2055,7 @@ export function useBuilder(): BuilderController {
 		}
 		try {
 			const templates = await api.queryTemplates()
-			session.value.queryTemplates = Array.isArray(templates) ? templates : []
+			session.value.queryTemplates = templates
 		} catch (error) {
 			unread('The query templates', error)
 		}
@@ -2141,14 +2079,9 @@ export function useBuilder(): BuilderController {
 	 */
 	async function loadTableUsage(): Promise<void> {
 		try {
-			const usage = await api.tableUsage()
-			// Only an answer of the right shape: an older module answers this
-			// route with something else, or not at all.
-			if (usage && typeof usage.readers === 'object' && usage.readers !== null) {
-				session.value.tableUsage = { readers: usage.readers, rows: usage.rows ?? {} }
-			}
+			session.value.tableUsage = await api.tableUsage()
 		} catch {
-			// An older module, or one that failed: the scope goes unsaid.
+			// A module that failed: the scope goes unsaid.
 		}
 	}
 
@@ -2196,10 +2129,6 @@ export function useBuilder(): BuilderController {
 		return true
 	}
 
-	/**
-	 * Resource and query writes touch files the page only references, so they
-	 * are applied straight away rather than staged in the draft.
-	 */
 	/** A page as the menu names it, else by its address. */
 	function pageName(ref: string): string {
 		return session.value.pages.find((page) => page.ref === ref)?.displayName ?? ref
@@ -2411,51 +2340,6 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
-	async function configureQuery(
-		query: string,
-		patch: Record<string, unknown>,
-	): Promise<void> {
-		const result = await api.configureQuery(query, patch)
-		if (!report(result, 'Data source updated', {
-				title: `Changed the data source ${queryName(query)}`,
-				scope: 'data',
-			})) {
-			return
-		}
-		await refresh()
-		// The patch can rename it: the old name is gone, the new one served.
-		carryQueries(
-			[queryName(query), patch.name].filter(
-				(name): name is string => typeof name === 'string',
-			),
-		)
-	}
-
-	/** A query's own name, out of the `page@name` ref it is written under. */
-	function queryName(ref: string): string {
-		return ref.slice(ref.lastIndexOf('@') + 1)
-	}
-
-	/**
-	 * Page metadata the draft does not carry — order and permission are written
-	 * straight through rather than staged with the blocks.
-	 */
-	async function savePageMeta(patch: Record<string, unknown>): Promise<void> {
-		const pageRef = session.value.pageRef
-		if (!pageRef) {
-			return
-		}
-		const result = await api.configurePage(pageRef, patch)
-		if (!report(result, 'Page updated', {
-				title: 'Changed where the page shows in the menu',
-				scope: 'menu',
-			})) {
-			return
-		}
-		// The pages panel lists the page by its order too.
-		await Promise.all([refresh(), loadSiteTree()])
-	}
-
 	/**
 	 * Move the page to another category, and report where it went.
 	 *
@@ -2574,47 +2458,6 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
-	/**
-	 * A column's place is its rank, written on each column whose rank changes.
-	 * They are shown in their new places at once, written one after the other
-	 * — each rewrites the same file — and the table is read once they all are.
-	 */
-	async function orderFields(resource: string, names: string[]): Promise<void> {
-		const known = session.value.resourceStructures[resource]
-		if (!known || session.value.pending.includes(resource)) {
-			return
-		}
-		const moved = names.flatMap((name, index) => {
-			const field = known.fields.find((entry) => entry.name === name)
-			return field && !field.opaque && field.order !== index + 1
-				? [{ name, order: index + 1 }]
-				: []
-		})
-		if (!moved.length) {
-			return
-		}
-		for (const entry of moved) {
-			applyLocally(resource, entry.name, { order: entry.order })
-		}
-		startPending(resource)
-		try {
-			for (const entry of moved) {
-				const result = await api.configureField(`${resource}#${entry.name}`, {
-					order: entry.order,
-				})
-				if (!report(result, 'Fields moved', {
-						title: `${resource} · moved the field ${entry.name}`,
-						scope: resource,
-					})) {
-					break
-				}
-			}
-			await loadResource(resource, true)
-		} finally {
-			endPending(resource)
-		}
-	}
-
 	async function removeField(path: string): Promise<void> {
 		const result = await api.removeField(path)
 		if (!report(result, 'Field removed', {
@@ -2624,34 +2467,6 @@ export function useBuilder(): BuilderController {
 			return
 		}
 		await loadResource(path.split('#')[0] ?? '', true)
-	}
-
-	async function addQuery(input: AddQueryInput): Promise<void> {
-		const pageRef = session.value.pageRef
-		if (!pageRef) {
-			return
-		}
-		const result = await api.addQuery(pageRef, input)
-		if (!report(result, `Data source ${input.name} added`, {
-				title: `Added the data source ${input.name}`,
-				scope: 'data',
-			})) {
-			return
-		}
-		await refresh()
-		carryQueries([input.name])
-	}
-
-	async function removeQuery(ref: string): Promise<void> {
-		const result = await api.removeQuery(ref)
-		if (!report(result, 'Data source removed', {
-				title: `Removed the data source ${queryName(ref)}`,
-				scope: 'data',
-			})) {
-			return
-		}
-		await refresh()
-		carryQueries([queryName(ref)])
 	}
 
 	function beginDrag(payload: DragPayload): void {
@@ -2808,7 +2623,6 @@ export function useBuilder(): BuilderController {
 		addBlock,
 		remove,
 		duplicate,
-		rename,
 		move,
 		nudge,
 		patchConfig,
@@ -2849,9 +2663,7 @@ export function useBuilder(): BuilderController {
 		deleteResource,
 		addField,
 		configureCategory,
-		configureQuery,
 		moveCategory,
-		savePageMeta,
 		movePage,
 		loadSiteTree,
 		createPage,
@@ -2859,11 +2671,8 @@ export function useBuilder(): BuilderController {
 		deletePage,
 		deleteCategory,
 		configureField,
-		orderFields,
 		configureResource,
 		removeField,
-		addQuery,
-		removeQuery,
 		beginDrag,
 		endDrag,
 		aimAt,
@@ -2876,5 +2685,3 @@ export function useBuilder(): BuilderController {
 		refusalAt,
 	}
 }
-
-export { joinPath, parentPath, leafName }

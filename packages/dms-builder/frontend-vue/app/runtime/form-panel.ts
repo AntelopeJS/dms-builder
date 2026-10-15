@@ -17,9 +17,6 @@ import {
 import { useBuilder } from './session'
 import type { ResourceFieldStructure } from './types'
 
-/** The block the simple mode edits with a panel of its own. */
-export { FORM_BLOCK } from './form-table'
-
 /**
  * The options that panel edits, or decides: a form saving into a table is an
  * action, which says its buttons too. Whatever else the block declares is

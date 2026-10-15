@@ -99,9 +99,7 @@ export function pageRoutePaths(
 }
 
 /** Hop 2 — the resource whose model a route injects, or `undefined` if it injects none. */
-export function routeResourceRef(
-  method: MethodDeclaration,
-): string | undefined {
+function routeResourceRef(method: MethodDeclaration): string | undefined {
   return resolveRouteResource(method)?.ref;
 }
 
@@ -137,7 +135,7 @@ function isQueryRouteMethod(method: MethodDeclaration): boolean {
  * even when the route itself has drifted off-grammar. This is what lets an opaque
  * route's backing method still be found for caller-counting and orphan cleanup.
  */
-export function routeModelMethodNames(
+function routeModelMethodNames(
   method: MethodDeclaration,
   resource: string,
 ): string[] {

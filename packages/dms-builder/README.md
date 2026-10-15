@@ -38,7 +38,6 @@ HTTP routes, alongside the interfaces the engine itself uses.
 | Option | Type | Description |
 | --- | --- | --- |
 | `projectRoot` | `string` | Absolute path to the app source root where page files live. Defaults to the process working directory. |
-| `factoring` | `FactoringConfig` | Thresholds past which the emitter factors a sub-tree into a module-level const. |
 | `api.enabled` | `boolean` | Forces the builder on or off. Defaults to the project's development mode. |
 
 The builder rewrites the app's TypeScript sources, which only exist in a

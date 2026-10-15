@@ -42,10 +42,10 @@ function page(...blocks: BlockDraft[]): PageDraft {
 }
 
 /** The draft after `edit`, tidied the way every edit is. */
-function after(before: PageDraft, edit: (draft: PageDraft) => void, known = catalog): PageDraft {
+function after(before: PageDraft, edit: (draft: PageDraft) => void): PageDraft {
 	const next = cloneDraft(before)
 	edit(next)
-	tidyWrappers(next, known, before)
+	tidyWrappers(next, catalog, before)
 	return next
 }
 
@@ -101,13 +101,7 @@ describe('a section’s rows', () => {
 		expect(children(next, 'settings/meterRow')).toEqual(['meter:Meter'])
 	})
 
-	it('are not written where the DMS has none, nor in a section moved elsewhere', () => {
-		const older = { ...catalog, blocks: catalog.blocks.filter((block) => block.type !== 'FieldRow') }
-		const arrived = after(page(section('settings')), (draft) => {
-			findNode(draft, 'settings')?.children?.push(meter())
-		}, older)
-		expect(children(arrived, 'settings')).toEqual(['meter:Meter'])
-
+	it('are not written in a section moved elsewhere', () => {
 		const moved = after(page(text('top'), section('settings')), (draft) => {
 			const moving = draft.blocks.splice(1, 1)[0] as BlockDraft
 			moving.name = 'elsewhere'

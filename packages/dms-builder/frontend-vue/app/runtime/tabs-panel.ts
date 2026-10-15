@@ -10,6 +10,7 @@
 import { regionAfter, slotIdFor } from './catalog'
 import { GUARD_BLOCK } from './constants'
 import { cloneDraft, uniqueName } from './draft'
+import { isRecord } from './object'
 import type { BlockDraft, DynamicSlots } from './types'
 
 /** The block the simple mode edits with a panel of its own. */
@@ -52,13 +53,9 @@ export interface TabLine {
 
 type Entry = Record<string, unknown>
 
-function isEntry(value: unknown): value is Entry {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function entriesOf(block: BlockDraft, dynamic: DynamicSlots): Entry[] {
 	const entries = (block.config ?? {})[dynamic.optionPath]
-	return Array.isArray(entries) ? entries.filter(isEntry) : []
+	return Array.isArray(entries) ? entries.filter(isRecord) : []
 }
 
 function idOf(entry: Entry, dynamic: DynamicSlots): string | undefined {
@@ -79,7 +76,7 @@ function badgeText(badge: unknown): string {
 	if (typeof badge === 'string' || typeof badge === 'number') {
 		return String(badge)
 	}
-	return isEntry(badge) && badge.label !== undefined ? String(badge.label) : ''
+	return isRecord(badge) && badge.label !== undefined ? String(badge.label) : ''
 }
 
 export function tabLines(block: BlockDraft | undefined, dynamic: DynamicSlots | undefined): TabLine[] {

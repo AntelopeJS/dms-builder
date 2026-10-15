@@ -1,3 +1,7 @@
+/**
+ * Fixed rather than configurable: the builder UI ships in this package and
+ * addresses these routes, so a per-app prefix would only let the two drift.
+ */
 export const DEFAULT_ROUTE_PREFIX = "/api/builder";
 
 export const ROUTES = {

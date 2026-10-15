@@ -1,15 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
-import type { QueryStructure } from '../app/runtime/types'
 
 /**
  * What the settings written straight to the page's files do to the draft the
  * editor is holding, and what a request that gets no answer at all says.
  *
- * A page's position, its permission, its category and its queries do not wait
- * for Save. Each of those writes used to read the page again from scratch,
- * which threw every unsaved edit away with no undo to get it back.
+ * A page's category does not wait for Save. That write used to read the page
+ * again from scratch, which threw every unsaved edit away with no undo to get
+ * it back.
  */
 
 let backend: FakeBackend
@@ -33,17 +32,6 @@ function failing(message: string): PromiseLike<never> {
 	}
 }
 
-function query(name: string, extra: Partial<QueryStructure> = {}): QueryStructure {
-	return {
-		name,
-		endpoint: `/${name}`,
-		resource: 'orders',
-		template: 'count',
-		params: {},
-		...extra,
-	}
-}
-
 beforeEach(async () => {
 	vi.useFakeTimers()
 	backend = installFakeHost()
@@ -58,78 +46,6 @@ afterEach(() => {
 	vi.useRealTimers()
 })
 
-describe('a setting written at once', () => {
-	it('keeps the unsaved draft, and its undo', async () => {
-		builder.addBlock('Text')
-		backend.structure = { ...backend.structure, version: 'v3' }
-
-		await builder.savePageMeta({ order: 2 })
-
-		expect(names()).toEqual(['title', 'intro', 'text'])
-		expect(builder.dirty.value, 'still unsaved').toBe(true)
-		expect(builder.session.value.history.length).toBeGreaterThan(0)
-		// The write changed the file: the next save is checked against it.
-		expect(builder.session.value.version).toBe('v3')
-	})
-
-	it('starts again from the page when nothing was left unsaved', async () => {
-		backend.structure = {
-			...backend.structure,
-			blocks: [backend.structure.blocks[0]!],
-			version: 'v3',
-		}
-
-		await builder.savePageMeta({ order: 2 })
-
-		expect(names()).toEqual(['title'])
-		expect(builder.dirty.value).toBe(false)
-	})
-
-	it('takes a query added at once into a draft that lists its own', async () => {
-		builder.setDraftQuery({ name: 'refunds', resource: 'refunds', template: 'count' })
-		backend.structure = { ...backend.structure, queries: [query('total')] }
-
-		await builder.addQuery({ name: 'total', resource: 'orders', template: 'count' })
-
-		// Sent whole with the next save, a list without it would remove it.
-		expect(builder.session.value.draft?.queries?.map((entry) => entry.name)).toEqual([
-			'refunds',
-			'total',
-		])
-	})
-
-	it('drops a query removed at once from that list', async () => {
-		backend.structure = { ...backend.structure, queries: [query('total')] }
-		await builder.reload()
-		builder.setDraftQuery({ name: 'refunds', resource: 'refunds', template: 'count' })
-		backend.structure = { ...backend.structure, queries: [] }
-
-		await builder.removeQuery('/reports/sales@total')
-
-		expect(builder.session.value.draft?.queries?.map((entry) => entry.name)).toEqual([
-			'refunds',
-		])
-	})
-
-	it('follows a renamed query under its new name', async () => {
-		backend.structure = { ...backend.structure, queries: [query('total')] }
-		await builder.reload()
-		builder.setDraftQuery({ name: 'refunds', resource: 'refunds', template: 'count' })
-		backend.structure = { ...backend.structure, queries: [query('orderCount')] }
-
-		await builder.configureQuery('/reports/sales@total', {
-			name: 'orderCount',
-			resource: 'orders',
-			template: 'count',
-		})
-
-		expect(builder.session.value.draft?.queries?.map((entry) => entry.name)).toEqual([
-			'refunds',
-			'orderCount',
-		])
-	})
-})
-
 describe('moving a page with unsaved changes', () => {
 	beforeEach(() => {
 		backend.answers['POST /api/builder/page/configure'] = {
@@ -137,6 +53,19 @@ describe('moving a page with unsaved changes', () => {
 			data: { ref: '/sales/sales' },
 			changes: [],
 		}
+	})
+
+	it('keeps the unsaved draft, and its undo', async () => {
+		builder.addBlock('Text')
+		backend.structure = { ...backend.structure, version: 'v3' }
+
+		await builder.movePage('sales')
+
+		expect(names()).toEqual(['title', 'intro', 'text'])
+		expect(builder.dirty.value, 'still unsaved').toBe(true)
+		expect(builder.session.value.history.length).toBeGreaterThan(0)
+		// The write changed the file: the next save is checked against it.
+		expect(builder.session.value.version).toBe('v3')
 	})
 
 	it('takes the draft to the new address, where it saves', async () => {
@@ -185,7 +114,7 @@ describe('a request that gets no answer', () => {
 	it('says so when a setting written at once fails', async () => {
 		backend.answers['POST /api/builder/page/configure'] = failing('Failed to fetch')
 
-		await builder.savePageMeta({ order: 2 })
+		await builder.movePage('sales')
 
 		expect(builder.session.value.error).toMatchObject({ code: 'unsupported' })
 	})

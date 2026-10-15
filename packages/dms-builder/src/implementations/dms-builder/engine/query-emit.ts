@@ -10,6 +10,7 @@ import {
 } from "./query-template";
 import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
+import { words } from "./emit";
 
 /**
  * The prefix new query endpoints default to. Only a default — `AddQueryInput.endpoint`
@@ -36,7 +37,7 @@ interface ResponseEmission {
 }
 
 /** How the helpers are reached from a generated route. */
-export const RESPONSE_HELPERS: Record<string, string> = {
+const RESPONSE_HELPERS: Record<string, string> = {
   card: "chartCardData",
   value: "kpiCardData",
   items: "topListData",
@@ -200,14 +201,6 @@ export interface ModelTarget {
   reuse: boolean;
 }
 
-function words(value: string): string[] {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .split(/[^A-Za-z0-9]+/)
-    .filter((part) => part.length > 0)
-    .map((part) => part.toLowerCase());
-}
-
 function kebab(value: string): string {
   return words(value).join("-");
 }
@@ -280,7 +273,7 @@ function routeArgument(param: MethodParam): string {
 export const COMPARISON_PARAMETERS = ["compareFrom", "compareTo"] as const;
 
 /** Where the response helpers are published. */
-export const RESPONSE_MODULE = "@antelopejs/interface-dms/base";
+const RESPONSE_MODULE = "@antelopejs/interface-dms/base";
 
 /**
  * The same model call over the preceding period, or nothing when the query does

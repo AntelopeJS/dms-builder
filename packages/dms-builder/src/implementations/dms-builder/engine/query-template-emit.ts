@@ -29,7 +29,7 @@ function countTemplate(): QueryTemplate {
       params: { where: { ...whereSchema(), optional: true } },
     },
     validate: (params, fields) => [
-      ...scanForExpr(params),
+      ...scanForExpr(params, "query params"),
       ...checkFilters(params.where, fields),
     ],
     plan: (params) => ({
@@ -75,7 +75,7 @@ function aggregateTemplate(): QueryTemplate {
     },
     validate: (params, fields) => {
       const issues = [
-        ...scanForExpr(params),
+        ...scanForExpr(params, "query params"),
         ...checkFilters(params.where, fields),
       ];
       if (typeof params.op !== "string" || !AGGREGATE_OPS.has(params.op)) {

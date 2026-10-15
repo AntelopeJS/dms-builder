@@ -9,6 +9,7 @@ import {
   Node,
   type ObjectLiteralExpression,
   type PropertyDeclaration,
+  type SourceFile,
 } from "ts-morph";
 import { buildCatalog } from "./catalog";
 import {
@@ -19,11 +20,7 @@ import {
   stringLiteralValue,
 } from "./literals";
 import { contentVersion } from "./page-structure";
-import {
-  findResourceBySymbol,
-  findResourceRecord,
-  type ResourceRecord,
-} from "./resource-index";
+import { findResourceBySymbol, findResourceRecord } from "./resource-index";
 
 const KNOWN_DECORATORS = new Set([
   "Searchable",
@@ -343,10 +340,12 @@ export function indexedFieldNames(tableClass: ClassDeclaration): Set<string> {
   return names;
 }
 
-function resourceVersion(record: ResourceRecord): string {
-  const databaseText = record.tableClass.getSourceFile().getFullText();
-  const dataApiText = record.apiClass.getSourceFile().getFullText();
-  return contentVersion(databaseText + dataApiText);
+/** The version a resource's mutations check against: both of its files. */
+export function resourceVersion(
+  databaseFile: SourceFile,
+  dataApiFile: SourceFile,
+): string {
+  return contentVersion(databaseFile.getFullText() + dataApiFile.getFullText());
 }
 
 export function buildResourceStructure(
@@ -374,7 +373,10 @@ export function buildResourceStructure(
       index: record.indexFile,
     },
     fields,
-    version: resourceVersion(record),
+    version: resourceVersion(
+      record.tableClass.getSourceFile(),
+      record.apiClass.getSourceFile(),
+    ),
   };
   if (record.routes) data.routes = record.routes;
   return { ok: true, data, changes: [] };

@@ -230,7 +230,6 @@ export interface ResolvedPreview {
 
 /** What `GET /dms/pagelayout` answers with. */
 export interface PageLayoutPayload {
-	layout?: ComponentPreview
 	components: Record<string, ComponentPreview>
 }
 
@@ -313,12 +312,6 @@ export interface CreatePageInput {
 	icon?: string
 	order?: number
 	description?: string
-}
-
-export interface EditableCategoryMeta {
-	displayName?: string
-	icon?: string
-	order?: number
 }
 
 export interface CreateCategoryInput {
@@ -420,18 +413,6 @@ export interface CreateResourceInput {
 	name: string
 	displayName?: string
 	fields: FieldSpec[]
-}
-
-/** A route a developer declared as something a block may be pointed at. */
-export interface DataSourceDescriptor {
-	id: string
-	title: string
-	description?: string
-	responseShape: string
-	path: string
-	method?: string
-	params?: Record<string, OptionSchema>
-	period?: { from: string; to: string }
 }
 
 /** A page reading a table, and how many of its blocks and sources do. */

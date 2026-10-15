@@ -25,6 +25,7 @@ import {
 import {
   indexedFieldNames,
   readDataApiFieldAspects,
+  resourceVersion,
   tableFieldDeclarations,
 } from "./resource-structure";
 import {
@@ -33,7 +34,13 @@ import {
   UnknownDataTypeError,
 } from "./value";
 import { findImporters, Transaction } from "./writable";
-import { commit, duplicate, invalidConfig, invalidDataType } from "./ops";
+import {
+  commit,
+  duplicate,
+  invalidConfig,
+  invalidDataType,
+  notFound,
+} from "./ops";
 import {
   openResource,
   parseFieldPath,
@@ -45,19 +52,13 @@ import {
   decoratorImport,
   tableFieldText,
 } from "./resource-emit-types";
-import { contentVersion } from "./page-structure";
 import {
   routeMapExpr,
   TABLE_VIEW_MODULE,
   withDefaultIndex,
 } from "./resource-emit";
 import { getExtendsCall } from "./literals";
-function resourceVersion(
-  databaseFile: SourceFile,
-  dataApiFile: SourceFile,
-): string {
-  return contentVersion(databaseFile.getFullText() + dataApiFile.getFullText());
-}
+
 function checkVersion(
   ref: string,
   databaseFile: SourceFile,
@@ -75,9 +76,6 @@ function checkVersion(
     };
   }
   return undefined;
-}
-function notFound<T = void>(ref: string): OpResult<T> {
-  return { ok: false, error: { code: "not_found", ref } };
 }
 
 /**

@@ -47,7 +47,7 @@ export function linesHeight(lines: number): string {
 export const SPACER_PANEL_OPTIONS = new Set(['minSize', 'maxSize', 'grow'])
 
 /** What a spacer grows by when nothing says: the DMS's own default. */
-export const SPACER_DEFAULT_GROW = 1
+const SPACER_DEFAULT_GROW = 1
 
 /** The gap a spacer turned fixed starts from, until the author sets one. */
 export const FIXED_GAP = '24px'

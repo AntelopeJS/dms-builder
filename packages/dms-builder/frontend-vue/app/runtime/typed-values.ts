@@ -8,6 +8,7 @@
  * keep the JSON box.
  */
 import { DATA_TYPES } from './constants'
+import { isRecord } from './object'
 
 export type TypedKind =
 	| 'text'
@@ -91,8 +92,4 @@ function choicesOf(items: unknown): Array<{ label: string; value: string | numbe
 		const label = typeof item.label === 'string' && item.label ? item.label : String(value)
 		return [{ label, value }]
 	})
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

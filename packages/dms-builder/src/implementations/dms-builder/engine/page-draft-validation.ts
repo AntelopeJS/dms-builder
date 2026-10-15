@@ -12,10 +12,8 @@ import {
   buildResourceStructure,
   RESERVED_FIELD_NAMES,
 } from "./resource-structure";
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isPlainObject } from "./value";
+import { issue, scanForExpr } from "./query-template";
 
 /** Walk a config value alongside the schema that describes it. */
 function walkOptions(
@@ -112,29 +110,6 @@ function checkFieldAspects(
   return issues;
 }
 
-function issue(pointer: string, message: string): ValidationIssue {
-  return { pointer, message };
-}
-
-/** Refuses `$expr` anywhere in a draft: a whole-tree write stays structured. */
-function scanForExpr(value: unknown, pointer: string): ValidationIssue[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((item, index) =>
-      scanForExpr(item, `${pointer}/${index}`),
-    );
-  }
-  if (typeof value !== "object" || value === null) {
-    return [];
-  }
-  const record = value as Record<string, unknown>;
-  if (typeof record.$expr === "string") {
-    return [issue(pointer, "$expr is not allowed in a page draft")];
-  }
-  return Object.entries(record).flatMap(([key, entry]) =>
-    scanForExpr(entry, `${pointer}/${key}`),
-  );
-}
-
 function validateBlock(
   block: BlockDraft,
   pointer: string,
@@ -167,8 +142,8 @@ function validateBlock(
   return [
     ...validateController(block, descriptor.controllerArg === true, pointer),
     ...validateChildren(block, descriptor.container, pointer, originals, path),
-    ...scanForExpr(block.config, `${pointer}/config`),
-    ...scanForExpr(block.meta, `${pointer}/meta`),
+    ...scanForExpr(block.config, "a page draft", `${pointer}/config`),
+    ...scanForExpr(block.meta, "a page draft", `${pointer}/meta`),
     ...checkFieldAspects(block, descriptor, pointer),
   ];
 }

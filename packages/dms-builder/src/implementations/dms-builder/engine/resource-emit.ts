@@ -3,7 +3,7 @@ import type {
   FieldSpec,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
-import { pascalCase } from "./emit";
+import { pascalCase, words } from "./emit";
 
 export const CORE_SCHEMA_NAME_VALUE = "dms-core";
 const CORE_SCHEMA_IDENTIFIER = "CORE_SCHEMA_NAME";
@@ -184,14 +184,6 @@ export interface ResourceNames {
   apiName: string;
   tableName: string;
   route: string;
-}
-
-function words(value: string): string[] {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .split(/[^A-Za-z0-9]+/)
-    .filter((part) => part.length > 0)
-    .map((part) => part.toLowerCase());
 }
 
 function camelCase(value: string): string {

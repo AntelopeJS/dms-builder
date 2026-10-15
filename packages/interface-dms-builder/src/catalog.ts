@@ -43,10 +43,6 @@ export type OptionWidget =
   | "resource"
   | "field"
   | "dataType"
-  // `query` is the pre-rename spelling the same option carried; a DMS older
-  // than the source editor still declares it, and its catalog has to keep
-  // reading as a catalog.
-  | "query"
   | "dataSource"
   | "permission"
   | "json"

@@ -77,7 +77,7 @@ export function opensPage(access: PageAccess, role: RoleAccess, page: string): b
 }
 
 /** Whether the role is shown the block at `path`: the page, then each block down to it. */
-export function seesBlock(
+function seesBlock(
 	access: PageAccess,
 	role: RoleAccess,
 	page: string,

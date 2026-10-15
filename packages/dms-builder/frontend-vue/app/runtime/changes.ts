@@ -13,6 +13,7 @@
 import { descriptorOf, isStructural, optionLabel } from './catalog'
 import { cloneDraft, findNode, insertNode, joinPath, moveNode, removeNode, siblingsAt } from './draft'
 import { blockKind, blockTitle } from './naming'
+import { same } from './object'
 import type { AddQueryInput, BlockCatalog, BlockDraft, PageDraft } from './types'
 
 /** Where a change shows in the list, by what it reaches. */
@@ -89,10 +90,6 @@ export function summary(value: unknown): string {
 	}
 	const id = (value as Record<string, unknown>).id
 	return typeof id === 'string' ? id : 'set'
-}
-
-function same(a: unknown, b: unknown): boolean {
-	return JSON.stringify(a) === JSON.stringify(b)
 }
 
 /** A block the author placed, with where they placed it. */

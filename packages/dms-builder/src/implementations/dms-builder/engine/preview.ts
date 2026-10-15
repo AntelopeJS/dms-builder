@@ -19,6 +19,7 @@ import { notFound } from "./ops";
 import { resolveProjectRoot } from "./project";
 import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
+import { isPlainObject } from "./value";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
 const TABLE_VIEW_MODULE = `${BASE_MODULE}/table-view`;
@@ -97,8 +98,8 @@ interface TableMetadataClass {
 }
 
 interface TableViewModule {
-  TableViewMeta?: TableMetadataClass;
-  tableViewFromSource?: (options: Record<string, unknown>) => PreviewBuilder;
+  TableViewMeta: TableMetadataClass;
+  tableViewFromSource: (options: Record<string, unknown>) => PreviewBuilder;
 }
 
 /** The subset of `ComponentBuilder` the preview drives. */
@@ -119,8 +120,8 @@ class DegradedBlockError extends Error {
   }
 }
 
-function loadModule(specifier: string): Record<string, unknown> {
-  return require(specifier) as Record<string, unknown>;
+function loadModule<T = Record<string, unknown>>(specifier: string): T {
+  return require(specifier) as T;
 }
 
 function factoryFor(type: string): BlockFactory {
@@ -163,10 +164,6 @@ function loadedController(ref: string | undefined): unknown {
     }
   }
   return undefined;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Walks a dotted export path, e.g. `DefaultDataTypes.StringType`. */
@@ -352,23 +349,11 @@ interface PreviewContext {
  * its siblings would vanish with it. It renders as a labelled placeholder and
  * the caller is told which paths were substituted.
  */
-/**
- * The stand-in a block that could not be built is replaced by.
- *
- * `undefined` when the resolved `dms-base` has no `Placeholder` factory: this
- * runs from inside the handler for a block that already failed, and throwing
- * again there would take the whole preview down — losing every sibling for the
- * sake of one block, which is the opposite of what the stand-in is for.
- */
 function placeholderFor(reason: string): unknown {
-  try {
-    return factoryFor(PLACEHOLDER_TYPE)({
-      label: reason,
-      height: PLACEHOLDER_HEIGHT,
-    });
-  } catch {
-    return undefined;
-  }
+  return factoryFor(PLACEHOLDER_TYPE)({
+    label: reason,
+    height: PLACEHOLDER_HEIGHT,
+  });
 }
 
 function childMeta(block: BlockDraft): Record<string, unknown> | undefined {
@@ -450,10 +435,7 @@ function tablePreview(
   controller: unknown,
   options: Record<string, unknown>,
 ): PreviewBuilder {
-  const module = loadModule(TABLE_VIEW_MODULE) as TableViewModule;
-  if (!module.TableViewMeta || !module.tableViewFromSource) {
-    throw new DegradedBlockError("Table — needs the running page");
-  }
+  const module = loadModule<TableViewModule>(TABLE_VIEW_MODULE);
   const meta = GetMetadata(controller as ControllerClass, module.TableViewMeta);
   return module.tableViewFromSource({
     ...picked(options, TABLE_PREVIEW_OPTIONS),
@@ -481,9 +463,6 @@ function instantiateBlock(
   }
   for (const child of block.children ?? []) {
     const instance = instantiateBlock(child, `${path}/${child.name}`, context);
-    if (instance === undefined) {
-      continue;
-    }
     builder.child(child.name, instance, childMeta(child));
   }
   return builder;
@@ -500,14 +479,11 @@ export async function previewLayout(
   const components: Record<string, ComponentPreview> = {};
   const context: PreviewContext = { degraded: [], pageRef: ref };
   for (const block of draft.blocks) {
-    const builder = instantiateBlock(block, `${ref}#${block.name}`, context) as
-      | PreviewBuilder
-      | undefined;
-    // Neither the block nor a stand-in for it could be built. It is already
-    // reported degraded; the rest of the page still previews.
-    if (!builder) {
-      continue;
-    }
+    const builder = instantiateBlock(
+      block,
+      `${ref}#${block.name}`,
+      context,
+    ) as PreviewBuilder;
     components[block.name] = await builder.serialize();
   }
   return {

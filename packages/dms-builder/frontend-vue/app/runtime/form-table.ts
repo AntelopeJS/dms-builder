@@ -34,7 +34,7 @@ const ACTION_KIND = 'action'
 type Entry = Record<string, unknown>
 
 /** The address a form submits to, to create a row of `table`. */
-export function createUrlOf(table: Pick<ResourceSummary, 'route'>): string {
+function createUrlOf(table: Pick<ResourceSummary, 'route'>): string {
 	return `${table.route}${CREATE_SEGMENT}`
 }
 

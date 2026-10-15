@@ -272,8 +272,11 @@ describe('the session’s view of who sees the page', () => {
 		expect(asked.at(-1)?.query).toEqual({ ref: '/reports/sales', permission: 'shop.desk' })
 	})
 
-	it('says nothing when the module answers with something else', async () => {
-		backend.answers['GET /api/builder/page/access'] = { ok: true, data: {}, changes: [] }
+	it('says nothing when the module does not answer', async () => {
+		// A thenable that rejects: the request itself fails.
+		backend.answers['GET /api/builder/page/access'] = {
+			then: (_resolve: unknown, reject: (error: Error) => void) => reject(new Error('down')),
+		}
 		builder.close()
 		await builder.open('/reports/sales')
 		await vi.advanceTimersByTimeAsync(200)

@@ -87,7 +87,7 @@ export function findImporters(
 }
 
 /** Whether a declaration binds any name at all, rather than only loading a module. */
-function bindsNothing(declaration: ImportDeclaration): boolean {
+export function bindsNothing(declaration: ImportDeclaration): boolean {
   return (
     declaration.getNamedImports().length === 0 &&
     !declaration.getDefaultImport() &&

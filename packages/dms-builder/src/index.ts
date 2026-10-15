@@ -14,11 +14,7 @@ import {
   FRONTEND_MODULE_PRIORITY,
 } from "./constants/routes";
 
-export type {
-  BuilderApiConfig,
-  DmsBuilderConfig,
-  FactoringConfig,
-} from "./config";
+export type { BuilderApiConfig, DmsBuilderConfig } from "./config";
 
 export async function construct(config?: DmsBuilderConfig): Promise<void> {
   setModuleConfig(config);

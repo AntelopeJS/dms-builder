@@ -46,7 +46,7 @@
   "dependencies": {
     "@antelopejs/interface-api": ">=0.0.14 <1.0.0",
     "@antelopejs/interface-core": ">=0.2.0 <1.0.0",
-    "@antelopejs/interface-database": ">=0.1.8 <1.0.0",
+    "@antelopejs/interface-database": ">=0.1.9 <1.0.0",
     "@antelopejs/interface-dms": ">=0.6.1 <1.0.0",
     "@antelopejs/interface-dms-builder": ">=0.1.4 <0.2.0",
     "ts-morph": "^23.0.0"
