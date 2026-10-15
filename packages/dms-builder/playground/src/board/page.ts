@@ -122,7 +122,7 @@ export class PageShopBoard extends PageController("board", {
       },
     ],
     submitLabel: "Submit",
-    showActions: true,
+    kind: "action",
     submitUrl: "/api/order/new",
     submitUrlMethod: "POST",
   });
