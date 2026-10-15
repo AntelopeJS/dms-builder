@@ -105,6 +105,18 @@ const DESCRIPTIONS: MappedRelationDescription[] = [
   },
   {
     schema: SALES,
+    name: "countries",
+    kind: "table",
+    key: { columns: ["code"] },
+    writes: WRITES,
+    columns: [
+      Column("code", "character(2)", ["string"], { nullable: false }),
+      Column("name", "text", ["string"]),
+    ],
+    references: [],
+  },
+  {
+    schema: SALES,
     name: "raw_log",
     kind: "table",
     key: null,
@@ -151,6 +163,13 @@ const INPUT: MapResourcesInput = {
       tableView: true,
       writable: true,
       fields: [{ column: "label" }, { column: "count" }],
+    },
+    {
+      relation: "sales.countries",
+      label: "name",
+      tableView: true,
+      writable: true,
+      fields: [{ column: "name" }],
     },
     {
       relation: "sales.raw_log",
@@ -201,6 +220,7 @@ describe("mapping a database the project does not own", function () {
     expect(pages.map((page) => page.id)).to.have.members([
       "sales-accounts",
       "sales-contacts",
+      "sales-countries",
       "sales-products",
     ]);
   });
@@ -241,6 +261,15 @@ describe("mapping a database the project does not own", function () {
     const contacts = moduleFile("sales/contacts/data-api.ts");
     expect(contacts).to.not.include("ReadWrite");
     expect(contacts).to.not.include("TableViewRoutes.All");
+  });
+
+  it("lets a writable TableView set a key the database does not fill in, and no other key", () => {
+    expect(moduleFile("sales/countries/data-api.ts")).to.match(
+      /@Access\(AccessMode\.ReadWrite\)\s*declare code: string;/,
+    );
+    expect(moduleFile("sales/accounts/data-api.ts")).to.not.match(
+      /declare id:/,
+    );
   });
 
   it("gives a relation without a key a table and model only: no _id, controller or page", () => {

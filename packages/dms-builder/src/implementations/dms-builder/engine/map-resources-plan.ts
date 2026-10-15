@@ -181,7 +181,10 @@ function chosenFields(
   const chosen = [...resource.fields];
   for (const column of description.key?.columns ?? []) {
     if (!chosen.some((field) => field.column === column)) {
-      chosen.push({ column, listable: false });
+      const settable =
+        resource.writable &&
+        isNaturalKey(description, columnOf(description, column));
+      chosen.push({ column, listable: settable });
     }
   }
   return chosen;
@@ -240,15 +243,31 @@ interface ControllerChoice {
   reason?: string;
 }
 
+/**
+ * A key column the database does not fill in: a new row can only be created with it, so a
+ * writable TableView lets it be set. On edit it stays an assertion, never an assignment.
+ */
+function isNaturalKey(
+  description: MappedRelationDescription,
+  column: MappedColumnDescription,
+): boolean {
+  return (
+    (description.key?.columns ?? []).includes(column.name) &&
+    !column.hasDefault &&
+    column.readOnly === undefined
+  );
+}
+
 function isReadOnly(
   resource: MappedResource,
   description: MappedRelationDescription,
   column: MappedColumnDescription,
 ): boolean {
+  const isKey = (description.key?.columns ?? []).includes(column.name);
   return (
     !resource.writable ||
     column.readOnly !== undefined ||
-    (description.key?.columns ?? []).includes(column.name)
+    (isKey && !isNaturalKey(description, column))
   );
 }
 
