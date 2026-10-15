@@ -19,7 +19,7 @@ function unique(messages: string[]): string[] {
  * by index. The draft turns that index back into the block's own name, and the
  * pointer is dropped.
  */
-export function describeIssue(
+function describeIssue(
 	issue: ValidationIssue,
 	draft: PageDraft | null,
 ): string {
@@ -28,7 +28,7 @@ export function describeIssue(
 }
 
 /** Every refused rule of one answer, in the order the module reported them. */
-export function describeIssues(
+function describeIssues(
 	issues: ValidationIssue[],
 	draft: PageDraft | null,
 ): string {

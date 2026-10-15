@@ -7,9 +7,9 @@ import {
 	OPTION_GROUPS,
 	OTHER_DATA_TYPE_ICON,
 	DEVELOPER_BLOCKS,
-	RETIRED_BLOCKS,
 	WRAPPER_BLOCKS,
 } from './constants'
+import { isRecord } from './object'
 import type {
 	BlockCatalog,
 	ComponentPreview,
@@ -75,7 +75,7 @@ export interface PaletteGroup {
 	blocks: BlockTypeDescriptor[]
 }
 
-export interface OptionEntry {
+interface OptionEntry {
 	key: string
 	schema: OptionSchema
 }
@@ -122,7 +122,7 @@ export function descriptorOf(
  * block of a type nobody can place is one the editor placed, and the user is
  * owed the blocks they did place instead.
  */
-export function structuralTypes(catalog: BlockCatalog): Set<string> {
+function structuralTypes(catalog: BlockCatalog): Set<string> {
 	const structural = new Set<string>()
 	for (const { type, allowedChildren } of catalog.blocks) {
 		const only = allowedChildren?.length === 1 ? allowedChildren[0] : undefined
@@ -164,7 +164,7 @@ export function isStructural(
  * chart card draws with —, by the type holding them. Read off the catalog: a
  * `block` option naming the types it takes.
  */
-export function heldTypes(catalog: BlockCatalog): Map<string, string[]> {
+function heldTypes(catalog: BlockCatalog): Map<string, string[]> {
 	const held = new Map<string, string[]>()
 	for (const { type, config } of catalog.blocks) {
 		const types = Object.values(config).flatMap((schema) => schema.ui?.blockTypes ?? [])
@@ -212,7 +212,6 @@ export function paletteGroups(
 		if (
 			structural.has(block.type) ||
 			hidden.has(block.type) ||
-			RETIRED_BLOCKS.has(block.type) ||
 			(!advanced && (block.shapeSource === 'inferred' || DEVELOPER_BLOCKS.has(block.type)))
 		) {
 			continue
@@ -379,7 +378,7 @@ export function valueKind(value: unknown): string {
  * branches that are both objects — a form field and a group of them, say —
  * where what the value holds is the only evidence of which one it is.
  */
-export function branchFit(branch: OptionSchema, value: unknown): number {
+function branchFit(branch: OptionSchema, value: unknown): number {
 	if (branchKind(branch) !== valueKind(value)) {
 		return Number.NEGATIVE_INFINITY
 	}
@@ -456,7 +455,7 @@ export function fitsAsWell(
  * `nameSlots` — so the panel leaves it out rather than asking an author to
  * invent one, and the block's own type stops being a form to fill in.
  */
-export function panelConfig(
+function panelConfig(
 	descriptor: BlockTypeDescriptor,
 ): Record<string, OptionSchema> {
 	const dynamic = descriptor.dynamicSlots
@@ -490,10 +489,6 @@ export interface MissingSetting {
 	path: string[]
 	/** What the panel calls it: `Tabs 2 · Label` for a tab with no title. */
 	label: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

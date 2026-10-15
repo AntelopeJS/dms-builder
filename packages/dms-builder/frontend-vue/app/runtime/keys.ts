@@ -11,6 +11,7 @@
  */
 import { branchOf, descriptorOf } from './catalog'
 import { findNode, walkDraft } from './draft'
+import { isRecord } from './object'
 import type { BlockCatalog, BlockDraft, OptionSchema, PageDraft } from './types'
 
 /** One value whose key the builder may write, and what it writes it from. */
@@ -202,8 +203,4 @@ function unique(base: string, taken: Set<string>): string {
 		rank += 1
 	}
 	return `${base}${rank}`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

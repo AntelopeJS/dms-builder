@@ -16,14 +16,13 @@
  * Both are read after every edit, like the layout, and only where the edit
  * reached: a page written by hand stays as written wherever nobody touched it.
  */
-import { descriptorOf } from './catalog'
 import { FIELD_ROW, GUARD_BLOCK, ROW_CONTROLS, SECTION_BLOCK } from './constants'
 import { findNode, joinPath, parentPath, uniqueName } from './draft'
 import { blockKind } from './naming'
 import type { BlockCatalog, BlockDraft, PageDraft } from './types'
 
 /** Whether a block goes into a section in a row of its own: a control does. */
-export function needsRow(block: BlockDraft): boolean {
+function needsRow(block: BlockDraft): boolean {
 	return !block.preserve && ROW_CONTROLS.has(block.type ?? '')
 }
 
@@ -184,8 +183,8 @@ export function tidyWrappers(
 				for (const region of regionsOf(block)) {
 					tidyGuard(block, was, region)
 				}
-				// Rows only where the DMS has them: an older one does not.
-				if (block.type === SECTION_BLOCK && descriptorOf(catalog, FIELD_ROW)) {
+				// No rows before the catalog is read: a row is labelled from it.
+				if (block.type === SECTION_BLOCK && catalog) {
 					const rows = rowsOf(block)
 					const holder = contentGuard(block) ?? block
 					if (rows) {

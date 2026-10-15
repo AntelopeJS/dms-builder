@@ -67,7 +67,7 @@ export function isBound(value: unknown): boolean {
 	)
 }
 
-export function filtersOf(params: Record<string, unknown> | undefined): Filter[] {
+function filtersOf(params: Record<string, unknown> | undefined): Filter[] {
 	return Array.isArray(params?.where) ? (params.where as Filter[]) : []
 }
 

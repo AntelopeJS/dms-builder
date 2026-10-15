@@ -212,20 +212,6 @@ describe('a type the DMS never declared', () => {
 	})
 })
 
-describe('a block the DMS has since removed', () => {
-	/** A catalog read off an older DMS, still declaring its tree. */
-	const olderCatalog: BlockCatalog = {
-		...catalog,
-		blocks: [...catalog.blocks, { ...chart('Tree', 'Tree'), group: 'navigation' }],
-	}
-
-	it('is offered in neither mode, nor found by searching', () => {
-		expect(offered(olderCatalog)).not.toContain('Tree')
-		expect(offered(olderCatalog, '', true)).not.toContain('Tree')
-		expect(offered(olderCatalog, 'tree', true)).toEqual([])
-	})
-})
-
 describe('searching the palette', () => {
 	it('reads what a component is for, not only its name', () => {
 		expect(offered(catalog, 'prose')).toEqual(['Text'])

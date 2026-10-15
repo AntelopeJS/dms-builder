@@ -21,7 +21,7 @@ export interface DevReloadWaiter {
 	awaitRoute: (route: string) => Promise<boolean>
 }
 
-export interface RouterLike {
+interface RouterLike {
 	push: (route: string) => unknown
 }
 

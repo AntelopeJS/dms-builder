@@ -14,7 +14,6 @@ import type {
 	PageLayoutPayload,
 	PageStructure,
 	PageSummary,
-	DataSourceDescriptor,
 	QueryPreview,
 	QueryTemplateDescriptor,
 	ResourceStructure,
@@ -72,7 +71,7 @@ export function useBuilderApi() {
 
 	function post<T>(
 		path: string,
-		body: Record<string, unknown>,
+		body: object,
 	): Promise<OpResult<T>> {
 		return answered(
 			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, { method: 'POST', body }),
@@ -81,7 +80,7 @@ export function useBuilderApi() {
 
 	function put<T>(
 		path: string,
-		body: Record<string, unknown>,
+		body: object,
 	): Promise<OpResult<T>> {
 		return answered(
 			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, { method: 'PUT', body }),
@@ -105,16 +104,10 @@ export function useBuilderApi() {
 		pages: () => get<PageSummary[]>('/pages'),
 		categories: () => get<CategorySummary[]>('/categories'),
 		createPage: (input: CreatePageInput) =>
-			post<{ ref: string; filepath: string }>(
-				'/pages',
-				input as unknown as Record<string, unknown>,
-			),
+			post<{ ref: string; filepath: string }>('/pages', input),
 		deletePage: (ref: string) => remove<void>('/page', { ref }),
 		createCategory: (input: CreateCategoryInput) =>
-			post<{ ref: string }>(
-				'/categories',
-				input as unknown as Record<string, unknown>,
-			),
+			post<{ ref: string }>('/categories', input),
 		deleteCategory: (ref: string) => remove<void>('/category', { ref }),
 		structure: (ref: string) => read<PageStructure>('/page', { ref }),
 		resources: () => get<ResourceSummary[]>('/resources'),
@@ -131,15 +124,7 @@ export function useBuilderApi() {
 		preview: (page: string, draft: PageDraft) =>
 			post<PageLayoutPreview>('/page/preview', { page, draft }),
 		save: (body: SaveBody) =>
-			post<{ version: string }>(
-				'/page/blocks',
-				body as unknown as Record<string, unknown>,
-			),
-		refresh: () =>
-			$authFetch<{ ok: boolean }>(`${API_PREFIX}/refresh`, {
-				method: 'POST',
-				body: {},
-			}),
+			post<{ version: string }>('/page/blocks', body),
 		/**
 		 * The page as the DMS serves it, outside the builder's own API. It is
 		 * what a block the preview cannot build falls back to — a TableView needs
@@ -153,17 +138,12 @@ export function useBuilderApi() {
 		deleteResource: (ref: string) => remove<void>('/resource', { ref }),
 		configureCategory: (category: string, patch: Record<string, unknown>) =>
 			put<void>('/category', { category, patch }),
-		configureQuery: (query: string, patch: Record<string, unknown>) =>
-			put<void>('/queries', { query, patch }),
 		// The ref comes back because a patch can change it: a page's category
 		// decides its route.
 		configurePage: (page: string, patch: Record<string, unknown>) =>
 			post<{ ref: string }>('/page/configure', { page, patch }),
 		createResource: (input: CreateResourceInput) =>
-			post<{ ref: string }>(
-				'/resources',
-				input as unknown as Record<string, unknown>,
-			),
+			post<{ ref: string }>('/resources', input),
 		addField: (resource: string, field: FieldSpec) =>
 			post<{ path: string }>('/resource/fields', {
 				resource,
@@ -176,22 +156,10 @@ export function useBuilderApi() {
 		removeField: (path: string) => remove<void>('/resource/fields', { path }),
 		queryTemplates: () =>
 			get<QueryTemplateDescriptor[]>('/query-templates'),
-		dataSources: (responseShape?: string) =>
-			get<DataSourceDescriptor[]>(
-				responseShape
-					? `/data-sources?responseShape=${encodeURIComponent(responseShape)}`
-					: '/data-sources',
-			),
 		previewQuery: (query: AddQueryInput, args?: Record<string, unknown>) =>
 			post<QueryPreview>('/query-preview', {
-				query: query as unknown as Record<string, unknown>,
+				query,
 				args: args ?? {},
 			}),
-		addQuery: (page: string, input: AddQueryInput) =>
-			post<{ query: string; route: string }>('/queries', {
-				page,
-				input,
-			}),
-		removeQuery: (ref: string) => remove<void>('/queries', { ref }),
 	}
 }

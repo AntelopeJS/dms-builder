@@ -58,7 +58,7 @@ export function blockKind(
  * The nearest block above this one that the author placed, skipping the rows,
  * columns and stacks the editor wrote to lay blocks out. Null is the page.
  */
-export function placedParent(
+function placedParent(
 	draft: PageDraft,
 	path: string,
 	catalog: BlockCatalog | null,

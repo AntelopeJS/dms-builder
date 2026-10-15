@@ -5,6 +5,7 @@
  */
 import { API_PREFIX, QUERY_PREVIEW_PARAMETER } from './constants'
 import type { SourceQuery } from './data-source'
+import { isRecord, same } from './object'
 import type { BlockNode, BlockTypeDescriptor, OptionSchema } from './types'
 
 /** The settings a value can be laid over as it is: no shape to rebuild. */
@@ -25,14 +26,6 @@ export function savedConfigAt(
 		list = node?.children
 	}
 	return node?.config
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function same(a: unknown, b: unknown): boolean {
-	return a === b || JSON.stringify(a) === JSON.stringify(b)
 }
 
 /** A value a block reads as written: a text, a number, a switch, or nothing. */

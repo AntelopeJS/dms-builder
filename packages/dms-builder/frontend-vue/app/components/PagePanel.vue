@@ -90,8 +90,7 @@ const { processI18n } = useTranslation()
 const permissions = ref<PermissionChoice[]>([])
 onMounted(async () => {
 	try {
-		const listed = await useBuilderApi().permissions()
-		permissions.value = Array.isArray(listed) ? listed : []
+		permissions.value = await useBuilderApi().permissions()
 	} catch {
 		// No list: the id is still typed by hand below.
 	}

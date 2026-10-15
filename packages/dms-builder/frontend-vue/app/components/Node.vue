@@ -25,9 +25,10 @@ import {
 } from '../runtime/canvas-options'
 import { GUARD_BLOCK, LIVE_TOGGLE } from '../runtime/constants'
 import { sourceQuery } from '../runtime/data-source'
+import { joinPath } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { blockTitle } from '../runtime/naming'
-import { joinPath, useBuilder } from '../runtime/session'
+import { useBuilder } from '../runtime/session'
 import type { BlockDraft, ComponentPreview } from '../runtime/types'
 
 const props = defineProps<{

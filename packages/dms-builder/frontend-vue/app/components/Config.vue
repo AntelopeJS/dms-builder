@@ -11,21 +11,22 @@ import {
 } from '../runtime/catalog'
 import { CHART_CARD_BLOCK, CHART_CARD_PANEL_OPTIONS } from '../runtime/chart-card'
 import { FIELD_ROW, GUARDED_BLOCKS } from '../runtime/constants'
-import { findNode } from '../runtime/draft'
+import { findNode, parentPath } from '../runtime/draft'
 import {
 	KPI_CARD_BLOCK,
 	KPI_CARD_PANEL_OPTIONS,
 	TOP_LIST_BLOCK,
 	TOP_LIST_PANEL_OPTIONS,
 } from '../runtime/figure-panel'
-import { FORM_BLOCK, FORM_PANEL_OPTIONS, PANEL_CARD } from '../runtime/form-panel'
+import { FORM_PANEL_OPTIONS, PANEL_CARD } from '../runtime/form-panel'
+import { FORM_BLOCK } from '../runtime/form-table'
 import { useBuilderMode } from '../runtime/mode'
 import { mergePatch } from '../runtime/object'
 import {
 	RESOURCE_FORM_BLOCK,
 	RESOURCE_FORM_PANEL_OPTIONS,
 } from '../runtime/resource-form-panel'
-import { parentPath, useBuilder } from '../runtime/session'
+import { useBuilder } from '../runtime/session'
 import { SPACER_BLOCK, SPACER_PANEL_OPTIONS } from '../runtime/spacer-panel'
 import { TABLE_BLOCK, TABLE_PANEL_OPTIONS } from '../runtime/table-panel'
 import { TABS_BLOCK, TABS_PANEL_OPTIONS } from '../runtime/tabs-panel'

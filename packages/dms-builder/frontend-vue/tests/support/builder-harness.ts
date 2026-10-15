@@ -10,7 +10,10 @@ import type {
 	BlockCatalog,
 	ComponentPreview,
 	OpResult,
+	PageAccess,
+	PageImpact,
 	PageStructure,
+	TableUsage,
 } from '../../app/runtime/types'
 
 export interface RecordedCall {
@@ -521,7 +524,7 @@ export function installFakeHost(): FakeBackend {
 		confirmAnswer: true,
 	}
 
-	function answer(method: string, path: string): unknown {
+	function answer(method: string, path: string, query?: Record<string, string>): unknown {
 		const key = `${method} ${path}`
 		if (key in backend.answers) {
 			return backend.answers[key]
@@ -550,6 +553,31 @@ export function installFakeHost(): FakeBackend {
 		if (method === 'POST' && path === '/api/builder/page/blocks') {
 			return backend.save
 		}
+		if (method === 'GET' && path === '/api/builder/page/access') {
+			// A page no workspace's roles decide, which the editor says nothing about.
+			const fullId = (query?.ref ?? '').replace(/^\//, '').replaceAll('/', '.')
+			return {
+				mode: 'unmanaged',
+				fullId,
+				permission: fullId,
+				actions: {},
+				held: {},
+				granted: [],
+				roles: null,
+			} satisfies PageAccess
+		}
+		if (method === 'GET' && path === '/api/builder/page/impact') {
+			return { blocks: 0, queries: [], linkedFrom: [] } satisfies PageImpact
+		}
+		if (method === 'GET' && path === '/api/builder/tables/usage') {
+			return { readers: {}, rows: {} } satisfies TableUsage
+		}
+		if (
+			method === 'GET' &&
+			(path === '/api/builder/permissions' || path === '/api/builder/query-templates')
+		) {
+			return []
+		}
 		return { ok: true, data: {}, changes: [] }
 	}
 
@@ -568,7 +596,7 @@ export function installFakeHost(): FakeBackend {
 				body: init.body,
 				query: init.query,
 			})
-			return Promise.resolve(answer(init.method, path))
+			return Promise.resolve(answer(init.method, path, init.query))
 		},
 	})
 

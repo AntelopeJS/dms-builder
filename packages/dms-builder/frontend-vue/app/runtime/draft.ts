@@ -1,4 +1,5 @@
 import { descriptorOf, isStructural, slotIdFor, suggestedName } from './catalog'
+import { isRecord } from './object'
 import type {
 	BlockCatalog,
 	BlockDraft,
@@ -224,21 +225,6 @@ export function duplicateNode(
 	return joinPath(parentPath(path), copy.name)
 }
 
-export function renameNode(
-	draft: PageDraft,
-	path: string,
-	name: string,
-): string | undefined {
-	const siblings = siblingsAt(draft, parentPath(path))
-	const node = findNode(draft, path)
-	if (!siblings || !node) {
-		return undefined
-	}
-	const others = siblings.filter((block) => block !== node)
-	node.name = uniqueName(others, name)
-	return joinPath(parentPath(path), node.name)
-}
-
 export function walkDraft(
 	blocks: BlockDraft[],
 	visit: (block: BlockDraft, path: string) => void,
@@ -251,10 +237,6 @@ export function walkDraft(
 			walkDraft(block.children, visit, path)
 		}
 	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

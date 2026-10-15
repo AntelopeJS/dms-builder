@@ -27,16 +27,13 @@ export function usePageDelete() {
 	 * each — or nothing, when the module cannot say.
 	 */
 	async function impactOf(ref: string): Promise<string[]> {
-		let impact: PageImpact | undefined
+		let impact: PageImpact
 		try {
 			impact = await api.pageImpact(ref)
 		} catch {
 			return []
 		}
-		if (typeof impact?.blocks !== 'number' || !Array.isArray(impact.linkedFrom)) {
-			return []
-		}
-		const sources = impact.queries?.length ?? 0
+		const sources = impact.queries.length
 		const lines = [
 			`Its ${impact.blocks} block${impact.blocks === 1 ? '' : 's'}${
 				sources ? ` and ${sources} data source${sources === 1 ? '' : 's'}` : ''

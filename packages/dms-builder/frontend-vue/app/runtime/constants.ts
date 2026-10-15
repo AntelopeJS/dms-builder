@@ -108,13 +108,6 @@ export const FULL_WIDTH_BLOCKS = new Set(['GridRow'])
  */
 export const LAYOUT_BLOCKS = new Set(['Grid', 'GridRow', 'HStack', 'VStack'])
 
-/**
- * The blocks the DMS has since removed. A project on an older DMS still
- * declares them, and a page holding one is still drawn, but the palette offers
- * none of them, in either mode.
- */
-export const RETIRED_BLOCKS = new Set(['Tree'])
-
 /** A titled block of settings, laid out as rows. */
 export const SECTION_BLOCK = 'Section'
 
