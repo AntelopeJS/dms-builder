@@ -225,13 +225,6 @@ const blockTypeItems = computed(() =>
 	(ui.value.blockTypes ?? []).map((type) => ({ label: type, value: type })),
 )
 
-const queryItems = computed(() =>
-	(session.value.structure?.queries ?? []).map((query) => ({
-		label: `${query.name} — ${query.endpoint}`,
-		value: `${session.value.pageRef ?? ''}${query.endpoint}`,
-	})),
-)
-
 const resourceFields = computed(
 	() => session.value.resourceStructures[props.resource ?? '']?.fields ?? [],
 )
@@ -799,31 +792,6 @@ const nestedProperties = computed(() =>
 			:block-name="blockName ?? name"
 			@patch="emit('patch', $event)"
 		/>
-
-		<div v-else-if="widget === 'query'" class="flex flex-col gap-1.5">
-			<USelectMenu
-				:model-value="modelValue"
-				:items="queryItems"
-				value-key="value"
-				placeholder="Choose a query…"
-				:disabled="!queryItems.length"
-				@update:model-value="set($event)"
-			/>
-			<UInput
-				:model-value="modelValue as string"
-				size="sm"
-				placeholder="or an endpoint, e.g. /api/stats/revenue"
-				@update:model-value="set($event === '' ? undefined : $event)"
-			/>
-			<UButton
-				size="xs"
-				color="neutral"
-				variant="link"
-				class="self-start"
-				label="Manage the queries"
-				@click="builder.setView('query')"
-			/>
-		</div>
 
 		<UInput
 			v-else-if="widget === 'number'"
