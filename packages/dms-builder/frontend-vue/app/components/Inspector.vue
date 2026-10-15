@@ -102,6 +102,7 @@ function openMenu(event: MouseEvent): void {
 	<aside
 		class="flex min-h-0 min-w-0 flex-col border-l border-default bg-(--dms-bg-sidebar)"
 		aria-label="Inspector"
+		data-builder-chrome
 	>
 		<template v-if="heading">
 			<header class="flex shrink-0 items-center gap-2.5 px-3.5 pt-3 pb-2.5">

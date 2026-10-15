@@ -306,6 +306,7 @@ onUnmounted(() => {
 			role="status"
 			aria-live="polite"
 			class="pointer-events-none absolute bottom-4 left-1/2 z-[70] -translate-x-1/2"
+			data-builder-chrome
 		>
 			<div
 				v-if="session.toast"

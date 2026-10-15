@@ -11,6 +11,9 @@ importers:
       '@antelopejs/interface-dms':
         specifier: '>=0.7.3 <1.0.0'
         version: 0.7.3(baf8655f8e54b8fbf2a9669a652c5bcb)
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
       vue:
         specifier: ^3.5.18
         version: 3.5.44(typescript@5.9.3)
@@ -1593,6 +1596,9 @@ packages:
   supports-color@8.1.1:
     resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
     engines: {node: '>=10'}
+
+  tailwindcss@4.3.3:
+    resolution: {integrity: sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==}
 
   tar-fs@2.1.5:
     resolution: {integrity: sha512-OboTd8mmMhZDNPV+UjQcK9yKAatXu2aJ+r1w4im1Otd4M4fl2hwvdoXUxIYHFTHWK/3y3FarBP70v3vwmGlOxw==}
@@ -3476,6 +3482,8 @@ snapshots:
   supports-color@8.1.1:
     dependencies:
       has-flag: 4.0.0
+
+  tailwindcss@4.3.3: {}
 
   tar-fs@2.1.5:
     dependencies:

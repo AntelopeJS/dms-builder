@@ -490,3 +490,68 @@ export interface PageAccess {
 	/** The workspace's roles; null when they could not be read. */
 	roles: RoleAccess[] | null
 }
+
+/** The two color modes a theme value can be set for. */
+export type ThemeMode = 'light' | 'dark'
+
+/** CSS custom properties by name. */
+export type ThemeVariables = Record<string, string>
+
+/** A theme's variables: those both modes share, and each mode's own. */
+export interface ThemeVariableSets {
+	shared: ThemeVariables
+	light: ThemeVariables
+	dark: ThemeVariables
+}
+
+/** The Nuxt UI color roles a theme picks a palette for. */
+export type ThemeColorRole = 'primary' | 'success' | 'warning' | 'error' | 'info'
+
+/** The palette each role takes, by name; a role left out keeps the DMS one. */
+export type ThemeColors = Partial<Record<ThemeColorRole, string>>
+
+/** Where the dashboard shows a logo. */
+export type LogoSlot = 'default' | 'collapsed' | 'email' | 'favicon'
+
+/** One logo slot: the public path of its file in each mode. */
+export type LogoSources = Partial<Record<ThemeMode, string>>
+
+export type ThemeLogos = Partial<Record<LogoSlot, LogoSources>>
+
+/** A logo file sent with a save, base64-encoded. */
+export interface LogoUpload {
+	slot: LogoSlot
+	mode: ThemeMode
+	contentType: string
+	data: string
+}
+
+export interface ThemeLayer {
+	name: string
+	sourcePath: string
+}
+
+export interface ThemeFiles {
+	stylesheet: string
+	appConfig: string
+	entry: string
+	assets: string
+}
+
+export interface ThemeStructure {
+	layer: ThemeLayer
+	variables: ThemeVariableSets
+	colors: ThemeColors
+	logos: ThemeLogos
+	files: ThemeFiles
+	/** Whether the layer's entry imports the stylesheet already. */
+	stylesheetImported: boolean
+	version: string
+}
+
+export interface ThemeDraft {
+	variables: ThemeVariableSets
+	colors: ThemeColors
+	logos: ThemeLogos
+	uploads?: LogoUpload[]
+}

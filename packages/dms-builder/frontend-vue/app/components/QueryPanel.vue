@@ -302,7 +302,7 @@ function create(): void {
 </script>
 
 <template>
-	<div class="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
+	<div class="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]" data-builder-chrome>
 		<aside
 			class="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-default bg-(--dms-bg-sidebar) p-3"
 			aria-label="Data sources"
