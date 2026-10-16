@@ -59,8 +59,8 @@ export type OpResult<T = void> =
   | { ok: true; data: T; changes: FileChange[]; warnings?: OpWarning[] }
   | { ok: false; error: BuilderError };
 
-/** Optional trailing options accepted by every mutating operation. */
+/** Optional trailing options for version-checked mutations; category mutations do not accept them. */
 export interface MutationOpts {
-  /** The `PageStructure.version` the consumer last read → `stale` on mismatch. */
+  /** The page or resource structure's `version` last read → `stale` on mismatch. */
   expectedVersion?: string;
 }

@@ -59,19 +59,21 @@ if (!block.ok) {
 
 ## Compatibility
 
-| Package | Version |
-| --- | --- |
-| `@antelopejs/dms-builder` (implementation) | `>=0.4.0` |
-| `@antelopejs/dms` | `>=0.9.0 <1.0.0` |
-| `@antelopejs/interface-core` | `>=0.2.0 <1.0.0` |
+The interface declares this peer dependency:
 
-The implementation runs in development only, unless its [`api.enabled`](https://dms.antelopejs.com/docs/modules/builder/configuration) option forces it.
+<!-- docs-compat: ./package.json#peerDependencies -->
+
+| Package | Range |
+| --- | --- |
+| `@antelopejs/interface-core` | `>=0.1.1 <1.0.0` |
+
+The 0.2 interface is implemented by `@antelopejs/dms-builder` 0.4, used with DMS 0.9. These implementation versions are not peer dependencies of the interface package. The implementation runs in development only, unless its [`api.enabled`](https://dms.antelopejs.com/docs/modules/builder/configuration) option forces it.
 
 ## Documentation
 
 - [Extending the builder](https://dms.antelopejs.com/docs/modules/builder/extending): the interface and the HTTP API
-- [Interface reference](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder/docs): addressing, catalog, page operations, resources, queries, values, results and errors, drafts and preview
-- [A chart without code](https://github.com/AntelopeJS/dms-builder/blob/main/packages/interface-dms-builder/docs/10.a-chart-without-code.md): the whole journey, from picking a measure to reopening the page
+- [Interface reference](./docs/1.introduction.md): the canonical contract, shipped with this package and published at [/docs/modules/builder/reference](https://dms.antelopejs.com/docs/modules/builder/reference)
+- [A chart without code](./docs/10.a-chart-without-code.md): the whole journey, from picking a measure to reopening the page
 
 ## Contributing
 

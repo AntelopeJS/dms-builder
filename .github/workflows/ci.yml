@@ -37,6 +37,16 @@ jobs:
       - run: pnpm --filter @antelopejs/interface-dms-builder build
       - run: pnpm --filter @antelopejs/dms-builder prepack
 
+      - uses: AntelopeJS/tooling-configs/actions/docs@310e3d861b2da2244902854379176c91e1ebc68e
+        with:
+          files: |
+            README.md
+            packages/dms-builder/README.md
+            packages/dms-builder/docs
+            packages/interface-dms-builder/README.md
+            packages/interface-dms-builder/docs
+          typescript-project: packages/interface-dms-builder/docs/tsconfig.json
+
       # Package contract, builder switch and query templates, over the
       # compiled `dist`, in one node process tree.
       - run: pnpm --filter @antelopejs/dms-builder test:node
