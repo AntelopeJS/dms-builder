@@ -1,62 +1,79 @@
+<div align="center">
+
 # @antelopejs/dms-builder
 
-<div align="center">
-<a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge&labelColor=000000"></a>
-<a href="https://discord.gg/sjK28QHrA7"><img src="https://img.shields.io/badge/Discord-18181B?logo=discord&style=for-the-badge&color=000000" alt="Discord"></a>
-<a href="https://antelopejs.com"><img src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000" alt="Documentation"></a>
+<a href="https://www.npmjs.com/package/@antelopejs/dms-builder"><img alt="npm" src="https://img.shields.io/npm/v/@antelopejs/dms-builder?style=for-the-badge&labelColor=000000&color=000000"></a>
+<a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@antelopejs/dms-builder?style=for-the-badge&labelColor=000000&color=000000"></a>
+<a href="https://discord.gg/sjK28QHrA7"><img alt="Discord" src="https://img.shields.io/badge/Discord-18181B?logo=discord&style=for-the-badge&color=000000"></a>
+<a href="https://dms.antelopejs.com/docs/modules/builder"><img alt="Documentation" src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000"></a>
+
+Visual and programmatic editing of an AntelopeJS DMS project's own source code.
+
 </div>
 
-Visual and programmatic editing of an AntelopeJS DMS project's source tree. **Edit this page**
-(`Ctrl` `B`) turns any DMS page into an editor; the module parses the app's own TypeScript, applies
-each edit as an AST rewrite, typechecks the result in memory, and writes only if it compiles.
+![The builder open on a page, with the block catalog, the canvas and a chart card's settings](https://raw.githubusercontent.com/AntelopeJS/dms-builder/main/packages/dms-builder/docs/images/editor-selected.png)
 
-**Documentation:** [dms.antelopejs.com/docs/modules/builder](https://dms.antelopejs.com/docs/modules/builder)
-(source in [`docs/`](./docs)). The
-[`@antelopejs/interface-dms-builder` documentation](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder/docs)
-covers the operations other modules call.
+## What it does
 
-## Installation
+- Turns any DMS page into an editor (**Edit this page**, `Ctrl` `B`): add blocks from a catalog, arrange them, configure them and bind them to data.
+- Writes each edit into the project's TypeScript as an AST rewrite, typechecks it in memory, and writes only if it compiles.
+- Creates pages from a layout, arranges the menu, and generates tables with their fields and API.
+- Gives a chart or a KPI its numbers from a query, without hand-writing a route.
+- Exposes the same operations to other modules through [`@antelopejs/interface-dms-builder`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder) and to agents through an HTTP API under `/api/builder`.
+
+The builder runs in development only (`ajs project run`), and every route requires a tenant owner.
+
+## Install
+
+Run the AntelopeJS CLI from the root of a project that already loads `@antelopejs/dms`:
 
 ```bash
 ajs project modules add @antelopejs/dms-builder
 ```
 
-The builder runs only in development (`ajs project run`) unless `api.enabled` forces it; every
-route under `/api/builder` requires a tenant owner. See the
-[configuration](https://dms.antelopejs.com/docs/modules/builder/configuration) and the
-[HTTP API](https://dms.antelopejs.com/docs/modules/builder/extending#the-http-api).
+## Quick start
 
-The package ships a Claude Code skill, `skills/dms-builder`, declared in `antelopeJs.skills`.
+The builder edits the project it runs in. When the backend's working directory is not the app's source root, set `projectRoot`:
 
-## Frontend module
-
-`frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the client plugin at
-priority 100, only when the backend's manifest entry carries `dmsBuilder.enabled === true`. The
-published DMS frontend loader verifies the source module in a generated Inertia workspace:
-
-```bash
-pnpm --dir frontend-vue install
-pnpm --dir frontend-vue typecheck
-pnpm --dir frontend-vue lint
+```ts
+// antelope.config.ts
+"dms-builder": {
+  source: { type: "package", package: "@antelopejs/dms-builder", version: ">=0.4.0 <1.0.0" },
+  config: {
+    projectRoot: __dirname,
+  },
+},
 ```
 
-## Development
+Start the backend with `ajs project run -w`, then the frontend with `ajs dms dev`. Open any page and click **Edit this page**, or press `Ctrl` `B` (`⌘` `B` on macOS).
 
-This package lives in the `AntelopeJS/dms-builder` pnpm workspace, next to
-[`packages/interface-dms-builder`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder).
+## Compatibility
 
-```bash
-pnpm build          # compile, interface first
-pnpm typecheck
-pnpm test
-pnpm -w lint        # oxlint and oxfmt, configured at the workspace root
-```
+| Package | Version |
+| --- | --- |
+| `@antelopejs/dms` | `>=0.9.0 <1.0.0` |
+| `@antelopejs/interface-dms` | `>=0.7.0 <1.0.0` |
+| `@antelopejs/dms-frontend` (renderer) | `>=0.6.0 <0.7.0` |
+| `@antelopejs/interface-dms-builder` | `>=0.2.0 <0.3.0` |
+| API provider | `@antelopejs/api`, for the HTTP routes |
 
-The runtime implements the interface, so it depends on it through
-`>=<interface version> <0.<minor + 1>.0` (a cap below the next minor): a
-breaking interface minor never reaches a runtime that does not implement it.
-Inside the workspace pnpm resolves that range to the sibling package
-(`link-workspace-packages`), and the published manifest keeps it. Release the
-interface package first (`release-interface.yml`), then release
-`@antelopejs/dms-builder` (`release.yml`) — the runtime's release workflow
-refuses to run until the interface version it resolves to is on npmjs.
+On DMS 0.8, use `@antelopejs/dms-builder` 0.3.
+
+## Documentation
+
+- [Introduction](https://dms.antelopejs.com/docs/modules/builder/introduction)
+- [Installation](https://dms.antelopejs.com/docs/modules/builder/installation)
+- [Configuration](https://dms.antelopejs.com/docs/modules/builder/configuration)
+- [Usage](https://dms.antelopejs.com/docs/modules/builder/usage/page-editor)
+- [Extending](https://dms.antelopejs.com/docs/modules/builder/extending): the interface and the HTTP API
+- [FAQ](https://dms.antelopejs.com/docs/modules/builder/faq)
+
+The guide's sources live in [`packages/dms-builder/docs`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/dms-builder/docs); the interface reference lives in [`packages/interface-dms-builder/docs`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder/docs). The module ships the `dms-builder` Claude Code skill in [`packages/dms-builder/skills`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/dms-builder/skills), declared under `antelopeJs.skills`.
+
+## Contributing
+
+This package lives in the [`AntelopeJS/dms-builder`](https://github.com/AntelopeJS/dms-builder) pnpm workspace, next to `@antelopejs/interface-dms-builder`. Read [CONTRIBUTING.md](https://github.com/AntelopeJS/dms-builder/blob/main/CONTRIBUTING.md) and the [repository README](https://github.com/AntelopeJS/dms-builder#contributing) for the development commands.
+
+## License
+
+[Apache-2.0](./LICENSE)
