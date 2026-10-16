@@ -57,6 +57,13 @@ describe("mapping again a database already mapped", function () {
       ],
     });
     expectOk(remapped, "MapResources remap");
+    const touched = remapped.ok
+      ? remapped.changes.map((change) => change.path)
+      : [];
+    expect(
+      touched.every((file) => file.includes("countries")),
+      touched.join(", "),
+    ).to.equal(true);
     const countries = moduleFile("sales/countries/data-api.ts");
     expect(countries).to.not.include("ReadWrite");
     expect(countries).to.not.match(/declare code:/);

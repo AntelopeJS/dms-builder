@@ -129,6 +129,16 @@ function writeResource(
   return files;
 }
 
+/** A relation mapped again is exported by the barrel already. */
+function exportOnce(barrel: SourceFile, specifier: string): void {
+  const exported = barrel
+    .getExportDeclarations()
+    .some((entry) => entry.getModuleSpecifierValue() === specifier);
+  if (!exported) {
+    addSortedExport(barrel, specifier);
+  }
+}
+
 /** The module's `start` registers each mapped schema, which binds its table classes to it. */
 function registerSchemas(barrel: SourceFile, schemas: string[]): void {
   ensureNamedImport(barrel, REGISTER_SCHEMA, DECORATORS_MODULE);
@@ -171,7 +181,7 @@ function writeAll(
   const resolveRef = batchResolver(plan);
   const mapped = plan.resources.map((resource) => {
     const files = writeResource(project, transaction, resource, resolveRef);
-    addSortedExport(barrel, barrelSpecifier(barrel, resource.folder));
+    exportOnce(barrel, barrelSpecifier(barrel, resource.folder));
     return {
       relation: resource.relation,
       ref: resource.ref,
@@ -472,11 +482,16 @@ export function mapDescribedResources(
     leftOut: plan.leftOut,
     category: pages.category,
   };
-  const changes = [...result.changes, ...pages.changes];
+  const changes = [...result.changes, ...pages.changes].filter(changed);
   const warnings = [...(result.warnings ?? []), ...pages.warnings];
   return warnings.length > 0
     ? { ok: true, data, changes, warnings }
     : { ok: true, data, changes };
+}
+
+/** A file a remap rewrote to the text it had is not a change. */
+function changed(change: FileChange): boolean {
+  return change.kind !== "modify" || change.diff !== "";
 }
 
 /** The relations the call needs described: its own, and the mapped ones its columns point at. */
