@@ -24,15 +24,15 @@ importers:
         specifier: '>=0.1.8 <1.0.0'
         version: 0.1.8(@antelopejs/interface-api@0.0.14(@antelopejs/interface-core@0.2.0))(@antelopejs/interface-core@0.2.0)(@antelopejs/interface-database@0.1.9(@antelopejs/interface-core@0.2.0))
       '@antelopejs/interface-dms':
-        specifier: '>=0.6.1 <1.0.0'
-        version: 0.6.1(5c3604e7337d2e4dcfdb3553d2e86837)
+        specifier: '>=0.7.0 <1.0.0'
+        version: 0.7.0(5c3604e7337d2e4dcfdb3553d2e86837)
     devDependencies:
       '@antelopejs/core':
         specifier: '>=1.14.0 <2'
         version: 1.14.0
       '@antelopejs/dms-frontend':
-        specifier: 0.5.6
-        version: 0.5.6(@antelopejs/core@1.14.0)
+        specifier: 0.6.0
+        version: 0.6.0(@antelopejs/core@1.14.0)
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.6
@@ -50,8 +50,8 @@ packages:
     engines: {node: '>=20.19'}
     hasBin: true
 
-  '@antelopejs/dms-frontend@0.5.6':
-    resolution: {integrity: sha512-bO7kacKMF1rVsIjS208rhPUoIxRYss6ZuQCdQ1Kpq5D3pG0qSvF2pNsi+WecvxTOKM8d6AQAoLl5facu5tyHFQ==}
+  '@antelopejs/dms-frontend@0.6.0':
+    resolution: {integrity: sha512-1514XxAK7qPRdOrGDd4/lJ8Xo9Fq9nMUY+7HZe1isRTbuwkJoFiUUHsssICm5hWeTWtuTEtLe+Pwe6wHokYSaA==}
     engines: {node: '>=20.12.0'}
     hasBin: true
     peerDependencies:
@@ -98,8 +98,8 @@ packages:
     peerDependencies:
       '@antelopejs/interface-core': '>=0.1.1 <1.0.0'
 
-  '@antelopejs/interface-dms@0.6.1':
-    resolution: {integrity: sha512-+Vyd/kxyYNTxuakNUJQs4+63BQhFqJlBTRybcPQSU+WmnO042fafcqKT2lo8kQ9GVTBCo/kfWVcq/3yeP5GH1A==}
+  '@antelopejs/interface-dms@0.7.0':
+    resolution: {integrity: sha512-RISTRXulvJp7VyFSHLgkCfVLvGN4lZTOPo4Fgs3F7UT7s5ZbSSUKBzTCP2Ucr0rlM3DeP57TYvGvapVu1iS2tQ==}
     peerDependencies:
       '@antelopejs/interface-api': '>=0.0.13 <1.0.0'
       '@antelopejs/interface-api-util': '>=0.1.2 <1.0.0'
@@ -842,7 +842,7 @@ snapshots:
       semver: 7.8.5
       typescript: 5.9.3
 
-  '@antelopejs/dms-frontend@0.5.6(@antelopejs/core@1.14.0)':
+  '@antelopejs/dms-frontend@0.6.0(@antelopejs/core@1.14.0)':
     dependencies:
       '@antelopejs/core': 1.14.0
       chokidar: 4.0.3
@@ -895,7 +895,7 @@ snapshots:
     dependencies:
       '@antelopejs/interface-core': 0.2.0
 
-  '@antelopejs/interface-dms@0.6.1(5c3604e7337d2e4dcfdb3553d2e86837)':
+  '@antelopejs/interface-dms@0.7.0(5c3604e7337d2e4dcfdb3553d2e86837)':
     dependencies:
       '@antelopejs/interface-api': 0.0.14(@antelopejs/interface-core@0.2.0)
       '@antelopejs/interface-api-util': 0.1.2(@antelopejs/interface-api@0.0.14(@antelopejs/interface-core@0.2.0))(@antelopejs/interface-core@0.2.0)
