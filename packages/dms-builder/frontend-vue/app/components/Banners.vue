@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useDmsRouter as useRouter } from '#dms/frontend-module'
+import { useDmsRouter } from '#dms/frontend-module'
 import { opensPage } from '../runtime/access'
 import { describeError, errorDetail } from '../runtime/errors'
 import { clockTime } from '../runtime/save-status'
@@ -14,7 +14,7 @@ import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
 const session = builder.session
-const router = useRouter()
+const router = useDmsRouter()
 
 const title = computed(
 	() =>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useDmsRouter as useRouter } from '#dms/frontend-module'
+import { useDmsRouter } from '#dms/frontend-module'
 import { useBuilderApi } from '../runtime/api'
 import { categoryOptions, categoryRoute } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
@@ -13,7 +13,7 @@ const builder = useBuilder()
 const { advanced } = useBuilderMode()
 const { deleting, deletePage } = usePageDelete()
 const session = builder.session
-const router = useRouter()
+const router = useDmsRouter()
 // Auto-imported from the host's own layers, like every composable the loader
 // scans; neither is part of the frontend-module SDK.
 const devReload = useDevReload()

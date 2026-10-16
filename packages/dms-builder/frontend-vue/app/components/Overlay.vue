@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
-import { useDmsRoute as useRoute } from '#dms/frontend-module'
+import { useDmsRoute } from '#dms/frontend-module'
 import { useContentAnchor } from '../runtime/anchor'
 import { placedPaths } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
@@ -8,7 +8,7 @@ import { useBuilder } from '../runtime/session'
 const builder = useBuilder()
 const session = builder.session
 const anchor = useContentAnchor()
-const route = useRoute()
+const route = useDmsRoute()
 
 watch(
 	() => route.path,
