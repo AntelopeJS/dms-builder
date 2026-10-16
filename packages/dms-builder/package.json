@@ -68,7 +68,7 @@
     "typescript": "^6.0.3"
   },
   "optionalDependencies": {
-    "@antelopejs/interface-database-catalog": ">=0.1.0 <1.0.0"
+    "@antelopejs/interface-database-catalog": ">=0.0.1 <1.0.0"
   },
   "packageManager": "pnpm@10.2.0",
   "antelopeJs": {
