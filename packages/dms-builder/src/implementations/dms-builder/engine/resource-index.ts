@@ -105,7 +105,9 @@ function resolveRoutes(node: Node | undefined): ResourceRoute[] | undefined {
     }
   }
   const routes = routesFromRouteMap(keys, hasExportRoutes);
-  return routes.length > 0 ? routes : undefined;
+  return routes.length > 0 || node.getProperties().length === 0
+    ? routes
+    : undefined;
 }
 
 function resolveTableClass(
