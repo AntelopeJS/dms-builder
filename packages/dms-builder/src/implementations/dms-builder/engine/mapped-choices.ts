@@ -193,13 +193,26 @@ export async function mappedChoices(
   if (records.length === 0) {
     return { ok: true, data: [], changes: [] };
   }
-  const descriptions = await catalog.DescribeRelations(
-    records.map(([relation]) => relation),
+  const schemas = [
+    ...new Set(records.map(([relation]) => relation.split(".")[0])),
+  ];
+  const present = new Set(
+    (await catalog.ListRelations(schemas)).map(
+      (summary) => `${summary.schema}.${summary.name}`,
+    ),
   );
+  const found = records.filter(([relation]) => present.has(relation));
+  const missing = records
+    .map(([relation]) => relation)
+    .filter((relation) => !present.has(relation));
+  const descriptions =
+    found.length > 0
+      ? await catalog.DescribeRelations(found.map(([relation]) => relation))
+      : [];
   const relations = new Map(
     records.map(([relation, record]) => [record.ref, relation]),
   );
-  const data = records.map(([relation, record]) =>
+  const data = found.map(([relation, record]) =>
     relationOf(
       connection,
       record,
@@ -210,5 +223,16 @@ export async function mappedChoices(
       relations,
     ),
   );
-  return { ok: true, data, changes: [] };
+  if (missing.length === 0) {
+    return { ok: true, data, changes: [] };
+  }
+  return {
+    ok: true,
+    data,
+    changes: [],
+    warnings: missing.map((relation) => ({
+      code: "relation_missing",
+      message: `${relation} is mapped, but the database no longer has it, or the role cannot see it`,
+    })),
+  };
 }

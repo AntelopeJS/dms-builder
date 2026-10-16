@@ -18,7 +18,13 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
-import { FAKE_CATALOG, INPUT, MODULE, OP_TIMEOUT } from "./mapped-database";
+import {
+  DESCRIPTIONS,
+  FAKE_CATALOG,
+  INPUT,
+  MODULE,
+  OP_TIMEOUT,
+} from "./mapped-database";
 
 let app: Fixture;
 
@@ -111,6 +117,37 @@ describe("mapping again a database already mapped", function () {
       (entry) => entry.resource.relation === "sales.raw_log",
     )!;
     expect(log.resource.tableView.value).to.equal(false);
+  });
+
+  it("reads the rest of the mapping when a mapped relation left the database, and says which", async () => {
+    setCatalogConnectionsForTests({
+      erp: {
+        ...FAKE_CATALOG,
+        async ListRelations() {
+          return DESCRIPTIONS.filter(
+            (description) => description.name !== "products",
+          );
+        },
+      },
+    });
+    try {
+      const read = await GetMapping("erp", MODULE);
+      expectOk(read, "GetMapping without products");
+      const relations = read.ok
+        ? read.data.map((entry) => entry.resource.relation)
+        : [];
+      expect(relations).to.include("sales.accounts");
+      expect(relations).to.not.include("sales.products");
+      expect(read.ok && read.warnings).to.deep.equal([
+        {
+          code: "relation_missing",
+          message:
+            "sales.products is mapped, but the database no longer has it, or the role cannot see it",
+        },
+      ]);
+    } finally {
+      setCatalogConnectionsForTests({ erp: FAKE_CATALOG });
+    }
   });
 
   it("maps a relation again from what it reads back, changing nothing", async () => {

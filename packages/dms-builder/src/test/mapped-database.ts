@@ -136,6 +136,9 @@ export const DESCRIPTIONS: RelationDescription[] = [
 
 /** The builder's catalog connection, answering the descriptions above. */
 export const FAKE_CATALOG: Partial<CatalogConnection> = {
+  async ListRelations() {
+    return DESCRIPTIONS;
+  },
   async DescribeRelations(relations: string[]) {
     return relations.map((relation) => {
       const found = DESCRIPTIONS.find(

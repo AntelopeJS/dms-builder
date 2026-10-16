@@ -190,12 +190,16 @@ describe('a relation the module maps already', () => {
 			data: [{ ref: 'erp/erp/customers', resource: CUSTOMERS, included: ['name'] }],
 			changes: [],
 		}
+		backend.answers['GET /api/builder/database/mapping'].warnings = [
+			{ code: 'relation_missing', message: 'erp.legacy is mapped, but the database no longer has it' },
+		]
 		const mounted = mount(DatabaseProposal, {
 			props: { connection: 'erp', module: 'erp-tables' },
 			components: COMPONENTS,
 		})
 		unmount = mounted.unmount
 		await settle()
+		expect(textOf(mounted.root)).toContain('erp.legacy is mapped, but the database no longer has it')
 		fire(button(mounted.root, 'erp.customers'), 'click')
 		await settle()
 		fire(button(mounted.root, 'Map again'), 'click')

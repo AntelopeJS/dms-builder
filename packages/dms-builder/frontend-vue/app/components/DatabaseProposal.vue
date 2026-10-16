@@ -56,6 +56,8 @@ const busy = ref(false)
 const confirming = ref(false)
 const applied = ref<MapResourcesResult | null>(null)
 const remapped = ref('')
+/** What reading the mapping warned about: a mapped relation the database no longer has. */
+const mappedWarnings = ref<string[]>([])
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 
@@ -105,6 +107,7 @@ async function loadMapped(): Promise<void> {
 		return
 	}
 	mapped.value = result.data
+	mappedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
 	mappedDrafts.value = Object.fromEntries(
 		result.data.map((entry) => [entry.resource.relation, draftFromMapped(entry)]),
 	)
@@ -230,6 +233,7 @@ async function remap(relation: string): Promise<void> {
 		</header>
 
 		<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
+		<p v-for="warning in mappedWarnings" :key="warning" class="text-xs text-warning">{{ warning }}</p>
 
 		<div v-if="state?.status === 'running'" class="text-xs text-muted" aria-live="polite">
 			{{ state.progress.described }} of {{ state.progress.relations }} relations described,
