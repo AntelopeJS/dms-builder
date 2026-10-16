@@ -68,7 +68,7 @@ On DMS 0.8, use `@antelopejs/dms-builder` 0.3.
 - [Extending](https://dms.antelopejs.com/docs/modules/builder/extending): the interface and the HTTP API
 - [FAQ](https://dms.antelopejs.com/docs/modules/builder/faq)
 
-The guide's sources live in [`packages/dms-builder/docs`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/dms-builder/docs); the interface reference lives in [`packages/interface-dms-builder/docs`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder/docs). The module ships the `dms-builder` Claude Code skill in [`packages/dms-builder/skills`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/dms-builder/skills), declared under `antelopeJs.skills`.
+The runtime guide and HTTP API documentation live in [`docs/`](./docs); the canonical consumer contract reference lives in [`packages/interface-dms-builder/docs`](../interface-dms-builder/docs/1.introduction.md). The module ships the `dms-builder` Claude Code skill in [`packages/dms-builder/skills`](https://github.com/AntelopeJS/dms-builder/tree/main/packages/dms-builder/skills), declared under `antelopeJs.skills`.
 
 ## Contributing
 
