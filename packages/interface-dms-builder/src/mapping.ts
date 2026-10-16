@@ -3,66 +3,6 @@ import type { CategoryRef, PageRef } from "./addressing";
 import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
 
-/**
- * A declaration a column accepts, as a database catalog lists it: the `@Field` token, and why it
- * does not round-trip when it does not.
- */
-export interface MappedDeclaration {
-  declared: string;
-  lossy?: string;
-}
-
-/** A column as a database catalog describes it. */
-export interface MappedColumnDescription {
-  name: string;
-  native: string;
-  nullable: boolean;
-  hasDefault: boolean;
-  accepts: MappedDeclaration[];
-  /** Why a write never assigns it: generated, identity always, read-only type. */
-  readOnly?: string;
-  comment?: string | null;
-}
-
-/** The columns of a relation, the relation named `"schema.name"`. */
-export interface MappedRelationColumns {
-  relation: string;
-  columns: string[];
-}
-
-/** A declared foreign key. */
-export interface MappedReference {
-  name: string;
-  from: MappedRelationColumns;
-  to: MappedRelationColumns;
-}
-
-/** The columns a relation's `_id` aliases. */
-export interface MappedKey {
-  columns: string[];
-}
-
-/** What the connected role may write to a relation. */
-export interface MappedWrites {
-  insert: boolean;
-  update: boolean;
-  delete: boolean;
-}
-
-/**
- * A relation as a database catalog describes it: the shape `@antelopejs/interface-database-catalog`
- * answers, restated here so the builder takes no dependency on it.
- */
-export interface MappedRelationDescription {
-  schema: string;
-  name: string;
-  kind: string;
-  key: MappedKey | null;
-  writes: MappedWrites;
-  columns: MappedColumnDescription[];
-  references: MappedReference[];
-}
-
 /** One column of a mapped relation, as the integrator chose to show it. */
 export interface MappedField {
   column: string;
@@ -99,13 +39,26 @@ export interface MappedResource {
   fields: MappedField[];
 }
 
+/** A relation the integrator decided not to map, so an analysis does not propose it again. */
+export interface ExcludedRelation {
+  /** `"schema.name"`. */
+  relation: string;
+  reason: string;
+}
+
 /** Which relations of a connection to map, into which module of the project. */
 export interface MapResourcesInput {
   /** The project module the tables are written into, bound to the connection's database. */
   module: string;
-  /** The connection's id, used in routes and as the pages' category. */
+  /**
+   * The id of the builder's catalog connection to the database, also used in routes and as the
+   * pages' category.
+   */
   connection: string;
+  /** Relations to map, or to map again: a mapped relation is rewritten from the new choices. */
   resources: MappedResource[];
+  /** Relations recorded as left out. Mapping one later removes it from the record. */
+  excluded?: ExcludedRelation[];
 }
 
 /** A column a TableView does not show, and why. */
@@ -136,13 +89,13 @@ export interface MapResourcesResult {
  * Writes table classes, models, DataAPI controllers and TableView pages over relations of a
  * database the project does not own, into a module bound to it. Names are the database's own,
  * verbatim; `_id` is declared only where the relation has a key; nothing creates or alters a
- * table. `descriptions` are the catalog's descriptions of the relations named; every choice in
- * `input` is checked against them.
+ * table. The builder reads the relations' descriptions through its catalog connection, and
+ * checks every choice in `input` against them.
+ *
+ * A relation already mapped is rewritten from the new choices: its table class and controller,
+ * and its page, which is created, kept or removed as `tableView` says.
  */
 export const MapResources =
   InterfaceFunction<
-    (
-      input: MapResourcesInput,
-      descriptions: MappedRelationDescription[],
-    ) => Promise<OpResult<MapResourcesResult>>
+    (input: MapResourcesInput) => Promise<OpResult<MapResourcesResult>>
   >();

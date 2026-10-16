@@ -2,7 +2,6 @@ import type {
   AddBlockInput,
   MapResourcesInput,
   MapResourcesResult,
-  MappedRelationDescription,
   ModuleEntryInput,
   ProjectConfigOpts,
   ProjectConfigResult,
@@ -211,9 +210,8 @@ export async function RemoveBlock(
 
 export async function MapResources(
   input: MapResourcesInput,
-  descriptions: MappedRelationDescription[],
 ): Promise<OpResult<MapResourcesResult>> {
-  return mapResources(input, descriptions);
+  return mapResources(input);
 }
 
 export async function ConfigureProject(

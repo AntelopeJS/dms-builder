@@ -1,12 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect } from "chai";
-import type {
-  MapResourcesInput,
-  MappedColumnDescription,
-  MappedRelationDescription,
-  ResourceLocation,
-} from "@antelopejs/interface-dms-builder";
+import type { ResourceLocation } from "@antelopejs/interface-dms-builder";
 import {
   AddField,
   AddQuery,
@@ -17,171 +12,14 @@ import {
   ListResources,
   MapResources,
 } from "../implementations/dms-builder";
+import { setCatalogConnectionsForTests } from "../implementations/dms-builder/engine/catalog-connection";
 import {
   createFixture,
   destroyFixture,
   expectOk,
   type Fixture,
 } from "./harness";
-
-const OP_TIMEOUT = 120_000;
-const MODULE = "erp-tables";
-const SALES = "sales";
-
-const WRITES = { insert: true, update: true, delete: true };
-
-function Column(
-  name: string,
-  native: string,
-  accepts: string[],
-  extra: Partial<MappedColumnDescription> = {},
-): MappedColumnDescription {
-  return {
-    name,
-    native,
-    nullable: true,
-    hasDefault: false,
-    accepts: accepts.map((declared) => ({ declared })),
-    ...extra,
-  };
-}
-
-/** What the postgres catalog answers for the relations the specs map. */
-const DESCRIPTIONS: MappedRelationDescription[] = [
-  {
-    schema: SALES,
-    name: "accounts",
-    kind: "table",
-    key: { columns: ["id"] },
-    writes: WRITES,
-    columns: [
-      Column("id", "bigint", ["number", "string"], {
-        nullable: false,
-        hasDefault: true,
-        readOnly: "an identity column GENERATED ALWAYS",
-      }),
-      Column("name", "character varying(200)", ["string"], { nullable: false }),
-      Column("status", "sales.status", ["string"], {
-        nullable: false,
-        hasDefault: true,
-      }),
-      Column("revenue", "numeric(12,2)", ["number", "string"]),
-      Column("created_at", "timestamp with time zone", ["date"], {
-        hasDefault: true,
-      }),
-      Column("Order Date", "date", ["date"]),
-      Column("meta", "jsonb", ["object"]),
-    ],
-    references: [],
-  },
-  {
-    schema: SALES,
-    name: "contacts",
-    kind: "table",
-    key: { columns: ["contact_id"] },
-    writes: WRITES,
-    columns: [
-      Column("contact_id", "uuid", ["string"], { nullable: false }),
-      Column("account_id", "bigint", ["number", "string"]),
-      Column("first_name", "text", ["string"], { nullable: false }),
-    ],
-    references: [
-      {
-        name: "contacts_account_id_fkey",
-        from: { relation: "sales.contacts", columns: ["account_id"] },
-        to: { relation: "sales.accounts", columns: ["id"] },
-      },
-    ],
-  },
-  {
-    schema: SALES,
-    name: "products",
-    kind: "table",
-    key: { columns: ["id"] },
-    writes: WRITES,
-    columns: [
-      Column("id", "integer", ["number", "string"], { nullable: false }),
-      Column("label", "text", ["string"]),
-      Column("count", "integer", ["number", "string"]),
-    ],
-    references: [],
-  },
-  {
-    schema: SALES,
-    name: "countries",
-    kind: "table",
-    key: { columns: ["code"] },
-    writes: WRITES,
-    columns: [
-      Column("code", "character(2)", ["string"], { nullable: false }),
-      Column("name", "text", ["string"]),
-    ],
-    references: [],
-  },
-  {
-    schema: SALES,
-    name: "raw_log",
-    kind: "table",
-    key: null,
-    writes: WRITES,
-    columns: [
-      Column("at", "timestamp with time zone", ["date"]),
-      Column("msg", "text", ["string"]),
-    ],
-    references: [],
-  },
-];
-
-const INPUT: MapResourcesInput = {
-  module: MODULE,
-  connection: "erp",
-  resources: [
-    {
-      relation: "sales.accounts",
-      label: "name",
-      tableView: true,
-      writable: true,
-      fields: [
-        { column: "name", searchable: true, sortable: true },
-        { column: "status", filterable: true },
-        { column: "revenue", listable: false },
-        { column: "created_at", sortable: true },
-        { column: "Order Date" },
-        { column: "meta" },
-      ],
-    },
-    {
-      relation: "sales.contacts",
-      label: "first_name",
-      tableView: true,
-      writable: false,
-      fields: [
-        { column: "first_name" },
-        { column: "account_id", relation: "sales.accounts", label: "Account" },
-      ],
-    },
-    {
-      relation: "sales.products",
-      label: "label",
-      tableView: true,
-      writable: true,
-      fields: [{ column: "label" }, { column: "count" }],
-    },
-    {
-      relation: "sales.countries",
-      label: "name",
-      tableView: true,
-      writable: true,
-      fields: [{ column: "name" }],
-    },
-    {
-      relation: "sales.raw_log",
-      tableView: true,
-      writable: false,
-      fields: [{ column: "at" }, { column: "msg" }],
-    },
-  ],
-};
+import { FAKE_CATALOG, INPUT, MODULE, OP_TIMEOUT } from "./mapped-database";
 
 let app: Fixture;
 
@@ -204,10 +42,14 @@ describe("mapping a database the project does not own", function () {
 
   before(async () => {
     app = createFixture({ modules: [MODULE] });
-    result = await MapResources(INPUT, DESCRIPTIONS);
+    setCatalogConnectionsForTests({ erp: FAKE_CATALOG });
+    result = await MapResources(INPUT);
   });
 
-  after(destroyFixture);
+  after(() => {
+    setCatalogConnectionsForTests();
+    destroyFixture();
+  });
 
   it("writes a module that typechecks, with every TableView page", async () => {
     expectOk(result, "MapResources");
@@ -345,20 +187,17 @@ describe("mapping a database the project does not own", function () {
   });
 
   it("refuses a declaration the column does not accept, naming the column", async () => {
-    const refused = await MapResources(
-      {
-        ...INPUT,
-        resources: [
-          {
-            relation: "sales.raw_log",
-            tableView: false,
-            writable: false,
-            fields: [{ column: "msg", declared: "number" }],
-          },
-        ],
-      },
-      DESCRIPTIONS,
-    );
+    const refused = await MapResources({
+      ...INPUT,
+      resources: [
+        {
+          relation: "sales.raw_log",
+          tableView: false,
+          writable: false,
+          fields: [{ column: "msg", declared: "number" }],
+        },
+      ],
+    });
     expect(refused.ok).to.equal(false);
     expect(JSON.stringify(refused)).to.include("raw_log.msg");
   });

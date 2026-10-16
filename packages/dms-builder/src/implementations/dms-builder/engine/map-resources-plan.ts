@@ -1,12 +1,14 @@
 import path from "node:path";
 import type {
+  ColumnDescription,
+  RelationDescription,
+} from "@antelopejs/interface-database-catalog";
+import type {
   DataTypeValue,
   FieldSpec,
   LeftOutColumn,
   MapResourcesInput,
-  MappedColumnDescription,
   MappedField,
-  MappedRelationDescription,
   MappedResource,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
@@ -44,7 +46,7 @@ function refuse(message: string): never {
 /** One relation, planned: names, the table's fields, and the controller's when it has a TableView. */
 export interface PlannedResource {
   relation: string;
-  description: MappedRelationDescription;
+  description: RelationDescription;
   names: ResourceNames;
   ref: string;
   folder: string;
@@ -95,7 +97,7 @@ function tsType(declared: string): string {
 function namesFor(
   input: MapResourcesInput,
   resource: MappedResource,
-  description: MappedRelationDescription,
+  description: RelationDescription,
 ): ResourceNames {
   const className =
     resource.className ?? pascalCase(singular(description.name));
@@ -118,9 +120,9 @@ function namesFor(
 }
 
 function columnOf(
-  description: MappedRelationDescription,
+  description: RelationDescription,
   name: string,
-): MappedColumnDescription {
+): ColumnDescription {
   return (
     description.columns.find((column) => column.name === name) ??
     refuse(
@@ -131,8 +133,8 @@ function columnOf(
 
 /** The declaration chosen for a column, which must be one the catalog says registration accepts. */
 function declaredFor(
-  description: MappedRelationDescription,
-  column: MappedColumnDescription,
+  description: RelationDescription,
+  column: ColumnDescription,
   wanted: string | undefined,
 ): string {
   const accepted = column.accepts.map((entry) => entry.declared);
@@ -150,22 +152,25 @@ function declaredFor(
   return declared;
 }
 
-/** What the plan knows about every relation of the batch, for references between them. */
-interface BatchTarget {
+/**
+ * What the plan knows about a relation a column may refer to: one of the batch, or one the module
+ * has mapped already.
+ */
+export interface BatchTarget {
   resource: MappedResource;
-  description: MappedRelationDescription;
+  description: RelationDescription;
   names: ResourceNames;
   ref: string;
 }
 
-function relationName(description: MappedRelationDescription): string {
+function relationName(description: RelationDescription): string {
   return `${description.schema}.${description.name}`;
 }
 
 function describedAs(
-  descriptions: MappedRelationDescription[],
+  descriptions: RelationDescription[],
   relation: string,
-): MappedRelationDescription {
+): RelationDescription {
   return (
     descriptions.find(
       (description) => relationName(description) === relation,
@@ -184,7 +189,7 @@ interface ChosenField {
  */
 function chosenFields(
   resource: MappedResource,
-  description: MappedRelationDescription,
+  description: RelationDescription,
 ): ChosenField[] {
   const chosen = resource.fields.map((field) => ({
     field,
@@ -227,7 +232,7 @@ function relationDataType(target: BatchTarget, column: string): DataTypeValue {
 /** A relation column's target: a mapped relation with a TableView and a single-column key. */
 function referenceTarget(
   targets: Map<string, BatchTarget>,
-  description: MappedRelationDescription,
+  description: RelationDescription,
   field: MappedField,
 ): BatchTarget | undefined {
   if (!field.relation) {
@@ -236,7 +241,7 @@ function referenceTarget(
   const target =
     targets.get(field.relation) ??
     refuse(
-      `${relationName(description)}.${field.column} refers to ${field.relation}, which is not mapped in this batch`,
+      `${relationName(description)}.${field.column} refers to ${field.relation}, which is neither in this batch nor mapped in the module`,
     );
   if (
     target.description.key?.columns.length !== 1 ||
@@ -259,8 +264,8 @@ interface ControllerChoice {
  * writable TableView lets it be set. On edit it stays an assertion, never an assignment.
  */
 function isNaturalKey(
-  description: MappedRelationDescription,
-  column: MappedColumnDescription,
+  description: RelationDescription,
+  column: ColumnDescription,
 ): boolean {
   return (
     (description.key?.columns ?? []).includes(column.name) &&
@@ -271,8 +276,8 @@ function isNaturalKey(
 
 function isReadOnly(
   resource: MappedResource,
-  description: MappedRelationDescription,
-  column: MappedColumnDescription,
+  description: RelationDescription,
+  column: ColumnDescription,
 ): boolean {
   const isKey = (description.key?.columns ?? []).includes(column.name);
   return (
@@ -328,7 +333,7 @@ function controllerField(
 
 interface FieldPlan {
   resource: MappedResource;
-  description: MappedRelationDescription;
+  description: RelationDescription;
   targets: Map<string, BatchTarget>;
   leftOut: LeftOutColumn[];
 }
@@ -367,15 +372,25 @@ function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
 
 function targetsOf(
   input: MapResourcesInput,
-  descriptions: MappedRelationDescription[],
+  descriptions: RelationDescription[],
+  mapped: BatchTarget[],
 ): Map<string, BatchTarget> {
-  const targets = new Map<string, BatchTarget>();
+  const targets = new Map<string, BatchTarget>(
+    mapped.map((target) => [target.resource.relation, target]),
+  );
+  const batch = new Set<string>();
   for (const resource of input.resources) {
     const description = describedAs(descriptions, resource.relation);
     const names = namesFor(input, resource, description);
+    if (batch.has(resource.relation)) {
+      refuse(`${resource.relation} is in the batch twice`);
+    }
+    batch.add(resource.relation);
     if (
       [...targets.values()].some(
-        (target) => target.names.className === names.className,
+        (target) =>
+          target.names.className === names.className &&
+          target.resource.relation !== resource.relation,
       )
     ) {
       refuse(
@@ -411,12 +426,16 @@ function RoutesOf(resource: MappedResource): ResourceRoute[] | undefined {
  */
 export function planMapping(
   input: MapResourcesInput,
-  descriptions: MappedRelationDescription[],
+  descriptions: RelationDescription[],
   srcRoot: string,
+  mapped: BatchTarget[] = [],
 ): MappingPlan {
-  const targets = targetsOf(input, descriptions);
+  const targets = targetsOf(input, descriptions, mapped);
   const leftOut: LeftOutColumn[] = [];
-  const resources = [...targets.values()].map((target) => {
+  const batch = input.resources.map((resource) =>
+    targets.get(resource.relation)!,
+  );
+  const resources = batch.map((target) => {
     const plan = {
       resource: target.resource,
       description: target.description,

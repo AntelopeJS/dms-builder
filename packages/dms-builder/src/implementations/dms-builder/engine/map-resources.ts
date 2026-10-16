@@ -1,31 +1,44 @@
-import fs from "node:fs";
 import path from "node:path";
+import type { RelationDescription } from "@antelopejs/interface-database-catalog";
 import type {
   FileChange,
   MapResourcesInput,
   MapResourcesResult,
-  MappedRelationDescription,
   MappedResult,
   OpResult,
   OpWarning,
 } from "@antelopejs/interface-dms-builder";
 import type { Project, SourceFile } from "ts-morph";
+import { catalogOf } from "./catalog-connection";
 import { ensureNamedImport } from "./emit";
 import {
+  type BatchTarget,
   MappingRefusal,
   type MappingPlan,
   type PlannedResource,
   planMapping,
 } from "./map-resources-plan";
 import { markMapped } from "./mapped-modules";
-import { targetModule } from "./modules";
-import { addBlock, commit, invalidConfig, unsupported } from "./ops";
+import { moduleOfFile, targetModule } from "./modules";
+import {
+  addBlock,
+  commit,
+  configureBlock,
+  invalidConfig,
+  unsupported,
+} from "./ops";
 import { createPage } from "./ops-blocks";
 import { createCategory } from "./ops-categories";
+import { deletePage } from "./page-delete";
 import { addSortedExport, barrelSpecifier, srcDir } from "./placement";
 import { buildDataApiFile, buildDatabaseFile } from "./resource-emit-types";
-import { resourceRefResolver } from "./resource-index";
-import { findCategoryRecord } from "./source-index";
+import {
+  listResourceRecords,
+  type ResourceRecord,
+  resourceRefResolver,
+} from "./resource-index";
+import { joinSlug } from "./scan";
+import { findCategoryRecord, findPageRecord } from "./source-index";
 import { type EmitContext, UnknownReferenceError } from "./value";
 import {
   getWritableProject,
@@ -38,6 +51,8 @@ const DECORATORS_MODULE = "@antelopejs/interface-database-decorators";
 const REGISTER_SCHEMA = "RegisterSchema";
 const START = "start";
 const TABLE_BLOCK = "table";
+const SELECT_DECORATOR = "Select";
+const ID_FIELD = "_id";
 const FULL_INDEX = `export * from "./database";\nexport * from "./data-api";\n`;
 
 /** Resolves a resource ref to one of this batch's controllers, or to one the project has already. */
@@ -67,6 +82,22 @@ interface ResourceFiles {
   index: string;
 }
 
+/** Writes a file of the transaction: created, or rewritten when the relation was mapped before. */
+function writeFile(
+  project: Project,
+  transaction: Transaction,
+  filePath: string,
+  text: string,
+): void {
+  const existing = project.getSourceFile(filePath);
+  if (existing) {
+    transaction.track(existing);
+    existing.replaceWithText(text);
+    return;
+  }
+  transaction.track(project.createSourceFile(filePath, text), true);
+}
+
 function writeResource(
   project: Project,
   transaction: Transaction,
@@ -85,10 +116,7 @@ function writeResource(
     fields: resource.tableFields,
     idField: resource.hasKey,
   });
-  transaction.track(
-    project.createSourceFile(files.database, database.text),
-    true,
-  );
+  writeFile(project, transaction, files.database, database.text);
   const dataApi = buildDataApiFile({
     names: resource.names,
     filePath: files.dataApi,
@@ -96,11 +124,8 @@ function writeResource(
     routes: resource.routes,
     resolveRef,
   });
-  transaction.track(
-    project.createSourceFile(files.dataApi, dataApi.text),
-    true,
-  );
-  transaction.track(project.createSourceFile(files.index, FULL_INDEX), true);
+  writeFile(project, transaction, files.dataApi, dataApi.text);
+  writeFile(project, transaction, files.index, FULL_INDEX);
   return files;
 }
 
@@ -138,16 +163,6 @@ function writeAll(
     return {
       result: unsupported<MappedResult[]>(
         `module "${input.module}" has no src/index.ts`,
-      ),
-    };
-  }
-  const existing = plan.resources.find((resource) =>
-    fs.existsSync(resource.folder),
-  );
-  if (existing) {
-    return {
-      result: invalidConfig<MappedResult[]>(
-        `${existing.relation} is already mapped, at ${existing.folder}`,
       ),
     };
   }
@@ -232,28 +247,64 @@ interface PagesWritten {
   category?: string;
 }
 
+function pageRefOf(category: string, resource: PlannedResource): string {
+  const record = findCategoryRecord(category);
+  return joinSlug(record?.fullSlug ?? "", pageName(resource));
+}
+
+/** A remapped TableView keeps its page, with the caption and label the new choices give it. */
+function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
+  const patch: Record<string, unknown> = { caption: resource.displayName };
+  if (resource.label) {
+    patch.labelKey = resource.label;
+  }
+  const configured = configureBlock(`${ref}#${TABLE_BLOCK}`, patch);
+  return configured.ok ? { ...configured, data: ref } : configured;
+}
+
+/** The page a relation's choices call for: created, updated, or removed when it lost its TableView. */
+function syncPage(
+  input: MapResourcesInput,
+  category: string,
+  resource: PlannedResource,
+): OpResult<string | undefined> {
+  const ref = pageRefOf(category, resource);
+  const existing = findPageRecord(ref);
+  if (!resource.tableView) {
+    if (!existing) {
+      return { ok: true, data: undefined, changes: [] };
+    }
+    const removed = deletePage(ref);
+    return removed.ok ? { ...removed, data: undefined } : removed;
+  }
+  return existing
+    ? updatePage(ref, resource)
+    : addPage(input, category, resource);
+}
+
 function writePages(
   input: MapResourcesInput,
   plan: MappingPlan,
   mapped: MappedResult[],
 ): PagesWritten {
   const written: PagesWritten = { changes: [], warnings: [] };
-  const viewed = plan.resources.filter((resource) => resource.tableView);
-  if (viewed.length === 0) {
+  const category = `pages.${input.connection}`;
+  const needsCategory = plan.resources.some((resource) => resource.tableView);
+  if (!needsCategory && !findCategoryRecord(category)) {
     return written;
   }
-  const category = ensureCategory(input);
-  if (!category.ok) {
+  const ensured = ensureCategory(input);
+  if (!ensured.ok) {
     written.warnings.push({
       code: "page_not_written",
-      message: JSON.stringify(category.error),
+      message: JSON.stringify(ensured.error),
     });
     return written;
   }
-  written.changes.push(...category.changes);
-  written.category = category.data;
-  for (const resource of viewed) {
-    const page = addPage(input, category.data, resource);
+  written.changes.push(...ensured.changes);
+  written.category = ensured.data;
+  for (const resource of plan.resources) {
+    const page = syncPage(input, ensured.data, resource);
     if (!page.ok) {
       written.warnings.push({
         code: "page_not_written",
@@ -265,16 +316,96 @@ function writePages(
     const entry = mapped.find(
       (candidate) => candidate.relation === resource.relation,
     );
-    if (entry) {
+    if (entry && page.data) {
       entry.page = page.data;
     }
   }
   return written;
 }
 
+function relationOf(record: ResourceRecord): string {
+  return `${record.schema}.${record.tableName}`;
+}
+
+/** The resources the module has mapped already, by relation. */
+export function mappedRecordsOf(module: string): Map<string, ResourceRecord> {
+  return new Map(
+    listResourceRecords()
+      .filter((record) => moduleOfFile(record.databaseFile)?.id === module)
+      .map((record) => [relationOf(record), record]),
+  );
+}
+
+function labelOf(record: ResourceRecord): string | undefined {
+  return record.apiClass
+    .getProperties()
+    .find(
+      (prop) =>
+        prop.getName() !== ID_FIELD &&
+        prop.getDecorator(SELECT_DECORATOR) !== undefined,
+    )
+    ?.getName();
+}
+
+/** A relation the module mapped before, as a target relation columns of this batch may point at. */
+function mappedTarget(
+  record: ResourceRecord,
+  description: RelationDescription,
+): BatchTarget {
+  return {
+    resource: {
+      relation: relationOf(record),
+      label: labelOf(record),
+      tableView: record.routes === undefined || record.routes.length > 0,
+      writable: false,
+      fields: [],
+    },
+    description,
+    names: {
+      className: record.className,
+      modelName: record.modelName,
+      apiName: record.apiName,
+      tableName: record.tableName,
+      route: record.route,
+    },
+    ref: record.ref,
+  };
+}
+
+/** The relations columns of the batch refer to that the batch does not hold. */
+function referencedOutside(input: MapResourcesInput): string[] {
+  const batch = new Set(input.resources.map((resource) => resource.relation));
+  return [
+    ...new Set(
+      input.resources.flatMap((resource) =>
+        resource.fields
+          .map((field) => field.relation)
+          .filter(
+            (relation): relation is string =>
+              relation !== undefined && !batch.has(relation),
+          ),
+      ),
+    ),
+  ];
+}
+
+function mappedTargets(
+  input: MapResourcesInput,
+  descriptions: RelationDescription[],
+): BatchTarget[] {
+  const records = mappedRecordsOf(input.module);
+  return referencedOutside(input).flatMap((relation) => {
+    const record = records.get(relation);
+    const description = descriptions.find(
+      (candidate) => `${candidate.schema}.${candidate.name}` === relation,
+    );
+    return record && description ? [mappedTarget(record, description)] : [];
+  });
+}
+
 function planned(
   input: MapResourcesInput,
-  descriptions: MappedRelationDescription[],
+  descriptions: RelationDescription[],
 ): MappingPlan | OpResult<MapResourcesResult> {
   const module = targetModule(input.module);
   if (!module || module.isProject) {
@@ -291,7 +422,12 @@ function planned(
     );
   }
   try {
-    return planMapping(input, descriptions, src);
+    return planMapping(
+      input,
+      descriptions,
+      src,
+      mappedTargets(input, descriptions),
+    );
   } catch (error) {
     if (error instanceof MappingRefusal) {
       return invalidConfig<MapResourcesResult>(error.message);
@@ -300,37 +436,84 @@ function planned(
   }
 }
 
+function recordMapping(input: MapResourcesInput): void {
+  markMapped(input.module, {
+    connection: input.connection,
+    mapped: input.resources.map((resource) => resource.relation),
+    excluded: input.excluded ?? [],
+  });
+}
+
 /**
- * Maps relations of a database the project does not own into a module bound to it: the tables
- * and controllers in one typechecked transaction, then the connection's category and one
- * TableView page per relation that has one.
+ * Maps relations described by `descriptions` into a module bound to their database: the tables
+ * and controllers in one typechecked transaction, then the connection's category and the
+ * relations' TableView pages. A relation mapped before is rewritten, and its page follows.
  */
-export function mapResources(
+export function mapDescribedResources(
   input: MapResourcesInput,
-  descriptions: MappedRelationDescription[],
+  descriptions: RelationDescription[],
 ): OpResult<MapResourcesResult> {
   const plan = planned(input, descriptions);
   if ("ok" in plan) {
     return plan;
   }
+  if (plan.resources.length === 0) {
+    recordMapping(input);
+    return { ok: true, data: { resources: [], leftOut: [] }, changes: [] };
+  }
   const { result } = writeAll(input, plan);
   if (!result.ok) {
     return result;
   }
-  markMapped(input.module, input.connection);
+  recordMapping(input);
   const pages = writePages(input, plan, result.data);
   const data = {
     resources: result.data,
     leftOut: plan.leftOut,
     category: pages.category,
   };
+  const changes = [...result.changes, ...pages.changes];
   const warnings = [...(result.warnings ?? []), ...pages.warnings];
   return warnings.length > 0
-    ? {
-        ok: true,
-        data,
-        changes: [...result.changes, ...pages.changes],
-        warnings,
-      }
-    : { ok: true, data, changes: [...result.changes, ...pages.changes] };
+    ? { ok: true, data, changes, warnings }
+    : { ok: true, data, changes };
+}
+
+/** The relations the call needs described: its own, and the mapped ones its columns point at. */
+function describedRelations(input: MapResourcesInput): string[] {
+  return [
+    ...new Set([
+      ...input.resources.map((resource) => resource.relation),
+      ...referencedOutside(input),
+    ]),
+  ];
+}
+
+/**
+ * Reads the descriptions of the relations through the builder's catalog connection, then maps
+ * them with {@link mapDescribedResources}.
+ */
+export async function mapResources(
+  input: MapResourcesInput,
+): Promise<OpResult<MapResourcesResult>> {
+  const catalog = catalogOf(input.connection);
+  if (!catalog) {
+    return invalidConfig<MapResourcesResult>(
+      `dms-builder has no catalog connection "${input.connection}"; declare one in its importOverrides`,
+    );
+  }
+  const relations = describedRelations(input);
+  if (relations.length === 0) {
+    return mapDescribedResources(input, []);
+  }
+  try {
+    return mapDescribedResources(
+      input,
+      await catalog.DescribeRelations(relations),
+    );
+  } catch (error) {
+    return invalidConfig<MapResourcesResult>(
+      `the catalog of "${input.connection}" refused: ${(error as Error).message}`,
+    );
+  }
 }
