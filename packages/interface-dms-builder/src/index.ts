@@ -1,4 +1,5 @@
 export * from "./addressing";
+export * from "./analysis";
 export * from "./catalog";
 export * from "./drafts";
 export * from "./mapping";

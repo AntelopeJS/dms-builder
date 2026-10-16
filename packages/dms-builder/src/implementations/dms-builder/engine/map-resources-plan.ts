@@ -72,7 +72,8 @@ function words(value: string): string[] {
     .map((part) => part.toLowerCase());
 }
 
-function singular(name: string): string {
+/** A relation name's singular, as class names take it: `accounts` → `account`. */
+export function singular(name: string): string {
   if (name.endsWith("ies")) {
     return `${name.slice(0, -3)}y`;
   }
@@ -82,7 +83,8 @@ function singular(name: string): string {
   return name.endsWith("s") ? name.slice(0, -1) : name;
 }
 
-function humanized(name: string): string {
+/** A database name as a person reads it: `ordered_at` → `Ordered at`. */
+export function humanized(name: string): string {
   const spaced = words(name).join(" ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
@@ -461,7 +463,7 @@ export function planMapping(
       tableView: target.resource.tableView,
       routes: RoutesOf(target.resource),
       label: target.resource.label,
-      displayName: humanized(description.name),
+      displayName: target.resource.title ?? humanized(description.name),
     };
   });
   return { resources, leftOut };

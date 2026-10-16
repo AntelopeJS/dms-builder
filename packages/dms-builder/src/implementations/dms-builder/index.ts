@@ -1,5 +1,7 @@
 import type {
   AddBlockInput,
+  AnalyseDatabaseInput,
+  AnalysisState,
   MapResourcesInput,
   MapResourcesResult,
   ModuleEntryInput,
@@ -41,6 +43,7 @@ import type {
   ResourceStructure,
   ResourceSummary,
 } from "@antelopejs/interface-dms-builder";
+import { analysisState, startAnalysis } from "./engine/analysis-job";
 import { mapResources } from "./engine/map-resources";
 import { configureProject } from "./engine/project-config-ops";
 import {
@@ -212,6 +215,18 @@ export async function MapResources(
   input: MapResourcesInput,
 ): Promise<OpResult<MapResourcesResult>> {
   return mapResources(input);
+}
+
+export async function AnalyseDatabase(
+  input: AnalyseDatabaseInput,
+): Promise<OpResult<AnalysisState>> {
+  return startAnalysis(input);
+}
+
+export async function GetAnalysis(
+  id: string,
+): Promise<OpResult<AnalysisState>> {
+  return analysisState(id);
 }
 
 export async function ConfigureProject(

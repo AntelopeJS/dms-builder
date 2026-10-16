@@ -28,6 +28,8 @@ export interface MappedResource {
   className?: string;
   /** The column relation columns pointing here show, and the TableView's `labelKey`. */
   label?: string;
+  /** The page's title and the TableView's caption; the relation's name, humanized, when omitted. */
+  title?: string;
   /**
    * False maps the relation for stats only: its controller serves no route, so queries can name
    * it as a resource, and it gets no TableView or page. Forced false without a key.
