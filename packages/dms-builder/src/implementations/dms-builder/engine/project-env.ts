@@ -46,7 +46,7 @@ function withVariable(before: string, name: string, value: string): string {
   const line = `${name}="${value}"`;
   const pattern = new RegExp(`^${name}=.*$`, "m");
   if (pattern.test(before)) {
-    return before.replace(pattern, line);
+    return before.replace(pattern, () => line);
   }
   const separator = before === "" || before.endsWith("\n") ? "" : "\n";
   return `${before}${separator}${line}\n`;

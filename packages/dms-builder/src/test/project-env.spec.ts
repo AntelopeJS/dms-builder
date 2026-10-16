@@ -72,6 +72,14 @@ describe("a project variable written by the builder", function () {
     );
   });
 
+  it("writes a value holding $ patterns as it is, when it replaces a line", () => {
+    const value = "postgres://u:pa$$w$&rd$'@h/db";
+    setProjectVariable(VARIABLE, value);
+    expect(fs.readFileSync(envFile(), "utf8")).to.equal(
+      `KEEP=1\n${VARIABLE}="${value}"\n`,
+    );
+  });
+
   it("refuses a value that would break out of its quotes", () => {
     expect(refusal(() => setProjectVariable(VARIABLE, 'x"\nOTHER=1'))).to.match(
       /quote or a line break/,
