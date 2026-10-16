@@ -1,10 +1,24 @@
 {
   "name": "@antelopejs/dms-builder",
   "version": "0.4.0",
+  "description": "Visual and programmatic editing of an AntelopeJS DMS project: every page edit is an AST rewrite of the project sources, typechecked before it is written.",
+  "keywords": [
+    "antelopejs",
+    "builder",
+    "codegen",
+    "dms",
+    "dms-module",
+    "page-editor"
+  ],
+  "homepage": "https://dms.antelopejs.com/docs/modules/builder",
+  "bugs": {
+    "url": "https://github.com/AntelopeJS/dms-builder/issues"
+  },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AntelopeJS/dms-builder.git"
+    "url": "git+https://github.com/AntelopeJS/dms-builder.git",
+    "directory": "packages/dms-builder"
   },
   "files": [
     "LICENSE",
@@ -12,7 +26,8 @@
     "dist",
     "!dist/test",
     "!dist/.tsbuildinfo",
-    "frontend-vue"
+    "frontend-vue",
+    "skills"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -72,6 +87,9 @@
     "baseUrl": "dist",
     "implements": [
       "@antelopejs/interface-dms-builder"
+    ],
+    "skills": [
+      "./skills"
     ]
   }
 }

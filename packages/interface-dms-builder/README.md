@@ -1,12 +1,82 @@
+<div align="center">
+
 # @antelopejs/interface-dms-builder
 
-The public interface contract for AntelopeJS DMS builder implementations.
+<a href="https://www.npmjs.com/package/@antelopejs/interface-dms-builder"><img alt="npm" src="https://img.shields.io/npm/v/@antelopejs/interface-dms-builder?style=for-the-badge&labelColor=000000&color=000000"></a>
+<a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@antelopejs/interface-dms-builder?style=for-the-badge&labelColor=000000&color=000000"></a>
+<a href="https://discord.gg/sjK28QHrA7"><img alt="Discord" src="https://img.shields.io/badge/Discord-18181B?logo=discord&style=for-the-badge&color=000000"></a>
+<a href="https://dms.antelopejs.com/docs/modules/builder/extending"><img alt="Documentation" src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000"></a>
 
-```ts
-import { GetCatalog } from "@antelopejs/interface-dms-builder";
+The AntelopeJS interface to edit a DMS project's pages, blocks, resources and queries from code.
+
+</div>
+
+## What it does
+
+- Creates and edits pages, categories and their block trees: `CreatePage`, `AddBlock`, `ConfigureBlock`, `MoveBlock`, `SetPageBlocks`…
+- Generates resources (a `Table`, a `DataController` and a model) and edits their fields.
+- Compiles query templates into a model method and a page route, so a card gets a number without hand-written code.
+- Reports every block type and DataType the builder can write, with a schema for its options (`GetCatalog`).
+- Returns every mutation as an `OpResult`: the files changed on success, a typed error otherwise.
+
+Every operation is an `InterfaceFunction` routed to [`@antelopejs/dms-builder`](https://www.npmjs.com/package/@antelopejs/dms-builder), which parses the project, applies the edit as an AST rewrite, and writes only if the project still typechecks.
+
+## Install
+
+Add the interface to the module that calls the builder:
+
+```bash
+pnpm add @antelopejs/interface-dms-builder
 ```
 
-The package contains only the interface types and `InterfaceFunction`
-definitions. The implementation is provided by `@antelopejs/dms-builder`.
+## Quick start
 
-The contract is documented in [`docs`](./docs/1.introduction.md).
+Create a page and put a KPI card on it:
+
+```ts
+import { AddBlock, CreatePage } from "@antelopejs/interface-dms-builder";
+
+const page = await CreatePage({
+  name: "revenue",
+  displayName: "Revenue",
+  category: "pages",
+  icon: "i-ph-chart-line",
+});
+if (!page.ok) {
+  throw new Error(`could not create the page: ${page.error.code}`);
+}
+
+const block = await AddBlock({
+  page: page.data.ref,
+  name: "total",
+  type: "KpiCard",
+  config: { title: "Total revenue", icon: "i-ph-currency-eur" },
+});
+if (!block.ok) {
+  throw new Error(`could not add the block: ${block.error.code}`);
+}
+```
+
+## Compatibility
+
+| Package | Version |
+| --- | --- |
+| `@antelopejs/dms-builder` (implementation) | `>=0.4.0` |
+| `@antelopejs/dms` | `>=0.9.0 <1.0.0` |
+| `@antelopejs/interface-core` | `>=0.2.0 <1.0.0` |
+
+The implementation runs in development only, unless its [`api.enabled`](https://dms.antelopejs.com/docs/modules/builder/configuration) option forces it.
+
+## Documentation
+
+- [Extending the builder](https://dms.antelopejs.com/docs/modules/builder/extending): the interface and the HTTP API
+- [Interface reference](https://github.com/AntelopeJS/dms-builder/tree/main/packages/interface-dms-builder/docs): addressing, catalog, page operations, resources, queries, values, results and errors, drafts and preview
+- [A chart without code](https://github.com/AntelopeJS/dms-builder/blob/main/packages/interface-dms-builder/docs/10.a-chart-without-code.md): the whole journey, from picking a measure to reopening the page
+
+## Contributing
+
+This package lives in the [`AntelopeJS/dms-builder`](https://github.com/AntelopeJS/dms-builder) pnpm workspace, next to the module that implements it. Read [CONTRIBUTING.md](https://github.com/AntelopeJS/dms-builder/blob/main/CONTRIBUTING.md) and the [repository README](https://github.com/AntelopeJS/dms-builder#contributing) for the development commands. Release this package before the module that implements it.
+
+## License
+
+[Apache-2.0](./LICENSE)
