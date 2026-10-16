@@ -1,7 +1,7 @@
 import {
   defineDmsPlugin,
-  useDmsRoute as useRoute,
-  useDmsState as useState,
+  useDmsRoute,
+  useDmsState,
 } from '#dms/frontend-module'
 import {
   ACTION_ICON,
@@ -27,7 +27,7 @@ interface HeaderAction {
 }
 
 function registerOverlay(): void {
-  const overlays = useState<string[]>(APP_OVERLAYS_STATE_KEY, () => [])
+  const overlays = useDmsState<string[]>(APP_OVERLAYS_STATE_KEY, () => [])
   if (overlays.value.includes(OVERLAY_COMPONENT_NAME)) {
     return
   }
@@ -35,7 +35,7 @@ function registerOverlay(): void {
 }
 
 function registerAction(onSelect: () => void, isActive: () => boolean): void {
-  const actions = useState<HeaderAction[]>(HEADER_ACTIONS_STATE_KEY, () => [])
+  const actions = useDmsState<HeaderAction[]>(HEADER_ACTIONS_STATE_KEY, () => [])
   if (actions.value.some((action) => action.id === ACTION_ID)) {
     return
   }
@@ -57,7 +57,7 @@ export default defineDmsPlugin(() => {
   // from the option the backend publishes: the Vite build mode of the frontend
   // says nothing about whether the backend runs in development.
   const builder = useBuilder()
-  const route = useRoute()
+  const route = useDmsRoute()
   registerOverlay()
   registerAction(
     () => {

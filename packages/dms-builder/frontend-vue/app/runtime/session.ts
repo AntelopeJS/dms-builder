@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
-import { useDmsState as useState } from '#dms/frontend-module'
+import { useDmsState } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
 import {
 	descriptorOf,
@@ -505,7 +505,7 @@ export interface BuilderController {
 }
 
 export function useBuilder(): BuilderController {
-	const session = useState<BuilderSession>(SESSION_STATE_KEY, emptySession)
+	const session = useDmsState<BuilderSession>(SESSION_STATE_KEY, emptySession)
 	const api = useBuilderApi()
 
 	const dirty = computed(

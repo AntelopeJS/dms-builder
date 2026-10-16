@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useDmsRouter as useRouter } from '#dms/frontend-module'
+import { useDmsRouter } from '#dms/frontend-module'
 import {
 	byCategoryOrder,
 	byMenuOrder,
@@ -44,7 +44,7 @@ type Row = CategoryRow | PageRow
 const builder = useBuilder()
 const { deleting, deletePage } = usePageDelete()
 const session = builder.session
-const router = useRouter()
+const router = useDmsRouter()
 // Auto-imported from the host's own layer, like every `app/composables` the
 // loader scans; it is not part of the frontend-module SDK.
 const devReload = useDevReload()

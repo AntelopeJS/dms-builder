@@ -145,7 +145,8 @@ export interface AddQueryInput {
    */
   compare?: boolean;
   /**
-   * The route path, relative to the page's slug. Defaults to
+   * The route path, relative to the page: the DMS serves it at
+   * `/dms/pages<pageRef><endpoint>` (`pageRoutePath` of interface-dms). Defaults to
    * `/stats/<kebab-name>`; any path is allowed, since read-back identifies a
    * query by its shape rather than its URL. Must not collide with another route
    * on the page.
