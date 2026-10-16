@@ -27,6 +27,13 @@ export const ROUTES = {
   pageAccess: "/page/access",
   permissions: "/permissions",
   refresh: "/refresh",
+  databaseConnections: "/database/connections",
+  databaseAnalyse: "/database/analyse",
+  databaseAnalysis: "/database/analysis",
+  databaseMap: "/database/map",
+  databaseProject: "/database/project",
+  databaseVariable: "/database/variable",
+  databaseSample: "/database/sample",
 } as const;
 
 /**

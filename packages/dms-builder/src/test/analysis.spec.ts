@@ -301,6 +301,9 @@ describe("the relation rules of the analysis", () => {
     expect(proposal.open.map((item) => item.id)).to.deep.equal([
       "purpose:legacy.t_cst",
     ]);
+    expect(
+      proposal.open[0].resource?.fields.map((field) => field.column),
+    ).to.deep.equal(["id", "c01"]);
   });
 
   it("asks when several label candidates tie on name (L1)", () => {

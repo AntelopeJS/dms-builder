@@ -173,6 +173,30 @@ function proposedResource(
   };
 }
 
+/** A purpose question carries the relation as it would be mapped, should the answer be to map it. */
+function withResource(
+  input: AnalysisInput,
+  facts: RelationFacts,
+  item: OpenItem,
+  targets: Map<string, ReferenceTarget>,
+): OpenItem {
+  const key = facts.description.key?.columns ?? [];
+  const verdict: ProposedVerdict = {
+    kind: "proposed",
+    tableView: { value: true, rule: "R9", kind: "default" },
+    label: {
+      value: key.length === 1 ? key[0] : null,
+      rule: "R9",
+      kind: "default",
+    },
+    open: [],
+  };
+  return {
+    ...item,
+    resource: proposedResource(input, facts, verdict, targets).resource,
+  };
+}
+
 function unmappedExclusions(summaries: RelationSummary[]): ProposedExclusion[] {
   return summaries
     .filter((summary) => summary.unmappable !== undefined)
@@ -221,7 +245,7 @@ export function proposeMapping(input: AnalysisInput): MappingProposal {
     if (verdict.kind === "excluded") {
       excluded.push(verdict.exclusion);
     } else if (verdict.kind === "open") {
-      open.push(verdict.item);
+      open.push(withResource(input, relation, verdict.item, targets));
     } else {
       const proposed = proposedResource(input, relation, verdict, targets);
       resources.push(proposed.resource);

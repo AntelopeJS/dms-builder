@@ -90,6 +90,8 @@ export interface OpenItem {
   options: OpenItemOption[];
   /** What the proposal holds meanwhile, if anything. */
   proposed: unknown;
+  /** For a `purpose` item, the relation as it would be mapped should the answer be to map it. */
+  resource?: ProposedResource;
 }
 
 /** The connected database, as the analysis's connection sees it. */
