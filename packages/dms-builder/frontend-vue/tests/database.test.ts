@@ -2,16 +2,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
 	answerItem,
 	connectSteps,
+	draftFromMapped,
 	draftFromProposal,
 	includeResource,
 	KEEP_MAPPING_DRAFT_MS,
 	mergedDraft,
+	remapInput,
 	settledInput,
 	storedMappingDraft,
 	storeMappingDraft,
 	unanswered,
 } from '../app/runtime/database'
 import type {
+	MappedRelation,
 	MappingProposal,
 	ProposedField,
 	ProposedResource,
@@ -129,6 +132,22 @@ describe('a mapping draft', () => {
 		})
 	})
 
+	it('keeps a relation column onto a TableView the module maps already, and drops one onto anything else', () => {
+		const invoices = resource('erp.invoices', [field('id'), field('order_ref', 'erp.archive')], 'id')
+		const proposal: MappingProposal = { ...PROPOSAL, resources: [invoices] }
+		const draft = draftFromProposal(proposal)
+		const dropped = settledInput(proposal, draft).resources[0]
+		expect(dropped.fields[1].relation).toBeUndefined()
+		const kept = settledInput(proposal, draft, new Set(['erp.archive'])).resources[0]
+		expect(kept.fields[1].relation).toBe('erp.archive')
+	})
+
+	it('sends no title for one emptied, so the page keeps its default', () => {
+		const draft = draftFromProposal(PROPOSAL)
+		draft.resources[0].title = '  '
+		expect(settledInput(PROPOSAL, draft).resources[0]).not.toHaveProperty('title')
+	})
+
 	it('drops a relation column whose target is no longer a TableView of the mapping', () => {
 		const draft = draftFromProposal(PROPOSAL)
 		includeResource(draft, 'erp.customers', false)
@@ -166,11 +185,33 @@ describe('a mapping draft kept in the browser', () => {
 		expect([...stored.values()].join('')).not.toMatch(/traits|rows/)
 	})
 
-	it('is forgotten when it is a week old, or for another module', () => {
+	it('is kept per module, and forgotten when it is a week old', () => {
 		storeMappingDraft(draftFromProposal(PROPOSAL), 0)
 		expect(storedMappingDraft('erp', 'other-tables', 1)).toBeUndefined()
-		storeMappingDraft(draftFromProposal(PROPOSAL), 0)
+		expect(storedMappingDraft('erp', 'erp-tables', 1)).toBeDefined()
 		expect(storedMappingDraft('erp', 'erp-tables', KEEP_MAPPING_DRAFT_MS + 1)).toBeUndefined()
+	})
+
+	it('meets a proposal that changed field by field: dropped columns go, new ones come, a type no longer accepted resets', () => {
+		const kept = draftFromProposal(PROPOSAL)
+		const customers = kept.resources[0]
+		customers.fields[0].label = 'Customer code'
+		customers.fields[1].declared = 'number'
+		customers.fields.push({ ...customers.fields[1], column: 'gone' })
+		customers.writable = true
+		const changed: MappingProposal = {
+			...PROPOSAL,
+			resources: [
+				resource('erp.customers', [field('code'), field('name'), field('segment')], 'name'),
+				PROPOSAL.resources[1],
+			],
+		}
+		const merged = mergedDraft(changed, kept).resources[0]
+		expect(merged.writable).toBe(true)
+		expect(merged.fields.map((entry) => entry.column)).toEqual(['code', 'name', 'segment'])
+		expect(merged.fields[0].label).toBe('Customer code')
+		expect(merged.fields[1].declared).toBe('string')
+		expect(settledInput(changed, mergedDraft(changed, kept)).resources).toHaveLength(2)
 	})
 })
 
@@ -200,5 +241,33 @@ describe('the wiring of a database', () => {
 	it('leaves mongodb and dms-ai alone when the project needs neither', () => {
 		const steps = connectSteps({ ...form, dmsPinned: true, withDmsAi: false })
 		expect(steps.map((step) => step.id)).toEqual(['postgres-erp', 'erp-tables', 'dms-builder'])
+	})
+})
+
+describe('a relation the module maps already', () => {
+	const mapped: MappedRelation = {
+		ref: 'erp/erp/customers',
+		resource: resource('erp.customers', [field('code'), field('name'), field('email')], 'name'),
+		included: ['name', 'email'],
+	}
+
+	it('opens with its current choices, the columns it declares in', () => {
+		const draft = draftFromMapped(mapped)
+		expect(draft.fields.map((entry) => [entry.column, entry.include])).toEqual([
+			['code', false],
+			['name', true],
+			['email', true],
+		])
+	})
+
+	it('is mapped again on its own, from its changed draft', () => {
+		const draft = draftFromMapped(mapped)
+		draft.fields[2].include = false
+		draft.writable = true
+		const input = remapInput('erp', 'erp-tables', draft, new Set())
+		expect(input.resources).toHaveLength(1)
+		expect(input.resources[0]).toMatchObject({ relation: 'erp.customers', writable: true, label: 'name' })
+		expect(input.resources[0].fields.map((entry) => entry.column)).toEqual(['name'])
+		expect(input).not.toHaveProperty('excluded')
 	})
 })

@@ -105,6 +105,14 @@ export interface AnalysisState {
 	error?: string
 }
 
+/** A relation the module maps, read back as its current choices. */
+export interface MappedRelation {
+	ref: string
+	resource: ProposedResource
+	/** The columns the module declares; the rest are the catalog's others. */
+	included: string[]
+}
+
 export interface MappedField {
 	column: string
 	declared?: string

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import type { FieldDraft, ResourceDraft } from '../runtime/database'
+import { ruleSentence, type FieldDraft, type ResourceDraft } from '../runtime/database'
 import type {
+	Proposed,
 	ProposedColumnProfile,
 	ProposedResource,
 	RowSample,
@@ -84,13 +85,22 @@ function shown(value: SampledValue): string {
 	return value.truncated ? `${value.text}…` : value.text
 }
 
+/** Why a choice is what it is, as the badge beside it says on hover. */
+function why(choice: Proposed<unknown> | undefined): string {
+	return choice ? `${choice.kind === 'fact' ? 'Fact' : 'Default'}: ${ruleSentence(choice.rule)}` : ''
+}
+
 async function sampleRows(): Promise<void> {
+	const relation = resource.value.relation
 	sampling.value = true
 	sampleProblem.value = ''
 	try {
-		sample.value = await api.sampleRows(props.connection, resource.value.relation, SAMPLE_LIMIT)
+		const rows = await api.sampleRows(props.connection, relation, SAMPLE_LIMIT)
+		if (resource.value.relation === relation) sample.value = rows
 	} catch (error) {
-		sampleProblem.value = error instanceof Error ? error.message : String(error)
+		if (resource.value.relation === relation) {
+			sampleProblem.value = error instanceof Error ? error.message : String(error)
+		}
 	} finally {
 		sampling.value = false
 	}
@@ -100,14 +110,23 @@ async function sampleRows(): Promise<void> {
 <template>
 	<div class="flex flex-col gap-4">
 		<header class="flex flex-wrap items-center gap-3">
-			<UInput v-model="resource.title" aria-label="Title" class="min-w-60" />
+			<UTooltip :text="why(proposed?.title)">
+				<UInput v-model="resource.title" aria-label="Title" class="min-w-60" />
+			</UTooltip>
 			<span class="font-mono text-xs text-muted">{{ resource.relation }}</span>
-			<USwitch v-model="resource.tableView" label="TableView" />
-			<USwitch v-model="resource.writable" :disabled="!resource.tableView" label="Editable" />
+			<UTooltip :text="why(proposed?.tableView)">
+				<USwitch v-model="resource.tableView" label="TableView" />
+			</UTooltip>
+			<UTooltip :text="why(proposed?.writable)">
+				<USwitch v-model="resource.writable" :disabled="!resource.tableView" label="Editable" />
+			</UTooltip>
 			<span class="text-xs text-muted">{{ writes }}</span>
 		</header>
 
-		<UFormField label="Label" help="The column a row is named by, in lists and in the relation columns pointing here.">
+		<UFormField
+			label="Label"
+			:help="`The column a row is named by, in lists and in the relation columns pointing here. ${why(proposed?.label)}`"
+		>
 			<USelect
 				:model-value="resource.label ?? undefined"
 				:items="labelOptions"
@@ -132,16 +151,28 @@ async function sampleRows(): Promise<void> {
 					<td class="py-1.5 pr-2">
 						<UCheckbox v-model="field.include" :label="field.column" />
 						<span v-if="field.relation" class="block font-mono text-[11px] text-muted">
-							→ {{ field.relation }}<template v-if="proposedFields.get(field.column)?.relation?.implied"> (implied)</template>
+							→ {{ field.relation }}<template v-if="proposedFields.get(field.column)?.relation?.implied"> (implied: {{ ruleSentence('F5') }})</template>
 						</span>
 					</td>
 					<td class="py-1.5 pr-2">
-						<USelect v-model="field.declared" :items="accepts(field.column)" size="xs" class="w-24" :disabled="!!field.relation" />
+						<UTooltip :text="why(proposedFields.get(field.column)?.declared)">
+							<USelect v-model="field.declared" :items="accepts(field.column)" size="xs" class="w-24" :disabled="!!field.relation" />
+						</UTooltip>
 						<span class="block font-mono text-[10.5px] text-muted">{{ proposedFields.get(field.column)?.native }}</span>
+						<span
+							v-if="proposedFields.get(field.column)?.declared.lossy && field.declared === proposedFields.get(field.column)?.declared.value"
+							class="block text-[10.5px] text-warning"
+						>{{ proposedFields.get(field.column)?.declared.lossy }}</span>
 					</td>
-					<td class="py-1.5 pr-2"><UInput v-model="field.label" size="xs" /></td>
+					<td class="py-1.5 pr-2">
+						<UTooltip :text="why(proposedFields.get(field.column)?.label)">
+							<UInput v-model="field.label" size="xs" />
+						</UTooltip>
+					</td>
 					<td v-for="flag in FLAGS" :key="flag.key" class="py-1.5 pr-2">
-						<UCheckbox v-model="field[flag.key]" :aria-label="`${flag.label} ${field.column}`" />
+						<UTooltip :text="why(proposedFields.get(field.column)?.[flag.key])">
+							<UCheckbox v-model="field[flag.key]" :aria-label="`${flag.label} ${field.column}`" />
+						</UTooltip>
 					</td>
 					<td class="py-1.5 text-[11px] text-muted">{{ measured(proposedFields.get(field.column)?.profile) }}</td>
 				</tr>

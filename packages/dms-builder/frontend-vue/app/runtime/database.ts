@@ -7,6 +7,7 @@
 import type {
 	MapResourcesInput,
 	MappedField,
+	MappedRelation,
 	MappedResource,
 	MappingProposal,
 	ModuleEntryInput,
@@ -156,16 +157,30 @@ export function includeResource(draft: MappingDraft, relation: string, include: 
 	}
 }
 
-/** A relation column survives only onto a relation this mapping keeps as a TableView, or one outside it. */
-function relationKept(draft: MappingDraft, relation: string | null): string | undefined {
+/**
+ * A relation column survives only onto a TableView: one this mapping keeps as
+ * such, or one the module maps already.
+ */
+function relationKept(
+	draft: MappingDraft,
+	relation: string | null,
+	mappedTableViews: ReadonlySet<string>,
+): string | undefined {
 	if (!relation) {
 		return undefined
 	}
 	const target = resourceIn(draft, relation)
-	return !target || (target.include && target.tableView) ? relation : undefined
+	if (target) {
+		return target.include && target.tableView ? relation : undefined
+	}
+	return mappedTableViews.has(relation) ? relation : undefined
 }
 
-function mappedField(draft: MappingDraft, field: FieldDraft): MappedField {
+function mappedField(
+	draft: MappingDraft,
+	field: FieldDraft,
+	mappedTableViews: ReadonlySet<string>,
+): MappedField {
 	const mapped: MappedField = {
 		column: field.column,
 		label: field.label,
@@ -174,7 +189,7 @@ function mappedField(draft: MappingDraft, field: FieldDraft): MappedField {
 		sortable: field.sortable,
 		searchable: field.searchable,
 	}
-	const relation = relationKept(draft, field.relation)
+	const relation = relationKept(draft, field.relation, mappedTableViews)
 	if (relation) {
 		mapped.relation = relation
 	} else {
@@ -183,15 +198,21 @@ function mappedField(draft: MappingDraft, field: FieldDraft): MappedField {
 	return mapped
 }
 
-function mappedResource(draft: MappingDraft, resource: ResourceDraft): MappedResource {
+function mappedResource(
+	draft: MappingDraft,
+	resource: ResourceDraft,
+	mappedTableViews: ReadonlySet<string>,
+): MappedResource {
 	const mapped: MappedResource = {
 		relation: resource.relation,
-		title: resource.title,
 		tableView: resource.tableView,
-		writable: resource.writable,
+		writable: resource.tableView && resource.writable,
 		fields: resource.fields
 			.filter((field) => field.include)
-			.map((field) => mappedField(draft, field)),
+			.map((field) => mappedField(draft, field, mappedTableViews)),
+	}
+	if (resource.title.trim()) {
+		mapped.title = resource.title.trim()
 	}
 	if (resource.label) {
 		mapped.label = resource.label
@@ -205,7 +226,11 @@ function mappedResource(draft: MappingDraft, resource: ResourceDraft): MappedRes
  * their own — so the next analysis does not propose them again. A question left
  * unanswered is not recorded, and comes back next time.
  */
-export function settledInput(proposal: MappingProposal, draft: MappingDraft): MapResourcesInput {
+export function settledInput(
+	proposal: MappingProposal,
+	draft: MappingDraft,
+	mappedTableViews: ReadonlySet<string> = new Set(),
+): MapResourcesInput {
 	const excluded = new Map<string, string>(
 		proposal.excluded.map((entry) => [entry.relation, entry.reason]),
 	)
@@ -217,7 +242,7 @@ export function settledInput(proposal: MappingProposal, draft: MappingDraft): Ma
 		connection: draft.connection,
 		resources: draft.resources
 			.filter((resource) => resource.include)
-			.map((resource) => mappedResource(draft, resource)),
+			.map((resource) => mappedResource(draft, resource, mappedTableViews)),
 		excluded: [...excluded].map(([relation, reason]) => ({ relation, reason })),
 	}
 }
@@ -296,24 +321,28 @@ function storage(): Storage | undefined {
 	}
 }
 
+function draftKey(connection: string, module: string): string {
+	return `${DRAFT_PREFIX}${connection}:${module}`
+}
+
 export function storeMappingDraft(draft: MappingDraft, now = Date.now()): void {
 	try {
 		const value: StoredMapping = { draft, at: now }
-		storage()?.setItem(`${DRAFT_PREFIX}${draft.connection}`, JSON.stringify(value))
+		storage()?.setItem(draftKey(draft.connection, draft.module), JSON.stringify(value))
 	} catch {
 		// Storage refused: the draft lives in the workspace until it closes.
 	}
 }
 
-export function forgetMappingDraft(connection: string): void {
+export function forgetMappingDraft(connection: string, module: string): void {
 	try {
-		storage()?.removeItem(`${DRAFT_PREFIX}${connection}`)
+		storage()?.removeItem(draftKey(connection, module))
 	} catch {
 		// Nothing kept, nothing to forget.
 	}
 }
 
-/** The draft kept for a connection, unless there is none, it is for another module, or it is too old. */
+/** The draft kept for a connection and module, unless there is none or it is too old. */
 export function storedMappingDraft(
 	connection: string,
 	module: string,
@@ -321,7 +350,7 @@ export function storedMappingDraft(
 ): MappingDraft | undefined {
 	let raw: string | null | undefined
 	try {
-		raw = storage()?.getItem(`${DRAFT_PREFIX}${connection}`)
+		raw = storage()?.getItem(draftKey(connection, module))
 	} catch {
 		return undefined
 	}
@@ -330,33 +359,145 @@ export function storedMappingDraft(
 	}
 	try {
 		const value = JSON.parse(raw) as StoredMapping
-		if (value.draft?.module !== module || now - value.at > KEEP_MAPPING_DRAFT_MS) {
-			forgetMappingDraft(connection)
+		if (!Array.isArray(value.draft?.resources) || now - value.at > KEEP_MAPPING_DRAFT_MS) {
+			forgetMappingDraft(connection, module)
 			return undefined
 		}
 		return value.draft
 	} catch {
-		forgetMappingDraft(connection)
+		forgetMappingDraft(connection, module)
 		return undefined
 	}
 }
 
+function mergedField(fresh: FieldDraft, kept: FieldDraft | undefined, accepts: string[]): FieldDraft {
+	if (!kept) {
+		return fresh
+	}
+	return {
+		...kept,
+		column: fresh.column,
+		declared: accepts.includes(kept.declared) ? kept.declared : fresh.declared,
+	}
+}
+
+function proposedFieldsOf(proposal: MappingProposal, relation: string): ProposedField[] {
+	const resource =
+		proposal.resources.find((entry) => entry.relation === relation) ??
+		proposal.open.find((item) => item.resource?.relation === relation)?.resource
+	return resource?.fields ?? []
+}
+
+function mergedResource(
+	proposal: MappingProposal,
+	fresh: ResourceDraft,
+	kept: ResourceDraft | undefined,
+): ResourceDraft {
+	if (!kept) {
+		return fresh
+	}
+	const accepts = new Map(
+		proposedFieldsOf(proposal, fresh.relation).map((field) => [field.column, field.accepts]),
+	)
+	const columns = new Set(fresh.fields.map((field) => field.column))
+	return {
+		...fresh,
+		include: kept.include,
+		tableView: kept.tableView,
+		writable: kept.writable,
+		title: kept.title,
+		label: kept.label && columns.has(kept.label) ? kept.label : fresh.label,
+		fields: fresh.fields.map((field) =>
+			mergedField(
+				field,
+				kept.fields.find((candidate) => candidate.column === field.column),
+				accepts.get(field.column) ?? [],
+			),
+		),
+	}
+}
+
 /**
- * A kept draft laid over a fresh proposal: its choices for the relations both
- * know, the proposal's for the rest. The analysis is deterministic, so a draft
- * made on the last run fits the next one.
+ * A kept draft laid over a fresh proposal, field by field: the integrator's
+ * choices where the relation and column still exist and the type is still
+ * accepted, the proposal's for everything else, new columns included. Answers
+ * and exclusions are kept only for what the proposal still asks or lists.
  */
 export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | undefined): MappingDraft {
 	const fresh = draftFromProposal(proposal)
 	if (!kept) {
 		return fresh
 	}
+	const relations = new Set(fresh.resources.map((resource) => resource.relation))
+	const asked = new Set(proposal.open.map((item) => item.id))
 	return {
 		...fresh,
-		resources: fresh.resources.map(
-			(resource) => resourceIn(kept, resource.relation) ?? resource,
+		resources: fresh.resources.map((resource) =>
+			mergedResource(proposal, resource, resourceIn(kept, resource.relation)),
 		),
-		answers: { ...kept.answers },
-		excluded: { ...kept.excluded },
+		answers: Object.fromEntries(Object.entries(kept.answers).filter(([id]) => asked.has(id))),
+		excluded: Object.fromEntries(
+			Object.entries(kept.excluded).filter(([relation]) => relations.has(relation)),
+		),
 	}
+}
+
+/** A relation the module maps, as a draft to change: its current choices, its declared columns in. */
+export function draftFromMapped(entry: MappedRelation): ResourceDraft {
+	const draft = resourceDraft(entry.resource, true)
+	for (const field of draft.fields) {
+		field.include = entry.included.includes(field.column)
+	}
+	return draft
+}
+
+/** The `MapResources` that maps one relation again from its changed draft. */
+export function remapInput(
+	connection: string,
+	module: string,
+	resource: ResourceDraft,
+	mappedTableViews: ReadonlySet<string>,
+): MapResourcesInput {
+	const draft: MappingDraft = { connection, module, resources: [resource], answers: {}, excluded: {} }
+	return {
+		module,
+		connection,
+		resources: [mappedResource(draft, resource, mappedTableViews)],
+	}
+}
+
+/** The relations the module maps as TableViews, which relation columns may point at. */
+export function mappedTableViewsOf(mapped: MappedRelation[]): Set<string> {
+	return new Set(
+		mapped
+			.filter((entry) => entry.resource.tableView.value)
+			.map((entry) => entry.resource.relation),
+	)
+}
+
+/** What each rule decides, as the workspace says it beside a choice. */
+export const RULE_SENTENCES: Record<string, string> = {
+	R1: 'The catalog says this relation cannot be mapped.',
+	R2: 'No key: it can feed stats pages, not a TableView.',
+	R3: 'It has no rows.',
+	R4: "A framework's or a migration tool's table.",
+	R5: 'Keyed by its two foreign keys: a link table, for stats only.',
+	R6: 'Keyed, with rows and a column that names a row: a TableView.',
+	R7: 'Referenced by others but nothing names a row: a TableView labelled by its key.',
+	R8: 'Keyed, with a time axis and nothing that names a row: events or a log, for stats only.',
+	R9: 'No rule decides what it holds.',
+	L1: 'The label candidate preferred by its name, then the first by order.',
+	L2: "From the catalog's comment when it is short, otherwise from the name.",
+	F1: 'No field type reads this column.',
+	F2: 'Named like a secret.',
+	F3: 'The first declaration the column accepts.',
+	F4: 'A declared foreign key onto a TableView.',
+	F5: "Every value is found in the target's key, though no foreign key declares it.",
+	FL: 'From what the profile says the column is.',
+	W1: 'Read-only until you choose otherwise.',
+	mapped: 'What the module maps now.',
+}
+
+export function ruleSentence(rule: string): string {
+	return RULE_SENTENCES[rule] ?? rule
 }

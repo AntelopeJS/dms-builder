@@ -14,12 +14,20 @@ const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
 const module = ref('')
+/** A connection written to the configuration, which exists once the project restarts. */
+const pending = ref<string | null>(null)
 
 async function load(): Promise<void> {
 	connections.value = await api.databaseConnections().catch(() => [])
 	if (!selected.value && connections.value.length) {
 		open(connections.value[0].id)
 	}
+}
+
+function connected(id: string): void {
+	connecting.value = false
+	pending.value = id
+	void load()
 }
 
 function open(id: string): void {
@@ -44,7 +52,14 @@ onMounted(load)
 				:variant="connecting ? 'soft' : 'solid'"
 				@click="connecting = !connecting"
 			/>
-			<p v-if="connections && !connections.length" class="text-xs text-muted">
+			<div
+				v-if="pending && !connections?.some((entry) => entry.id === pending)"
+				class="rounded-md border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-toned"
+			>
+				<b class="font-semibold text-highlighted">{{ pending }}</b> is written to the configuration.
+				Restart the project for it to connect.
+			</div>
+			<p v-else-if="connections && !connections.length" class="text-xs text-muted">
 				No database is connected to the builder yet.
 			</p>
 			<UButton
@@ -72,9 +87,9 @@ onMounted(load)
 
 		<section class="flex min-h-0 min-w-0 flex-col overflow-y-auto">
 			<DmsBuilderDatabaseConnect
-				v-if="connecting || (connections && !connections.length)"
+				v-if="connecting || (connections && !connections.length && !pending)"
 				@cancel="connecting = false"
-				@connected="connecting = false; load()"
+				@connected="connected"
 			/>
 			<DmsBuilderDatabaseProposal
 				v-else-if="selected"

@@ -2,6 +2,7 @@ import { API_PREFIX, PAGE_LAYOUT_PATH } from './constants'
 import type {
 	AnalysisState,
 	DatabaseConnection,
+	MappedRelation,
 	MapResourcesInput,
 	MapResourcesResult,
 	ProjectConfigResult,
@@ -174,6 +175,9 @@ export function useBuilderApi() {
 		analyseDatabase: (connection: string, module: string, schemas?: string[]) =>
 			post<AnalysisState>('/database/analyse', { connection, module, schemas }),
 		analysis: (id: string) => read<AnalysisState>('/database/analysis', { id }),
+		/** The relations the module maps for the connection, as their current choices. */
+		mapping: (connection: string, module: string) =>
+			read<MappedRelation[]>('/database/mapping', { connection, module }),
 		mapDatabase: (input: MapResourcesInput) =>
 			post<MapResourcesResult>('/database/map', input),
 		configureProject: (steps: ProjectConfigStep[], dryRun: boolean) =>

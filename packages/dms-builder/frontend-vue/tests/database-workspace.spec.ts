@@ -120,6 +120,7 @@ beforeEach(() => {
 		data: { resources: [{ relation: 'erp.customers', ref: 'erp/erp/customers', files: [] }], leftOut: [] },
 		changes: [],
 	}
+	backend.answers['GET /api/builder/database/mapping'] = { ok: true, data: [], changes: [] }
 	backend.answers['POST /api/builder/database/sample'] = {
 		relation: 'erp.customers',
 		columns: ['code', 'name'],
@@ -153,6 +154,10 @@ describe('the Database workspace', () => {
 
 		fire(button(root, 'Apply'), 'click')
 		await settle()
+		expect(backend.calledPaths()).not.toContain('POST /api/builder/database/map')
+		expect(textOf(root)).toContain('Apply writes, in one change')
+		fire(button(root, 'Write it'), 'click')
+		await settle()
 
 		const map = backend.calls.filter((call) => call.path === '/api/builder/database/map')
 		expect(map).toHaveLength(1)
@@ -175,6 +180,33 @@ describe('the Database workspace', () => {
 		expect([...stored.values()].join('')).not.toContain('Ada Lovelace')
 		const sample = backend.calls.find((call) => call.path === '/api/builder/database/sample')
 		expect(sample?.body).toEqual({ connection: 'erp', relation: 'erp.customers', limit: 20 })
+	})
+})
+
+describe('a relation the module maps already', () => {
+	it('is listed, opened with its current choices, and mapped again on its own', async () => {
+		backend.answers['GET /api/builder/database/mapping'] = {
+			ok: true,
+			data: [{ ref: 'erp/erp/customers', resource: CUSTOMERS, included: ['name'] }],
+			changes: [],
+		}
+		const mounted = mount(DatabaseProposal, {
+			props: { connection: 'erp', module: 'erp-tables' },
+			components: COMPONENTS,
+		})
+		unmount = mounted.unmount
+		await settle()
+		fire(button(mounted.root, 'erp.customers'), 'click')
+		await settle()
+		fire(button(mounted.root, 'Map again'), 'click')
+		await settle()
+
+		const map = backend.calls.filter((call) => call.path === '/api/builder/database/map')
+		expect(map).toHaveLength(1)
+		expect(map[0]?.body).toMatchObject({
+			resources: [{ relation: 'erp.customers', fields: [{ column: 'name' }] }],
+		})
+		expect(map[0]?.body).not.toHaveProperty('excluded')
 	})
 })
 
