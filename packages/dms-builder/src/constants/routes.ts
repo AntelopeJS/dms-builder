@@ -31,6 +31,7 @@ export const ROUTES = {
   databaseAnalyse: "/database/analyse",
   databaseAnalysis: "/database/analysis",
   databaseMap: "/database/map",
+  databaseMapping: "/database/mapping",
   databaseProject: "/database/project",
   databaseVariable: "/database/variable",
   databaseSample: "/database/sample",

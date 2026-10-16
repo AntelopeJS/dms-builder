@@ -109,6 +109,15 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     return engine.MapResources(body);
   }
 
+  @Get(ROUTES.databaseMapping)
+  async mapping(
+    @AuthTenantOwner() _user: User,
+    @Parameter("connection", "query") connection: string,
+    @Parameter("module", "query") module: string,
+  ) {
+    return engine.GetMapping(connection, module);
+  }
+
   @Post(ROUTES.databaseProject)
   async project(@AuthTenantOwner() _user: User, @JSONBody() body: ProjectBody) {
     return engine.ConfigureProject(body.steps, body.opts);

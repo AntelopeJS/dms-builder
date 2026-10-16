@@ -2,6 +2,7 @@ import type {
   AddBlockInput,
   AnalyseDatabaseInput,
   AnalysisState,
+  MappedRelation,
   MapResourcesInput,
   MapResourcesResult,
   ModuleEntryInput,
@@ -45,6 +46,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { analysisState, startAnalysis } from "./engine/analysis-job";
 import { mapResources } from "./engine/map-resources";
+import { mappedChoices } from "./engine/mapped-choices";
 import { configureProject } from "./engine/project-config-ops";
 import {
   buildCatalog,
@@ -227,6 +229,13 @@ export async function GetAnalysis(
   id: string,
 ): Promise<OpResult<AnalysisState>> {
   return analysisState(id);
+}
+
+export async function GetMapping(
+  connection: string,
+  module: string,
+): Promise<OpResult<MappedRelation[]>> {
+  return mappedChoices(connection, module);
 }
 
 export async function ConfigureProject(

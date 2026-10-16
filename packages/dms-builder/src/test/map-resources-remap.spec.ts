@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect } from "chai";
+import type {
+  MappedRelation,
+  MappedResource,
+} from "@antelopejs/interface-dms-builder";
 import {
+  GetMapping,
   ListPages,
   ListResources,
   MapResources,
@@ -16,6 +21,44 @@ import {
 import { FAKE_CATALOG, INPUT, MODULE, OP_TIMEOUT } from "./mapped-database";
 
 let app: Fixture;
+
+/** What the workspace sends to map a relation again from what GetMapping read back. */
+function asMapped(entry: MappedRelation): MappedResource {
+  const { resource } = entry;
+  const mapped: MappedResource = {
+    relation: resource.relation,
+    title: resource.title.value,
+    tableView: resource.tableView.value,
+    writable: resource.writable.value,
+    fields: resource.fields
+      .filter((field) => entry.included.includes(field.column))
+      .map((field) =>
+        field.relation
+          ? {
+              column: field.column,
+              label: field.label.value,
+              listable: field.listable.value,
+              filterable: field.filterable.value,
+              sortable: field.sortable.value,
+              searchable: field.searchable.value,
+              relation: field.relation.value,
+            }
+          : {
+              column: field.column,
+              label: field.label.value,
+              listable: field.listable.value,
+              filterable: field.filterable.value,
+              sortable: field.sortable.value,
+              searchable: field.searchable.value,
+              declared: field.declared.value,
+            },
+      ),
+  };
+  if (resource.label.value) {
+    mapped.label = resource.label.value;
+  }
+  return mapped;
+}
 
 function moduleFile(relative: string): string {
   return fs.readFileSync(
@@ -40,6 +83,53 @@ describe("mapping again a database already mapped", function () {
   after(() => {
     setCatalogConnectionsForTests();
     destroyFixture();
+  });
+
+  it("reads a mapped relation back as its current choices", async () => {
+    const read = await GetMapping("erp", MODULE);
+    expectOk(read, "GetMapping");
+    const relations = read.ok ? read.data : [];
+    const accounts = relations.find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    )!;
+    expect(accounts.resource.label.value).to.equal("name");
+    expect(accounts.resource.writable.value).to.equal(true);
+    expect(accounts.included).to.include.members([
+      "name",
+      "status",
+      "Order Date",
+    ]);
+    const contacts = relations.find(
+      (entry) => entry.resource.relation === "sales.contacts",
+    )!;
+    expect(contacts.resource.writable.value).to.equal(false);
+    expect(
+      contacts.resource.fields.find((field) => field.column === "account_id")
+        ?.relation?.value,
+    ).to.equal("sales.accounts");
+    const log = relations.find(
+      (entry) => entry.resource.relation === "sales.raw_log",
+    )!;
+    expect(log.resource.tableView.value).to.equal(false);
+  });
+
+  it("maps a relation again from what it reads back, changing nothing", async () => {
+    const read = await GetMapping("erp", MODULE);
+    const relations = read.ok ? read.data : [];
+    const remapped = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: relations
+        .filter((entry) => entry.resource.relation === "sales.contacts")
+        .map(asMapped),
+    });
+    expectOk(remapped, "MapResources from GetMapping");
+    expect(
+      remapped.ok && remapped.changes.map((change) => change.path),
+      JSON.stringify(
+        remapped.ok && remapped.changes.map((change) => change.diff),
+      ),
+    ).to.deep.equal([]);
   });
 
   it("rewrites a relation mapped before from new choices, and keeps its page", async () => {

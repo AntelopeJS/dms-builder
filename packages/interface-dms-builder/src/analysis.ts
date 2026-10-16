@@ -1,4 +1,5 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
+import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
 
 /** Whether a proposed choice follows from the catalog alone, or is a judgement to check. */
@@ -188,3 +189,20 @@ export const AnalyseDatabase =
  */
 export const GetAnalysis =
   InterfaceFunction<(id: string) => Promise<OpResult<AnalysisState>>>();
+
+/**
+ * A relation a module maps, read back from its code as its current choices, in a proposal's shape:
+ * every choice cites the rule `mapped`.
+ */
+export interface MappedRelation {
+  ref: ResourceRef;
+  resource: ProposedResource;
+  /** The columns the module declares; the rest of `resource.fields` are the catalog's others. */
+  included: string[];
+}
+
+/** The relations a module maps for a connection, as their current choices, to change and map again. */
+export const GetMapping =
+  InterfaceFunction<
+    (connection: string, module: string) => Promise<OpResult<MappedRelation[]>>
+  >();
