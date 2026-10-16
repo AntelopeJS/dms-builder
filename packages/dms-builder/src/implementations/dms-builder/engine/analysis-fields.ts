@@ -1,7 +1,12 @@
-import type { ColumnDescription } from "@antelopejs/interface-database-catalog";
+import type {
+  ColumnDescription,
+  ColumnProfile,
+  Measure,
+} from "@antelopejs/interface-database-catalog";
 import type {
   OpenItem,
   Proposed,
+  ProposedColumnProfile,
   ProposedField,
   ProposedLeftOut,
   ProposedRelationColumn,
@@ -199,6 +204,32 @@ function leftOutReason(column: ColumnDescription): ProposedLeftOut | undefined {
     : undefined;
 }
 
+function valueOf<T>(measure: Measure<T> | undefined): T | undefined {
+  return measure?.status === "ok" ? measure.value : undefined;
+}
+
+/** The profile's aggregates for the person deciding; text extremes were never measured. */
+function profileSummary(profile: ColumnProfile): ProposedColumnProfile {
+  const summary: ProposedColumnProfile = { traits: [...profile.traits] };
+  const nulls = valueOf(profile.nulls);
+  const distinct = valueOf(profile.distinct);
+  const range = valueOf(profile.range);
+  const categories = valueOf(profile.categories);
+  if (nulls !== undefined) {
+    summary.nulls = nulls;
+  }
+  if (distinct !== undefined) {
+    summary.distinct = distinct;
+  }
+  if (range) {
+    summary.range = range;
+  }
+  if (categories) {
+    summary.categories = categories.values;
+  }
+  return summary;
+}
+
 function proposedField(
   facts: RelationFacts,
   column: ColumnDescription,
@@ -216,6 +247,8 @@ function proposedField(
   );
   const field: ProposedField = {
     column: column.name,
+    native: column.native,
+    accepts: column.accepts.map((entry) => entry.declared),
     declared: { ...fact(declared, "F3"), lossy: reading.lossy },
     label: byDefault(titleOf(column.comment, column.name), "L2"),
     listable: byDefault(flags.listable, "FL"),
@@ -225,6 +258,10 @@ function proposedField(
   };
   if (choice.relation) {
     field.relation = choice.relation;
+  }
+  const profile = columnProfile(facts, column.name);
+  if (profile) {
+    field.profile = profileSummary(profile);
   }
   return field;
 }

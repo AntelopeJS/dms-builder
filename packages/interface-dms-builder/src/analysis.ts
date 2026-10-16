@@ -22,9 +22,34 @@ export interface ProposedRelationColumn extends Proposed<string> {
   implied: boolean;
 }
 
+/** The ends of a number, date or enum column. */
+export interface ProposedRange {
+  min: number | string;
+  max: number | string;
+}
+
+/** A category of a column with few distinct values, with its rows. */
+export interface ProposedCategory {
+  value: string | number | boolean;
+  rows: number;
+}
+
+/** What the column's profile measured, for the person deciding: aggregates, never a row. */
+export interface ProposedColumnProfile {
+  traits: string[];
+  nulls?: number;
+  distinct?: number;
+  range?: ProposedRange;
+  categories?: ProposedCategory[];
+}
+
 /** One column of a proposed relation, each aspect with its rule. */
 export interface ProposedField {
   column: string;
+  /** The column's native type. */
+  native: string;
+  /** Every declaration the column accepts, the proposed one among them. */
+  accepts: string[];
   declared: ProposedDeclaration;
   label: Proposed<string>;
   listable: Proposed<boolean>;
@@ -33,6 +58,7 @@ export interface ProposedField {
   searchable: Proposed<boolean>;
   /** `"schema.name"` of the relation this column refers to, when it becomes a relation column. */
   relation?: ProposedRelationColumn;
+  profile?: ProposedColumnProfile;
 }
 
 /** A column the analysis leaves out, and why. */

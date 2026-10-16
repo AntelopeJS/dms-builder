@@ -142,6 +142,10 @@ describe("the analysis of a database", () => {
   it("proposes the first declaration a column accepts (F3)", () => {
     const orders = resource(proposal, "erp.orders");
     expect(field(orders, "total").declared.value).to.equal("number");
+    expect(field(orders, "total").accepts).to.deep.equal(["number", "string"]);
+    expect(field(orders, "total").profile).to.deep.equal({
+      traits: ["measure"],
+    });
   });
 
   it("lists, filters, sorts and searches by what the profile says a column is", () => {
