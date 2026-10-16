@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.3.0...v0.4.0)
+
+### 🚀 Enhancements
+
+- ⚠️  Migrate to DMS 0.9 and renderer 0.6 ([#45](https://github.com/AntelopeJS/dms-builder/pull/45))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Migrate to DMS 0.9 and renderer 0.6 ([#45](https://github.com/AntelopeJS/dms-builder/pull/45))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.3.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.7...v0.3.0)
