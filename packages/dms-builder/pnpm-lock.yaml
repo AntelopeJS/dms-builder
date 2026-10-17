@@ -21,7 +21,7 @@ importers:
         specifier: '>=0.7.2 <1.0.0'
         version: 0.7.2(baf8655f8e54b8fbf2a9669a652c5bcb)
       '@antelopejs/interface-dms-builder':
-        specifier: '>=0.2.1 <0.3.0'
+        specifier: '>=0.2.2 <0.3.0'
         version: link:../interface-dms-builder
       ts-morph:
         specifier: ^23.0.0
