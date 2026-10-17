@@ -53,7 +53,7 @@ export interface BlockNode {
   name: string;
   /** Factory name; null if unresolved. */
   type: string | null;
-  /** False = opaque / non-canonical. */
+  /** Whether understood options can be edited, independently of identity. */
   editable: boolean;
   /** Set when `editable === false`. */
   opaqueReason?: string;
@@ -66,6 +66,8 @@ export interface BlockNode {
   meta?: Record<string, unknown>;
   /** Present only when editable. */
   config?: Record<string, unknown>;
+  /** Top-level options retained on the server, with a reason for each lock. */
+  lockedOptions?: Record<string, string>;
   /**
    * Controller-leading blocks (e.g. `TableView`): the resource ref of the leading
    * DataAPI class argument, when it resolves to a known generated resource.

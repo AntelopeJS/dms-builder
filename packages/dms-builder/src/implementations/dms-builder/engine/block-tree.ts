@@ -6,8 +6,9 @@ import {
   Node,
 } from "ts-morph";
 import { isControllerLeadingBlock } from "./catalog";
-import { resolveExpr, unwrapBuilderChain } from "./chain";
-import { objectLiteralToValue } from "./config-literal";
+import { type ChainInfo, resolveExpr, unwrapBuilderChain } from "./chain";
+import { editableOptions, objectLiteralToValue } from "./config-literal";
+import { unwrapExpression } from "./expression";
 import { stringLiteralValue } from "./literals";
 import { findResourceBySymbol } from "./resource-index";
 import type { PageRecord } from "./scan";
@@ -35,10 +36,13 @@ function readChildMeta(metaArg: Node | undefined): {
   slot?: string;
   meta?: Record<string, unknown>;
 } {
+  if (metaArg) metaArg = unwrapExpression(metaArg);
   if (!metaArg || !Node.isObjectLiteralExpression(metaArg)) {
     return {};
   }
-  const value = objectLiteralToValue(metaArg).value as Record<string, unknown>;
+  const read = objectLiteralToValue(metaArg);
+  if (!read.fullyLiteral) return {};
+  const value = read.value as Record<string, unknown>;
   const { slot, ...rest } = value;
   return {
     slot: typeof slot === "string" ? slot : undefined,
@@ -69,6 +73,35 @@ function buildChildNode(
 interface BlockNodeMeta {
   slot?: string;
   meta?: Record<string, unknown>;
+}
+
+function structureLockReason(
+  expr: Expression,
+  chain: ChainInfo,
+  children: BlockNode[],
+  partial: boolean,
+): string | undefined {
+  if (chain.opaqueReason) return chain.opaqueReason;
+  if (Node.isIdentifier(unwrapExpression(expr)))
+    return "Shared block reference: edit it in code";
+  if (
+    chain.factoryCall!.getArguments().length >
+    (isControllerLeadingBlock(chain.factory!) ? 2 : 1)
+  )
+    return "Additional factory arguments require editing in code";
+  const unsafeChildren = chain.childCalls.some((call) => {
+    const args = call.getArguments();
+    return (
+      args.length > 3 ||
+      (args[2] && !objectLiteralToValue(args[2]).fullyLiteral)
+    );
+  });
+  if (
+    unsafeChildren ||
+    (children.length !== chain.childCalls.length && !partial)
+  )
+    return "Child declarations or placement require editing in code";
+  return undefined;
 }
 
 function buildBlockNode(
@@ -106,22 +139,15 @@ function buildBlockNode(
     }
   }
   const optionsArg = controllerLeading ? args[1] : args[0];
-  const hasObjectConfig =
-    !optionsArg || Node.isObjectLiteralExpression(optionsArg);
-  const literal =
-    optionsArg && Node.isObjectLiteralExpression(optionsArg)
-      ? objectLiteralToValue(optionsArg)
-      : { value: {}, fullyLiteral: true };
-  const config = literal.value as Record<string, unknown>;
-  // A config the builder could read but not write back — an identifier, a call
-  // it does not model — is reported opaque rather than editable: a whole-tree
-  // write refuses `$expr`, so offering it for edit would only fail at save.
-  const editable = hasObjectConfig && literal.fullyLiteral;
-  const opaqueReason = hasObjectConfig
-    ? literal.fullyLiteral
-      ? undefined
-      : "config holds an expression the builder cannot re-emit"
-    : "non-object-literal config";
+  const { config, lockedOptions, reason } = editableOptions(optionsArg);
+  const opaqueReason =
+    structureLockReason(
+      expr,
+      chain,
+      children,
+      Object.keys(lockedOptions).length > 0,
+    ) ?? reason;
+  const editable = !opaqueReason;
   return {
     path,
     name,
@@ -131,6 +157,9 @@ function buildBlockNode(
     meta,
     opaqueReason,
     config: editable ? config : undefined,
+    lockedOptions: Object.keys(lockedOptions).length
+      ? lockedOptions
+      : undefined,
     controller,
     children: children.length > 0 ? children : undefined,
   };

@@ -67,8 +67,7 @@ const path = computed(() => session.value.selection)
 const block = builder.selected
 const descriptor = builder.selectedDescriptor
 const showAdvanced = ref(false)
-// The simple mode leaves out what only a developer reads: the settings a
-// block files under "Advanced", and why a block is locked, and where.
+// Advanced settings remain separate; lock explanations are visible in both modes.
 const { advanced: advancedMode } = useBuilderMode()
 // The engine words a reason as a lower-case fragment; here it opens a sentence.
 const opaqueReason = computed(() => {
@@ -186,7 +185,7 @@ const PANELS: Record<string, Panel> = {
 }
 
 const panel = computed(() =>
-	advancedMode.value ? undefined : PANELS[block.value?.type ?? ''],
+	advancedMode.value || block.value?.lockedOptions ? undefined : PANELS[block.value?.type ?? ''],
 )
 
 /** Whether a block's own panel edits this option rather than the list below. */
@@ -199,6 +198,7 @@ const missing = computed(() =>
 	block.value
 		? missingSettings(descriptor.value, block.value)
 				.filter((entry) => !inPanel(entry.path[0]))
+				.filter((entry) => !Object.hasOwn(block.value?.lockedOptions ?? {}, String(entry.path[0])))
 				.map((entry) => entry.label)
 		: [],
 )
@@ -299,6 +299,7 @@ const groups = computed<RenderedGroup[]>(() =>
 			label: group.label,
 			options: withSeparators(
 				group.options
+					.filter((option) => !Object.hasOwn(block.value?.lockedOptions ?? {}, option.key))
 					.flatMap((option) => expand(option.key, option.schema))
 					// What the simple mode writes itself — a key from the label it
 					// follows, an address from the table picked — or leaves to code.
@@ -543,9 +544,7 @@ async function setSearchField(name: string): Promise<void> {
 			<p>
 				This block is set up in code, so its settings can't be changed here.
 			</p>
-			<!-- Said in the advanced view only: someone building the page has no
-			use for a file path, and a developer wants to know what to change. -->
-			<p v-if="advancedMode" class="text-xs">
+			<p class="text-xs">
 				<span v-if="opaqueReason">{{ opaqueReason }} </span>
 				Edit it in
 				<code class="text-xs">{{ session.structure?.page.filepath }}</code>.
@@ -553,6 +552,14 @@ async function setSearchField(name: string): Promise<void> {
 		</div>
 
 		<template v-else>
+			<div v-if="block.lockedOptions" class="rounded-md border border-default bg-elevated p-3 text-sm" role="note">
+				<p class="font-medium">Some options are managed in code</p>
+				<p class="text-xs text-muted">You can edit the other options. Locked expressions stay unchanged on save. The block type, controller and child placement stay fixed.</p>
+				<p class="text-xs text-muted">The preview keeps the running version until these changes are saved.</p>
+				<ul class="mt-2 space-y-1 text-xs">
+					<li v-for="(reason, key) in block.lockedOptions" :key="key"><strong>{{ key }}</strong>: {{ reason }}</li>
+				</ul>
+			</div>
 			<div
 				v-if="missing.length"
 				class="flex flex-col gap-1 rounded-md border border-warning bg-warning/10 p-3 text-xs text-warning"
@@ -564,7 +571,7 @@ async function setSearchField(name: string): Promise<void> {
 			</div>
 
 			<section
-				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING)"
+				v-if="descriptor?.controllerArg && !inPanel(CONTROLLER_SETTING) && !block.lockedOptions"
 				v-show="tab === tabOfGroup('data')"
 				:class="PANEL_CARD"
 				aria-label="Table"
