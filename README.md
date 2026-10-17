@@ -79,11 +79,10 @@ The guide's sources live in [`packages/dms-builder/docs`](./packages/dms-builder
 
 ## Contributing
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. The root carries tooling only; the builder UI (`frontend-vue`) and the playground are nested projects with their own lockfiles.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. One root `pnpm install` installs the shared tooling, both packages and the builder UI (`frontend-vue`). Workspace packages keep separate lockfiles to preserve their dependency resolutions. The playground remains independent.
 
 ```bash
 pnpm install
-pnpm --dir packages/dms-builder/frontend-vue install
 pnpm build          # the interface, then the module
 pnpm lint
 pnpm typecheck
