@@ -1,5 +1,6 @@
 import type {
   BlockDraft,
+  BlockNode,
   BlockTypeDescriptor,
   FieldAspect,
   OptionSchema,
@@ -126,14 +127,7 @@ function validateBlock(
     if (!originals.has(path)) {
       return [issue(pointer, `no block named "${name}" to preserve`)];
     }
-    return block.children?.length
-      ? [
-          issue(
-            `${pointer}/children`,
-            "a preserved block is written back as it stands and takes no child",
-          ),
-        ]
-      : [];
+    return [];
   }
   const descriptor = block.type ? blockDescriptor(block.type) : undefined;
   if (!descriptor) {
@@ -142,8 +136,6 @@ function validateBlock(
   return [
     ...validateController(block, descriptor.controllerArg === true, pointer),
     ...validateChildren(block, descriptor.container, pointer, originals, path),
-    ...scanForExpr(block.config, "a page draft", `${pointer}/config`),
-    ...scanForExpr(block.meta, "a page draft", `${pointer}/meta`),
     ...checkFieldAspects(block, descriptor, pointer),
   ];
 }
@@ -225,11 +217,84 @@ function duplicateNames(
   return issues;
 }
 
+function checkSourceShape(
+  block: BlockDraft,
+  source: BlockNode,
+  pointer: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const fail = (message: string) => issues.push(issue(pointer, message));
+  if (block.type && block.type !== source.type)
+    fail("The identity of a source-preserved block cannot be changed");
+  if (block.controller !== undefined && block.controller !== source.controller)
+    fail("The controller is preserved in source code");
+  if (block.preserve && block.config !== undefined)
+    fail("A preserved block cannot accept configuration edits");
+  if (block.children || source.lockedOptions) {
+    const placement = (children: (BlockNode | BlockDraft)[]) =>
+      children.map(({ name, slot, meta }) => ({ name, slot, meta }));
+    if (
+      JSON.stringify(placement(block.children ?? [])) !==
+      JSON.stringify(placement(source.children ?? []))
+    )
+      fail("The children and their placement are preserved in source code");
+  }
+  for (const key of Object.keys(source.lockedOptions ?? {})) {
+    if (Object.hasOwn(block.config ?? {}, key))
+      fail(
+        `Option "${key}" is locked and must be omitted; its original expression is retained by the server`,
+      );
+  }
+  return issues;
+}
+
 export function validateDraft(
   draft: PageDraft,
   originals: Map<string, string>,
+  nodes: Map<string, BlockNode>,
 ): ValidationIssue[] {
+  function sourceConstraints(
+    block: BlockDraft,
+    path: string,
+    pointer: string,
+    inherited = false,
+  ): ValidationIssue[] {
+    const source = nodes.get(path);
+    const issues: ValidationIssue[] = [
+      ...scanForExpr(block.meta, "a page draft", `${pointer}/meta`),
+      ...scanForExpr(block.config, "a page draft", `${pointer}/config`),
+    ];
+    const fail = (message: string) => issues.push(issue(pointer, message));
+    if (block.lockedOptions && !source?.lockedOptions)
+      fail(
+        "No source-backed block at this path; blocks with locked options cannot be copied or reparented",
+      );
+    if (block.slot !== undefined && typeof block.slot !== "string")
+      fail("A slot must be a string");
+    if (source && !source.editable && !block.preserve)
+      fail("This block is locked; preserve it or edit its source code");
+    if (inherited && !block.preserve)
+      fail("Children of a preserved block are read-only");
+    if (source && (block.preserve || source.lockedOptions)) {
+      issues.push(...checkSourceShape(block, source, pointer));
+    }
+    return [
+      ...issues,
+      ...(block.children ?? []).flatMap((child, index) =>
+        sourceConstraints(
+          child,
+          `${path}/${child.name}`,
+          `${pointer}/children/${index}`,
+          inherited || !!block.preserve,
+        ),
+      ),
+    ];
+  }
   return [
+    ...scanForExpr(draft.page, "a page draft", "/page"),
+    ...draft.blocks.flatMap((block, index) =>
+      sourceConstraints(block, block.name, `/blocks/${index}`),
+    ),
     ...draft.blocks.flatMap((block, index) =>
       validateBlock(block, `/blocks/${index}`, originals, block.name),
     ),

@@ -48,7 +48,7 @@ export function blockKind(
 	block: BlockDraft,
 	catalog: BlockCatalog | null,
 ): string {
-	if (block.preserve) {
+	if (block.preserve && !block.type) {
 		return 'Set up in code'
 	}
 	return descriptorOf(catalog, block.type)?.label ?? block.type ?? 'Block'

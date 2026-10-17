@@ -31,13 +31,15 @@ export function cloneDraft<T>(value: T): T {
  * A block the builder cannot rewrite is carried through by name; everything
  * else round-trips as data.
  */
-function nodeToDraft(node: BlockNode): BlockDraft {
-	if (!node.editable || !node.type) {
+function nodeToDraft(node: BlockNode, inherited = false): BlockDraft {
+	if (inherited || !node.editable || !node.type) {
 		// Only the value is opaque: where the block sits is still ours to write,
 		// so its slot and child metadata travel with it.
 		return {
 			name: node.name,
+			...(node.type ? { type: node.type } : {}),
 			preserve: true,
+			...(node.children?.length ? { children: node.children.map((child) => nodeToDraft(child, true)) } : {}),
 			...(node.slot ? { slot: node.slot } : {}),
 			...(node.meta ? { meta: node.meta } : {}),
 			...(node.opaqueReason ? { opaqueReason: node.opaqueReason } : {}),
@@ -47,17 +49,34 @@ function nodeToDraft(node: BlockNode): BlockDraft {
 		name: node.name,
 		type: node.type,
 		config: node.config ?? {},
+		...(node.lockedOptions ? { lockedOptions: node.lockedOptions } : {}),
 		...(node.slot ? { slot: node.slot } : {}),
 		...(node.meta ? { meta: node.meta } : {}),
 		...(node.controller ? { controller: node.controller } : {}),
 		...(node.children?.length
-			? { children: node.children.map(nodeToDraft) }
+			? { children: node.children.map((child) => nodeToDraft(child)) }
 			: {}),
 	}
 }
 
 export function structureToDraft(structure: PageStructure): PageDraft {
-	return { blocks: structure.blocks.map(nodeToDraft) }
+	return { blocks: structure.blocks.map((node) => nodeToDraft(node)) }
+}
+
+/** Refuse edits the server cannot apply to a source-backed block. */
+export function respectsSourceLocks(before: PageDraft, after: PageDraft): boolean {
+	let valid = true
+	walkDraft(after.blocks, (block, path) => {
+		const original = findNode(before, path)
+		if ((block.preserve || block.lockedOptions) && !original) valid = false
+		if (!original?.preserve && !original?.lockedOptions) return
+		const placement = (children: BlockDraft[] = []) => children.map(({ name, slot, meta }) => ({ name, slot, meta }))
+		if (block.type !== original.type || block.controller !== original.controller
+			|| JSON.stringify(placement(block.children)) !== JSON.stringify(placement(original.children))) valid = false
+		if (original.preserve && JSON.stringify({ ...block, slot: undefined, meta: undefined }) !== JSON.stringify({ ...original, slot: undefined, meta: undefined })) valid = false
+		if (Object.keys(original.lockedOptions ?? {}).some((key) => Object.hasOwn(block.config ?? {}, key))) valid = false
+	})
+	return valid
 }
 
 export function siblingsAt(
@@ -186,6 +205,9 @@ export function moveNode(
 	if (!node) {
 		return undefined
 	}
+	let backed = false
+	walkDraft([node], (entry) => { backed ||= !!entry.preserve || !!entry.lockedOptions })
+	if (backed && parentPath(path) !== destParent) return undefined
 	source.splice(index, 1)
 	const target = siblingsAt(draft, destParent)
 	if (!target) {
@@ -216,9 +238,12 @@ export function duplicateNode(
 	const original = siblings[index]
 	// A preserved block is identified by its name on disk; a copy would match
 	// nothing, so there is nothing to duplicate.
-	if (!original || original.preserve) {
+	if (!original || original.preserve || original.lockedOptions) {
 		return undefined
 	}
+	let backed = false
+	walkDraft(original.children ?? [], (child) => { backed ||= !!child.preserve || !!child.lockedOptions })
+	if (backed) return undefined
 	const copy = cloneDraft(original)
 	copy.name = uniqueName(siblings, copy.name)
 	siblings.splice(index + 1, 0, copy)
@@ -267,6 +292,7 @@ export function nameSlots(draft: PageDraft, catalog: BlockCatalog | null): void 
 		return
 	}
 	walkDraft(draft.blocks, (block) => {
+		if (block.preserve || block.lockedOptions) return
 		const dynamic = descriptorOf(catalog, block.type)?.dynamicSlots
 		const entries = dynamic
 			? (block.config ?? {})[dynamic.optionPath]

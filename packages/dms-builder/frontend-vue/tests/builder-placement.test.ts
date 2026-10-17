@@ -392,22 +392,26 @@ describe('the layout the editor takes back', () => {
 		expect(names('vStack')).toEqual(['card'])
 	})
 
-	it('keeps the row around a block kept as written, which is found by its path', () => {
-		builder.setDraft({
+	it('keeps the row around a block kept as written, which is found by its path', async () => {
+		// Preservation refers to source already on the page, not a new draft node.
+		backend.structure = { ...backend.structure,
 			blocks: [
 				{
-					...row('note'),
+					name: 'grid', path: 'grid', type: 'Grid', editable: true, config: {},
 					children: [
 						{
 							name: 'gridRow',
+							path: 'grid/gridRow', editable: true,
 							type: 'GridRow',
 							config: {},
-							children: [{ name: 'legacy', preserve: true }],
+							children: [{ name: 'legacy', path: 'grid/gridRow/legacy', type: null, editable: false }],
 						},
 					],
 				},
 			],
-		})
+		}
+		await builder.open('/reports/sales')
+		builder.patchConfig('grid', { gap: '12px' })
 		expect(names('grid/gridRow')).toEqual(['legacy'])
 	})
 

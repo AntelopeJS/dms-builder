@@ -1,9 +1,12 @@
 import { type CallExpression, type Expression, Node } from "ts-morph";
+import { buildCatalog } from "./catalog";
+import { importedName, unwrapExpression } from "./expression";
 
 export interface ChainInfo {
   factory?: string;
   factoryCall?: CallExpression;
   childCalls: CallExpression[];
+  opaqueReason?: string;
 }
 
 export interface ResolvedExpr {
@@ -13,18 +16,24 @@ export interface ResolvedExpr {
 
 export function unwrapBuilderChain(expr: Expression): ChainInfo {
   const childCalls: CallExpression[] = [];
-  let current: Node = expr;
+  let opaqueReason: string | undefined;
+  let current: Node = unwrapExpression(expr);
   while (Node.isCallExpression(current)) {
-    const callee = current.getExpression();
+    const callee = unwrapExpression(current.getExpression());
+    const factory = importedName(
+      callee,
+      buildCatalog().blocks.map((block) => block.import),
+    );
+    if (factory)
+      return { factory, factoryCall: current, childCalls, opaqueReason };
     if (Node.isPropertyAccessExpression(callee)) {
       if (callee.getName() === "child") {
         childCalls.unshift(current);
+      } else {
+        opaqueReason = "Additional builder methods require editing in code";
       }
-      current = callee.getExpression();
+      current = unwrapExpression(callee.getExpression());
       continue;
-    }
-    if (Node.isIdentifier(callee)) {
-      return { factory: callee.getText(), factoryCall: current, childCalls };
     }
     break;
   }
@@ -32,6 +41,8 @@ export function unwrapBuilderChain(expr: Expression): ChainInfo {
 }
 
 export function resolveExpr(expr: Expression): ResolvedExpr {
+  const unwrapped = unwrapExpression(expr);
+  if (Node.isExpression(unwrapped)) expr = unwrapped;
   if (Node.isIdentifier(expr)) {
     const def = expr.getDefinitionNodes()[0];
     if (!def) {
@@ -47,11 +58,8 @@ export function resolveExpr(expr: Expression): ResolvedExpr {
     return { opaqueReason: "unresolved reference" };
   }
   if (Node.isCallExpression(expr) || Node.isNewExpression(expr)) {
-    const callee = expr.getExpression();
-    if (
-      Node.isParenthesizedExpression(callee) ||
-      Node.isArrowFunction(callee)
-    ) {
+    const callee = unwrapExpression(expr.getExpression());
+    if (Node.isFunctionExpression(callee) || Node.isArrowFunction(callee)) {
       return { opaqueReason: "computed (IIFE) block" };
     }
   }
