@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.4.0...v0.4.1)
+
+### 📖 Documentation
+
+- Add user guide and module skill ([#39](https://github.com/AntelopeJS/dms-builder/pull/39))
+- Complete Builder options and align interface compatibility ([#46](https://github.com/AntelopeJS/dms-builder/pull/46))
+- Make dense guide sections easier to scan ([#47](https://github.com/AntelopeJS/dms-builder/pull/47))
+
+### 🏡 Chore
+
+- **interface:** Raise verified foundation dependency floors ([#49](https://github.com/AntelopeJS/dms-builder/pull/49))
+- **release:** @antelopejs/interface-dms-builder v0.2.1 ([6b36e99](https://github.com/AntelopeJS/dms-builder/commit/6b36e99))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.4.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.3.0...v0.4.0)
