@@ -1,5 +1,12 @@
 import type {
   AddBlockInput,
+  MapResourcesInput,
+  MapResourcesResult,
+  MappedRelationDescription,
+  ModuleEntryInput,
+  ProjectConfigOpts,
+  ProjectConfigResult,
+  ProjectConfigStep,
   AddQueryInput,
   BlockCatalog,
   BlockPath,
@@ -35,6 +42,8 @@ import type {
   ResourceStructure,
   ResourceSummary,
 } from "@antelopejs/interface-dms-builder";
+import { mapResources } from "./engine/map-resources";
+import { configureProject } from "./engine/project-config-ops";
 import {
   buildCatalog,
   invalidateCatalog,
@@ -198,6 +207,45 @@ export async function RemoveBlock(
   opts?: MutationOpts,
 ): Promise<OpResult> {
   return removeBlock(path, opts);
+}
+
+export async function MapResources(
+  input: MapResourcesInput,
+  descriptions: MappedRelationDescription[],
+): Promise<OpResult<MapResourcesResult>> {
+  return mapResources(input, descriptions);
+}
+
+export async function ConfigureProject(
+  steps: ProjectConfigStep[],
+  opts?: ProjectConfigOpts,
+): Promise<OpResult<ProjectConfigResult>> {
+  return configureProject(steps, opts);
+}
+
+export async function AddModule(
+  id: string,
+  entry: ModuleEntryInput,
+  opts?: ProjectConfigOpts,
+): Promise<OpResult<ProjectConfigResult>> {
+  return configureProject([{ op: "AddModule", id, entry }], opts);
+}
+
+export async function ConfigureModule(
+  id: string,
+  entry: ModuleEntryInput,
+  opts?: ProjectConfigOpts,
+): Promise<OpResult<ProjectConfigResult>> {
+  return configureProject([{ op: "ConfigureModule", id, entry }], opts);
+}
+
+export async function CreateLocalModule(
+  id: string,
+  path: string,
+  entry?: ModuleEntryInput,
+  opts?: ProjectConfigOpts,
+): Promise<OpResult<ProjectConfigResult>> {
+  return configureProject([{ op: "CreateLocalModule", id, path, entry }], opts);
 }
 
 export async function CreateResource(
