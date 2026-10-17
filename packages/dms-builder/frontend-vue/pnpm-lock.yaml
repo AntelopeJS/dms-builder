@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@antelopejs/interface-dms':
+        specifier: '>=0.7.2 <1.0.0'
+        version: 0.7.2(baf8655f8e54b8fbf2a9669a652c5bcb)
       vue:
         specifier: ^3.5.18
         version: 3.5.44(typescript@5.9.3)

@@ -98,27 +98,6 @@ function mapOptions(config: ConfigSchema): ConfigSchema {
 }
 
 /**
- * Options the builder keeps to its advanced view although the DMS offers them
- * to every author: a placeholder already fills the room it is given, and a
- * size of its own is a CSS length only a developer writes.
- */
-const ADVANCED_OPTIONS: Readonly<Record<string, readonly string[]>> = {
-  Placeholder: ["height", "width"],
-};
-
-function withAdvanced(type: string, config: ConfigSchema): ConfigSchema {
-  const advanced = new Set(ADVANCED_OPTIONS[type] ?? []);
-  return Object.fromEntries(
-    Object.entries(config).map(([key, option]) => [
-      key,
-      advanced.has(key)
-        ? { ...option, ui: { ...option.ui, advanced: true } }
-        : option,
-    ]),
-  );
-}
-
-/**
  * Icons the builder draws its own way: the DMS gives a table form the form's
  * pencil, and side by side in the palette the two read as one component.
  */
@@ -138,7 +117,7 @@ function fromDeclared(declared: DeclaredBlockType): BlockTypeDescriptor {
     allowedChildren: declared.allowedChildren,
     slots: declared.slots,
     dynamicSlots: declared.dynamicSlots,
-    config: withAdvanced(declared.type, mapOptions(declared.config)),
+    config: mapOptions(declared.config),
     defaults: declared.defaults,
     fixedOptions: declared.fixedOptions,
     childMeta: declared.childMeta ? mapOptions(declared.childMeta) : undefined,
