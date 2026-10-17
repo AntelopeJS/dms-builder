@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.5.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.4.1...v0.5.0)
+
+### 🚀 Enhancements
+
+- **builder:** Safely edit source-backed DMS options ([#51](https://github.com/AntelopeJS/dms-builder/pull/51))
+
+### 🩹 Fixes
+
+- Install builder frontend with the root workspace ([#48](https://github.com/AntelopeJS/dms-builder/pull/48))
+- **deps:** Require builder interface with option locks ([8c91fa4](https://github.com/AntelopeJS/dms-builder/commit/8c91fa4))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.2.2 ([d707136](https://github.com/AntelopeJS/dms-builder/commit/d707136))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.4.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.4.0...v0.4.1)
