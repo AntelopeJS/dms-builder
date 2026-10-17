@@ -1,3 +1,4 @@
+import { IsSimpleBlockOption } from '@antelopejs/interface-dms/base/block-registry/presentation'
 import {
 	BLOCK_GROUP_LABELS,
 	DATA_TYPE_FAMILIES,
@@ -327,7 +328,7 @@ export function heldBlockOptions(
  * and what only code reads, which the block marks advanced.
  */
 export function offeredIn(schema: OptionSchema, advanced: boolean): boolean {
-	return advanced || (!schema.ui?.derivedFrom && !schema.ui?.advanced)
+	return advanced || IsSimpleBlockOption(schema)
 }
 
 export function optionLabel(key: string, schema: OptionSchema): string {

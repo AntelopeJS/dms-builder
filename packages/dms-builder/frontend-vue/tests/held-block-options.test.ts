@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { heldBlockOptions } from '../app/runtime/catalog'
+import { heldBlockOptions, offeredIn } from '../app/runtime/catalog'
 import type { OptionSchema } from '../app/runtime/types'
 
 /**
@@ -39,6 +39,14 @@ function keys(entries: Array<[string, OptionSchema]>): string[] {
 }
 
 describe('the options of a block another one holds', () => {
+	it('shares simple-mode exclusions while keeping project data binding available', () => {
+		expect(offeredIn(chart.fetchUrl!, false)).toBe(true)
+		for (const ui of [{ hidden: true }, { advanced: true }, { derivedFrom: 'label' }, { group: 'advanced' }]) {
+			expect(offeredIn({ type: 'string', ui }, false)).toBe(false)
+		}
+		expect(offeredIn(chart.syncGroup!, true)).toBe(true)
+	})
+
 	it('leave out what the holder supplies, in either view', () => {
 		expect(keys(heldBlockOptions(card, chart, true))).toEqual([
 			'showGrid',

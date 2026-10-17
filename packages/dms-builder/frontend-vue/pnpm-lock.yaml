@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@antelopejs/interface-dms':
+        specifier: '>=0.7.3 <1.0.0'
+        version: 0.7.3(baf8655f8e54b8fbf2a9669a652c5bcb)
       vue:
         specifier: ^3.5.18
         version: 3.5.44(typescript@5.9.3)
@@ -117,8 +120,8 @@ packages:
     peerDependencies:
       '@antelopejs/interface-core': '>=0.2.4 <1.0.0'
 
-  '@antelopejs/interface-dms@0.7.2':
-    resolution: {integrity: sha512-mtlamXK7sbB5RY/uwqOHTltJb/HrcdBZEsj+eVowUOGZSaXGyyQO9Ihm6xMAFeMuZZqQVKQD6KVhPD3GYk/TgQ==}
+  '@antelopejs/interface-dms@0.7.3':
+    resolution: {integrity: sha512-2r0/iGrXqTmCicmFmRdjkgXHWOmTdLzZqfm+mZEJWVX0yX88JdZWCp4UsTUNFF2viyByiL5UqzTWxYdYO3tQYg==}
     peerDependencies:
       '@antelopejs/interface-api': '>=0.0.15 <1.0.0'
       '@antelopejs/interface-api-util': '>=0.1.3 <1.0.0'
@@ -1912,7 +1915,7 @@ snapshots:
       '@antelopejs/interface-data-api': 0.2.2(@antelopejs/interface-api-util@0.1.3(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4)(@antelopejs/interface-database-decorators@0.1.9(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4)(@antelopejs/interface-database@0.1.10(@antelopejs/interface-core@0.2.4)))(@antelopejs/interface-database@0.1.10(@antelopejs/interface-core@0.2.4))
       '@antelopejs/interface-database': 0.1.10(@antelopejs/interface-core@0.2.4)
       '@antelopejs/interface-database-decorators': 0.1.9(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4)(@antelopejs/interface-database@0.1.10(@antelopejs/interface-core@0.2.4))
-      '@antelopejs/interface-dms': 0.7.2(baf8655f8e54b8fbf2a9669a652c5bcb)
+      '@antelopejs/interface-dms': 0.7.3(baf8655f8e54b8fbf2a9669a652c5bcb)
       '@antelopejs/interface-email': 0.0.6(@antelopejs/interface-core@0.2.4)
       '@antelopejs/interface-file-storage': 0.1.4(@antelopejs/interface-core@0.2.4)
       archiver: 7.0.1
@@ -1981,7 +1984,7 @@ snapshots:
       '@antelopejs/interface-core': 0.2.4
     optional: true
 
-  '@antelopejs/interface-dms@0.7.2(baf8655f8e54b8fbf2a9669a652c5bcb)':
+  '@antelopejs/interface-dms@0.7.3(baf8655f8e54b8fbf2a9669a652c5bcb)':
     dependencies:
       '@antelopejs/interface-api': 0.0.15(@antelopejs/interface-core@0.2.4)
       '@antelopejs/interface-api-util': 0.1.3(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4)
