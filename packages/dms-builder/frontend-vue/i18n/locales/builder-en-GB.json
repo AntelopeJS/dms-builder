@@ -1,0 +1,120 @@
+{
+	"dms_builder": {
+		"action": {
+			"edit_page": "Builder — edit this page"
+		},
+		"bar": {
+			"editing": "Editing",
+			"editing_title": "Edit mode · ⌘B",
+			"workspace": "Workspace",
+			"workspaces": {
+				"page": "Page",
+				"tables": "Tables",
+				"data": "Data"
+			},
+			"mode": "Builder mode",
+			"modes": {
+				"simple": "Simple",
+				"advanced": "Developer"
+			},
+			"open_changes": "Open the change list",
+			"undo": "Undo",
+			"undo_title": "Undo · ⌘Z",
+			"redo": "Redo",
+			"redo_title": "Redo · ⌘⇧Z",
+			"view_as": "View the page as a role",
+			"view_as_title": "View the page as a role sees it",
+			"viewing_as": "As {role}",
+			"owner": "You, the owner",
+			"owner_description": "Shown everything",
+			"members": "{count} member | {count} members",
+			"canvas_view": "Zoom and width of the canvas",
+			"save": "Save",
+			"save_title": "Save · ⌘S",
+			"done": "Done",
+			"done_title": "Leave the editor · ⌘B"
+		},
+		"devices": {
+			"desktop": "Desktop",
+			"tablet": "Tablet",
+			"phone": "Phone"
+		},
+		"save_status": {
+			"saving": "Checking & saving…",
+			"failed": "Save failed · nothing written",
+			"fix": "{problems} to fix",
+			"fix_unsaved": "{problems} to fix · {changes} unsaved",
+			"fix_some_unsaved": "{problems} to fix · some unsaved",
+			"unsaved": "Unsaved changes",
+			"unsaved_count": "{count} unsaved change | {count} unsaved changes",
+			"saved": "Saved · {time}",
+			"clean": "All changes saved"
+		},
+		"banners": {
+			"this_page": "This page",
+			"dismiss": "Dismiss",
+			"discard": "Discard",
+			"stay": "Stay",
+			"leave": {
+				"title": "Save before leaving?",
+				"description": "{page} has changes nobody has saved.",
+				"body": "Kept on this device, they are offered again next time you edit this page, for seven days. Nothing is written until they are saved.",
+				"without_saving": "Leave without saving",
+				"keep_draft": "Leave, keep the draft",
+				"save": "Save and leave"
+			},
+			"role_preview": {
+				"region": "Role preview",
+				"viewing": "Viewing",
+				"as": "as",
+				"role": "Role to view the page as",
+				"unsaved_included": "· unsaved changes included",
+				"page_hidden": "Page hidden for {role}",
+				"hidden": "{count} block hidden | {count} blocks hidden",
+				"limited": "{count} with fewer actions",
+				"exit": "Exit preview"
+			},
+			"restored": {
+				"stale": "Unsaved changes from {time} were made on an older version of this page; putting them back undoes what changed since.",
+				"back": "Your unsaved changes are back",
+				"kept_since": "kept on this device since {time}.",
+				"put_back": "Put them back",
+				"review": "Review"
+			},
+			"pending_route": {
+				"before": "has unsaved changes. Save them before opening",
+				"after": ", or stay on this page.",
+				"save": "Save and continue"
+			},
+			"conflict": {
+				"message": "This page changed outside the builder since it was opened. Keep your version to write it over those changes, or reload and drop yours.",
+				"copy": "Copy my draft",
+				"keep": "Keep my version",
+				"reload": "Reload the page"
+			},
+			"error": {
+				"nothing_written": "Nothing was written.",
+				"details": "Details",
+				"hide_details": "Hide the details",
+				"retry": "Try again"
+			},
+			"dismiss_warnings": "Dismiss the warnings"
+		},
+		"toasts": {
+			"copied_draft": "Copied the draft as JSON",
+			"copied_block": "Copied the block as JSON",
+			"configuration_applied": "Configuration applied",
+			"copied": "Copied to the clipboard",
+			"tab_duplicated": "Tab duplicated",
+			"tab_deleted": "Tab deleted",
+			"locked": "This setting or placement is managed in code and cannot be changed here",
+			"period_added": "Added a period selector at the top of the page, for the card to follow",
+			"block_added": "{block} added",
+			"layout_added": "Layout added",
+			"block_removed": "Block removed",
+			"removed": "Removed {block}",
+			"block_duplicated": "Block duplicated",
+			"changes_discarded": "Changes discarded"
+		}
+	}
+}
