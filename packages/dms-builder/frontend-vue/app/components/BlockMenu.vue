@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { findNode, walkDraft } from '../runtime/draft'
+import { t } from '../runtime/i18n'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 
@@ -64,7 +65,7 @@ async function copyAsJson(): Promise<void> {
 		return
 	}
 	await navigator.clipboard?.writeText(JSON.stringify(target.value, null, 2))
-	builder.notify('Copied the block as JSON')
+	builder.notify(t('toasts.copied_block'))
 }
 
 const entries = computed<MenuEntry[]>(() => {

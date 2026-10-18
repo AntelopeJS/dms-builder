@@ -8,6 +8,7 @@
  * The choice is the viewer's, remembered in their browser like the mode.
  */
 import { computed, ref } from 'vue'
+import { t } from './i18n'
 
 export type CanvasDevice = 'desktop' | 'tablet' | 'phone'
 
@@ -21,10 +22,11 @@ export const DEVICE_WIDTHS: Record<CanvasDevice, number | undefined> = {
 	phone: 390,
 }
 
-export const DEVICE_LABELS: Record<CanvasDevice, string> = {
-	desktop: 'Desktop',
-	tablet: 'Tablet',
-	phone: 'Phone',
+export const CANVAS_DEVICES: readonly CanvasDevice[] = ['desktop', 'tablet', 'phone']
+
+/** What a device is called, in the author's language. */
+export function deviceLabel(device: CanvasDevice): string {
+	return t(`devices.${device}`)
 }
 
 const ZOOM_KEY = 'dms-builder:zoom'
@@ -73,7 +75,7 @@ function setDevice(next: CanvasDevice): void {
 const label = computed(() =>
 	device.value === 'desktop'
 		? `${zoom.value}%`
-		: `${zoom.value}% · ${DEVICE_LABELS[device.value]}`,
+		: `${zoom.value}% · ${deviceLabel(device.value)}`,
 )
 
 export function useCanvasView() {

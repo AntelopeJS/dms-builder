@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useDmsRouter } from '#dms/frontend-module'
 import { opensPage } from '../runtime/access'
 import { describeError, errorDetail } from '../runtime/errors'
+import { t } from '../runtime/i18n'
 import { clockTime } from '../runtime/save-status'
 import { useBuilder } from '../runtime/session'
 
@@ -21,7 +22,7 @@ const title = computed(
 		(session.value.draft?.page?.displayName as string | undefined) ??
 		session.value.structure?.page.displayName ??
 		session.value.pageRef ??
-		'This page',
+		t('banners.this_page'),
 )
 
 const message = computed(() =>
@@ -60,7 +61,7 @@ async function stay(): Promise<void> {
 /** The draft as JSON, to keep somewhere before reloading drops it. */
 async function copyDraft(): Promise<void> {
 	await navigator.clipboard?.writeText(JSON.stringify(session.value.draft ?? {}, null, 2))
-	builder.notify('Copied the draft as JSON')
+	builder.notify(t('toasts.copied_draft'))
 }
 
 /**
@@ -100,8 +101,8 @@ const veiled = computed(() => {
 	const hidden = states.filter((state) => state === 'hidden').length
 	const limited = states.length - hidden
 	return [
-		hidden ? `${hidden} block${hidden === 1 ? '' : 's'} hidden` : '',
-		limited ? `${limited} with fewer actions` : '',
+		hidden ? t('banners.role_preview.hidden', {}, hidden) : '',
+		limited ? t('banners.role_preview.limited', { count: limited }) : '',
 	]
 		.filter(Boolean)
 		.join(' · ')
@@ -114,38 +115,35 @@ const veiled = computed(() => {
 		draft can be saved, kept on this device for next time, or dropped. -->
 		<UModal
 			:open="session.pendingClose"
-			title="Save before leaving?"
-			:description="`${title} has changes nobody has saved.`"
+			:title="t('banners.leave.title')"
+			:description="t('banners.leave.description', { page: title })"
 			@update:open="(open: boolean) => !open && builder.stayOpen()"
 		>
 			<template #body>
-				<p class="text-sm text-toned">
-					Kept on this device, they are offered again next time you edit this
-					page, for seven days. Nothing is written until they are saved.
-				</p>
+				<p class="text-sm text-toned">{{ t('banners.leave.body') }}</p>
 			</template>
 			<template #footer>
 				<div class="flex w-full flex-wrap justify-end gap-2">
 					<UButton
-						label="Stay"
+						:label="t('banners.stay')"
 						color="neutral"
 						variant="ghost"
 						@click="builder.stayOpen()"
 					/>
 					<UButton
-						label="Leave without saving"
+						:label="t('banners.leave.without_saving')"
 						color="error"
 						variant="ghost"
 						@click="builder.resolveClose(false)"
 					/>
 					<UButton
-						label="Leave, keep the draft"
+						:label="t('banners.leave.keep_draft')"
 						color="neutral"
 						variant="outline"
 						@click="builder.resolveClose(false, true)"
 					/>
 					<UButton
-						label="Save and leave"
+						:label="t('banners.leave.save')"
 						:loading="session.saving"
 						@click="builder.resolveClose(true)"
 					/>
@@ -159,13 +157,13 @@ const veiled = computed(() => {
 			v-if="viewed && session.workspace === 'page'"
 			:class="ACCENT"
 			role="region"
-			aria-label="Role preview"
+			:aria-label="t('banners.role_preview.region')"
 		>
 			<span :class="SENTENCE">
 				<UIcon name="i-ph-eye" class="me-1 size-4 shrink-0 text-primary" />
-				<span>Viewing</span>
+				<span>{{ t('banners.role_preview.viewing') }}</span>
 				<b class="font-semibold text-highlighted">{{ title }}</b>
-				<span>as</span>
+				<span>{{ t('banners.role_preview.as') }}</span>
 				<USelectMenu
 					:model-value="viewed.id"
 					:items="roleItems"
@@ -173,10 +171,12 @@ const veiled = computed(() => {
 					size="xs"
 					variant="ghost"
 					class="-mx-1 max-w-52 font-semibold text-highlighted"
-					aria-label="Role to view the page as"
+					:aria-label="t('banners.role_preview.role')"
 					@update:model-value="builder.setViewAs(String($event))"
 				/>
-				<span v-if="builder.dirty.value">· unsaved changes included</span>
+				<span v-if="builder.dirty.value">{{
+					t('banners.role_preview.unsaved_included')
+				}}</span>
 			</span>
 			<span :class="ACTIONS">
 				<UBadge
@@ -185,7 +185,7 @@ const veiled = computed(() => {
 					variant="soft"
 					size="sm"
 					icon="i-ph-lock-simple"
-					:label="`Page hidden for ${viewed.name}`"
+					:label="t('banners.role_preview.page_hidden', { role: viewed.name })"
 				/>
 				<UBadge
 					v-else-if="veiled"
@@ -200,7 +200,7 @@ const veiled = computed(() => {
 					size="xs"
 					color="neutral"
 					variant="outline"
-					label="Exit preview"
+					:label="t('banners.role_preview.exit')"
 					@click="builder.setViewAs(null)"
 				/>
 			</span>
@@ -220,12 +220,11 @@ const veiled = computed(() => {
 					:class="session.restored.stale ? 'text-warning' : 'text-info'"
 				/>
 				<span v-if="session.restored.stale" class="min-w-0 flex-1">
-					Unsaved changes from {{ clockTime(session.restored.at) }} were made on an
-					older version of this page; putting them back undoes what changed since.
+					{{ t('banners.restored.stale', { time: clockTime(session.restored.at) }) }}
 				</span>
 				<span v-else class="min-w-0 flex-1">
-					<b class="font-semibold text-highlighted">Your unsaved changes are back</b>,
-					kept on this device since {{ clockTime(session.restored.at) }}.
+					<b class="font-semibold text-highlighted">{{ t('banners.restored.back') }}</b>,
+					{{ t('banners.restored.kept_since', { time: clockTime(session.restored.at) }) }}
 				</span>
 			</span>
 			<span :class="ACTIONS">
@@ -234,7 +233,7 @@ const veiled = computed(() => {
 					size="xs"
 					color="warning"
 					variant="soft"
-					label="Put them back"
+					:label="t('banners.restored.put_back')"
 					@click="builder.restoreAnyway()"
 				/>
 				<UButton
@@ -242,14 +241,14 @@ const veiled = computed(() => {
 					size="xs"
 					color="neutral"
 					variant="outline"
-					label="Review"
+					:label="t('banners.restored.review')"
 					@click="builder.setView('changes')"
 				/>
 				<UButton
 					size="xs"
 					color="neutral"
 					variant="ghost"
-					label="Discard"
+					:label="t('banners.discard')"
 					@click="builder.dropRestored()"
 				/>
 				<UButton
@@ -258,7 +257,7 @@ const veiled = computed(() => {
 					size="xs"
 					color="neutral"
 					variant="ghost"
-					aria-label="Dismiss"
+					:aria-label="t('banners.dismiss')"
 					@click="session.restored = null"
 				/>
 			</span>
@@ -268,10 +267,10 @@ const veiled = computed(() => {
 			<span :class="SENTENCE">
 				<UIcon name="i-ph-warning-light" class="me-1 size-4 shrink-0 text-warning" />
 				<span class="min-w-0 flex-1">
-					<b class="font-semibold text-highlighted">{{ title }}</b> has unsaved
-					changes. Save them before opening
-					<span class="font-mono text-[11.5px]">{{ session.pendingRoute }}</span>, or
-					stay on this page.
+					<b class="font-semibold text-highlighted">{{ title }}</b>
+					{{ t('banners.pending_route.before') }}
+					<span class="font-mono text-[11.5px]">{{ session.pendingRoute }}</span
+					>{{ t('banners.pending_route.after') }}
 				</span>
 			</span>
 			<span :class="ACTIONS">
@@ -279,7 +278,7 @@ const veiled = computed(() => {
 					size="xs"
 					color="warning"
 					variant="soft"
-					label="Save and continue"
+					:label="t('banners.pending_route.save')"
 					:loading="session.saving"
 					@click="builder.resolvePending(true)"
 				/>
@@ -287,14 +286,14 @@ const veiled = computed(() => {
 					size="xs"
 					color="neutral"
 					variant="ghost"
-					label="Discard"
+					:label="t('banners.discard')"
 					@click="builder.resolvePending(false)"
 				/>
 				<UButton
 					size="xs"
 					color="neutral"
 					variant="outline"
-					label="Stay"
+					:label="t('banners.stay')"
 					@click="stay"
 				/>
 			</span>
@@ -303,10 +302,7 @@ const veiled = computed(() => {
 		<div v-if="session.conflict" :class="WARNING" role="alert">
 			<span :class="SENTENCE">
 				<UIcon name="i-ph-git-diff-light" class="me-1 size-4 shrink-0 text-warning" />
-				<span class="min-w-0 flex-1">
-					This page changed outside the builder since it was opened. Keep your
-					version to write it over those changes, or reload and drop yours.
-				</span>
+				<span class="min-w-0 flex-1">{{ t('banners.conflict.message') }}</span>
 			</span>
 			<span :class="ACTIONS">
 				<UButton
@@ -314,21 +310,21 @@ const veiled = computed(() => {
 					color="neutral"
 					variant="ghost"
 					icon="i-ph-copy-light"
-					label="Copy my draft"
+					:label="t('banners.conflict.copy')"
 					@click="copyDraft"
 				/>
 				<UButton
 					size="xs"
 					color="warning"
 					variant="soft"
-					label="Keep my version"
+					:label="t('banners.conflict.keep')"
 					@click="builder.keepMine()"
 				/>
 				<UButton
 					size="xs"
 					color="neutral"
 					variant="outline"
-					label="Reload the page"
+					:label="t('banners.conflict.reload')"
 					@click="builder.reload()"
 				/>
 			</span>
@@ -342,7 +338,9 @@ const veiled = computed(() => {
 			<div class="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
 				<span>
 					<template v-if="session.lastSave?.outcome === 'failed'">
-						<b class="font-semibold text-highlighted">Nothing was written.</b>
+						<b class="font-semibold text-highlighted">{{
+							t('banners.error.nothing_written')
+						}}</b>
 					</template>
 					{{ message }}
 				</span>
@@ -352,7 +350,7 @@ const veiled = computed(() => {
 					class="self-start text-xs underline decoration-dotted underline-offset-2 opacity-80 hover:opacity-100"
 					@click="detailOpen = !detailOpen"
 				>
-					{{ detailOpen ? 'Hide the details' : 'Details' }}
+					{{ detailOpen ? t('banners.error.hide_details') : t('banners.error.details') }}
 				</button>
 				<ul v-if="detailOpen" class="flex flex-col gap-0.5 font-mono text-xs opacity-80">
 					<li v-for="line in detail" :key="line">{{ line }}</li>
@@ -364,7 +362,7 @@ const veiled = computed(() => {
 					size="xs"
 					color="error"
 					variant="soft"
-					label="Try again"
+					:label="t('banners.error.retry')"
 					:loading="session.saving"
 					@click="builder.save()"
 				/>
@@ -373,7 +371,7 @@ const veiled = computed(() => {
 					size="xs"
 					color="error"
 					variant="ghost"
-					aria-label="Dismiss"
+					:aria-label="t('banners.dismiss')"
 					@click="session.error = null"
 				/>
 			</span>
@@ -397,7 +395,7 @@ const veiled = computed(() => {
 				size="xs"
 				color="neutral"
 				variant="ghost"
-				aria-label="Dismiss the warnings"
+				:aria-label="t('banners.dismiss_warnings')"
 				@click="session.warnings = []"
 			/>
 		</div>
