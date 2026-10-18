@@ -15,6 +15,8 @@ import {
 	FIELD_ROW,
 	GUARD_BLOCK,
 	HISTORY_LIMIT,
+	PAGE_TOOLBAR,
+	PERIOD_SELECTOR,
 	PREVIEW_DEBOUNCE_MS,
 	ROW_WRAPPER,
 	SESSION_STATE_KEY,
@@ -53,7 +55,7 @@ import { blockTitle } from './naming'
 import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { ownerOf, tidyWrappers } from './wrappers'
-import { ensurePeriodSelector, setPageLive } from './page-controls'
+import { ensurePeriodSelector, seedPageToolbar, setPageLive } from './page-controls'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
@@ -139,13 +141,19 @@ export type PageLayout = 'dashboard' | 'list' | 'form'
 /** What each layout lays down, row by row; a row of several sits side by side. */
 const PAGE_LAYOUTS: Record<PageLayout, string[][]> = {
 	dashboard: [
-		['PeriodSelector'],
+		[PAGE_TOOLBAR],
 		['KpiCard', 'KpiCard', 'KpiCard'],
 		['ChartCard', 'TopListCard'],
 	],
 	list: [['TableView']],
 	form: [['Form']],
 }
+
+/**
+ * What a layout lays down instead of a type the project's DMS does not
+ * declare: a period selector on its own where there is no toolbar to hold it.
+ */
+const LAYOUT_STAND_INS: Record<string, string> = { [PAGE_TOOLBAR]: PERIOD_SELECTOR }
 
 const LEFT_TABS: Record<'library' | 'layers' | 'pages', LeftTab> = {
 	library: 'add',
@@ -1451,7 +1459,16 @@ export function useBuilder(): BuilderController {
 			placed.name = nameOnPage(draft, placed.name)
 			adoptSlot(draft, host.parent, placed)
 			linesForSpacer(draft, host.parent, placed)
-			if (insertNode(draft, host.parent, host.index, placed)) {
+			let at = host.index
+			if (type === PAGE_TOOLBAR) {
+				seedPageToolbar(draft, session.value.catalog, placed)
+				// A page's toolbar is the first thing in its body: placed on the
+				// page with no spot aimed at, that is where it goes.
+				if (host.parent === null && index === null && !wrap) {
+					at = 0
+				}
+			}
+			if (insertNode(draft, host.parent, at, placed)) {
 				node = placed
 			}
 		})
@@ -1601,7 +1618,13 @@ export function useBuilder(): BuilderController {
 	function applyLayout(layout: PageLayout): void {
 		const catalog = session.value.catalog
 		const rows = PAGE_LAYOUTS[layout]
-			.map((row) => row.filter((type) => descriptorOf(catalog, type)))
+			.map((row) =>
+				row
+					.map((type) =>
+						descriptorOf(catalog, type) ? type : (LAYOUT_STAND_INS[type] ?? type),
+					)
+					.filter((type) => descriptorOf(catalog, type)),
+			)
 			.filter((row) => row.length > 0)
 		if (!rows.length) {
 			return
@@ -1628,6 +1651,9 @@ export function useBuilder(): BuilderController {
 					}
 					const placed = newBlockDraft(descriptor, rankOf(draft, type))
 					placed.name = nameOnPage(draft, placed.name)
+					if (type === PAGE_TOOLBAR) {
+						seedPageToolbar(draft, catalog, placed)
+					}
 					const path = insertNode(draft, placement.parent, placement.index, placed)
 					first ??= path
 				}
