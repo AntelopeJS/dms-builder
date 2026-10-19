@@ -2,9 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { useDmsRouter } from '#dms/frontend-module'
 import { opensPage } from '../runtime/access'
+import { CHROME_CLASS } from '../runtime/constants'
 import { describeError, errorDetail } from '../runtime/errors'
 import { clockTime } from '../runtime/save-status'
 import { useBuilder } from '../runtime/session'
+import { useThemeEditor } from '../runtime/theme'
 
 /**
  * What the editor has to say over the page, one strip each, stacked: none of
@@ -14,6 +16,7 @@ import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
 const session = builder.session
+const theme = useThemeEditor()
 const router = useDmsRouter()
 
 const title = computed(
@@ -40,6 +43,44 @@ watch(
 		detailOpen.value = false
 	},
 )
+
+/* ---- leaving with changes nobody saved -------------------------------- */
+
+/**
+ * Often opened from outside the frame (⌘B, the DMS header button), where
+ * adoptOverlays does not catch it: the class keeps the teleported dialog on
+ * the DMS look.
+ */
+const LEAVE_UI = { content: CHROME_CLASS, overlay: CHROME_CLASS }
+
+/** Whose changes leaving would drop: the page's, the theme's, or both. */
+const unsavedSentence = computed(() => {
+	if (builder.pageDirty.value && theme.dirty.value) {
+		return `${title.value} and the theme have changes nobody has saved.`
+	}
+	return `${theme.dirty.value ? 'The theme' : title.value} has changes nobody has saved.`
+})
+
+/** The theme belongs to the whole project, so it comes back on any page; a page draft only with its page. */
+const keptSentence = computed(() => {
+	const pageDirty = builder.pageDirty.value
+	const returnClause =
+		pageDirty && theme.dirty.value
+			? "the page's come back next time you edit this page and the theme's next time you open the editor"
+			: pageDirty
+				? 'they are offered again next time you edit this page'
+				: 'they come back next time you open the editor, on any page'
+	return `Kept on this device, ${returnClause}, for seven days. Nothing is written until they are saved.`
+})
+
+const restoredThemeSentence = computed(() => {
+	const restoredDraft = theme.state.value.restoredDraft
+	if (!restoredDraft) {
+		return ''
+	}
+	const since = `kept on this device since ${clockTime(restoredDraft.at)}`
+	return restoredDraft.stale ? `${since}, on top of the theme's files, which changed since.` : `${since}.`
+})
 
 /** A save that failed can be tried again from where it is said. */
 const retry = computed(
@@ -111,18 +152,23 @@ const veiled = computed(() => {
 <template>
 	<div class="grid shrink-0" data-builder-chrome>
 		<!-- Leaving is asked before it happens rather than reported after: the
-		draft can be saved, kept on this device for next time, or dropped. -->
+		draft can be saved, kept on this device for next time, or dropped. When
+		the browser could not store it, the dialog says so and no longer offers
+		to keep it. -->
 		<UModal
 			:open="session.pendingClose"
 			title="Save before leaving?"
-			:description="`${title} has changes nobody has saved.`"
+			:description="unsavedSentence"
+			:ui="LEAVE_UI"
 			@update:open="(open: boolean) => !open && builder.stayOpen()"
 		>
 			<template #body>
-				<p class="text-sm text-toned">
-					Kept on this device, they are offered again next time you edit this
-					page, for seven days. Nothing is written until they are saved.
+				<p v-if="session.unstoredDraftLabels.length" class="text-sm text-error" role="alert">
+					The changes to {{ session.unstoredDraftLabels.join(' and ') }} could not be kept on this
+					device: the browser's storage is full or switched off. Save them, or leave
+					without saving.
 				</p>
+				<p v-else class="text-sm text-toned">{{ keptSentence }}</p>
 			</template>
 			<template #footer>
 				<div class="flex w-full flex-wrap justify-end gap-2">
@@ -139,6 +185,7 @@ const veiled = computed(() => {
 						@click="builder.resolveClose(false)"
 					/>
 					<UButton
+						v-if="!session.unstoredDraftLabels.length"
 						label="Leave, keep the draft"
 						color="neutral"
 						variant="outline"
@@ -264,6 +311,43 @@ const veiled = computed(() => {
 			</span>
 		</div>
 
+		<!-- A theme kept from an earlier visit is restored on any page, over the
+		current theme files; unlike an outdated page draft, it is not just
+		offered. -->
+		<div v-if="theme.state.value.restoredDraft" :class="INFO">
+			<span :class="SENTENCE">
+				<UIcon name="i-ph-palette-light" class="me-1 size-4 shrink-0 text-info" />
+				<span class="min-w-0 flex-1">
+					<b class="font-semibold text-highlighted">Your unsaved theme changes are back</b>,
+					{{ restoredThemeSentence }}
+				</span>
+			</span>
+			<span :class="ACTIONS">
+				<UButton
+					size="xs"
+					color="neutral"
+					variant="outline"
+					label="Review"
+					@click="builder.setWorkspace('theme')"
+				/>
+				<UButton
+					size="xs"
+					color="neutral"
+					variant="ghost"
+					label="Discard"
+					@click="builder.dropRestoredTheme()"
+				/>
+				<UButton
+					icon="i-ph-x-light"
+					size="xs"
+					color="neutral"
+					variant="ghost"
+					aria-label="Dismiss"
+					@click="theme.state.value.restoredDraft = null"
+				/>
+			</span>
+		</div>
+
 		<div v-if="session.pendingRoute" :class="WARNING" role="alert">
 			<span :class="SENTENCE">
 				<UIcon name="i-ph-warning-light" class="me-1 size-4 shrink-0 text-warning" />
@@ -341,8 +425,12 @@ const veiled = computed(() => {
 			/>
 			<div class="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
 				<span>
+					<!-- The page is saved before the theme, so a failed save may
+					still have written the page. -->
 					<template v-if="session.lastSave?.outcome === 'failed'">
-						<b class="font-semibold text-highlighted">Nothing was written.</b>
+						<b class="font-semibold text-highlighted">{{
+							session.lastSave.pageSaved ? 'The page was saved.' : 'Nothing was written.'
+						}}</b>
 					</template>
 					{{ message }}
 				</span>

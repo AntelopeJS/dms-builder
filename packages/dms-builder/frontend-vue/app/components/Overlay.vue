@@ -35,12 +35,6 @@ const columns = computed(() => {
 		: 'grid-cols-[264px_minmax(0,1fr)_348px]'
 })
 
-function undoFromToast(): void {
-	builder.undo()
-	session.value.toast = null
-	session.value.toastUndo = false
-}
-
 const isTyping = (target: EventTarget | null): boolean => {
 	const element = target as HTMLElement | null
 	if (!element) return false
@@ -317,7 +311,7 @@ onUnmounted(() => {
 					v-if="session.toastUndo"
 					type="button"
 					class="flex items-center gap-1.5 font-semibold underline-offset-2 hover:underline"
-					@click="undoFromToast"
+					@click="builder.undoFromToast()"
 				>
 					Undo
 					<span class="font-mono text-[10px] opacity-70">⌘Z</span>

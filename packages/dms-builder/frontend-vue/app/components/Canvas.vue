@@ -7,9 +7,8 @@ import { useBuilder, type PageLayout } from '../runtime/session'
 
 const props = defineProps<{
 	/**
-	 * The page shown to be looked at, not edited: what the theme being edited
-	 * paints. Nothing on it answers the pointer, and the ways to add a block
-	 * are not drawn.
+	 * Read-only preview for the theme workspace: the page is inert, and the
+	 * add-block and Page settings controls are hidden.
 	 */
 	preview?: boolean
 }>()

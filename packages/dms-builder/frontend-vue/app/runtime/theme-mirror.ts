@@ -1,43 +1,46 @@
 import type { ThemeMode, ThemeVariables } from './types'
 
-/** The class the DMS keys dark mode on, on the root element. */
+/** The class on the root element that turns on the DMS's dark mode. */
 export const DARK_CLASS = 'dark'
 
-/** Rendered, so its styles compute, but taking no room and never seen or reached. */
+/**
+ * Rendered (not `display: none`) so its styles compute, but takes no room and
+ * cannot be seen or clicked.
+ */
 const HIDDEN_FRAME_STYLE =
 	'position:fixed;width:0;height:0;border:0;visibility:hidden;pointer-events:none'
 
-/** An `@import` rule, which a constructed stylesheet refuses and the page already resolved. */
+/**
+ * Constructed stylesheets reject `@import`, so the rule is dropped, and the
+ * imported sheet's rules are not copied.
+ */
 const IMPORT_RULE = /^@import\b/i
 
-/** The slice of a stylesheet the mirror reads: its rules and the media it is for. */
 export interface MirroredSheet {
 	media: Pick<MediaList, 'mediaText'>
 	cssRules: ArrayLike<Pick<CSSRule, 'cssText'>>
 }
 
-/** What the mirror copies of the page, and what it adds after it. */
 export interface MirrorOptions {
 	/** Leave a stylesheet of the page out of the copy. */
 	skip?: (sheet: CSSStyleSheet) => boolean
-	/** Rules read after the copied ones, so they win over them. */
-	extra?: () => string
+	overrideCss?: () => string
 }
 
-/** A stylesheet's text, kept until its rule count says it changed. */
+/** A stylesheet's text, reused while its rule count is unchanged. */
 interface CachedSheet {
-	length: number
+	ruleCount: number
 	text: string
 }
 
-/** The one stylesheet the mirror's document holds, and the text it was given. */
+/** The stylesheet adopted by the iframe's document, and the text it holds. */
 interface AdoptedSheet {
 	document: Document
 	sheet: CSSStyleSheet
 	text: string
 }
 
-/** A stylesheet's rules as text, or nothing for one the page may not read. */
+/** A stylesheet's rules as text, or '' for one the page cannot read. */
 export function sheetText(sheet: MirroredSheet): string {
 	let rules: string
 	try {
@@ -53,7 +56,7 @@ export function sheetText(sheet: MirroredSheet): string {
 	return media ? `@media ${media} {\n${rules}\n}` : rules
 }
 
-/** How many rules a stylesheet holds, or -1 for one the page may not read. */
+/** How many rules a stylesheet holds, or -1 for one the page cannot read. */
 function ruleCount(sheet: CSSStyleSheet): number {
 	try {
 		return sheet.cssRules.length
@@ -62,7 +65,7 @@ function ruleCount(sheet: CSSStyleSheet): number {
 	}
 }
 
-/** Put a root in the page root's state, then in one mode. */
+/** Copy the page root's attributes onto `target`, then set its dark class for `mode`. */
 function matchRoot(target: HTMLElement, mode: ThemeMode): void {
 	const source = document.documentElement
 	for (const name of target.getAttributeNames()) {
@@ -75,15 +78,14 @@ function matchRoot(target: HTMLElement, mode: ThemeMode): void {
 }
 
 /**
- * A copy of the page's stylesheets in a document of its own, whose root can be
- * put in either mode without touching the page.
+ * A copy of the page's stylesheets in a hidden iframe, whose root can switch
+ * between light and dark without touching the page.
  *
- * Only a root shows what a mode holds: the DMS declares light on `:root` and
- * dark on `.dark`, and a variable a mode leaves alone is inherited from the
- * root. An element of the page carrying `.dark` inherits the root's light value
- * for those, and nothing on a page in dark mode shows the light ones. The copy
- * is a constructed stylesheet, which no content security policy stands in the
- * way of.
+ * It needs a root of its own: the DMS declares light on `:root` and dark on
+ * `.dark`, so a `.dark` element inside a light page still inherits the root's
+ * light values for what dark leaves unset, and a page in dark mode has no
+ * element in light mode. The copy is a constructed stylesheet because no
+ * content security policy blocks one.
  */
 export class ModeMirror {
 	private readonly frame: HTMLIFrameElement
@@ -100,7 +102,7 @@ export class ModeMirror {
 
 	/** What each variable computes to on the root, in each mode. */
 	public read(names: string[]): Record<ThemeMode, ThemeVariables> {
-		const target = this.synced()
+		const target = this.syncDocument()
 		if (!target) {
 			return { light: {}, dark: {} }
 		}
@@ -110,9 +112,25 @@ export class ModeMirror {
 		}
 	}
 
-	/** Every custom property the copied stylesheets declare whose name passes `keep`. */
-	public declared(keep: (name: string) => boolean): string[] {
-		const target = this.synced()
+	/**
+	 * Computed values of `properties` on the body in one mode: what page
+	 * elements inherit when nothing closer sets them.
+	 */
+	public inheritedValues(mode: ThemeMode, properties: string[]): Record<string, string> {
+		const target = this.syncDocument()
+		const body = target?.body
+		if (!target || !body) {
+			return {}
+		}
+		matchRoot(target.documentElement, mode)
+		const style = target.defaultView?.getComputedStyle(body)
+		return Object.fromEntries(
+			properties.map((property) => [property, style?.getPropertyValue(property).trim() ?? '']),
+		)
+	}
+
+	public declaredCustomProperties(keep: (name: string) => boolean): string[] {
+		const target = this.syncDocument()
 		const sheet = this.adopted?.sheet
 		if (!target || !sheet) {
 			return []
@@ -126,10 +144,10 @@ export class ModeMirror {
 		this.frame.remove()
 	}
 
-	/** The frame's document, holding the page's rules as they stand now. */
-	private synced(): Document | undefined {
+	private syncDocument(): Document | undefined {
 		const target = this.frame.contentDocument
-		// A frame's window carries its own constructors, as `window` does.
+		// `adoptedStyleSheets` only accepts a sheet built by the iframe's own
+		// `CSSStyleSheet` constructor.
 		const view = this.frame.contentWindow as (Window & typeof globalThis) | null
 		if (!target || !view) {
 			return undefined
@@ -142,7 +160,7 @@ export class ModeMirror {
 		const copied = Array.from(document.styleSheets)
 			.filter((sheet) => !sheet.disabled && !this.options.skip?.(sheet))
 			.map((sheet) => this.textOf(sheet))
-		const text = [...copied, this.options.extra?.() ?? ''].join('\n')
+		const text = [...copied, this.options.overrideCss?.() ?? ''].join('\n')
 		if (text !== this.adopted.text) {
 			this.adopted.sheet.replaceSync(text)
 			this.adopted.text = text
@@ -152,12 +170,12 @@ export class ModeMirror {
 
 	private textOf(sheet: CSSStyleSheet): string {
 		const cached = this.texts.get(sheet)
-		const length = ruleCount(sheet)
-		if (cached?.length === length) {
+		const count = ruleCount(sheet)
+		if (cached?.ruleCount === count) {
 			return cached.text
 		}
 		const text = sheetText(sheet)
-		this.texts.set(sheet, { length, text })
+		this.texts.set(sheet, { ruleCount: count, text })
 		return text
 	}
 
@@ -170,7 +188,7 @@ export class ModeMirror {
 	}
 }
 
-/** The custom properties a list of rules declares, nested rules included. */
+/** Add the custom properties `rules` declare to `names`, nested rules included. */
 function collectNames(rules: CSSRuleList, names: Set<string>): void {
 	for (const rule of Array.from(rules)) {
 		if ('cssRules' in rule && (rule as CSSGroupingRule).cssRules) {

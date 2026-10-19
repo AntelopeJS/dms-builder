@@ -4,8 +4,8 @@ import { useBuilder } from '../runtime/session'
 /**
  * The tables, the data sources, the databases and the theme, given the whole
  * width: they serve every page, so they are not squeezed into a rail beside
- * one of them. The first three lay themselves out as a list and the one open
- * beside it; the theme as its editor beside the page it paints.
+ * one of them. The first three show a list beside the open item; the theme
+ * shows its editor beside the page.
  */
 
 const session = useBuilder().session

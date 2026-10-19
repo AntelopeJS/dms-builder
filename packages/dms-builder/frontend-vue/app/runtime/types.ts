@@ -513,17 +513,17 @@ export type ThemeColors = Partial<Record<ThemeColorRole, string>>
 /** Where the dashboard shows a logo. */
 export type LogoSlot = 'default' | 'collapsed' | 'email' | 'favicon'
 
-/** One logo slot: the public path of its file in each mode. */
-export type LogoSources = Partial<Record<ThemeMode, string>>
+/** The public path of a slot's logo file in each mode. */
+export type LogoPathsByMode = Partial<Record<ThemeMode, string>>
 
-export type ThemeLogos = Partial<Record<LogoSlot, LogoSources>>
+export type ThemeLogos = Partial<Record<LogoSlot, LogoPathsByMode>>
 
-/** A logo file sent with a save, base64-encoded. */
+/** A logo file sent with a save. */
 export interface LogoUpload {
 	slot: LogoSlot
 	mode: ThemeMode
 	contentType: string
-	data: string
+	base64Content: string
 }
 
 export interface ThemeLayer {
@@ -532,10 +532,10 @@ export interface ThemeLayer {
 }
 
 export interface ThemeFiles {
-	stylesheet: string
-	appConfig: string
-	entry: string
-	assets: string
+	stylesheetPath: string
+	appConfigPath: string
+	entryPath: string
+	assetsDirectory: string
 }
 
 export interface ThemeStructure {
@@ -544,7 +544,6 @@ export interface ThemeStructure {
 	colors: ThemeColors
 	logos: ThemeLogos
 	files: ThemeFiles
-	/** Whether the layer's entry imports the stylesheet already. */
 	stylesheetImported: boolean
 	version: string
 }

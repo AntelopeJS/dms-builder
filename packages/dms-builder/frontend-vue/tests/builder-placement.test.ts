@@ -1174,10 +1174,10 @@ describe('the theme workspace', () => {
 		colors: {},
 		logos: {},
 		files: {
-			stylesheet: 'app/assets/css/theme.css',
-			appConfig: 'app/app.config.ts',
-			entry: 'dms.frontend.ts',
-			assets: 'public/branding',
+			stylesheetPath: 'app/assets/css/theme.css',
+			appConfigPath: 'app/app.config.ts',
+			entryPath: 'dms.frontend.ts',
+			assetsDirectory: 'public/branding',
 		},
 		stylesheetImported: true,
 		version: 't1',
@@ -1273,6 +1273,6 @@ describe('the theme workspace', () => {
 			error: { code: 'not_found', ref: '/app/frontend-vue' },
 		}
 		await theme.load(true)
-		expect(theme.state.value.missingLayer).toBe('/app/frontend-vue')
+		expect(theme.state.value.missingLayerPath).toBe('/app/frontend-vue')
 	})
 })

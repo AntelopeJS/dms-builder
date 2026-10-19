@@ -13,7 +13,7 @@ import {
   OVERLAY_COMPONENT_NAME,
 } from '../runtime/constants'
 import { useBuilder } from '../runtime/session'
-import { takeThemeSave } from '../runtime/theme-reload'
+import { takeThemeSaveMarker } from '../runtime/theme-reload'
 
 // Our view of the shared header-action shape the DMS core renders. Declared
 // locally so this layer has no build-time dependency on the core layer; the
@@ -59,17 +59,16 @@ export default defineDmsPlugin((app) => {
   // says nothing about whether the backend runs in development.
   const builder = useBuilder()
   const route = useDmsRoute()
-  // The first theme save imports the stylesheet from the layer's entry, and
-  // the page reloads with the builder: the editor opens again on the theme
-  // once the page is mounted, and says the save went through.
+  // A theme save that reloads the page (see reloadsPage) leaves a marker:
+  // reopen the theme workspace on that page and report the save.
   app.hook('app:mounted', async () => {
-    const saved = takeThemeSave()
-    if (!saved || saved.route !== route.path) {
+    const themeSaveMarker = takeThemeSaveMarker()
+    if (!themeSaveMarker || themeSaveMarker.route !== route.path) {
       return
     }
     await builder.open(route.path)
     builder.setWorkspace('theme')
-    builder.notify(saved.message)
+    builder.notify(themeSaveMarker.message)
   })
   registerOverlay()
   registerAction(

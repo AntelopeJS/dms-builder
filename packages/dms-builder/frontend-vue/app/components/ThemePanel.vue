@@ -7,14 +7,18 @@ import { THEME_MODES, useThemeEditor } from '../runtime/theme'
 import {
 	catalogEntry,
 	catalogNames,
+	FONT_VARIABLE,
 	isVariableName,
-	otherVariables,
 	THEME_COLOR_ROLES,
-	THEME_MODE_ENTRIES,
+	THEME_MODE_OPTIONS,
 	THEME_VARIABLE_GROUPS,
+	dmsTones,
+	uncatalogedVariableNames,
+	type DmsTone,
+	type ThemeVariableEntry,
 } from '../runtime/theme-catalog'
-import { DARK_CLASS, ModeMirror } from '../runtime/theme-mirror'
-import { chosenMode } from '../runtime/theme-preview'
+import { DARK_CLASS } from '../runtime/theme-mirror'
+import { affectsDmsDefaults, dmsDefaults, viewerMode } from '../runtime/theme-preview'
 import type { ThemeMode, ThemeVariables } from '../runtime/types'
 
 const editor = useThemeEditor()
@@ -24,46 +28,52 @@ const { advanced } = useBuilderMode()
 // Auto-imported from the host's own layer: the DMS's confirmation dialog.
 const { confirm } = useConfirm()
 
-/** The mode the page shows now, whichever way it came to. */
-const pageMode = ref<ThemeMode>('light')
-const observed = ref<Record<ThemeMode, ThemeVariables>>({ light: {}, dark: {} })
-const added = ref<string[]>([])
-const newName = ref('')
-/** Why the name typed was not added, said until it changes. */
-const addRefusal = ref<string | null>(null)
-let mirror: ModeMirror | undefined
-let observers: MutationObserver[] = []
-let pendingFrame = 0
+/**
+ * How long the stylesheets have to stay still before the DMS defaults are read
+ * again: the dev server swaps several in a row when a layer changes.
+ */
+const DEFAULTS_SETTLE_MS = 250
 
-/** The groups of variables on screen: the simple mode keeps the backgrounds it names. */
+/** Read from the page's dark class, whether the viewer or the preview set it. */
+const pageMode = ref<ThemeMode>('light')
+const dmsDefaultValues = ref<Record<ThemeMode, ThemeVariables>>({ light: {}, dark: {} })
+const addedVariableNames = ref<string[]>([])
+const newName = ref('')
+const addRefusal = ref<string | null>(null)
+/** The row open, one at a time: a color's or the font's, by its variable. */
+const openRowName = ref<string | null>(null)
+let observers: MutationObserver[] = []
+let readDefaultsTimer: ReturnType<typeof setTimeout> | undefined
+
 const groups = computed(() =>
 	advanced.value
 		? THEME_VARIABLE_GROUPS
 		: THEME_VARIABLE_GROUPS.map((group) => ({
 				...group,
-				variables: group.variables.filter((entry) => entry.simple),
+				variables: group.variables.filter((entry) => entry.inSimpleMode),
 			})).filter((group) => group.variables.length > 0),
 )
 const roles = computed(() =>
 	advanced.value ? THEME_COLOR_ROLES : THEME_COLOR_ROLES.filter((entry) => entry.role === 'primary'),
 )
 
-const themed = computed(() =>
-	(['shared', ...THEME_MODES] as const).flatMap((set) => [
-		...Object.keys(state.value.draft?.variables[set] ?? {}),
-		...Object.keys(state.value.baseline?.variables[set] ?? {}),
+const themedVariableNames = computed(() =>
+	(['shared', ...THEME_MODES] as const).flatMap((setName) => [
+		...Object.keys(state.value.draft?.variables[setName] ?? {}),
+		...Object.keys(state.value.baseline?.variables[setName] ?? {}),
 	]),
 )
-const others = computed(() => otherVariables([...added.value, ...themed.value]))
-const variableNames = computed(() => [...catalogNames(), ...others.value])
+const otherVariableNames = computed(() => uncatalogedVariableNames([...addedVariableNames.value, ...themedVariableNames.value]))
+const variableNames = computed(() => [...catalogNames(), ...otherVariableNames.value])
+/** Joined so the watch fires only when a name is added or removed, not on every draft edit. */
+const variableNamesKey = computed(() => variableNames.value.join(' '))
 
-/** Where the layer would go, as the project names it: the folder beside its sources. */
-const missingFolder = computed(() => `${state.value.missingLayer?.split(/[\\/]/).pop() ?? 'frontend-vue'}/`)
+const missingLayerFolder = computed(() => `${state.value.missingLayerPath?.split(/[\\/]/).pop() ?? 'frontend-vue'}/`)
 
-const files = computed(() => {
+const themeFilePaths = computed(() => {
 	const structure = state.value.structure
 	return structure
-		? [structure.files.stylesheet, structure.files.appConfig, `${structure.files.assets}/`]
+		? [structure.files.stylesheetPath, structure.files.appConfigPath, `${structure.files.assetsDirectory}/`]
 		: []
 })
 
@@ -71,55 +81,62 @@ function readPageMode(): void {
 	pageMode.value = document.documentElement.classList.contains(DARK_CLASS) ? 'dark' : 'light'
 }
 
-/** Read what each variable shows in each mode, whichever one the page shows. */
-function observe(): void {
-	readPageMode()
-	if (mirror) {
-		observed.value = mirror.read(variableNames.value)
-	}
+/** The theme's own stylesheets are left out, so only another stylesheet or a list change needs a re-read. */
+function readDefaults(): void {
+	dmsDefaultValues.value = dmsDefaults(variableNames.value, editor.dmsBrandingDefaults.value.colors)
 }
 
-/**
- * One read of the variables per frame, however many edits, class changes and
- * stylesheet swaps asked. The page's mode is read at once: it is cheap, and
- * the mode switch shows it.
- */
-function scheduleObserve(): void {
-	readPageMode()
-	if (pendingFrame) {
+/** Debounced; ignores the preview and the theme's own stylesheets (see affectsDmsDefaults). */
+function scheduleDefaultsRead(records: MutationRecord[]): void {
+	if (!affectsDmsDefaults(records)) {
 		return
 	}
-	pendingFrame = requestAnimationFrame(() => {
-		pendingFrame = 0
-		observe()
-	})
+	clearTimeout(readDefaultsTimer)
+	readDefaultsTimer = setTimeout(readDefaults, DEFAULTS_SETTLE_MS)
 }
 
-function valuesOf(name: string): Partial<Record<ThemeMode, string>> {
-	return { light: observed.value.light[name], dark: observed.value.dark[name] }
+function dmsDefaultsOf(name: string): Partial<Record<ThemeMode, string>> {
+	return { light: dmsDefaultValues.value.light[name], dark: dmsDefaultValues.value.dark[name] }
 }
 
-/** Watch what changes what the variables compute to: the mode, and the stylesheets. */
+/** Every group's DMS colors, the simple mode's rows offering those of the whole group. */
+const dmsTonesByGroup = computed(
+	() => new Map(THEME_VARIABLE_GROUPS.map((group) => [group.id, dmsTones(group, dmsDefaultValues.value)])),
+)
+
+function dmsTonesOf(groupId: string): Record<ThemeMode, DmsTone[]> {
+	return dmsTonesByGroup.value.get(groupId) ?? { light: [], dark: [] }
+}
+
+/** A color set per mode is a row of its own; anything else is typed. */
+function isColorRow(entry: ThemeVariableEntry): boolean {
+	return entry.kind === 'color' && entry.scope === 'modes'
+}
+
+function toggleRow(name: string): void {
+	openRowName.value = openRowName.value === name ? null : name
+}
+
+/** Watch the page's mode, and the stylesheets the DMS defaults are read from. */
 function watchPage(): MutationObserver[] {
-	const mode = new MutationObserver(scheduleObserve)
-	mode.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-	const styles = new MutationObserver(scheduleObserve)
-	styles.observe(document.head, { childList: true, subtree: true, characterData: true })
-	return [mode, styles]
+	const modeObserver = new MutationObserver(readPageMode)
+	modeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+	const stylesObserver = new MutationObserver(scheduleDefaultsRead)
+	stylesObserver.observe(document.head, { childList: true, subtree: true, characterData: true })
+	return [modeObserver, stylesObserver]
 }
 
-/** Show the page in a mode for the preview; the viewer's own mode lets it follow them again. */
+/** Picking the viewer's own mode clears the override, so the page follows the viewer again. */
 function showMode(mode: string | number): void {
-	editor.setPreviewMode(mode === chosenMode() ? null : (mode as ThemeMode))
+	editor.setPreviewMode(mode === viewerMode() ? null : (mode as ThemeMode))
 }
 
-/** Why a name cannot join the list: the catalog or the list already has it. */
-function listedAs(name: string): string | undefined {
+function duplicateNameRefusal(name: string): string | undefined {
 	const entry = catalogEntry(name)
 	if (entry) {
 		return `${name} is already in the list, as ${entry.label}.`
 	}
-	return others.value.includes(name) ? `${name} is already in the list.` : undefined
+	return otherVariableNames.value.includes(name) ? `${name} is already in the list.` : undefined
 }
 
 function addVariable(): void {
@@ -127,27 +144,27 @@ function addVariable(): void {
 	if (!isVariableName(name)) {
 		return
 	}
-	const listed = listedAs(name)
-	if (listed) {
-		addRefusal.value = listed
+	const refusal = duplicateNameRefusal(name)
+	if (refusal) {
+		addRefusal.value = refusal
 		return
 	}
-	added.value = [...added.value, name]
+	addedVariableNames.value = [...addedVariableNames.value, name]
 	newName.value = ''
 }
 
 function removeAdded(name: string): void {
-	added.value = added.value.filter((entry) => entry !== name)
+	addedVariableNames.value = addedVariableNames.value.filter((entry) => entry !== name)
 }
 
 async function createLayer(): Promise<void> {
-	const asked = await confirm({
+	const confirmed = await confirm({
 		title: 'Give the project a frontend layer?',
-		description: `The builder creates ${missingFolder.value} beside the project's sources, with an entry, and registers it from the project's start(), above the DMS. The backend reloads with it; the frontend dev server serves it once restarted.`,
+		description: `The builder creates ${missingLayerFolder.value} beside the project's sources, with an entry, and registers it from the project's start(), above the DMS. The backend reloads with it; the frontend dev server serves it once restarted.`,
 		confirmLabel: 'Create the layer',
 		cancelLabel: 'Not now',
 	})
-	if (!asked) {
+	if (!confirmed) {
 		return
 	}
 	const result = await editor.createLayer()
@@ -161,22 +178,18 @@ async function createLayer(): Promise<void> {
 watch(newName, () => {
 	addRefusal.value = null
 })
-watch(() => state.value.draft, scheduleObserve, { deep: true, flush: 'post' })
-watch(variableNames, scheduleObserve, { flush: 'post' })
+watch(variableNamesKey, readDefaults)
 
 onMounted(() => {
-	mirror = new ModeMirror()
 	observers = watchPage()
-	void editor.load().then(scheduleObserve)
-	scheduleObserve()
+	readPageMode()
+	readDefaults()
+	void editor.load()
 })
 
 onUnmounted(() => {
 	observers.forEach((observer) => observer.disconnect())
-	cancelAnimationFrame(pendingFrame)
-	pendingFrame = 0
-	mirror?.dispose()
-	mirror = undefined
+	clearTimeout(readDefaultsTimer)
 })
 </script>
 
@@ -188,7 +201,7 @@ onUnmounted(() => {
 				<p class="flex-1 text-sm font-semibold text-highlighted">Theme</p>
 				<DmsSegmented
 					:model-value="pageMode"
-					:items="THEME_MODE_ENTRIES"
+					:items="THEME_MODE_OPTIONS"
 					size="xs"
 					aria-label="Show the page in"
 					@update:model-value="showMode($event)"
@@ -225,14 +238,14 @@ onUnmounted(() => {
 			</div>
 
 			<div
-				v-else-if="state.missingLayer"
+				v-else-if="state.missingLayerPath"
 				class="flex flex-col gap-3 rounded-lg border border-default bg-default p-3.5"
 			>
 				<p class="text-sm font-semibold text-highlighted">The project has no frontend layer yet</p>
 				<p class="text-xs text-muted">
 					A theme is written to a frontend layer of the project's own, above the DMS. The
 					builder can create one:
-					<span class="font-mono" :title="state.missingLayer ?? undefined">{{ missingFolder }}</span>,
+					<span class="font-mono" :title="state.missingLayerPath ?? undefined">{{ missingLayerFolder }}</span>,
 					beside the project's sources.
 				</p>
 				<UButton
@@ -246,12 +259,12 @@ onUnmounted(() => {
 			</div>
 
 			<UAlert
-				v-else-if="state.error"
+				v-else-if="state.readError"
 				color="warning"
 				variant="subtle"
 				icon="i-ph-warning-light"
 				title="The theme cannot be edited here"
-				:description="describeError(state.error, null)"
+				:description="describeError(state.readError, null)"
 			/>
 
 			<template v-else-if="state.draft">
@@ -268,35 +281,60 @@ onUnmounted(() => {
 
 				<section v-for="group in groups" :key="group.id" class="flex flex-col gap-3">
 					<DmsEyebrow>{{ group.label }}</DmsEyebrow>
-					<DmsBuilderThemeVariable
-						v-for="entry in group.variables"
-						:key="entry.name"
-						:name="entry.name"
-						:label="entry.label"
-						:hint="entry.hint"
-						:color="entry.kind === 'color'"
-						:scope="entry.scope"
-						:observed="valuesOf(entry.name)"
-						:shown-mode="pageMode"
-					/>
+					<div v-if="group.variables.some(isColorRow)" class="flex flex-col gap-1.5">
+						<DmsBuilderThemeColor
+							v-for="entry in group.variables.filter(isColorRow)"
+							:key="entry.name"
+							:name="entry.name"
+							:label="entry.label"
+							:hint="entry.hint"
+							:dms-default-values="dmsDefaultsOf(entry.name)"
+							:dms-tones="dmsTonesOf(group.id)"
+							:page-mode="pageMode"
+							:expanded="openRowName === entry.name"
+							@toggle="toggleRow(entry.name)"
+							@show-mode="showMode"
+						/>
+					</div>
+					<template v-for="entry in group.variables.filter((entry) => !isColorRow(entry))" :key="entry.name">
+						<DmsBuilderThemeFont
+							v-if="entry.name === FONT_VARIABLE"
+							:expanded="openRowName === entry.name"
+							:dms-default-value="dmsDefaultsOf(entry.name)[pageMode]"
+							@toggle="toggleRow(entry.name)"
+						/>
+						<DmsBuilderThemeVariable
+							v-else
+							:name="entry.name"
+							:label="entry.label"
+							:hint="entry.hint"
+							:scope="entry.scope"
+							:dms-default-values="dmsDefaultsOf(entry.name)"
+							:page-mode="pageMode"
+						/>
+					</template>
 				</section>
 
 				<section v-if="!advanced" class="flex flex-col gap-3">
 					<DmsEyebrow>Shape and type</DmsEyebrow>
 					<DmsBuilderThemeShape />
+					<DmsBuilderThemeFont
+						:expanded="openRowName === FONT_VARIABLE"
+						:dms-default-value="dmsDefaultsOf(FONT_VARIABLE)[pageMode]"
+						@toggle="toggleRow(FONT_VARIABLE)"
+					/>
 				</section>
 
 				<section v-if="advanced" class="flex flex-col gap-3">
 					<DmsEyebrow>Other variables</DmsEyebrow>
 					<DmsBuilderThemeVariable
-						v-for="name in others"
+						v-for="name in otherVariableNames"
 						:key="name"
 						:name="name"
-						:color="false"
 						scope="modes"
-						:observed="valuesOf(name)"
-						:shown-mode="pageMode"
-						:removable="added.includes(name) && !themed.includes(name)"
+						:dms-default-values="dmsDefaultsOf(name)"
+						:page-mode="pageMode"
+						:removable="addedVariableNames.includes(name) && !themedVariableNames.includes(name)"
 						@remove="removeAdded(name)"
 					/>
 					<form class="flex items-center gap-2" @submit.prevent="addVariable">
@@ -334,7 +372,7 @@ onUnmounted(() => {
 						Written to {{ state.structure?.layer.name }} by the bar's Save
 					</p>
 					<ul class="flex flex-col gap-0.5 font-mono text-[11px] text-muted">
-						<li v-for="file in files" :key="file">{{ file }}</li>
+						<li v-for="path in themeFilePaths" :key="path">{{ path }}</li>
 					</ul>
 					<p v-if="!state.structure?.stylesheetImported" class="text-[11px] text-dimmed">
 						The first save also imports the stylesheet from the layer's entry, which reloads

@@ -184,6 +184,7 @@ export function mount(component: Component, options: MountOptions = {}): Mounted
 		'UTabs',
 		'UCollapsible',
 		'UModal',
+		'UColorPicker',
 		'DmsSegmented',
 		'DmsChart',
 		'DmsTrendBadge',

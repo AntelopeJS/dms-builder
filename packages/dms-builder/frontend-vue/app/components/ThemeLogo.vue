@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useDmsAppConfig } from '#dms/frontend-module'
-import { LOGO_ACCEPT, THEME_MODES, logoKey, previewLogo, useThemeEditor } from '../runtime/theme'
-import type { LogoSlot, ThemeLogos, ThemeMode } from '../runtime/types'
+import { hostLogos } from '../runtime/host-branding'
+import { LOGO_INPUT_ACCEPT, THEME_MODES, logoKey, previewLogo, useThemeEditor } from '../runtime/theme'
+import type { LogoSlot, ThemeMode } from '../runtime/types'
 
-interface BrandingConfig {
-	branding?: { logo?: ThemeLogos }
-}
-
-/** What a tile's corner says of the logo it shows. */
 type LogoStatus = 'new' | 'saved' | 'reset' | 'default' | 'follows'
 
 const STATUS_LABELS: Record<LogoStatus, string> = {
@@ -19,22 +14,18 @@ const STATUS_LABELS: Record<LogoStatus, string> = {
 	follows: 'the logo',
 }
 
-/** Each tile draws its logo on its own mode's ground, whatever mode the page shows. */
+/** Each tile keeps its mode's background, whatever mode the page is in. */
 const TILE_CLASSES: Record<ThemeMode, string> = {
 	light: 'bg-white text-neutral-600',
 	dark: 'bg-neutral-950 text-neutral-300',
 }
 
 const props = defineProps<{
-	/** The slot whose logo the tiles show. */
 	logoSlot: LogoSlot
 	label: string
 	hint: string
-	/** The modes in which this slot only repeats another one's logo. */
-	follows?: Partial<Record<ThemeMode, boolean>>
-	/** What the tiles say instead of "DMS logo" when nothing is set. */
-	emptyLabel?: string
-	/** A square tile, for an icon. */
+	followsLogoInMode?: Partial<Record<ThemeMode, boolean>>
+	emptyLogoLabel?: string
 	square?: boolean
 }>()
 
@@ -45,13 +36,12 @@ const emit = defineEmits<{
 
 const editor = useThemeEditor()
 const state = editor.state
-const appConfig: BrandingConfig = useDmsAppConfig()
 
-function status(mode: ThemeMode): LogoStatus {
-	if (props.follows?.[mode]) {
+function logoStatus(mode: ThemeMode): LogoStatus {
+	if (props.followsLogoInMode?.[mode]) {
 		return 'follows'
 	}
-	if (state.value.pending[logoKey(props.logoSlot, mode)]) {
+	if (state.value.pendingLogos[logoKey(props.logoSlot, mode)]) {
 		return 'new'
 	}
 	if (state.value.draft?.logos[props.logoSlot]?.[mode] !== undefined) {
@@ -61,25 +51,22 @@ function status(mode: ThemeMode): LogoStatus {
 }
 
 function statusLabel(mode: ThemeMode): string {
-	const shown = status(mode)
-	return shown === 'default' && props.emptyLabel ? props.emptyLabel : STATUS_LABELS[shown]
+	const status = logoStatus(mode)
+	return status === 'default' && props.emptyLogoLabel ? props.emptyLogoLabel : STATUS_LABELS[status]
 }
 
-/** Whether the slot holds something of the project's in this mode, saved or not. */
-function customized(mode: ThemeMode): boolean {
-	return status(mode) === 'new' || status(mode) === 'saved'
+/** False when the slot only repeats the main logo: it has nothing of its own to reset. */
+function isCustomized(mode: ThemeMode): boolean {
+	return logoStatus(mode) === 'new' || logoStatus(mode) === 'saved'
 }
 
-const anyCustomized = computed(() => THEME_MODES.some(customized))
+const anyCustomized = computed(() => THEME_MODES.some(isCustomized))
 
-/**
- * The logo a tile shows: the file picked or kept, the DMS's own for one the
- * draft hands back when the DMS says which, else what the dashboard shows.
- */
-function source(mode: ThemeMode): string | undefined {
+/** Falls back to the logo the dashboard shows now when the preview has none. */
+function logoSource(mode: ThemeMode): string | undefined {
 	return (
-		previewLogo(state.value, props.logoSlot, mode, editor.defaults.value.logo) ??
-		appConfig.branding?.logo?.[props.logoSlot]?.[mode]
+		previewLogo(state.value, props.logoSlot, mode, editor.dmsBrandingDefaults.value.logo) ??
+		hostLogos()[props.logoSlot]?.[mode]
 	)
 }
 
@@ -94,7 +81,7 @@ function pick(mode: ThemeMode, event: Event): void {
 
 function reset(): void {
 	for (const mode of THEME_MODES) {
-		if (customized(mode)) {
+		if (isCustomized(mode)) {
 			emit('reset', mode)
 		}
 	}
@@ -129,8 +116,8 @@ function reset(): void {
 				:title="`Upload the ${mode} ${label.toLowerCase()}`"
 			>
 				<img
-					v-if="source(mode)"
-					:src="source(mode)"
+					v-if="logoSource(mode)"
+					:src="logoSource(mode)"
 					:alt="`${label}, ${mode}`"
 					class="max-w-full object-contain"
 					:class="square ? 'size-10' : 'max-h-12'"
@@ -148,7 +135,7 @@ function reset(): void {
 				<input
 					type="file"
 					class="sr-only"
-					:accept="LOGO_ACCEPT"
+					:accept="LOGO_INPUT_ACCEPT"
 					:aria-label="`Upload the ${mode} ${label.toLowerCase()}`"
 					@change="pick(mode, $event)"
 				/>

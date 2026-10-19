@@ -1,10 +1,10 @@
 import tailwindColors from 'tailwindcss/colors'
 import type { LogoSlot, ThemeColorRole, ThemeMode } from './types'
 
-/** The palettes whose swatches go last: grays, for a neutral more than an accent. */
+/** Gray palettes, listed last: they make a poor accent. */
 const GRAYS = new Set(['slate', 'gray', 'zinc', 'neutral', 'stone', 'mauve', 'olive', 'mist', 'taupe'])
 
-/** What a variable holds, as the browser checks a value of it. */
+/** The CSS property a value is checked against with `CSS.supports`. */
 export type ThemeValueKind = 'color' | 'border-radius' | 'font-family'
 
 /**
@@ -17,12 +17,11 @@ export type ThemeVariableScope = 'modes' | 'shared'
 export interface ThemeVariableEntry {
 	name: string
 	label: string
-	/** What it paints, in the words of the dashboard rather than the token's. */
+	/** What it paints, in dashboard terms rather than token names. */
 	hint: string
 	kind: ThemeValueKind
 	scope: ThemeVariableScope
-	/** Shown in the simple mode too; the rest is the developer's. */
-	simple?: boolean
+	inSimpleMode?: boolean
 }
 
 export interface ThemeVariableGroup {
@@ -32,19 +31,22 @@ export interface ThemeVariableGroup {
 	variables: ThemeVariableEntry[]
 }
 
-function color(
+function colorVariable(
 	name: string,
 	label: string,
 	hint: string,
-	simple = false,
+	inSimpleMode = false,
 ): ThemeVariableEntry {
-	return { name, label, hint, kind: 'color', scope: 'modes', simple }
+	return { name, label, hint, kind: 'color', scope: 'modes', inSimpleMode }
 }
 
+/** The dashboard's font, which the editor offers a font of its catalog for. */
+export const FONT_VARIABLE = '--font-sans'
+
 /**
- * The DMS tokens the editor names, grouped by what they paint
+ * The DMS tokens the editor lists, grouped by what they paint
  * (`layers/dms-layout/app/assets/css/main.css` in the DMS). Each has a light
- * and a dark default there, but the shape and type ones, set once.
+ * and a dark default there, except the shape and type ones, set once.
  */
 export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 	{
@@ -52,14 +54,14 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 		label: 'Backgrounds',
 		icon: 'i-ph-squares-four-light',
 		variables: [
-			color('--ui-bg-muted', 'Page', 'The page behind the cards', true),
-			color('--ui-bg', 'Cards and panels', 'Cards, menus, dialogs and the header', true),
-			color('--dms-bg-sidebar', 'Sidebar', 'The navigation down the side', true),
-			color('--dms-bg-field', 'Fields', 'Inputs, selects and text areas', true),
-			color('--dms-surface-card', 'Card frame', 'The card itself, when it differs from the panels'),
-			color('--ui-bg-elevated', 'Raised', 'Table headers, hovered rows, tiles'),
-			color('--ui-bg-accented', 'Pressed', 'Selected rows and pressed controls'),
-			color('--dms-bg-muted', 'Bands', 'The header, filter and footer bands of a card'),
+			colorVariable('--ui-bg-muted', 'Page', 'The page behind the cards', true),
+			colorVariable('--ui-bg', 'Cards and panels', 'Cards, menus, dialogs and the header', true),
+			colorVariable('--dms-bg-sidebar', 'Sidebar', 'The navigation down the side', true),
+			colorVariable('--dms-bg-field', 'Fields', 'Inputs, selects and text areas', true),
+			colorVariable('--dms-surface-card', 'Card frame', 'The card itself, when it differs from the panels'),
+			colorVariable('--ui-bg-elevated', 'Raised', 'Table headers, hovered rows, tiles'),
+			colorVariable('--ui-bg-accented', 'Pressed', 'Selected rows and pressed controls'),
+			colorVariable('--dms-bg-muted', 'Bands', 'The header, filter and footer bands of a card'),
 		],
 	},
 	{
@@ -67,11 +69,11 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 		label: 'Text',
 		icon: 'i-ph-text-aa-light',
 		variables: [
-			color('--ui-text-highlighted', 'Titles', 'Headings and values that stand out'),
-			color('--ui-text', 'Body', 'Most of the text'),
-			color('--ui-text-toned', 'Toned', 'Labels and table cells'),
-			color('--ui-text-muted', 'Secondary', 'Descriptions and hints'),
-			color('--ui-text-dimmed', 'Dimmed', 'Placeholders and the least of the text'),
+			colorVariable('--ui-text-highlighted', 'Titles', 'Headings and values that stand out'),
+			colorVariable('--ui-text', 'Body', 'Most of the text'),
+			colorVariable('--ui-text-toned', 'Toned', 'Labels and table cells'),
+			colorVariable('--ui-text-muted', 'Secondary', 'Descriptions and hints'),
+			colorVariable('--ui-text-dimmed', 'Dimmed', 'Placeholders and the least of the text'),
 		],
 	},
 	{
@@ -79,10 +81,10 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 		label: 'Borders',
 		icon: 'i-ph-bounding-box-light',
 		variables: [
-			color('--ui-border', 'Borders', 'Hairlines between surfaces'),
-			color('--ui-border-muted', 'Light borders', 'Rows inside a table'),
-			color('--ui-border-accented', 'Strong borders', 'Hovered fields and dividers that lead'),
-			color('--dms-border-top', 'Strongest borders', 'Unchecked boxes and drop zones'),
+			colorVariable('--ui-border', 'Borders', 'Hairlines between surfaces'),
+			colorVariable('--ui-border-muted', 'Light borders', 'Rows inside a table'),
+			colorVariable('--ui-border-accented', 'Strong borders', 'Hovered fields and dividers that lead'),
+			colorVariable('--dms-border-top', 'Strongest borders', 'Unchecked boxes and drop zones'),
 		],
 	},
 	{
@@ -90,10 +92,10 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 		label: 'Accent, one by one',
 		icon: 'i-ph-drop-half-light',
 		variables: [
-			color('--ui-primary', 'Accent ink', 'Links, icons and lines in the accent'),
-			color('--dms-accent-fill', 'Accent fill', 'Solid buttons and badges'),
-			color('--dms-accent-fill-hover', 'Accent fill, hovered', 'A solid button under the pointer'),
-			color('--dms-accent-on-fill', 'On the accent fill', 'Text and icons on a solid button'),
+			colorVariable('--ui-primary', 'Accent ink', 'Links, icons and lines in the accent'),
+			colorVariable('--dms-accent-fill', 'Accent fill', 'Solid buttons and badges'),
+			colorVariable('--dms-accent-fill-hover', 'Accent fill, hovered', 'A solid button under the pointer'),
+			colorVariable('--dms-accent-on-fill', 'On the accent fill', 'Text and icons on a solid button'),
 		],
 	},
 	{
@@ -116,7 +118,7 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 				scope: 'shared',
 			},
 			{
-				name: '--font-sans',
+				name: FONT_VARIABLE,
 				label: 'Font',
 				hint: 'Every text of the dashboard',
 				kind: 'font-family',
@@ -133,17 +135,16 @@ export const THEME_VARIABLE_GROUPS: ThemeVariableGroup[] = [
 	},
 ]
 
-const ENTRIES = new Map(
+const VARIABLES_BY_NAME = new Map(
 	THEME_VARIABLE_GROUPS.flatMap((group) => group.variables).map((entry) => [entry.name, entry]),
 )
 
 export function catalogEntry(name: string): ThemeVariableEntry | undefined {
-	return ENTRIES.get(name)
+	return VARIABLES_BY_NAME.get(name)
 }
 
-/** Every variable the catalog names. */
 export function catalogNames(): string[] {
-	return [...ENTRIES.keys()]
+	return [...VARIABLES_BY_NAME.keys()]
 }
 
 const VARIABLE_NAME = /^--[A-Za-z0-9_-]+$/
@@ -152,43 +153,56 @@ export function isVariableName(name: string): boolean {
 	return VARIABLE_NAME.test(name)
 }
 
-/** The variables a theme sets that the catalog does not name, sorted and once each. */
-export function otherVariables(names: Iterable<string>): string[] {
-	return [...new Set(names)].filter((name) => !ENTRIES.has(name)).sort()
+export function uncatalogedVariableNames(names: Iterable<string>): string[] {
+	return [...new Set(names)].filter((name) => !VARIABLES_BY_NAME.has(name)).sort()
+}
+
+/** A color the DMS paints some of a group's variables with, named by what they paint. */
+export interface DmsTone {
+	value: string
+	label: string
 }
 
 /**
- * A choice of corners, setting the controls' radius and the cards' together:
- * the simple mode's one setting for both. `null` hands both back to the DMS.
+ * The DMS's own colors for a group, one per color in each mode: what a row of
+ * the group offers to pick from, so that the page can take the cards' color
+ * without anyone reading a code.
+ */
+export function dmsTones(
+	group: ThemeVariableGroup,
+	dmsDefaultValues: Record<ThemeMode, Record<string, string>>,
+): Record<ThemeMode, DmsTone[]> {
+	const tonesIn = (mode: ThemeMode): DmsTone[] => {
+		const labelsByValue = new Map<string, string[]>()
+		for (const entry of group.variables) {
+			const value = dmsDefaultValues[mode][entry.name]
+			if (value) {
+				labelsByValue.set(value, [...(labelsByValue.get(value) ?? []), entry.label])
+			}
+		}
+		return [...labelsByValue].map(([value, labels]) => ({ value, label: labels.join(', ') }))
+	}
+	return { light: tonesIn('light'), dark: tonesIn('dark') }
+}
+
+/**
+ * A simple-mode corner preset, setting the controls' and the cards' radius
+ * together. `null` resets both to the DMS defaults.
  */
 export interface CornerPreset {
 	id: string
 	label: string
-	values: { radius: string; card: string } | null
+	values: { radius: string; cardRadius: string } | null
 }
 
 export const CORNER_PRESETS: CornerPreset[] = [
-	{ id: 'square', label: 'Square', values: { radius: '0rem', card: '0rem' } },
-	{ id: 'soft', label: 'Soft', values: { radius: '0.2rem', card: '0.5rem' } },
+	{ id: 'square', label: 'Square', values: { radius: '0rem', cardRadius: '0rem' } },
+	{ id: 'soft', label: 'Soft', values: { radius: '0.2rem', cardRadius: '0.5rem' } },
 	{ id: 'default', label: 'Default', values: null },
-	{ id: 'round', label: 'Round', values: { radius: '0.5rem', card: '1.25rem' } },
+	{ id: 'round', label: 'Round', values: { radius: '0.5rem', cardRadius: '1.25rem' } },
 ]
 
-/** A font the simple mode offers: stacks every system has, so none is fetched. */
-export interface FontPreset {
-	id: string
-	label: string
-	stack: string | null
-}
-
-export const FONT_PRESETS: FontPreset[] = [
-	{ id: 'default', label: 'Default', stack: null },
-	{ id: 'system', label: 'System', stack: 'ui-sans-serif, system-ui, sans-serif' },
-	{ id: 'serif', label: 'Serif', stack: 'ui-serif, Georgia, serif' },
-	{ id: 'rounded', label: 'Rounded', stack: 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif' },
-]
-
-export const THEME_MODE_ENTRIES: { label: string; value: ThemeMode; icon: string }[] = [
+export const THEME_MODE_OPTIONS: { label: string; value: ThemeMode; icon: string }[] = [
 	{ label: 'Light', value: 'light', icon: 'i-ph-sun-light' },
 	{ label: 'Dark', value: 'dark', icon: 'i-ph-moon-light' },
 ]
@@ -203,9 +217,8 @@ export const THEME_COLOR_ROLES: { role: ThemeColorRole; label: string; hint: str
 ]
 
 /**
- * The palettes a role can take: the DMS's own, then Tailwind's, chromatic ones
- * first — the grays make a poor accent but a fine neutral. A palette the
- * project declares itself can still be typed in the developer mode.
+ * The palettes a role can take: the DMS's own, then Tailwind's, grays last. A
+ * palette the project declares itself can still be typed in the developer mode.
  */
 export const THEME_PALETTES: string[] = [
 	'dms',
@@ -215,11 +228,7 @@ export const THEME_PALETTES: string[] = [
 		.sort((left, right) => Number(GRAYS.has(left)) - Number(GRAYS.has(right))),
 ]
 
-/**
- * The value Nuxt UI falls back on for a shade of a Tailwind palette, as its
- * colors plugin writes it: the page only declares the `--color-*` shades its
- * own classes use, so most palettes reach it through this fallback alone.
- */
+/** A Tailwind palette's color at one shade; `undefined` for a palette Tailwind does not ship. */
 export function paletteShade(palette: string, shade: number): string | undefined {
 	const value = (tailwindColors as Record<string, unknown>)[palette]
 	return typeof value === 'object' && value !== null
@@ -227,17 +236,25 @@ export function paletteShade(palette: string, shade: number): string | undefined
 		: undefined
 }
 
-/** The shades of a palette, as Nuxt UI maps a role onto one. */
+/** The shades Nuxt UI declares for each color role. */
 export const PALETTE_SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const
 
 /** The logo slots the developer mode sets one by one. */
-export const THEME_LOGO_SLOTS: { slot: LogoSlot; label: string; hint: string }[] = [
+export const THEME_LOGO_SLOTS: { slot: LogoSlot; label: string; hint: string; emptyLogoLabel?: string }[] = [
 	{ slot: 'default', label: 'Logo', hint: 'The sidebar, the sign-in and error pages' },
 	{ slot: 'collapsed', label: 'Collapsed logo', hint: 'The folded sidebar: a square icon' },
-	{ slot: 'email', label: 'Email logo', hint: 'The header of every email: a PNG, as mail clients refuse SVG' },
+	{
+		slot: 'email',
+		label: 'Email logo',
+		hint: 'The header of every email: a PNG or a JPEG, which mail clients show — any other file is drawn as a PNG',
+		// The DMS has no email logo: when unset, emails show the main logo if it
+		// is a PNG or a JPEG.
+		emptyLogoLabel: 'main logo if PNG or JPEG',
+	},
 	{ slot: 'favicon', label: 'Favicon', hint: "The browser tab: it follows the system's light or dark" },
 ]
 
-/** The slots the simple mode's logo goes to, and those its square icon does. */
+/** Slots the simple mode's logo always fills. */
 export const WIDE_LOGO_SLOTS: LogoSlot[] = ['default', 'email']
+/** Slots the simple mode's square icon fills, or its logo when there is no icon. */
 export const SQUARE_LOGO_SLOTS: LogoSlot[] = ['collapsed', 'favicon']

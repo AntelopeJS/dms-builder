@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
- * The theme: its editor, and beside it the page it paints. The page is there
- * to be looked at, not edited — the sidebar and the header around the editor
- * show the theme too, logos included.
+ * The theme editor beside a read-only preview of the page. The dashboard's
+ * sidebar and header preview the theme too, logos included.
  */
 </script>
 

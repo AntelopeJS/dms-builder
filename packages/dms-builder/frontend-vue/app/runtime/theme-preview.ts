@@ -1,6 +1,8 @@
 import {
 	CHROME_ATTRIBUTE,
+	CHROME_CLASS,
 	THEME_CHROME_STYLE_ID,
+	THEME_FONTS_STYLE_ID,
 	THEME_PREVIEW_STYLE_ID,
 } from './constants'
 import { PALETTE_SHADES, paletteShade } from './theme-catalog'
@@ -15,9 +17,9 @@ import type {
 export const THEME_MODES: ThemeMode[] = ['light', 'dark']
 
 /**
- * The selectors the preview declares each mode at, the ones the module writes
- * a mode's own values under. The shared values are folded into each mode
- * here, so the preview never has to win over a mode rule with a weaker one.
+ * The selectors the module writes each mode under in theme.css. Shared values
+ * are folded into each mode's rule, so the preview never loses to a more
+ * specific saved mode rule.
  */
 const MODE_SELECTORS: Record<ThemeMode, string> = {
 	light: ':root:not(.dark)',
@@ -25,25 +27,45 @@ const MODE_SELECTORS: Record<ThemeMode, string> = {
 }
 
 /**
- * The value that hands a variable back to the DMS default. The DMS declares its
- * defaults in a cascade layer and the theme overrides them unlayered, so
- * rolling the cascade back one layer skips the saved override, whatever
- * stylesheet holds it.
+ * The DMS declares its defaults in a cascade layer and the saved theme
+ * overrides them unlayered, so `revert-layer` skips the saved override,
+ * whichever stylesheet holds it.
  */
 const DMS_DEFAULT = 'revert-layer'
 
-/** The stylesheet of the project's theme, as the dev server names the module it serves. */
-const THEME_STYLESHEET = /\/app\/assets\/css\/theme\.css(?:[?#].*)?$/
+const THEME_STYLESHEET_PATH = /\/app\/assets\/css\/theme\.css(?:[?#].*)?$/
 
-/** The tokens the builder's frame draws with, which it keeps on the DMS look. */
+/** The DMS tokens the builder's chrome uses; `isolateChrome` pins them to their DMS values. */
 const CHROME_TOKEN = /^--(?:ui|dms|font|shadow|default)-/
 
 /**
- * Whether there is a page to paint: there is none where the editor's logic
- * runs alone, and only a stand-in document where its components are mounted
- * without a browser.
+ * Properties the chrome inherits as computed values, not tokens: Tailwind's
+ * preflight sets the font on the root, Nuxt UI sets color and color-scheme on
+ * the body, both computed with the theme. The chrome declares their DMS
+ * values again.
  */
-function onPage(): boolean {
+const INHERITED_PROPERTIES = ['font-family', 'color', 'color-scheme']
+
+/**
+ * Tailwind's base layer, where the chrome's inherited properties go: below the
+ * utilities, so a utility class on a chrome element still wins.
+ */
+const BASE_LAYER = 'base'
+
+/**
+ * The builder's chrome: elements with the chrome attribute, and Nuxt UI
+ * overlays given the chrome class because they are teleported out of it.
+ */
+const CHROME_SELECTOR = `[${CHROME_ATTRIBUTE}], .${CHROME_CLASS}`
+
+/** The element the DMS frontend loader teleports Nuxt UI's overlays into. */
+const OVERLAY_PORTAL_ID = 'dms-overlays'
+
+/** The interactions an overlay opens from: a press or a key, never a focus the overlay moved itself. */
+const OPENING_EVENTS = ['pointerdown', 'keydown'] as const
+
+/** False without a browser: no `document`, or a test stub lacking the DOM APIs used here. */
+function hasDom(): boolean {
 	return (
 		typeof document !== 'undefined' &&
 		typeof document.getElementById === 'function' &&
@@ -51,10 +73,8 @@ function onPage(): boolean {
 	)
 }
 
-/** One declaration of the preview: a custom property and the value it shows. */
-export type PreviewDeclaration = [name: string, value: string]
+export type PropertyDeclaration = [name: string, value: string]
 
-/** The value a mode shows for a variable in a theme: its own, else the shared one. */
 export function effectiveValue(
 	variables: ThemeVariableSets,
 	mode: ThemeMode,
@@ -64,38 +84,44 @@ export function effectiveValue(
 }
 
 /**
- * What the preview declares in one mode: the draft's values, and the DMS
- * default back for every saved override the draft dropped. A value the theme
- * could not be saved with is left out, so the page keeps showing the saved one.
+ * Declarations for one mode: each value the draft changes, or `revert-layer`
+ * where the draft removes a saved override. Unchanged values are not declared,
+ * so the saved stylesheet, and any edit made to it outside the builder, shows
+ * through. Invalid values are skipped, so the page keeps the saved one.
  */
 export function previewDeclarations(
 	draft: ThemeVariableSets,
 	saved: ThemeVariableSets,
 	mode: ThemeMode,
 	isValid: (name: string, value: string) => boolean,
-): PreviewDeclaration[] {
+): PropertyDeclaration[] {
 	const names = new Set(
 		[draft, saved].flatMap((variables) => [
 			...Object.keys(variables.shared),
 			...Object.keys(variables[mode]),
 		]),
 	)
-	return [...names].flatMap((name): PreviewDeclaration[] => {
-		const value = effectiveValue(draft, mode, name)
-		if (value !== undefined) {
-			return isValid(name, value) ? [[name, value]] : []
+	return [...names].flatMap((name): PropertyDeclaration[] => {
+		const draftValue = effectiveValue(draft, mode, name)
+		const savedValue = effectiveValue(saved, mode, name)
+		// Compared trimmed, as the save writes them.
+		if (draftValue?.trim() === savedValue?.trim()) {
+			return []
 		}
-		return effectiveValue(saved, mode, name) === undefined ? [] : [[name, DMS_DEFAULT]]
+		if (draftValue !== undefined) {
+			return isValid(name, draftValue) ? [[name, draftValue]] : []
+		}
+		return [[name, DMS_DEFAULT]]
 	})
 }
 
 /**
- * How a role takes a palette: each shade of the role is that palette's shade,
- * written the way Nuxt UI's colors plugin writes it — `neutral` named
- * `old-neutral`, and a Tailwind palette with its value to fall back on, as the
- * page declares none of its shades but those it uses.
+ * Declarations pointing every shade of a role at a palette, written as Nuxt
+ * UI's colors plugin writes them: `neutral` is named `old-neutral`, and a
+ * Tailwind palette carries its value as a fallback, since the page only
+ * declares the shades its classes use.
  */
-export function paletteDeclarations(role: ThemeColorRole, palette: string): PreviewDeclaration[] {
+export function paletteDeclarations(role: ThemeColorRole, palette: string): PropertyDeclaration[] {
 	const name = palette === 'neutral' ? 'old-neutral' : palette
 	return PALETTE_SHADES.map((shade) => {
 		const fallback = paletteShade(palette, shade)
@@ -107,31 +133,34 @@ export function paletteDeclarations(role: ThemeColorRole, palette: string): Prev
 }
 
 /**
- * The palettes the preview maps each role onto: the draft's, and the DMS's
- * own for a role the draft hands back. Without the DMS's defaults to name, a
- * dropped role keeps showing the saved palette until the save.
+ * Declarations for each role whose palette differs from the saved one: the
+ * draft's palette, or the DMS's for a role the draft removed. Without
+ * `dmsColors`, a removed role keeps the saved palette until the save.
  */
-export function previewPalettes(
+export function previewPaletteDeclarations(
 	draft: ThemeColors,
 	saved: ThemeColors,
-	defaults: ThemeColors | undefined,
-): PreviewDeclaration[] {
+	dmsColors: ThemeColors | undefined,
+): PropertyDeclaration[] {
 	const roles = new Set([...Object.keys(draft), ...Object.keys(saved)] as ThemeColorRole[])
 	return [...roles].flatMap((role) => {
-		const palette = draft[role] ?? defaults?.[role]
+		const palette = draft[role] ?? dmsColors?.[role]
 		return palette && palette !== saved[role] ? paletteDeclarations(role, palette) : []
 	})
 }
 
-/** The draft as the preview shows it. */
 export interface PreviewInput {
 	draft: { variables: ThemeVariableSets; colors: ThemeColors }
 	saved: { variables: ThemeVariableSets; colors: ThemeColors }
-	defaults: ThemeColors | undefined
+	dmsColors: ThemeColors | undefined
 	isValid: (name: string, value: string) => boolean
 }
 
-function addRule(sheet: CSSStyleSheet, selector: string, declarations: PreviewDeclaration[]): void {
+function addRule(
+	sheet: CSSStyleSheet | CSSGroupingRule,
+	selector: string,
+	declarations: PropertyDeclaration[],
+): void {
 	if (declarations.length === 0) {
 		return
 	}
@@ -144,8 +173,7 @@ function addRule(sheet: CSSStyleSheet, selector: string, declarations: PreviewDe
 	}
 }
 
-/** A style element of the builder's own, made anew last in `<head>`. */
-function freshStyle(id: string): HTMLStyleElement {
+function recreateStyleElement(id: string): HTMLStyleElement {
 	document.getElementById(id)?.remove()
 	const element = document.createElement('style')
 	element.id = id
@@ -160,14 +188,18 @@ function freshStyle(id: string): HTMLStyleElement {
  * close its rule and open another.
  */
 export function writePreview(input: PreviewInput): void {
-	if (!onPage()) {
+	if (!hasDom()) {
 		return
 	}
-	const sheet = freshStyle(THEME_PREVIEW_STYLE_ID).sheet
+	const sheet = recreateStyleElement(THEME_PREVIEW_STYLE_ID).sheet
 	if (!sheet) {
 		return
 	}
-	addRule(sheet, ':root', previewPalettes(input.draft.colors, input.saved.colors, input.defaults))
+	addRule(
+		sheet,
+		':root',
+		previewPaletteDeclarations(input.draft.colors, input.saved.colors, input.dmsColors),
+	)
 	for (const mode of THEME_MODES) {
 		addRule(
 			sheet,
@@ -178,67 +210,110 @@ export function writePreview(input: PreviewInput): void {
 }
 
 export function removePreview(): void {
-	if (!onPage()) {
+	if (!hasDom()) {
 		return
 	}
 	document.getElementById(THEME_PREVIEW_STYLE_ID)?.remove()
 }
 
-/** The mode the page was in before the editor showed it in another, while it does. */
-let shownOver: ThemeMode | null = null
+let modeBeforePreview: ThemeMode | null = null
 
 function pageMode(): ThemeMode {
 	return document.documentElement.classList.contains(DARK_CLASS) ? 'dark' : 'light'
 }
 
-/**
- * The mode the viewer chose, whatever the editor shows the page in: their
- * preference, which the editor never writes.
- */
-export function chosenMode(): ThemeMode {
-	return shownOver ?? pageMode()
+export function viewerMode(): ThemeMode {
+	return modeBeforePreview ?? pageMode()
 }
 
 /**
- * Show the page in one mode, for the preview alone: the root's class changes,
- * the viewer's preference does not, and `null` puts the page back in the mode
- * it was in.
+ * Show the page in one mode for the preview: only the root's class changes,
+ * not the viewer's preference. `null` restores the viewer's mode.
  */
 export function showPageIn(mode: ThemeMode | null): void {
-	if (!onPage()) {
+	if (!hasDom()) {
 		return
 	}
 	if (mode === null) {
-		if (shownOver !== null) {
-			document.documentElement.classList.toggle(DARK_CLASS, shownOver === 'dark')
-			shownOver = null
+		if (modeBeforePreview !== null) {
+			document.documentElement.classList.toggle(DARK_CLASS, modeBeforePreview === 'dark')
+			modeBeforePreview = null
 		}
 		return
 	}
-	shownOver ??= pageMode()
+	modeBeforePreview ??= pageMode()
 	document.documentElement.classList.toggle(DARK_CLASS, mode === 'dark')
 }
 
-/** Whether a stylesheet is one the theme paints the page with: the saved one, the preview. */
-function isThemeSheet(sheet: CSSStyleSheet): boolean {
-	const owner = sheet.ownerNode as Element | null
-	if (!owner) {
-		return false
-	}
-	if (owner.id === THEME_PREVIEW_STYLE_ID || owner.id === THEME_CHROME_STYLE_ID) {
+/** The builder's own style elements, which hold no DMS default. */
+const THEME_STYLE_IDS = new Set([THEME_PREVIEW_STYLE_ID, THEME_CHROME_STYLE_ID, THEME_FONTS_STYLE_ID])
+
+/**
+ * Whether an element holds a stylesheet the DMS defaults are read without:
+ * the saved theme.css, the preview, the chrome's or the catalog fonts'.
+ */
+function isThemeElement(element: Element): boolean {
+	if (THEME_STYLE_IDS.has(element.id)) {
 		return true
 	}
-	const source =
-		owner.getAttribute('data-vite-dev-id') ??
-		owner.getAttribute('data-dms-dev-style') ??
-		(owner as HTMLLinkElement).href ??
+	const stylesheetPath =
+		element.getAttribute('data-vite-dev-id') ??
+		element.getAttribute('data-dms-dev-style') ??
+		(element as HTMLLinkElement).href ??
 		''
-	return THEME_STYLESHEET.test(source)
+	return THEME_STYLESHEET_PATH.test(stylesheetPath)
 }
 
-/** The rules that put every role back on the DMS's palette. */
-function defaultPalettes(defaults: ThemeColors | undefined): string {
-	const declarations = Object.entries(defaults ?? {}).flatMap(([role, palette]) =>
+function isThemeSheet(sheet: CSSStyleSheet): boolean {
+	const owner = sheet.ownerNode as Element | null
+	return !!owner && isThemeElement(owner)
+}
+
+/**
+ * The node if it is an element, else its parent: a `<style>` whose text
+ * changed reports its text node.
+ */
+function elementOf(node: Node | null): Element | null {
+	if (!node) {
+		return null
+	}
+	return 'tagName' in node ? (node as Element) : (node.parentNode as Element | null)
+}
+
+const STYLESHEET_REL = /\bstylesheet\b/i
+
+/**
+ * Whether a node is, or is the text of, a `<style>` or stylesheet `<link>`
+ * other than the theme's: the stylesheets the DMS defaults are read from.
+ */
+function holdsDefaults(node: Node | null): boolean {
+	const element = elementOf(node)
+	if (!element || isThemeElement(element)) {
+		return false
+	}
+	return (
+		element.tagName === 'STYLE' ||
+		(element.tagName === 'LINK' && STYLESHEET_REL.test(element.getAttribute('rel') ?? ''))
+	)
+}
+
+export type HeadMutation = Pick<MutationRecord, 'target' | 'addedNodes' | 'removedNodes'>
+
+/**
+ * Only a `<style>` or stylesheet `<link>` added, removed or rewritten counts.
+ * The theme's own (preview, saved theme, chrome) are ignored, since the
+ * defaults are read without them.
+ */
+export function affectsDmsDefaults(records: HeadMutation[]): boolean {
+	return records.some(
+		(record) =>
+			holdsDefaults(record.target) ||
+			[...Array.from(record.addedNodes), ...Array.from(record.removedNodes)].some(holdsDefaults),
+	)
+}
+
+function dmsPaletteCss(dmsColors: ThemeColors | undefined): string {
+	const declarations = Object.entries(dmsColors ?? {}).flatMap(([role, palette]) =>
 		palette ? paletteDeclarations(role as ThemeColorRole, palette) : [],
 	)
 	return declarations.length
@@ -246,40 +321,147 @@ function defaultPalettes(defaults: ThemeColors | undefined): string {
 		: ''
 }
 
+let dmsMirrorCache: { mirror: ModeMirror; paletteCss: string } | undefined
+
 /**
- * Keep the builder's own frame on the DMS look, whatever the theme being
- * edited or saved does: an unreadable pair of colors in the draft must not
- * make the editor unreadable too. The DMS's tokens are read as they compute
- * without the theme's stylesheets and with the DMS's palettes, in the mode
- * the viewer chose, and declared on every element of the frame. The canvas,
- * where the page is drawn, is not part of the frame and shows the theme.
+ * The mirror the DMS defaults are read from: the page's stylesheets minus the
+ * theme's (saved, preview, chrome), with every role on its DMS palette.
+ * Reused between reads and re-parsed only when one of the copied stylesheets
+ * changes; the draft is not one of them, so editing it costs no re-parse.
  */
-export function isolateChrome(defaults: ThemeColors | undefined): void {
-	if (!onPage()) {
+function dmsMirror(dmsColors: ThemeColors | undefined): ModeMirror {
+	const paletteCss = dmsPaletteCss(dmsColors)
+	if (dmsMirrorCache?.paletteCss !== paletteCss) {
+		dmsMirrorCache?.mirror.dispose()
+		dmsMirrorCache = {
+			mirror: new ModeMirror({ skip: isThemeSheet, overrideCss: () => paletteCss }),
+			paletteCss,
+		}
+	}
+	return dmsMirrorCache.mirror
+}
+
+/**
+ * Each variable's DMS default in each mode, computed without the theme: what
+ * an empty editor cell falls back to.
+ */
+export function dmsDefaults(
+	names: string[],
+	dmsColors: ThemeColors | undefined,
+): Record<ThemeMode, Record<string, string>> {
+	if (!hasDom()) {
+		return { light: {}, dark: {} }
+	}
+	return dmsMirror(dmsColors).read(names)
+}
+
+/**
+ * The chrome while the page shows `mode`. `:where` keeps the rule as weak as
+ * the chrome selector alone, so a utility class on a chrome element still wins.
+ */
+export function chromeSelectorIn(mode: ThemeMode): string {
+	return `:where(${MODE_SELECTORS[mode]}) :is(${CHROME_SELECTOR})`
+}
+
+/**
+ * Pin the builder's chrome to the DMS tokens, so a draft with unreadable
+ * colors cannot make the editor unreadable too. The tokens are computed
+ * without the theme's stylesheets, and declared on every chrome element for
+ * each mode: the chrome follows the mode the page shows, the preview's as
+ * the viewer's, so it never sits dark around a light page, nor gets its
+ * `dark:` classes switched off over dark tokens. The canvas is not chrome and
+ * keeps showing the theme.
+ */
+export function isolateChrome(dmsColors: ThemeColors | undefined): void {
+	if (!hasDom()) {
 		return
 	}
-	const mirror = new ModeMirror({
-		skip: isThemeSheet,
-		extra: () => defaultPalettes(defaults),
-	})
-	try {
-		const names = mirror.declared((name) => CHROME_TOKEN.test(name))
-		const values = mirror.read(names)[chosenMode()]
-		const sheet = freshStyle(THEME_CHROME_STYLE_ID).sheet
-		if (sheet) {
+	const mirror = dmsMirror(dmsColors)
+	const names = mirror.declaredCustomProperties((name) => CHROME_TOKEN.test(name))
+	const nonEmptyDeclarations = (values: Record<string, string>): PropertyDeclaration[] =>
+		Object.entries(values).filter(([, value]) => value !== '')
+	const sheet = recreateStyleElement(THEME_CHROME_STYLE_ID).sheet
+	if (sheet) {
+		const tokens = mirror.read(names)
+		for (const mode of THEME_MODES) {
+			addRule(sheet, chromeSelectorIn(mode), nonEmptyDeclarations(tokens[mode]))
+		}
+		const layer = sheet.cssRules[sheet.insertRule(`@layer ${BASE_LAYER} {}`, sheet.cssRules.length)]
+		for (const mode of THEME_MODES) {
 			addRule(
-				sheet,
-				`[${CHROME_ATTRIBUTE}]`,
-				Object.entries(values).filter(([, value]) => value !== ''),
+				layer instanceof CSSGroupingRule ? layer : sheet,
+				chromeSelectorIn(mode),
+				nonEmptyDeclarations(mirror.inheritedValues(mode, INHERITED_PROPERTIES)),
 			)
 		}
-	} finally {
-		mirror.dispose()
+	}
+	adoptOverlays()
+}
+
+export function isInChrome(target: EventTarget | null): boolean {
+	const element = target as Element | null
+	return typeof element?.closest === 'function' && element.closest(CHROME_SELECTOR) !== null
+}
+
+let stopOverlayWatch: (() => void) | undefined
+
+/**
+ * Where an overlay is teleported to: the element the DMS frontend loader gives
+ * Nuxt UI as its portal, and the body for any other teleport.
+ */
+function overlayHosts(): Element[] {
+	const portal = document.getElementById(OVERLAY_PORTAL_ID)
+	return portal ? [portal, document.body] : [document.body]
+}
+
+/**
+ * Mark overlays opened from the chrome as chrome too. Selects, menus and
+ * dialogs (the DMS's confirmation included, which takes no class from the
+ * builder) are teleported to the overlay portal or the body. Each element
+ * added there while the last press or key came from the chrome gets the
+ * chrome attribute.
+ */
+function adoptOverlays(): void {
+	if (stopOverlayWatch) {
+		return
+	}
+	let lastEventInChrome = false
+	const trackEventOrigin = (event: Event): void => {
+		lastEventInChrome = isInChrome(event.target)
+	}
+	const observer = new MutationObserver((records) => {
+		if (!lastEventInChrome) {
+			return
+		}
+		for (const record of records) {
+			for (const node of Array.from(record.addedNodes)) {
+				if (node instanceof Element) {
+					node.setAttribute(CHROME_ATTRIBUTE, '')
+				}
+			}
+		}
+	})
+	for (const host of overlayHosts()) {
+		observer.observe(host, { childList: true })
+	}
+	for (const type of OPENING_EVENTS) {
+		document.addEventListener(type, trackEventOrigin, true)
+	}
+	stopOverlayWatch = () => {
+		observer.disconnect()
+		for (const type of OPENING_EVENTS) {
+			document.removeEventListener(type, trackEventOrigin, true)
+		}
 	}
 }
 
+/** Remove the chrome's stylesheet, dispose of the DMS mirror and stop marking overlays. */
 export function releaseChrome(): void {
-	if (!onPage()) {
+	dmsMirrorCache?.mirror.dispose()
+	dmsMirrorCache = undefined
+	stopOverlayWatch?.()
+	stopOverlayWatch = undefined
+	if (!hasDom()) {
 		return
 	}
 	document.getElementById(THEME_CHROME_STYLE_ID)?.remove()
