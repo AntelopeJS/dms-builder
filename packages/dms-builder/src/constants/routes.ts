@@ -53,11 +53,11 @@ export const QUERY_PREVIEW_PARAMETER = "query";
 
 /**
  * The `@antelopejs/dms-frontend` releases this package's frontend modules run
- * on: from 0.6.0, the first to apply a layer's `app/app.config.ts` itself, up
- * to the next breaking release. Declared in `frontend-vue/package.json` and in
- * the `package.json` of a layer the builder creates; a test keeps them equal.
+ * on (0.6 is the first to apply a layer's `app/app.config.ts` itself).
+ * Declared in `frontend-vue/package.json` and in the `package.json` of a layer
+ * the builder creates; a test keeps them equal.
  */
-export const FRONTEND_LOADER_RANGE = ">=0.6.0 <0.7.0";
+export const FRONTEND_LOADER_RANGE = ">=0.6.3 <0.8.0";
 
 export const FRONTEND_MODULE_NAME = "@antelopejs/dms-builder-frontend-vue";
 export const FRONTEND_MODULE_CONFIG_KEY = "dmsBuilder";
