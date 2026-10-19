@@ -7,65 +7,99 @@ import type {
 
 export const THEME_MODES: ThemeMode[] = ["light", "dark"];
 
-/** The sets of a theme's variables: the shared one, then one per mode. */
-export type VariableSet = keyof ThemeVariableSets;
+export type VariableSetName = keyof ThemeVariableSets;
 
-const VARIABLE_SETS: VariableSet[] = ["shared", ...THEME_MODES];
+export const VARIABLE_SET_NAMES: VariableSetName[] = ["shared", ...THEME_MODES];
 
 /**
- * The selector each set is written under, in the order the file holds them.
- *
- * The DMS declares its defaults in its `dms` cascade layer, and unlayered, the
- * project's declarations win over those whatever the stylesheet order. Light
- * is not plain `:root`: an unlayered `:root` still matches a page in dark mode
- * and wins over the DMS's layered `.dark`, so a value set for light alone
- * would show in dark too. Plain `:root` is what both modes share, and a mode's
- * own rule beats it: the light one is more specific, the dark one comes later.
+ * The selector each set is written under. The DMS declares its defaults in
+ * its `dms` cascade layer, so these unlayered rules beat them whatever the
+ * load order. Light is not plain `:root`, which also matches in dark mode and
+ * would beat the DMS's layered `.dark`: a light-only value would show in dark
+ * too. A mode's rule beats the shared `:root`: light by specificity, `.dark` by
+ * coming later in the file (the order of `VARIABLE_SET_NAMES`).
  */
-const SET_SELECTORS: Record<VariableSet, string> = {
+const SET_SELECTORS: Record<VariableSetName, string> = {
   shared: ":root",
   light: ":root:not(.dark)",
   dark: ".dark",
 };
 
-const SELECTOR_SETS = new Map(
-  VARIABLE_SETS.map((set) => [SET_SELECTORS[set], set]),
+const SET_NAME_BY_SELECTOR = new Map(
+  VARIABLE_SET_NAMES.map((setName) => [SET_SELECTORS[setName], setName]),
 );
 
 const VARIABLE_NAME = /^--[A-Za-z0-9_-]+$/;
 const DECLARATION = /^(--[A-Za-z0-9_-]+)\s*:\s*([\s\S]+)$/;
+const DESCRIPTOR = /^([a-z-]+)\s*:\s*([\s\S]+)$/;
+const FONT_FACE = "@font-face";
 const RULE = /^\s*([^{}]+?)\s*\{([^{}]*)\}/;
 
 /**
  * What a value may not hold: anything that ends a declaration or a rule, a
- * comment, an escape, markup, or a resource fetched from elsewhere. A theme
- * value is a color, a length, a font stack or a shadow, none of which needs
- * any of these.
+ * comment, an escape, markup, a resource fetched from elsewhere, or
+ * `!important`. A theme value is a color, a length, a font stack or a shadow,
+ * none of which needs any of these.
  */
 const UNSAFE_VALUE = /[;{}<>\\]|\/\*|\*\/|url\(|@import|!important/i;
 const MAX_VALUE_LENGTH = 512;
 const INDENT = "  ";
+const QUOTES = new Set(['"', "'"]);
+const CLOSER_BY_OPENER: Partial<Record<string, string>> = {
+  "(": ")",
+  "[": "]",
+};
+const CLOSERS = new Set(Object.values(CLOSER_BY_OPENER));
 
-/** A stylesheet the builder reads back, or why it will not rewrite it. */
+/** An `@font-face` rule's descriptors, in the order they are written. */
+export type FontFaceRule = Array<[descriptor: string, value: string]>;
+
 export interface ParsedStylesheet {
   variables?: ThemeVariableSets;
-  opaque?: string;
+  fontFaces?: FontFaceRule[];
+  opaqueReason?: string;
 }
 
-export function emptyVariables(): ThemeVariableSets {
+export function createEmptyVariableSets(): ThemeVariableSets {
   return { shared: {}, light: {}, dark: {} };
 }
 
-function valueProblem(value: string): string | undefined {
+/**
+ * Every parenthesis, bracket and quote must close, in order: one left open
+ * runs past the declaration, so `calc(1rem` would swallow the rest of the
+ * stylesheet, light and dark rules included.
+ */
+function isBalanced(value: string): boolean {
+  const expectedClosers: string[] = [];
+  let openQuote: string | undefined;
+  for (const character of value) {
+    const closer = CLOSER_BY_OPENER[character];
+    if (openQuote !== undefined) {
+      openQuote = character === openQuote ? undefined : openQuote;
+    } else if (QUOTES.has(character)) {
+      openQuote = character;
+    } else if (closer !== undefined) {
+      expectedClosers.push(closer);
+    } else if (CLOSERS.has(character) && expectedClosers.pop() !== character) {
+      return false;
+    }
+  }
+  return openQuote === undefined && expectedClosers.length === 0;
+}
+
+function invalidValueReason(value: string): string | undefined {
   if (value.trim() === "") {
     return "is empty";
   }
   if (value.length > MAX_VALUE_LENGTH) {
     return `is longer than ${MAX_VALUE_LENGTH} characters`;
   }
-  return UNSAFE_VALUE.test(value)
-    ? "holds a character or a construct a theme value cannot carry"
-    : undefined;
+  if (UNSAFE_VALUE.test(value)) {
+    return "holds a character or a construct a theme value cannot carry";
+  }
+  return isBalanced(value)
+    ? undefined
+    : "leaves a parenthesis, a bracket or a quote open";
 }
 
 function parseDeclarations(body: string): ThemeVariables | undefined {
@@ -77,7 +111,7 @@ function parseDeclarations(body: string): ThemeVariables | undefined {
   for (const declaration of declarations) {
     const match = DECLARATION.exec(declaration);
     const value = match?.[2]?.trim();
-    if (!match?.[1] || value === undefined || valueProblem(value)) {
+    if (!match?.[1] || value === undefined || invalidValueReason(value)) {
       return undefined;
     }
     variables[match[1]] = value;
@@ -85,36 +119,68 @@ function parseDeclarations(body: string): ThemeVariables | undefined {
   return variables;
 }
 
+function parseDescriptors(body: string): FontFaceRule | undefined {
+  const descriptors: FontFaceRule = [];
+  const entries = body
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+  for (const entry of entries) {
+    const match = DESCRIPTOR.exec(entry);
+    if (!match?.[1] || match[2] === undefined) {
+      return undefined;
+    }
+    descriptors.push([match[1], match[2].trim()]);
+  }
+  return descriptors;
+}
+
 /**
- * Read the overrides back from the stylesheet the builder writes.
- *
- * The file is the builder's: rules of custom properties under its three
- * selectors and nothing else. Anything more — another selector, a comment, an
- * at-rule — is someone's hand work the builder cannot keep while rewriting the
- * file whole, so the file is reported as opaque rather than silently
- * flattened. Two rules under one selector read as one, the later winning.
+ * The builder owns this file: rules of custom properties under its three
+ * selectors, and the `@font-face` rules of the fonts it hosts, nothing else.
+ * Anything more (another selector, a comment, another at-rule) was written by
+ * hand and would be lost when the builder rewrites the file, so the file is
+ * reported as opaque instead. Two rules under one selector merge, the later
+ * one winning. Whether a `@font-face` is one the builder wrote is for the
+ * caller to tell.
  */
 export function parseStylesheet(text: string): ParsedStylesheet {
-  const variables = emptyVariables();
+  const variables = createEmptyVariableSets();
+  const fontFaces: FontFaceRule[] = [];
   let rest = text;
   while (rest.trim() !== "") {
     const rule = RULE.exec(rest);
-    const set = rule?.[1] ? SELECTOR_SETS.get(rule[1].trim()) : undefined;
-    if (!rule || !set) {
+    const selector = rule?.[1]?.trim() ?? "";
+    const setName = SET_NAME_BY_SELECTOR.get(selector);
+    if (!rule || (!setName && selector !== FONT_FACE)) {
       return {
-        opaque: `it holds rules other than ${[...SELECTOR_SETS.keys()].join(", ")}`,
+        opaqueReason: `it holds rules other than ${[...SET_NAME_BY_SELECTOR.keys(), FONT_FACE].join(", ")}`,
       };
     }
-    const declarations = parseDeclarations(rule[2] ?? "");
-    if (!declarations) {
-      return {
-        opaque: `its ${rule[1]} rule holds more than custom properties`,
-      };
+    if (setName) {
+      const declarations = parseDeclarations(rule[2] ?? "");
+      if (!declarations) {
+        return {
+          opaqueReason: `its ${selector} rule holds more than custom properties`,
+        };
+      }
+      Object.assign(variables[setName], declarations);
+    } else {
+      const descriptors = parseDescriptors(rule[2] ?? "");
+      if (!descriptors) {
+        return {
+          opaqueReason: `one of its ${FONT_FACE} rules holds more than descriptors`,
+        };
+      }
+      fontFaces.push(descriptors);
     }
-    Object.assign(variables[set], declarations);
     rest = rest.slice(rule[0].length);
   }
-  return { variables };
+  return { variables, fontFaces };
+}
+
+function emitBlock(selector: string, lines: string[]): string {
+  return `${selector} {\n${lines.map((line) => `${INDENT}${line}`).join("\n")}\n}`;
 }
 
 function emitRule(selector: string, variables: ThemeVariables): string {
@@ -122,39 +188,60 @@ function emitRule(selector: string, variables: ThemeVariables): string {
   if (names.length === 0) {
     return "";
   }
-  const lines = names.map((name) => `${INDENT}${name}: ${variables[name]};`);
-  return `${selector} {\n${lines.join("\n")}\n}`;
+  return emitBlock(
+    selector,
+    names.map((name) => `${name}: ${variables[name]};`),
+  );
 }
 
-/** The stylesheet for a theme, one rule per set, its declarations sorted. */
-export function emitStylesheet(variables: ThemeVariableSets): string {
-  const rules = VARIABLE_SETS.map((set) =>
-    emitRule(SET_SELECTORS[set], variables[set] ?? {}),
-  ).filter((rule) => rule !== "");
+/**
+ * The `@font-face` rules first, as given, then one rule per non-empty set,
+ * its declarations sorted by name.
+ */
+export function emitStylesheet(
+  variables: ThemeVariableSets,
+  fontFaces: FontFaceRule[] = [],
+): string {
+  const rules = [
+    ...fontFaces.map((descriptors) =>
+      emitBlock(
+        FONT_FACE,
+        descriptors.map(([descriptor, value]) => `${descriptor}: ${value};`),
+      ),
+    ),
+    ...VARIABLE_SET_NAMES.map((setName) =>
+      emitRule(SET_SELECTORS[setName], variables[setName] ?? {}),
+    ),
+  ].filter((rule) => rule !== "");
   return rules.length === 0 ? "" : `${rules.join("\n\n")}\n`;
 }
 
 function variableIssues(
-  set: VariableSet,
+  setName: VariableSetName,
   variables: ThemeVariables,
 ): ValidationIssue[] {
   return Object.entries(variables).flatMap(([name, value]) => {
-    const pointer = `/variables/${set}/${name}`;
+    const pointer = `/variables/${setName}/${name}`;
     if (!VARIABLE_NAME.test(name)) {
       return [
         { pointer, message: `${name} is not a CSS custom property name` },
       ];
     }
-    const problem = valueProblem(value);
-    return problem ? [{ pointer, message: `${name} ${problem}` }] : [];
+    const invalidReason = invalidValueReason(value);
+    return invalidReason
+      ? [{ pointer, message: `${name} ${invalidReason}` }]
+      : [];
   });
 }
 
-/** Every variable of a draft the stylesheet could not carry as it stands. */
+/**
+ * One issue per variable whose name is not a custom property, or whose value
+ * the stylesheet cannot hold.
+ */
 export function validateVariables(
   variables: ThemeVariableSets,
 ): ValidationIssue[] {
-  return VARIABLE_SETS.flatMap((set) =>
-    variableIssues(set, variables[set] ?? {}),
+  return VARIABLE_SET_NAMES.flatMap((setName) =>
+    variableIssues(setName, variables[setName] ?? {}),
   );
 }

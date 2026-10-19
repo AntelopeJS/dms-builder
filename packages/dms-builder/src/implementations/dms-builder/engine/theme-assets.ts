@@ -1,31 +1,37 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type {
+  LogoSlot,
   LogoUpload,
-  ThemeLayer,
   ThemeLogos,
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
-import { LOGO_SLOTS, logoPaths } from "./theme-app-config";
+import { LOGO_SLOTS, logoPaths, slotAccepts } from "./theme-app-config";
 import { THEME_MODES } from "./theme-stylesheet";
 import { sanitizeSvg } from "./theme-svg";
 
-/** Where uploaded logos are written, under the layer's `public/`. */
-export const ASSETS_DIRECTORY = "branding";
-const PUBLIC_DIRECTORY = "public";
+export const LOGO_UPLOAD_DIRECTORY = "branding";
+/** Served as static files by the frontend; relative to the theme root. */
+export const PUBLIC_DIRECTORY = "public";
+
+/**
+ * Email logo files are never deleted: sent emails link to them by absolute
+ * URL and would lose their header image.
+ */
+const EMAIL_SLOT: LogoSlot = "email";
 
 const MAX_LOGO_BYTES = 512 * 1024;
 const HASH_LENGTH = 8;
 const PNG_SIGNATURE = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 ]);
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
 const ICO_SIGNATURE = Buffer.from([0x00, 0x00, 0x01, 0x00]);
 const RIFF_SIGNATURE = Buffer.from("RIFF");
 const WEBP_SIGNATURE = Buffer.from("WEBP");
 const WEBP_SIGNATURE_OFFSET = 8;
 const SVG_ROOT = /<svg[\s>]/i;
 
-/** One accepted image format: its extension, and how its bytes are recognized. */
 interface LogoFormat {
   extension: string;
   matches: (bytes: Buffer) => boolean;
@@ -56,23 +62,32 @@ const LOGO_FORMATS: Record<string, LogoFormat> = {
     extension: "png",
     matches: (bytes) => startsWith(bytes, PNG_SIGNATURE),
   },
+  "image/jpeg": {
+    extension: "jpg",
+    matches: (bytes) => startsWith(bytes, JPEG_SIGNATURE),
+  },
   "image/webp": { extension: "webp", matches: isWebp },
   "image/x-icon": { extension: "ico", matches: isIcon },
   "image/vnd.microsoft.icon": { extension: "ico", matches: isIcon },
 };
 
-const EXTENSIONS = [
+const LOGO_EXTENSIONS = [
   ...new Set(Object.values(LOGO_FORMATS).map((format) => format.extension)),
 ];
 
 /**
- * The public paths the builder names its own uploads with. A logo it replaces
- * is deleted only when its path has this form: a file the author put in
- * `public/` by hand is never the builder's to remove.
+ * Matches the paths the builder gives its uploads for `slots`. Only matching
+ * files are ever deleted: a file the author put in `public/` by hand is not
+ * the builder's to remove.
  */
-const OWNED_ASSET = new RegExp(
-  `^/${ASSETS_DIRECTORY}/(?:${LOGO_SLOTS.join("|")})-(?:${THEME_MODES.join("|")})-[0-9a-f]{${HASH_LENGTH}}\\.(?:${EXTENSIONS.join("|")})$`,
-);
+function ownedAssetPattern(slots: readonly string[]): RegExp {
+  return new RegExp(
+    `^/${LOGO_UPLOAD_DIRECTORY}/(?:${slots.join("|")})-(?:${THEME_MODES.join("|")})-[0-9a-f]{${HASH_LENGTH}}\\.(?:${LOGO_EXTENSIONS.join("|")})$`,
+  );
+}
+
+const OWNED_ASSET = ownedAssetPattern(LOGO_SLOTS);
+const OWNED_EMAIL_ASSET = ownedAssetPattern([EMAIL_SLOT]);
 
 /** A logo file checked and named, ready to be written. */
 export interface StagedLogo {
@@ -80,30 +95,32 @@ export interface StagedLogo {
   publicPath: string;
   filePath: string;
   bytes: Buffer;
-  /** Whether sanitizing the SVG took anything out of it. */
-  stripped: boolean;
+  hadActiveContent: boolean;
 }
 
 /** The uploads of a draft, each either staged or refused. */
 export interface StagedLogos {
-  staged: StagedLogo[];
+  stagedLogos: StagedLogo[];
   issues: ValidationIssue[];
 }
 
 function uploadProblem(upload: LogoUpload, bytes: Buffer): string | undefined {
   const format = LOGO_FORMATS[upload.contentType];
   if (!format) {
-    return `${upload.contentType} is not an accepted logo format (SVG, PNG, WebP or ICO)`;
+    return `${upload.contentType} is not an accepted logo format (SVG, PNG, JPEG, WebP or ICO)`;
   }
   if (bytes.length === 0 || bytes.length > MAX_LOGO_BYTES) {
     return `a logo must hold between 1 byte and ${MAX_LOGO_BYTES / 1024} KiB`;
+  }
+  if (!slotAccepts(upload.slot, format.extension)) {
+    return `the ${upload.slot} logo must be a PNG or a JPEG: mail clients show no other image`;
   }
   return format.matches(bytes)
     ? undefined
     : `the file is not a ${format.extension.toUpperCase()} image`;
 }
 
-function slotProblem(upload: LogoUpload): string | undefined {
+function slotAndModeProblem(upload: LogoUpload): string | undefined {
   const knownSlot = LOGO_SLOTS.some((slot) => slot === upload.slot);
   const knownMode = THEME_MODES.some((mode) => mode === upload.mode);
   return knownSlot && knownMode
@@ -112,120 +129,153 @@ function slotProblem(upload: LogoUpload): string | undefined {
 }
 
 /**
- * The bytes a logo is written with: an SVG as the sanitizer leaves it, which
- * is what the file is named after; any other format as it came.
+ * An SVG sanitized (its file name hashes these bytes), any other format
+ * unchanged. Returns the sanitizer's reason when the sanitized SVG is empty or
+ * not one well-formed `<svg>`.
  */
-function writtenBytes(
+function bytesToWrite(
   bytes: Buffer,
   extension: string,
-): { bytes: Buffer; stripped: boolean } {
+): { bytes: Buffer; hadActiveContent: boolean } | string {
   if (extension !== "svg") {
-    return { bytes, stripped: false };
+    return { bytes, hadActiveContent: false };
   }
-  const { svg, stripped } = sanitizeSvg(bytes.toString("utf8"));
-  return { bytes: Buffer.from(svg, "utf8"), stripped };
+  const { svg, hadActiveContent, invalidReason } = sanitizeSvg(
+    bytes.toString("utf8"),
+  );
+  return invalidReason ?? { bytes: Buffer.from(svg, "utf8"), hadActiveContent };
 }
 
+/** A checked upload named after its content, or why it cannot be written. */
 function stageLogo(
-  layer: ThemeLayer,
+  publicDirectory: string,
   upload: LogoUpload,
   received: Buffer,
-): StagedLogo {
+): StagedLogo | string {
   const extension = LOGO_FORMATS[upload.contentType]?.extension ?? "";
-  const { bytes, stripped } = writtenBytes(received, extension);
-  const hash = createHash("sha256").update(bytes).digest("hex");
+  const content = bytesToWrite(received, extension);
+  if (typeof content === "string") {
+    return content;
+  }
+  const hash = createHash("sha256").update(content.bytes).digest("hex");
   const name = `${upload.slot}-${upload.mode}-${hash.slice(0, HASH_LENGTH)}.${extension}`;
+  const publicPath = `/${LOGO_UPLOAD_DIRECTORY}/${name}`;
   return {
     upload,
-    publicPath: `/${ASSETS_DIRECTORY}/${name}`,
-    filePath: path.join(
-      layer.sourcePath,
-      PUBLIC_DIRECTORY,
-      ASSETS_DIRECTORY,
-      name,
-    ),
-    bytes,
-    stripped,
+    publicPath,
+    filePath: path.join(publicDirectory, publicPath),
+    ...content,
   };
 }
 
 /**
- * The logo staged first with the same bytes and format, which a later upload
- * points at rather than writing a copy: one file picked for several slots —
- * the logo the simple editor puts everywhere — is written once.
+ * The first staged logo with the same bytes and extension, whose file a later
+ * upload reuses instead of writing a copy (the simple editor puts one logo in
+ * every slot). An email logo only matches another email logo: email files are
+ * never deleted, other slots' files are once unused.
  */
-function sameFile(
-  staged: StagedLogo[],
+function findIdenticalStagedLogo(
+  stagedLogos: StagedLogo[],
   logo: StagedLogo,
 ): StagedLogo | undefined {
-  return staged.find(
+  const forEmail = logo.upload.slot === EMAIL_SLOT;
+  return stagedLogos.find(
     (other) =>
+      (other.upload.slot === EMAIL_SLOT) === forEmail &&
       path.extname(other.filePath) === path.extname(logo.filePath) &&
       other.bytes.equals(logo.bytes),
   );
 }
 
 /**
- * Check every upload and name its file after its content, so a new logo is a
- * new URL: no browser or CDN can keep serving the old one under the path the
- * app config now points at.
+ * Drops each upload that a later one replaces for the same slot and mode:
+ * only the last reaches the app config, and an earlier one's file would never
+ * be cleaned up.
  */
-export function stageLogos(
-  layer: ThemeLayer,
-  uploads: LogoUpload[],
-): StagedLogos {
-  const result: StagedLogos = { staged: [], issues: [] };
-  uploads.forEach((upload, index) => {
-    const received = Buffer.from(upload.data, "base64");
-    const problem = slotProblem(upload) ?? uploadProblem(upload, received);
-    if (problem) {
-      result.issues.push({ pointer: `/uploads/${index}`, message: problem });
-      return;
-    }
-    const logo = stageLogo(layer, upload, received);
-    if (!LOGO_FORMATS[upload.contentType]?.matches(logo.bytes)) {
-      result.issues.push({
-        pointer: `/uploads/${index}`,
-        message:
-          "nothing of the SVG is left once its scripts and outside references are taken out",
-      });
-      return;
-    }
-    const twin = sameFile(result.staged, logo);
-    result.staged.push(
-      twin
-        ? { ...logo, publicPath: twin.publicPath, filePath: twin.filePath }
-        : logo,
-    );
-  });
-  return result;
+function lastPerSlotAndMode(stagedLogos: StagedLogo[]): StagedLogo[] {
+  return stagedLogos.filter(
+    (logo, index) =>
+      !stagedLogos
+        .slice(index + 1)
+        .some(
+          (later) =>
+            later.upload.slot === logo.upload.slot &&
+            later.upload.mode === logo.upload.mode,
+        ),
+  );
 }
 
-/** The draft's logos, each upload in place of what the draft said for its slot and mode. */
+/**
+ * Checks every upload and names its file after its content, so a new logo
+ * gets a new URL: no browser or CDN keeps serving the old one under the path
+ * the app config points at.
+ */
+export function stageLogos(
+  publicDirectory: string,
+  uploads: LogoUpload[],
+): StagedLogos {
+  const stagedLogos: StagedLogo[] = [];
+  const issues: ValidationIssue[] = [];
+  uploads.forEach((upload, index) => {
+    const received = Buffer.from(upload.base64Content, "base64");
+    const problem =
+      slotAndModeProblem(upload) ?? uploadProblem(upload, received);
+    const stagedOrProblem =
+      problem ?? stageLogo(publicDirectory, upload, received);
+    if (typeof stagedOrProblem === "string") {
+      issues.push({ pointer: `/uploads/${index}`, message: stagedOrProblem });
+      return;
+    }
+    const twin = findIdenticalStagedLogo(stagedLogos, stagedOrProblem);
+    stagedLogos.push(
+      twin
+        ? {
+            ...stagedOrProblem,
+            publicPath: twin.publicPath,
+            filePath: twin.filePath,
+          }
+        : stagedOrProblem,
+    );
+  });
+  return { stagedLogos: lastPerSlotAndMode(stagedLogos), issues };
+}
+
+/**
+ * The draft's logos, each staged upload's path replacing the draft's for its
+ * slot and mode.
+ */
 export function withUploads(
   logos: ThemeLogos,
-  staged: StagedLogo[],
+  stagedLogos: StagedLogo[],
 ): ThemeLogos {
   const merged: ThemeLogos = structuredClone(logos);
-  for (const logo of staged) {
+  for (const logo of stagedLogos) {
     const { slot, mode } = logo.upload;
     merged[slot] = { ...merged[slot], [mode]: logo.publicPath };
   }
   return merged;
 }
 
-/** The files of the builder's own logos the new theme no longer points at. */
+/**
+ * Absolute paths of builder-named logo files the previous logos used and the
+ * next ones do not. Email logo files are kept (builder-named ones and any
+ * file the email slot pointed at): sent emails still show them.
+ */
 export function orphanedAssets(
-  layer: ThemeLayer,
-  previous: ThemeLogos,
-  next: ThemeLogos,
+  publicDirectory: string,
+  previousLogos: ThemeLogos,
+  nextLogos: ThemeLogos,
 ): string[] {
-  const kept = new Set(logoPaths(next));
-  return [...new Set(logoPaths(previous))]
+  const keptPaths = new Set([
+    ...logoPaths(nextLogos),
+    ...logoPaths({ [EMAIL_SLOT]: previousLogos[EMAIL_SLOT] }),
+  ]);
+  return [...new Set(logoPaths(previousLogos))]
     .filter(
-      (publicPath) => OWNED_ASSET.test(publicPath) && !kept.has(publicPath),
+      (publicPath) =>
+        OWNED_ASSET.test(publicPath) &&
+        !OWNED_EMAIL_ASSET.test(publicPath) &&
+        !keptPaths.has(publicPath),
     )
-    .map((publicPath) =>
-      path.join(layer.sourcePath, PUBLIC_DIRECTORY, publicPath),
-    );
+    .map((publicPath) => path.join(publicDirectory, publicPath));
 }

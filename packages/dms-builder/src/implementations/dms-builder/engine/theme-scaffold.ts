@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {
-  FileChange,
   OpResult,
+  ThemeFiles,
   ThemeLayer,
 } from "@antelopejs/interface-dms-builder";
 import {
@@ -11,15 +11,18 @@ import {
   type SourceFile,
   SyntaxKind,
 } from "ts-morph";
-import { FileBatch } from "./file-batch";
-import { commit } from "./ops";
+import { FRONTEND_LOADER_RANGE } from "../../../constants/routes";
+import { FileBatch, withRollbackErrors } from "./file-batch";
+import { commit, unsupported } from "./ops";
 import { resolveProjectRoot } from "./project";
+import { scaffoldEntrySource } from "./theme-entry";
 import {
-  ENTRY_FILE,
-  SCAFFOLD_ENTRY_SOURCE,
-  STYLESHEET_FILE,
-} from "./theme-entry";
-import { proposedLayerPath, resolveThemeLayer } from "./theme-layer";
+  emptyLayersDetail,
+  proposedLayerPath,
+  resolveThemeLayer,
+  resolveThemeRoot,
+  themeFiles,
+} from "./theme-layer";
 import {
   getWritableProject,
   refreshFromDisk,
@@ -28,25 +31,25 @@ import {
 } from "./writable";
 
 /**
- * The priority the layer registers with: above the DMS, which registers at 0,
- * so the project's values win over the DMS defaults wherever both set one.
+ * Above the DMS's own frontend, which registers at 0, so the project's values
+ * win over the DMS defaults wherever both set one.
  */
 const LAYER_PRIORITY = 1;
 
-const START_FUNCTION = "start";
+const START_FUNCTION_NAME = "start";
 const PATH_MODULE = "node:path";
+const BARE_PATH_MODULE = "path";
 const PATH_BINDING = "path";
 const PAGE_INTERFACE = "@antelopejs/interface-dms/page";
-const REGISTER_FUNCTION = "AddFrontendModule";
+const REGISTER_FUNCTION_NAME = "AddFrontendModule";
 const LOADER_PACKAGE = "@antelopejs/dms-frontend";
 const LAYER_NAME_SUFFIX = "-frontend";
 const FALLBACK_PROJECT_NAME = "project";
-const PACKAGE_NAME_CHARACTERS = /[^a-z0-9-]+/g;
+const INVALID_PACKAGE_NAME_CHARACTERS = /[^a-z0-9-]+/g;
 
 interface PackageManifest {
   name?: string;
   main?: string;
-  version?: string;
 }
 
 function readManifest(directory: string): PackageManifest | undefined {
@@ -59,51 +62,30 @@ function readManifest(directory: string): PackageManifest | undefined {
   }
 }
 
-/** The layer's package name, after the project's: `shop` gives `shop-frontend`. */
-function layerName(root: string): string {
+/** The project's package name with a suffix: `shop` gives `shop-frontend`. */
+function deriveLayerName(root: string): string {
   const projectName = (readManifest(root)?.name ?? FALLBACK_PROJECT_NAME)
     .split("/")
     .pop()
     ?.toLowerCase()
-    .replace(PACKAGE_NAME_CHARACTERS, "-");
+    .replace(INVALID_PACKAGE_NAME_CHARACTERS, "-");
   return `${projectName || FALLBACK_PROJECT_NAME}${LAYER_NAME_SUFFIX}`;
 }
 
-const RELEASE = /^(\d+)\.(\d+)\.(\d+)/;
-
 /**
- * The loader releases the layer runs on: from the one the project installs —
- * which applies the layer's app config, as older ones did not — up to the
- * next breaking release, the range the loader asks every module to declare.
- * Left out when the project installs none the builder can read.
+ * The layer's `package.json` text. Its `engines` entry names the loader
+ * releases it runs on, as the loader asks of every module: the theme needs
+ * one that applies a layer's app config itself.
  */
-function loaderRange(root: string): string | undefined {
-  const version = readManifest(
-    path.join(root, "node_modules", LOADER_PACKAGE),
-  )?.version;
-  const release = version ? RELEASE.exec(version) : null;
-  if (!release) {
-    return undefined;
-  }
-  const [, major, minor] = release.map(Number);
-  const floor = release.slice(1).join(".");
-  return major === 0
-    ? `>=${floor} <0.${(minor ?? 0) + 1}.0`
-    : `>=${floor} <${(major ?? 0) + 1}.0.0`;
-}
-
-function layerManifest(root: string, name: string): string {
-  const manifest: Record<string, unknown> = {
-    name,
+function layerManifest(layerName: string, entryPath: string): string {
+  const manifest = {
+    name: layerName,
     version: "0.0.0",
     private: true,
     type: "module",
-    main: `./${ENTRY_FILE}`,
+    main: `./${entryPath}`,
+    engines: { [LOADER_PACKAGE]: FRONTEND_LOADER_RANGE },
   };
-  const range = loaderRange(root);
-  if (range) {
-    manifest.engines = { [LOADER_PACKAGE]: range };
-  }
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
@@ -119,12 +101,17 @@ function runtimeDirectory(root: string, barrel: SourceFile): string {
     : path.dirname(barrel.getFilePath());
 }
 
-/** The name the barrel binds `node:path` to, importing it when it does not. */
-function pathBinding(barrel: SourceFile): string | undefined {
+/**
+ * Returns the name `node:path` is imported as, adding
+ * `import path from "node:path"` when the barrel has no such import.
+ * Undefined when that import has no default or namespace name, or when `path`
+ * already names something else.
+ */
+function ensurePathImport(barrel: SourceFile): string | undefined {
   const declaration = barrel.getImportDeclaration(
     (candidate) =>
       candidate.getModuleSpecifierValue() === PATH_MODULE ||
-      candidate.getModuleSpecifierValue() === PATH_BINDING,
+      candidate.getModuleSpecifierValue() === BARE_PATH_MODULE,
   );
   if (declaration) {
     return (
@@ -142,36 +129,44 @@ function pathBinding(barrel: SourceFile): string | undefined {
   return PATH_BINDING;
 }
 
-function importRegister(barrel: SourceFile): void {
+function ensureRegisterFunctionImport(barrel: SourceFile): void {
   const declaration = barrel.getImportDeclaration(
     (candidate) => candidate.getModuleSpecifierValue() === PAGE_INTERFACE,
   );
-  const named = declaration?.getNamedImports() ?? [];
-  if (named.some((specifier) => specifier.getName() === REGISTER_FUNCTION)) {
+  const namedImports = declaration?.getNamedImports() ?? [];
+  if (
+    namedImports.some(
+      (specifier) => specifier.getName() === REGISTER_FUNCTION_NAME,
+    )
+  ) {
     return;
   }
   if (declaration && !declaration.isTypeOnly()) {
-    declaration.addNamedImport(REGISTER_FUNCTION);
+    declaration.addNamedImport(REGISTER_FUNCTION_NAME);
     return;
   }
   barrel.addImportDeclaration({
     moduleSpecifier: PAGE_INTERFACE,
-    namedImports: [REGISTER_FUNCTION],
+    namedImports: [REGISTER_FUNCTION_NAME],
   });
 }
 
 /**
- * The project's exported `start()`, made async so it can await the
- * registration; added at the end of the file when the project has none.
+ * Makes the exported `start()` async so it can await the registration (a
+ * `void` return type becomes `Promise<void>`), or adds one at the end of the
+ * file. Undefined when `start` names something else, or a function that is
+ * not exported or has no body.
  */
-function startFunction(barrel: SourceFile): FunctionDeclaration | undefined {
-  const existing = barrel.getFunction(START_FUNCTION);
+function ensureAsyncStartFunction(
+  barrel: SourceFile,
+): FunctionDeclaration | undefined {
+  const existing = barrel.getFunction(START_FUNCTION_NAME);
   if (!existing) {
-    if (barrel.getLocal(START_FUNCTION)) {
+    if (barrel.getLocal(START_FUNCTION_NAME)) {
       return undefined;
     }
     return barrel.addFunction({
-      name: START_FUNCTION,
+      name: START_FUNCTION_NAME,
       isExported: true,
       isAsync: true,
       returnType: "Promise<void>",
@@ -190,52 +185,56 @@ function startFunction(barrel: SourceFile): FunctionDeclaration | undefined {
   return existing;
 }
 
-/** Whether `start()` registers a frontend module from this directory already. */
-function registersLayer(start: FunctionDeclaration, relative: string): boolean {
+function isLayerRegistered(
+  start: FunctionDeclaration,
+  layerRelativePath: string,
+): boolean {
   return start
     .getDescendantsOfKind(SyntaxKind.CallExpression)
     .some(
       (call) =>
-        call.getExpression().getText() === REGISTER_FUNCTION &&
+        call.getExpression().getText() === REGISTER_FUNCTION_NAME &&
         call
           .getArguments()
           .some(
             (argument) =>
               Node.isObjectLiteralExpression(argument) &&
-              argument.getText().includes(JSON.stringify(relative)),
+              argument.getText().includes(JSON.stringify(layerRelativePath)),
           ),
     );
 }
 
 /**
  * Register the layer from the project's `start()`, which runs once the DMS is
- * connected — as the builder registers its own frontend. Answers false when
- * the entry has no `start()` it can add the call to.
+ * connected, as the builder registers its own frontend. Returns false when
+ * the entry has no exported `start()` with a body, or when `node:path` cannot
+ * be bound (imported without a default or namespace name, or `path` already
+ * names something else).
  */
 function registerLayer(
   barrel: SourceFile,
   root: string,
   layerDirectory: string,
-  name: string,
+  layerName: string,
 ): boolean {
-  const relative = path
+  const layerRelativePath = path
     .relative(runtimeDirectory(root, barrel), layerDirectory)
     .split(path.sep)
     .join("/");
-  const start = startFunction(barrel);
-  const pathName = start ? pathBinding(barrel) : undefined;
-  if (!start || !pathName) {
+  const start = ensureAsyncStartFunction(barrel);
+  const pathIdentifier = start ? ensurePathImport(barrel) : undefined;
+  if (!start || !pathIdentifier) {
     return false;
   }
-  if (registersLayer(start, relative)) {
+  if (isLayerRegistered(start, layerRelativePath)) {
     return true;
   }
-  importRegister(barrel);
+  ensureRegisterFunctionImport(barrel);
   start.addStatements((writer) => {
-    writer.write(`await ${REGISTER_FUNCTION}(`).inlineBlock(() => {
-      writer.writeLine(`name: ${JSON.stringify(name)},`);
+    writer.write(`await ${REGISTER_FUNCTION_NAME}(`).inlineBlock(() => {
+      writer.writeLine(`name: ${JSON.stringify(layerName)},`);
       writer.writeLine(
-        `sourcePath: ${pathName}.join(__dirname, ${JSON.stringify(relative)}),`,
+        `sourcePath: ${pathIdentifier}.join(__dirname, ${JSON.stringify(layerRelativePath)}),`,
       );
       writer.writeLine(`renderer: { name: "vue", version: "3" },`);
       writer.writeLine(`priority: ${LAYER_PRIORITY},`);
@@ -246,40 +245,72 @@ function registerLayer(
 }
 
 /**
- * The layer's own files, those it lacks: nothing already there is replaced.
- * The stylesheet the entry imports starts empty, so the import resolves
- * before the first theme is saved.
+ * Skips any file that already exists. The stylesheet starts empty, so the
+ * entry's import of it resolves before the first theme is saved.
  */
-function stageLayerFiles(layerDirectory: string, name: string): FileBatch {
+function stageLayerFiles(
+  layerDirectory: string,
+  files: ThemeFiles,
+  layerName: string,
+): FileBatch {
   const batch = new FileBatch();
-  const files: Array<[string, string]> = [
-    ["package.json", layerManifest(resolveProjectRoot(), name)],
-    [ENTRY_FILE, SCAFFOLD_ENTRY_SOURCE],
-    [STYLESHEET_FILE, ""],
+  const starterFiles: Array<[string, string]> = [
+    ["package.json", layerManifest(layerName, files.entryPath)],
+    [files.entryPath, scaffoldEntrySource(files.stylesheetPath)],
+    [files.stylesheetPath, ""],
   ];
-  for (const [relative, content] of files) {
-    const filePath = path.join(layerDirectory, relative);
+  for (const [relativePath, content] of starterFiles) {
+    const filePath = path.join(layerDirectory, relativePath);
     if (!fs.existsSync(filePath)) {
-      batch.write(filePath, content);
+      batch.stageWrite(filePath, content);
     }
   }
   return batch;
 }
 
-function unsupported(detail: string): OpResult<never> {
-  return { ok: false, error: { code: "unsupported", detail } };
+/**
+ * Writes the layer's files, then commits the registration staged in
+ * `transaction`. If the registration fails, the layer's files are rolled
+ * back, so the project is never left with a layer directory nothing
+ * registers.
+ */
+function writeLayer(
+  transaction: Transaction,
+  layer: ThemeLayer,
+  files: ThemeFiles,
+): OpResult<ThemeLayer> {
+  const layerFileBatch = stageLayerFiles(layer.sourcePath, files, layer.name);
+  const layerChanges = layerFileBatch.flush();
+  let registration: OpResult<ThemeLayer>;
+  try {
+    registration = commit(transaction, layer);
+  } catch (error) {
+    throw withRollbackErrors(error, layerFileBatch.rollback());
+  }
+  if (!registration.ok) {
+    layerFileBatch.rollback();
+    return registration;
+  }
+  return {
+    ...registration,
+    changes: [...layerChanges, ...registration.changes],
+  };
 }
 
 /**
- * Create the project's frontend layer — `frontend-vue/` beside its sources,
- * with an entry and a manifest — and register it from its `start()` above the
- * DMS. Files already in the directory are kept; a `start()` that registers
- * the directory already is left as it is.
+ * Creates the project's frontend layer (`frontend-vue/` at the project root,
+ * with a `package.json`, an entry and an empty stylesheet) and registers it
+ * from `start()`, above the DMS. Files already in the directory are kept, and
+ * a `start()` that already registers it is left as it is.
  */
 export function scaffoldThemeLayer(): OpResult<ThemeLayer> {
   const root = resolveProjectRoot();
   const layerDirectory = proposedLayerPath();
-  const name = layerName(root);
+  const themeRelativeDirectory = resolveThemeRoot(layerDirectory);
+  if (themeRelativeDirectory === undefined) {
+    return unsupported(emptyLayersDetail(layerDirectory));
+  }
+  const layerName = deriveLayerName(root);
   const project = getWritableProject();
   refreshFromDisk(project);
   const barrel = resolveRootBarrel(project);
@@ -290,7 +321,7 @@ export function scaffoldThemeLayer(): OpResult<ThemeLayer> {
   }
   const transaction = new Transaction(project);
   transaction.track(barrel);
-  if (!registerLayer(barrel, root, layerDirectory, name)) {
+  if (!registerLayer(barrel, root, layerDirectory, layerName)) {
     transaction.rollback();
     return unsupported(
       `${path.relative(root, barrel.getFilePath())} has no exported start() function the builder can register the layer from`,
@@ -304,17 +335,14 @@ export function scaffoldThemeLayer(): OpResult<ThemeLayer> {
       error: { code: "typecheck_failed", diagnostics: errors },
     };
   }
-  const written: FileChange[] = stageLayerFiles(layerDirectory, name).flush();
-  const registered = commit(transaction, { name, sourcePath: layerDirectory });
-  return registered.ok
-    ? { ...registered, changes: [...written, ...registered.changes] }
-    : registered;
+  return writeLayer(
+    transaction,
+    { name: layerName, sourcePath: layerDirectory },
+    themeFiles(themeRelativeDirectory),
+  );
 }
 
-/**
- * Give the project the frontend layer its theme is written to. A project that
- * has a layer already keeps it, and nothing is written.
- */
+/** A project that already has a layer keeps it, and nothing is written. */
 export async function createThemeLayer(): Promise<OpResult<ThemeLayer>> {
   const existing = await resolveThemeLayer();
   return existing

@@ -192,7 +192,10 @@ function editorconfigIndentation(rootDir: string): IndentationText | undefined {
   return undefined;
 }
 
-/** The indentation the tooling above a directory configures, if any does. */
+/**
+ * From a Biome or Prettier config, else an `.editorconfig`, searched from
+ * `rootDir` up to the repository root.
+ */
 export function configuredIndentation(
   rootDir: string,
 ): IndentationText | undefined {
@@ -201,25 +204,25 @@ export function configuredIndentation(
 
 /** The indentation of a file's first indented line, if it has one. */
 export function sampledIndentation(text: string): IndentationText | undefined {
-  const indented = text
+  const firstIndentedLine = text
     .slice(0, INDENT_SAMPLE_BYTES)
     .split("\n")
     .find((line) => /^[\t ]+\S/.test(line));
-  if (!indented) {
+  if (!firstIndentedLine) {
     return undefined;
   }
-  if (indented.startsWith("\t")) {
+  if (firstIndentedLine.startsWith("\t")) {
     return IndentationText.Tab;
   }
-  return indented.startsWith("    ")
+  return firstIndentedLine.startsWith("    ")
     ? IndentationText.FourSpaces
     : IndentationText.TwoSpaces;
 }
 
 function detectIndentation(rootDir: string): IndentationText {
-  const configured = configuredIndentation(rootDir);
-  if (configured !== undefined) {
-    return configured;
+  const configuredIndent = configuredIndentation(rootDir);
+  if (configuredIndent !== undefined) {
+    return configuredIndent;
   }
   const entry = path.join(rootDir, "src/index.ts");
   if (!fs.existsSync(entry)) {

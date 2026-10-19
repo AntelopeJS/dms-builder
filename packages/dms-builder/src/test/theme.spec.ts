@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { LogoUpload, ThemeDraft } from "@antelopejs/interface-dms-builder";
 import { expect } from "chai";
-import { setModuleConfig } from "../config";
 import { GetTheme, SetTheme } from "../implementations/dms-builder";
 import { projectLayer } from "../implementations/dms-builder/engine/theme-layer";
 import { scaffoldThemeLayer } from "../implementations/dms-builder/engine/theme-scaffold";
@@ -10,82 +8,22 @@ import {
   emitStylesheet,
   parseStylesheet,
 } from "../implementations/dms-builder/engine/theme-stylesheet";
+import { destroyFixture, expectOk, type Fixture } from "./harness";
 import {
-  createFixture,
-  destroyFixture,
-  expectOk,
-  type Fixture,
-} from "./harness";
-
-const LAYER = "frontend-vue";
-const OP_TIMEOUT = 30_000;
-
-const ENTRY_SOURCE = `import type { DmsFrontendModule } from "#dms/frontend-module";
-
-const projectFrontend: DmsFrontendModule = {
-  setup(sdk) {
-    sdk.registerComponent("Hello", {});
-  },
-};
-
-export default projectFrontend;
-`;
-
-const APP_CONFIG_SOURCE = `export default defineAppConfig({
-  ui: {
-    colors: { primary: "violet" },
-    button: { slots: { base: "font-bold" } },
-  },
-});
-`;
-
-const SVG_LOGO =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8"/></svg>';
-const PNG_LOGO = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13,
-]);
+  createThemeFixture,
+  draft,
+  ENTRY_SOURCE,
+  LAYER,
+  layerPath,
+  OP_TIMEOUT,
+  PNG_LOGO,
+  readLayerFile,
+  SVG_LOGO,
+  upload,
+  writeLayerFile,
+} from "./theme-harness";
 
 let app: Fixture;
-
-function layerPath(relative: string): string {
-  return path.join(app.root, LAYER, relative);
-}
-
-function writeLayerFile(relative: string, content: string): void {
-  fs.mkdirSync(path.dirname(layerPath(relative)), { recursive: true });
-  fs.writeFileSync(layerPath(relative), content);
-}
-
-function readLayerFile(relative: string): string {
-  return fs.readFileSync(layerPath(relative), "utf8");
-}
-
-function upload(
-  slot: LogoUpload["slot"],
-  mode: LogoUpload["mode"],
-  content: string | Buffer,
-  contentType: string,
-): LogoUpload {
-  return {
-    slot,
-    mode,
-    contentType,
-    data: Buffer.from(content).toString("base64"),
-  };
-}
-
-function draft(overrides: Partial<ThemeDraft> = {}): ThemeDraft {
-  return {
-    variables: {
-      shared: {},
-      light: { "--ui-bg": "#fafafa" },
-      dark: { "--ui-bg": "#111111" },
-    },
-    colors: { primary: "violet" },
-    logos: {},
-    ...overrides,
-  };
-}
 
 describe("theme stylesheet", () => {
   it("writes the shared rule, then one per mode, declarations sorted", () => {
@@ -121,7 +59,7 @@ describe("theme stylesheet", () => {
       ":root { --a: 1px; }\nbody { color: red; }\n",
     );
     expect(parsed.variables).to.equal(undefined);
-    expect(parsed.opaque).to.be.a("string");
+    expect(parsed.opaqueReason).to.be.a("string");
   });
 
   it("reads two rules under one selector as one, the later winning", () => {
@@ -139,10 +77,7 @@ describe("theme", function () {
   this.timeout(OP_TIMEOUT);
 
   beforeEach(() => {
-    app = createFixture();
-    setModuleConfig({ projectRoot: app.root, theme: { layer: LAYER } });
-    writeLayerFile("dms.frontend.ts", ENTRY_SOURCE);
-    writeLayerFile("app/app.config.ts", APP_CONFIG_SOURCE);
+    app = createThemeFixture();
   });
 
   afterEach(() => {
@@ -409,7 +344,7 @@ describe("theme layer", function () {
   this.timeout(OP_TIMEOUT);
 
   beforeEach(() => {
-    app = createFixture();
+    app = createThemeFixture({ withLayer: false });
   });
 
   afterEach(() => {

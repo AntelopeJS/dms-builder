@@ -13,11 +13,10 @@ export interface BuilderApiConfig {
 /** Where the theme editor writes the project's theme. */
 export interface ThemeConfig {
   /**
-   * The frontend layer holding the theme, relative to `projectRoot` or
-   * absolute. Unset, it is the highest-priority frontend module registered
-   * from inside the project root.
+   * Relative to `projectRoot`, or absolute. When unset, the theme goes in the
+   * highest-priority frontend module registered from inside the project root.
    */
-  layer?: string;
+  layerPath?: string;
 }
 
 /** Runtime configuration for the dms-builder engine. */

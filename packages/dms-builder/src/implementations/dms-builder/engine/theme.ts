@@ -14,6 +14,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { IndentationText, Project, type SourceFile } from "ts-morph";
 import { FileBatch } from "./file-batch";
+import { unsupported } from "./ops";
 import { contentVersion } from "./page-structure";
 import { configuredIndentation, sampledIndentation } from "./project";
 import {
@@ -25,40 +26,49 @@ import {
   writeAppConfig,
 } from "./theme-app-config";
 import {
-  ASSETS_DIRECTORY,
   orphanedAssets,
+  PUBLIC_DIRECTORY,
   type StagedLogo,
   stageLogos,
   withUploads,
 } from "./theme-assets";
+import { draftShapeIssues } from "./theme-draft";
+import { importStylesheet, importsStylesheet } from "./theme-entry";
+import type { HostedFont } from "./theme-font-catalog";
 import {
-  ENTRY_FILE,
-  importStylesheet,
-  importsStylesheet,
-  STYLESHEET_FILE,
-} from "./theme-entry";
-import { proposedLayerPath, resolveThemeLayer } from "./theme-layer";
+  type DownloadedFontFile,
+  downloadMissingFontFiles,
+  fontFaceRules,
+  hostedFontsOf,
+  isHostedFontFace,
+  orphanedFontFiles,
+} from "./theme-fonts";
+import {
+  emptyLayersDetail,
+  proposedLayerPath,
+  resolveThemeLayer,
+  resolveThemeRoot,
+  themeFiles,
+} from "./theme-layer";
 import {
   emitStylesheet,
   parseStylesheet,
   validateVariables,
 } from "./theme-stylesheet";
 
-/** The files a theme lives in, relative to its layer. */
-const THEME_FILES: ThemeFiles = {
-  stylesheet: STYLESHEET_FILE,
-  appConfig: "app/app.config.ts",
-  entry: ENTRY_FILE,
-  assets: `public/${ASSETS_DIRECTORY}`,
-};
-
 const VERSION_SEPARATOR = "\0";
 
-/** A layer's theme files as they stand on disk, the TypeScript ones parsed. */
+/**
+ * A layer's theme files as read from disk. A save edits `appConfig` and
+ * `entry` in memory.
+ */
 interface ThemeSources {
   layer: ThemeLayer;
+  files: ThemeFiles;
+  /** Absolute path. */
+  publicDirectory: string;
   project: Project;
-  stylesheet: string;
+  stylesheetText: string;
   appConfig: SourceFile;
   entry: SourceFile;
   version: string;
@@ -72,7 +82,7 @@ function readText(filePath: string): string | undefined {
   }
 }
 
-function layerPath(layer: ThemeLayer, relative: string): string {
+function layerFilePath(layer: ThemeLayer, relative: string): string {
   return path.join(layer.sourcePath, relative);
 }
 
@@ -83,10 +93,9 @@ function versionOf(texts: Array<string | undefined>): string {
 }
 
 /**
- * The indentation the layer's tooling configures, else the one its entry is
- * written with: a layer is often a folder of the project with no formatter
- * config of its own, and a line the builder adds must read like its
- * neighbours.
+ * The indentation a formatter config or `.editorconfig` sets for the layer
+ * (searched up to the git root), else the entry's own, so added lines match
+ * their neighbours.
  */
 function layerIndentation(
   layer: ThemeLayer,
@@ -100,36 +109,47 @@ function layerIndentation(
 }
 
 /**
- * Parse the layer's frontend files in a project of their own. They are
- * compiled by the frontend loader, not with the backend, so they are only
- * ever checked for syntax here: their imports resolve in the generated
- * workspace alone.
+ * The TypeScript files go in an in-memory project of their own, checked for
+ * syntax only: the frontend loader compiles them, and their imports resolve
+ * only in its generated workspace. `noLib` skips TypeScript's lib
+ * declarations, which would add about 0.1 s to every save.
  */
-function openLayer(layer: ThemeLayer): ThemeSources | OpResult<never> {
-  const entryPath = layerPath(layer, ENTRY_FILE);
+function readThemeSources(layer: ThemeLayer): ThemeSources | OpResult<never> {
+  const themeRoot = resolveThemeRoot(layer.sourcePath);
+  if (themeRoot === undefined) {
+    return unsupported<never>(emptyLayersDetail(layer.sourcePath));
+  }
+  const files = themeFiles(themeRoot);
+  const entryPath = layerFilePath(layer, files.entryPath);
   const entryText = readText(entryPath);
   if (entryText === undefined) {
     return { ok: false, error: { code: "not_found", ref: entryPath } };
   }
-  const appConfigPath = layerPath(layer, THEME_FILES.appConfig);
+  const appConfigPath = layerFilePath(layer, files.appConfigPath);
   const appConfigText = readText(appConfigPath);
-  const stylesheet = readText(layerPath(layer, THEME_FILES.stylesheet));
+  const stylesheetText = readText(layerFilePath(layer, files.stylesheetPath));
   const project = new Project({
     useInMemoryFileSystem: true,
+    compilerOptions: { noLib: true },
     manipulationSettings: {
       indentationText: layerIndentation(layer, entryText),
     },
   });
   return {
     layer,
+    files,
+    publicDirectory: layerFilePath(
+      layer,
+      path.join(themeRoot, PUBLIC_DIRECTORY),
+    ),
     project,
-    stylesheet: stylesheet ?? "",
+    stylesheetText: stylesheetText ?? "",
     appConfig: project.createSourceFile(
       appConfigPath,
       appConfigText ?? EMPTY_APP_CONFIG,
     ),
     entry: project.createSourceFile(entryPath, entryText),
-    version: versionOf([stylesheet, appConfigText, entryText]),
+    version: versionOf([stylesheetText, appConfigText, entryText]),
   };
 }
 
@@ -138,9 +158,8 @@ function isFailure<T>(value: T | OpResult<never>): value is OpResult<never> {
 }
 
 /**
- * The layer the theme lives in, opened. A project without one answers
- * `not_found` naming where `CreateThemeLayer` would put it, so an editor can
- * offer to.
+ * Without a theme layer, returns `not_found` with the path `CreateThemeLayer`
+ * would create, so the editor can offer to create it.
  */
 async function openThemeLayer(): Promise<ThemeSources | OpResult<never>> {
   const layer = await resolveThemeLayer();
@@ -150,26 +169,31 @@ async function openThemeLayer(): Promise<ThemeSources | OpResult<never>> {
       error: { code: "not_found", ref: proposedLayerPath() },
     };
   }
-  return openLayer(layer);
+  return readThemeSources(layer);
 }
 
+/**
+ * The stylesheet's variables. Its `@font-face` rules are the builder's, which
+ * a save writes anew from the fonts the variables name; one written by hand
+ * would be lost, so it makes the file one the builder cannot rewrite.
+ */
 function readVariables(
   sources: ThemeSources,
 ): ThemeVariableSets | OpResult<never> {
-  const parsed = parseStylesheet(sources.stylesheet);
-  if (parsed.variables) {
+  const parsed = parseStylesheet(sources.stylesheetText);
+  const opaqueReason =
+    parsed.opaqueReason ??
+    (parsed.fontFaces?.every(isHostedFontFace)
+      ? undefined
+      : "it holds an @font-face the builder did not write");
+  if (parsed.variables && !opaqueReason) {
     return parsed.variables;
   }
-  return {
-    ok: false,
-    error: {
-      code: "unsupported",
-      detail: `${THEME_FILES.stylesheet} is not one the builder can rewrite: ${parsed.opaque}. Move that content to another stylesheet.`,
-    },
-  };
+  return unsupported<never>(
+    `${sources.files.stylesheetPath} is not one the builder can rewrite: ${opaqueReason}. Move that content to another stylesheet.`,
+  );
 }
 
-/** The project's theme, as its layer's files hold it. */
 export async function getTheme(): Promise<OpResult<ThemeStructure>> {
   const sources = await openThemeLayer();
   if (isFailure(sources)) {
@@ -186,15 +210,18 @@ export async function getTheme(): Promise<OpResult<ThemeStructure>> {
       variables,
       colors: readColors(sources.appConfig),
       logos: readLogos(sources.appConfig),
-      files: THEME_FILES,
-      stylesheetImported: importsStylesheet(sources.entry),
+      files: sources.files,
+      stylesheetImported: importsStylesheet(
+        sources.entry,
+        sources.files.stylesheetPath,
+      ),
       version: sources.version,
     },
     changes: [],
   };
 }
 
-function staleCheck(
+function staleVersionError(
   sources: ThemeSources,
   opts?: MutationOpts,
 ): OpResult<never> | undefined {
@@ -205,7 +232,7 @@ function staleCheck(
     ok: false,
     error: {
       code: "stale",
-      ref: layerPath(sources.layer, THEME_FILES.stylesheet),
+      ref: layerFilePath(sources.layer, sources.files.stylesheetPath),
       currentVersion: sources.version,
     },
   };
@@ -226,33 +253,29 @@ function syntaxErrors(sources: ThemeSources): TypecheckError[] {
     });
 }
 
-function unsupported(detail: string): OpResult<never> {
-  return { ok: false, error: { code: "unsupported", detail } };
-}
-
 /**
- * Edit the TypeScript half of the theme in memory: the palettes and the logo
- * paths in the app config, and the entry's import of the stylesheet when the
- * theme has one to import. Answers the refusal, if any.
+ * Edits the app config (palettes, logo paths) and, when the stylesheet is not
+ * empty, the entry's stylesheet import, in memory. Returns the `unsupported`
+ * or `typecheck_failed` error, if any.
  */
 function editSources(
   sources: ThemeSources,
   draft: ThemeDraft,
-  staged: StagedLogo[],
-  stylesheet: string,
+  stagedLogos: StagedLogo[],
+  stylesheetText: string,
 ): OpResult<never> | undefined {
-  const refused = writeAppConfig(
+  const refusal = writeAppConfig(
     sources.appConfig,
     draft.colors ?? {},
-    withUploads(draft.logos ?? {}, staged),
+    withUploads(draft.logos ?? {}, stagedLogos),
   );
-  if (refused) {
-    return unsupported(
-      `${THEME_FILES.appConfig} cannot be rewritten: ${refused}`,
+  if (refusal) {
+    return unsupported<never>(
+      `${sources.files.appConfigPath} cannot be rewritten: ${refusal}`,
     );
   }
-  if (stylesheet !== "") {
-    importStylesheet(sources.entry);
+  if (stylesheetText !== "") {
+    importStylesheet(sources.entry, sources.files.stylesheetPath);
   }
   const diagnostics = syntaxErrors(sources);
   return diagnostics.length > 0
@@ -261,29 +284,36 @@ function editSources(
 }
 
 /**
- * Every file of the theme, staged. The app config is only written when it
- * holds something or was there already: a theme of variables alone leaves a
- * layer without one as it was.
+ * The stylesheet and the app config are written only when they hold
+ * something or already exist, so a layer without one does not get an empty
+ * one.
  */
 function stageFiles(
   sources: ThemeSources,
-  staged: StagedLogo[],
-  stylesheet: string,
+  stagedLogos: StagedLogo[],
+  fontFiles: DownloadedFontFile[],
+  stylesheetText: string,
 ): FileBatch {
-  const { layer } = sources;
+  const { layer, files } = sources;
   const batch = new FileBatch();
-  const stylesheetPath = layerPath(layer, THEME_FILES.stylesheet);
-  if (stylesheet !== "" || fs.existsSync(stylesheetPath)) {
-    batch.write(stylesheetPath, stylesheet);
+  const stylesheetPath = layerFilePath(layer, files.stylesheetPath);
+  if (stylesheetText !== "" || fs.existsSync(stylesheetPath)) {
+    batch.stageWrite(stylesheetPath, stylesheetText);
   }
-  const appConfigPath = layerPath(layer, THEME_FILES.appConfig);
-  const appConfig = sources.appConfig.getFullText();
-  if (appConfig !== EMPTY_APP_CONFIG || fs.existsSync(appConfigPath)) {
-    batch.write(appConfigPath, appConfig);
+  const appConfigPath = layerFilePath(layer, files.appConfigPath);
+  const appConfigText = sources.appConfig.getFullText();
+  if (appConfigText !== EMPTY_APP_CONFIG || fs.existsSync(appConfigPath)) {
+    batch.stageWrite(appConfigPath, appConfigText);
   }
-  batch.write(layerPath(layer, ENTRY_FILE), sources.entry.getFullText());
-  for (const logo of staged) {
-    batch.write(logo.filePath, logo.bytes);
+  batch.stageWrite(
+    layerFilePath(layer, files.entryPath),
+    sources.entry.getFullText(),
+  );
+  for (const logo of stagedLogos) {
+    batch.stageWrite(logo.filePath, logo.bytes);
+  }
+  for (const file of fontFiles) {
+    batch.stageWrite(file.filePath, file.bytes);
   }
   return batch;
 }
@@ -301,15 +331,19 @@ function draftIssues(
 }
 
 /**
- * One warning per SVG file sanitizing changed, naming every slot it went to:
- * a logo the simple editor puts everywhere is one file, and one thing to say.
+ * One warning per SVG file that had active content, not one per slot: the
+ * simple editor puts one file in every slot. It names the mode of the file's
+ * first upload only.
  */
-function sanitizedWarnings(staged: StagedLogo[]): OpWarning[] {
-  const files = new Map<string, StagedLogo[]>();
-  for (const logo of staged.filter((entry) => entry.stripped)) {
-    files.set(logo.filePath, [...(files.get(logo.filePath) ?? []), logo]);
+function sanitizedWarnings(stagedLogos: StagedLogo[]): OpWarning[] {
+  const logosByFile = new Map<string, StagedLogo[]>();
+  for (const logo of stagedLogos.filter((entry) => entry.hadActiveContent)) {
+    logosByFile.set(logo.filePath, [
+      ...(logosByFile.get(logo.filePath) ?? []),
+      logo,
+    ]);
   }
-  return [...files.values()].map((logos) => {
+  return [...logosByFile.values()].map((logos) => {
     const slots = logos.map((logo) => logo.upload.slot).join(", ");
     const mode = logos[0]?.upload.mode ?? "";
     return {
@@ -319,64 +353,94 @@ function sanitizedWarnings(staged: StagedLogo[]): OpWarning[] {
   });
 }
 
+/** What a save writes beside the draft: the logos it uploads, the fonts it hosts. */
+interface ThemeAssets {
+  stagedLogos: StagedLogo[];
+  fonts: HostedFont[];
+  fontFiles: DownloadedFontFile[];
+}
+
 function writeTheme(
   sources: ThemeSources,
   draft: ThemeDraft,
-  staged: StagedLogo[],
+  { stagedLogos, fonts, fontFiles }: ThemeAssets,
 ): OpResult<{ version: string }> {
-  const previous = readLogos(sources.appConfig);
-  const stylesheet = emitStylesheet(draft.variables);
-  const edited = editSources(sources, draft, staged, stylesheet);
-  if (edited) {
-    return edited;
+  const previousLogos = readLogos(sources.appConfig);
+  const stylesheetText = emitStylesheet(draft.variables, fontFaceRules(fonts));
+  const editError = editSources(sources, draft, stagedLogos, stylesheetText);
+  if (editError) {
+    return editError;
   }
-  const batch = stageFiles(sources, staged, stylesheet);
-  const next = readLogos(sources.appConfig);
-  for (const orphan of orphanedAssets(sources.layer, previous, next)) {
-    batch.remove(orphan);
+  const batch = stageFiles(sources, stagedLogos, fontFiles, stylesheetText);
+  const nextLogos = readLogos(sources.appConfig);
+  for (const orphan of [
+    ...orphanedAssets(sources.publicDirectory, previousLogos, nextLogos),
+    ...orphanedFontFiles(fonts, sources.publicDirectory),
+  ]) {
+    batch.stageRemoval(orphan);
   }
   const changes = batch.flush();
-  const written = openLayer(sources.layer);
-  const version = isFailure(written) ? "" : written.version;
+  const savedSources = readThemeSources(sources.layer);
+  const version = isFailure(savedSources) ? "" : savedSources.version;
   const result: OpResult<{ version: string }> = {
     ok: true,
     data: { version },
     changes,
   };
-  const warnings = sanitizedWarnings(staged);
+  const warnings = sanitizedWarnings(stagedLogos);
   if (warnings.length > 0) {
     result.warnings = warnings;
   }
   return result;
 }
 
+function invalidConfigError(issues: ValidationIssue[]): OpResult<never> {
+  return { ok: false, error: { code: "invalid_config", issues } };
+}
+
 /**
- * Write the project's theme: the stylesheet, the palettes and logo paths of
- * the app config, the uploaded logos, and — the first time — the entry's
- * import of the stylesheet. Everything is checked before anything is
- * written, and the builder's own logos the theme stops pointing at are
- * deleted with it.
+ * Writes the stylesheet, the app config's palettes and logo paths, the
+ * uploaded logos, the files of the fonts the variables name and, when
+ * missing, the entry's stylesheet import. Everything is checked, and every
+ * font file the layer lacks downloaded, before any file is written.
+ * Builder-named logo and font files the theme no longer uses are deleted,
+ * except email logos.
  */
 export async function setTheme(
   draft: ThemeDraft,
   opts?: MutationOpts,
 ): Promise<OpResult<{ version: string }>> {
+  const shapeIssues = draftShapeIssues(draft);
+  if (shapeIssues.length > 0) {
+    return invalidConfigError(shapeIssues);
+  }
   const sources = await openThemeLayer();
   if (isFailure(sources)) {
     return sources;
   }
-  const stale = staleCheck(sources, opts);
-  if (stale) {
-    return stale;
+  const staleError = staleVersionError(sources, opts);
+  if (staleError) {
+    return staleError;
   }
-  const current = readVariables(sources);
-  if (isFailure(current)) {
-    return current;
+  const currentVariables = readVariables(sources);
+  if (isFailure(currentVariables)) {
+    return currentVariables;
   }
-  const { staged, issues } = stageLogos(sources.layer, draft.uploads ?? []);
-  const invalid = draftIssues(draft, issues);
-  if (invalid.length > 0) {
-    return { ok: false, error: { code: "invalid_config", issues: invalid } };
+  const { stagedLogos, issues: uploadIssues } = stageLogos(
+    sources.publicDirectory,
+    draft.uploads ?? [],
+  );
+  const validationIssues = draftIssues(draft, uploadIssues);
+  if (validationIssues.length > 0) {
+    return invalidConfigError(validationIssues);
   }
-  return writeTheme(sources, draft, staged);
+  const fonts = hostedFontsOf(draft.variables);
+  const fontFiles = await downloadMissingFontFiles(
+    fonts,
+    sources.publicDirectory,
+  );
+  if (typeof fontFiles === "string") {
+    return unsupported<never>(fontFiles);
+  }
+  return writeTheme(sources, draft, { stagedLogos, fonts, fontFiles });
 }

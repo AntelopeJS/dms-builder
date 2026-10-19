@@ -1,30 +1,37 @@
+import fs from "node:fs";
 import path from "node:path";
 import {
   type FrontendModuleMetadata,
   GetFrontendModules,
 } from "@antelopejs/interface-dms/page";
-import type { ThemeLayer } from "@antelopejs/interface-dms-builder";
+import type { ThemeFiles, ThemeLayer } from "@antelopejs/interface-dms-builder";
 import { getModuleConfig } from "../../../config";
 import { resolveProjectRoot } from "./project";
+import { APP_CONFIG_FILE } from "./theme-app-config";
+import { LOGO_UPLOAD_DIRECTORY, PUBLIC_DIRECTORY } from "./theme-assets";
+import { ENTRY_FILE, STYLESHEET_FILE } from "./theme-entry";
 
 const DEPENDENCY_DIRECTORY = "node_modules";
 /**
- * A hidden directory holds what tooling keeps, never the project's own code:
- * AntelopeJS installs the modules a project loads by package — the DMS
- * among them — under `.antelope/cache`, inside the project root.
+ * Hidden directories hold tooling output, not project code: AntelopeJS
+ * installs packaged modules, the DMS included, under `.antelope/cache` inside
+ * the project root.
  */
 const HIDDEN_DIRECTORY = /^\./;
+
+/** Where a frontend module keeps its layers, when it is split into several. */
+const LAYERS_DIRECTORY = "layers";
 
 /** Where a layer the builder creates goes, relative to the project root. */
 export const SCAFFOLD_LAYER_DIRECTORY = "frontend-vue";
 
-/** The directory a project without a layer of its own would get one in. */
+/** Absolute path where `CreateThemeLayer` would create the layer. */
 export function proposedLayerPath(): string {
   return path.join(resolveProjectRoot(), SCAFFOLD_LAYER_DIRECTORY);
 }
 
-function isProjectSource(root: string, directory: string): boolean {
-  const relative = path.relative(root, directory);
+function isProjectSource(projectRoot: string, directory: string): boolean {
+  const relative = path.relative(projectRoot, directory);
   if (
     relative === "" ||
     relative.startsWith("..") ||
@@ -40,46 +47,101 @@ function isProjectSource(root: string, directory: string): boolean {
     );
 }
 
-function configuredLayer(root: string): ThemeLayer | undefined {
-  const configured = getModuleConfig().theme?.layer;
-  if (!configured) {
+function configuredLayer(projectRoot: string): ThemeLayer | undefined {
+  const configuredPath = getModuleConfig().theme?.layerPath;
+  if (!configuredPath) {
     return undefined;
   }
-  const sourcePath = path.resolve(root, configured);
+  const sourcePath = path.resolve(projectRoot, configuredPath);
   return { name: path.basename(sourcePath), sourcePath };
 }
 
-/** What the resolution reads of a registered frontend module. */
-type RegisteredLayer = Pick<
+type RegisteredModule = Pick<
   FrontendModuleMetadata,
   "name" | "sourcePath" | "priority"
 >;
 
-function byPriority(left: RegisteredLayer, right: RegisteredLayer): number {
+function byPriority(left: RegisteredModule, right: RegisteredModule): number {
   return right.priority - left.priority;
 }
 
 /**
- * The project's own layer among the frontend modules registered: one it
- * registers from inside its root — the DMS and every installed module
- * register theirs from `node_modules`, from AntelopeJS's cache or from a
- * checkout elsewhere, and none of those is the project's to rewrite. Among
- * several, the highest priority wins, as it does for the values it holds.
+ * The highest-priority frontend module registered from inside the project
+ * root. The DMS and installed modules register from `node_modules`,
+ * AntelopeJS's cache or a checkout elsewhere, none of which the builder may
+ * rewrite.
  */
 export function projectLayer(
-  root: string,
-  modules: RegisteredLayer[],
+  projectRoot: string,
+  modules: RegisteredModule[],
 ): ThemeLayer | undefined {
   const own = modules
-    .filter((module) => isProjectSource(root, module.sourcePath))
+    .filter((module) => isProjectSource(projectRoot, module.sourcePath))
     .sort(byPriority)[0];
   return own ? { name: own.name, sourcePath: own.sourcePath } : undefined;
 }
 
 /** The frontend layer the project's theme lives in: the configured one, else its own. */
 export async function resolveThemeLayer(): Promise<ThemeLayer | undefined> {
-  const root = resolveProjectRoot();
+  const projectRoot = resolveProjectRoot();
   return (
-    configuredLayer(root) ?? projectLayer(root, await GetFrontendModules())
+    configuredLayer(projectRoot) ??
+    projectLayer(projectRoot, await GetFrontendModules())
   );
+}
+
+function isDirectory(directory: string): boolean {
+  try {
+    return fs.statSync(directory).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The directory, relative to the layer, that the DMS frontend loader reads
+ * the app config and `public/` from: `""` (the layer itself), or, when the
+ * layer has a `layers/` directory, the last layer in it by name. The loader
+ * then reads only those layers, and the last one wins (`moduleAssetRoots` in
+ * `@antelopejs/dms-frontend`). Undefined when `layers/` holds no directory or
+ * cannot be read.
+ */
+export function resolveThemeRoot(sourcePath: string): string | undefined {
+  const layersDirectory = path.join(sourcePath, LAYERS_DIRECTORY);
+  if (!fs.existsSync(layersDirectory)) {
+    return "";
+  }
+  let names: string[];
+  try {
+    names = fs.readdirSync(layersDirectory).sort();
+  } catch {
+    return undefined;
+  }
+  const lastLayer = names
+    .filter((name) => isDirectory(path.join(layersDirectory, name)))
+    .pop();
+  return lastLayer === undefined
+    ? undefined
+    : path.posix.join(LAYERS_DIRECTORY, lastLayer);
+}
+
+/**
+ * The `unsupported` detail when `resolveThemeRoot` finds no layer in
+ * `layers/`.
+ */
+export function emptyLayersDetail(sourcePath: string): string {
+  return `${path.join(sourcePath, LAYERS_DIRECTORY)} holds no layer: the DMS frontend loader reads a module that has a ${LAYERS_DIRECTORY}/ directory from the layers in it alone, so a theme written anywhere else would never apply. Add a layer directory to it, or remove it.`;
+}
+
+export function themeFiles(themeRoot: string): ThemeFiles {
+  return {
+    stylesheetPath: path.posix.join(themeRoot, STYLESHEET_FILE),
+    appConfigPath: path.posix.join(themeRoot, APP_CONFIG_FILE),
+    entryPath: ENTRY_FILE,
+    assetsDirectory: path.posix.join(
+      themeRoot,
+      PUBLIC_DIRECTORY,
+      LOGO_UPLOAD_DIRECTORY,
+    ),
+  };
 }

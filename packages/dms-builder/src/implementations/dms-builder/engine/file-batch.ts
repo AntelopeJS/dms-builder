@@ -1,16 +1,22 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { FileChange } from "@antelopejs/interface-dms-builder";
 import { diffText } from "./writable";
 
-/** What a file is written with: text, or the bytes of a binary asset. */
 type FileContent = string | Buffer;
 
-/** A file as it stood before the batch touched it, to put back on failure. */
 interface FileSnapshot {
   path: string;
+  /** Undefined when the file did not exist. */
   before: Buffer | undefined;
 }
+
+export interface ErrorWithRollbackErrors {
+  rollbackErrors?: unknown[];
+}
+
+const TEMPORARY_NAME_BYTES = 6;
 
 function readBytes(filePath: string): Buffer | undefined {
   try {
@@ -24,12 +30,67 @@ function toBytes(content: FileContent): Buffer {
   return typeof content === "string" ? Buffer.from(content, "utf8") : content;
 }
 
+/**
+ * Writes to a temporary file beside the target, then renames it over the
+ * target: the dev server watching the layer never reads a half-written file,
+ * and a failed write leaves the previous content in place.
+ */
+function writeFileAtomically(filePath: string, bytes: Buffer): void {
+  const suffix = randomBytes(TEMPORARY_NAME_BYTES).toString("hex");
+  const temporaryPath = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${suffix}.tmp`,
+  );
+  try {
+    fs.writeFileSync(temporaryPath, bytes);
+    fs.renameSync(temporaryPath, filePath);
+  } catch (error) {
+    try {
+      fs.rmSync(temporaryPath, { force: true });
+    } catch {
+      // The write's own failure is the one worth reporting.
+    }
+    throw error;
+  }
+}
+
+/**
+ * Create a directory and its missing parents. Returns the ones created,
+ * outermost first, so a rollback removes exactly those.
+ */
+function makeDirectory(directory: string): string[] {
+  const firstCreated = fs.mkdirSync(directory, { recursive: true });
+  if (firstCreated === undefined) {
+    return [];
+  }
+  const outermost = path.resolve(firstCreated);
+  const created: string[] = [];
+  let current = path.resolve(directory);
+  while (current !== outermost && path.dirname(current) !== current) {
+    created.unshift(current);
+    current = path.dirname(current);
+  }
+  created.unshift(outermost);
+  return created;
+}
+
 function restore(snapshot: FileSnapshot): void {
   if (snapshot.before === undefined) {
     fs.rmSync(snapshot.path, { force: true });
     return;
   }
-  fs.writeFileSync(snapshot.path, snapshot.before);
+  writeFileAtomically(snapshot.path, snapshot.before);
+}
+
+/** Only an `Error` gets `rollbackErrors`; any other value is returned as is. */
+export function withRollbackErrors(
+  error: unknown,
+  rollbackErrors: unknown[],
+): unknown {
+  if (rollbackErrors.length > 0 && error instanceof Error) {
+    Object.assign(error, { rollbackErrors } satisfies ErrorWithRollbackErrors);
+  }
+  return error;
 }
 
 function describeChange(
@@ -52,40 +113,75 @@ function describeChange(
  * Files written together or not at all: text and binary alike, outside the
  * TypeScript project a `Transaction` stages. Nothing touches the disk until
  * `flush`, a file whose content would not change is left alone, and a write
- * that fails part way puts back every file the batch had already written.
+ * that fails part way puts back every file the batch had already written and
+ * removes the directories it created.
  */
 export class FileBatch {
-  private readonly staged = new Map<string, FileContent | null>();
+  /** `null` stages a removal. */
+  private readonly stagedContentByPath = new Map<string, FileContent | null>();
+  private snapshots: FileSnapshot[] = [];
+  private createdDirectories: string[] = [];
 
-  public write(filePath: string, content: FileContent): void {
-    this.staged.set(filePath, content);
+  public stageWrite(filePath: string, content: FileContent): void {
+    this.stagedContentByPath.set(filePath, content);
   }
 
-  public remove(filePath: string): void {
-    this.staged.set(filePath, null);
+  public stageRemoval(filePath: string): void {
+    this.stagedContentByPath.set(filePath, null);
   }
 
+  /**
+   * On failure, rolls back what it already wrote, then rethrows the original
+   * error with any rollback errors attached.
+   */
   public flush(): FileChange[] {
-    const written: FileSnapshot[] = [];
+    this.snapshots = [];
+    this.createdDirectories = [];
     const changes: FileChange[] = [];
     try {
-      for (const [filePath, content] of this.staged) {
-        const change = this.apply(filePath, content, written);
+      for (const [filePath, content] of this.stagedContentByPath) {
+        const change = this.apply(filePath, content);
         if (change) {
           changes.push(change);
         }
       }
     } catch (error) {
-      written.reverse().forEach(restore);
-      throw error;
+      throw withRollbackErrors(error, this.rollback());
     }
     return changes;
+  }
+
+  /**
+   * Restore every file the last `flush` wrote and remove the directories it
+   * created that are still empty: after a failed flush, or when the caller's
+   * next step fails. Best effort: a file that cannot be restored does not stop
+   * the others, and the errors are returned, not thrown, so they never hide
+   * the error that triggered the rollback.
+   */
+  public rollback(): unknown[] {
+    const failures: unknown[] = [];
+    for (const snapshot of this.snapshots.reverse()) {
+      try {
+        restore(snapshot);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    for (const directory of this.createdDirectories.reverse()) {
+      try {
+        fs.rmdirSync(directory);
+      } catch {
+        // Not empty: something else was added to it since.
+      }
+    }
+    this.snapshots = [];
+    this.createdDirectories = [];
+    return failures;
   }
 
   private apply(
     filePath: string,
     content: FileContent | null,
-    written: FileSnapshot[],
   ): FileChange | undefined {
     const before = readBytes(filePath);
     const unchanged =
@@ -95,12 +191,13 @@ export class FileBatch {
     if (unchanged) {
       return undefined;
     }
-    written.push({ path: filePath, before });
     if (content === null) {
+      this.snapshots.push({ path: filePath, before });
       fs.rmSync(filePath, { force: true });
     } else {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, toBytes(content));
+      this.createdDirectories.push(...makeDirectory(path.dirname(filePath)));
+      this.snapshots.push({ path: filePath, before });
+      writeFileAtomically(filePath, toBytes(content));
     }
     return describeChange(filePath, before, content);
   }

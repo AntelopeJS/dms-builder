@@ -3,25 +3,27 @@ import type { SourceFile } from "ts-morph";
 /** The layer's entry, the one file every frontend module has. */
 export const ENTRY_FILE = "dms.frontend.ts";
 
-/** The theme's stylesheet, relative to the layer. */
+/** The theme's stylesheet, relative to the theme's root in the layer. */
 export const STYLESHEET_FILE = "app/assets/css/theme.css";
 
-/** How the entry names the stylesheet it imports. */
-const STYLESHEET_SPECIFIER = `./${STYLESHEET_FILE}`;
+/** `stylesheetPath` is relative to the layer. */
+function stylesheetSpecifier(stylesheetPath: string): string {
+  return `./${stylesheetPath}`;
+}
 
 /**
- * The entry of a layer the builder creates for a project that has none: it
- * registers nothing, and imports the theme's stylesheet as the theming guide
- * has a layer do. Its app config needs no import: the loader applies every
- * layer's `app/app.config.ts` itself.
+ * Source of the entry the builder scaffolds: it registers nothing and imports
+ * the stylesheet, as the theming guide shows. The app config needs no import:
+ * the loader applies every layer's `app/app.config.ts` itself.
  */
-export const SCAFFOLD_ENTRY_SOURCE = `import "${STYLESHEET_SPECIFIER}";
+export function scaffoldEntrySource(stylesheetPath: string): string {
+  return `import "${stylesheetSpecifier(stylesheetPath)}";
 import type { DmsFrontendModule } from "#dms/frontend-module";
 
 /**
- * The project's own frontend layer, above the DMS: where its theme lives —
- * the stylesheet imported above, \`app/app.config.ts\` and \`public/\` — and
- * where its own pages and components can be registered.
+ * The project's frontend layer, loaded above the DMS. It holds the theme (the
+ * stylesheet imported above, app/app.config.ts and public/) and can register
+ * the project's own pages and components.
  */
 const projectFrontend: DmsFrontendModule = {
   setup() {},
@@ -29,25 +31,30 @@ const projectFrontend: DmsFrontendModule = {
 
 export default projectFrontend;
 `;
+}
 
-/** Whether the entry imports the theme's stylesheet. */
-export function importsStylesheet(entry: SourceFile): boolean {
+export function importsStylesheet(
+  entry: SourceFile,
+  stylesheetPath: string,
+): boolean {
+  const specifier = stylesheetSpecifier(stylesheetPath);
   return entry
     .getImportDeclarations()
-    .some(
-      (declaration) =>
-        declaration.getModuleSpecifierValue() === STYLESHEET_SPECIFIER,
-    );
+    .some((declaration) => declaration.getModuleSpecifierValue() === specifier);
 }
 
 /**
- * Make the entry import the theme's stylesheet, after the imports it already
- * has. A stylesheet reaches the dashboard only through a module that imports
- * it: the loader discovers `public/` and the app config on its own, but no
- * stylesheet.
+ * Adds the import after the existing ones, if missing. A stylesheet reaches
+ * the dashboard only through a module that imports it: the loader finds
+ * `public/` and the app config on its own, but not stylesheets.
  */
-export function importStylesheet(entry: SourceFile): void {
-  if (!importsStylesheet(entry)) {
-    entry.addImportDeclaration({ moduleSpecifier: STYLESHEET_SPECIFIER });
+export function importStylesheet(
+  entry: SourceFile,
+  stylesheetPath: string,
+): void {
+  if (!importsStylesheet(entry, stylesheetPath)) {
+    entry.addImportDeclaration({
+      moduleSpecifier: stylesheetSpecifier(stylesheetPath),
+    });
   }
 }

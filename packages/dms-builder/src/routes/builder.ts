@@ -97,8 +97,13 @@ interface ConfigureQueryBody {
   expectedVersion?: string;
 }
 
+/**
+ * A theme save, as the request holds it: `SetTheme` checks the draft's shape
+ * itself, so a malformed one comes back `invalid_config` rather than failing
+ * as a server error.
+ */
 interface ThemeBody {
-  draft: ThemeDraft;
+  draft?: ThemeDraft;
   expectedVersion?: string;
 }
 
@@ -419,9 +424,12 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Post(ROUTES.theme)
   async saveTheme(
     @AuthTenantOwner() _user: User,
-    @JSONBody(THEME_BODY_LIMIT_BYTES) body: ThemeBody,
+    @JSONBody(THEME_BODY_LIMIT_BYTES) body: ThemeBody | undefined,
   ) {
-    return engine.SetTheme(body.draft, opts(body.expectedVersion));
+    return engine.SetTheme(
+      body?.draft as ThemeDraft,
+      opts(body?.expectedVersion),
+    );
   }
 
   @Post(ROUTES.themeLayer)
