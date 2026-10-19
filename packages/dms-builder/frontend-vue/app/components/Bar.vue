@@ -9,7 +9,7 @@ import {
 } from '../runtime/canvas-view'
 import { rolesDecide } from '../runtime/access'
 import { TABLE_ICON } from '../runtime/constants'
-import { t } from '../runtime/i18n'
+import { displayText, t } from '../runtime/i18n'
 import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { saveStatus, type SaveStatusKind } from '../runtime/save-status'
 import { useBuilder, type Workspace } from '../runtime/session'
@@ -59,11 +59,12 @@ const view = useCanvasView()
 const canUndo = computed(() => session.value.history.length > 0)
 const canRedo = computed(() => session.value.future.length > 0)
 
-const title = computed(
-	() =>
+const title = computed(() =>
+	displayText(
 		(session.value.draft?.page?.displayName as string | undefined) ??
-		session.value.structure?.page.displayName ??
-		'',
+			session.value.structure?.page.displayName ??
+			'',
+	),
 )
 
 const status = computed(() =>

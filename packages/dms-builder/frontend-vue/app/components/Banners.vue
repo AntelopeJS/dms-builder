@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useDmsRouter } from '#dms/frontend-module'
 import { opensPage } from '../runtime/access'
 import { describeError, errorDetail } from '../runtime/errors'
-import { t } from '../runtime/i18n'
+import { displayText, t } from '../runtime/i18n'
 import { clockTime } from '../runtime/save-status'
 import { useBuilder } from '../runtime/session'
 
@@ -17,12 +17,13 @@ const builder = useBuilder()
 const session = builder.session
 const router = useDmsRouter()
 
-const title = computed(
-	() =>
+const title = computed(() =>
+	displayText(
 		(session.value.draft?.page?.displayName as string | undefined) ??
-		session.value.structure?.page.displayName ??
-		session.value.pageRef ??
-		t('banners.this_page'),
+			session.value.structure?.page.displayName ??
+			session.value.pageRef ??
+			t('banners.this_page'),
+	),
 )
 
 const message = computed(() =>

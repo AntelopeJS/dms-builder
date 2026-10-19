@@ -50,7 +50,7 @@ import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
-import { t } from './i18n'
+import { displayText, t } from './i18n'
 import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { ownerOf, tidyWrappers } from './wrappers'
@@ -2139,14 +2139,14 @@ export function useBuilder(): BuilderController {
 
 	/** A page as the menu names it, else by its address. */
 	function pageName(ref: string): string {
-		return session.value.pages.find((page) => page.ref === ref)?.displayName ?? ref
+		const name = session.value.pages.find((page) => page.ref === ref)?.displayName
+		return name ? displayText(name) : ref
 	}
 
 	/** A category as the menu names it, else by its ref. */
 	function categoryName(ref: string): string {
-		return (
-			session.value.categories.find((entry) => entry.ref === ref)?.displayName ?? ref
-		)
+		const name = session.value.categories.find((entry) => entry.ref === ref)?.displayName
+		return name ? displayText(name) : ref
 	}
 
 	/** The pages and categories the builder can create alongside, and navigate to. */

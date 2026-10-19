@@ -4,6 +4,7 @@ import { readAfterSubmit, writeAfterSubmit } from '../runtime/after-submit'
 import { useBlockPanel } from '../runtime/block-panel'
 import { byMenuOrder } from '../runtime/categories'
 import { CARD_FIELD_UI, PANEL_CARD } from '../runtime/form-panel'
+import { displayText } from '../runtime/i18n'
 import { useBuilder } from '../runtime/session'
 
 /**
@@ -70,10 +71,10 @@ const thenItems = computed(() => {
 			.filter((entry) => entry.category === category.ref)
 			.sort(byMenuOrder)
 		if (!listed.length) continue
-		items.push({ type: 'label', label: category.displayName })
+		items.push({ type: 'label', label: displayText(category.displayName) })
 		for (const entry of listed) {
 			items.push({
-				label: entry.displayName,
+				label: displayText(entry.displayName),
 				value: entry.ref,
 				description: entry.ref,
 				icon: entry.icon ?? 'i-ph-file',

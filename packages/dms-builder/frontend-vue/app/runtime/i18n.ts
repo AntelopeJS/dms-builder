@@ -36,3 +36,17 @@ export function t(key: string, params: MessageParams = {}, count?: number): stri
 		? $i18n.t(path, params)
 		: $i18n.t(path, { count, ...params }, count)
 }
+
+/**
+ * A DMS display string as the reader sees it: a value marked with `$` — a
+ * page's title, a block's heading, `$demo.home.hero.title` — is a key read in
+ * the active locale, anything else is shown as written. Only what the editor
+ * draws goes through it; the fields that edit those values keep the raw text.
+ */
+export function displayText(value: string): string {
+	if (!value.startsWith('$')) {
+		return value
+	}
+	const { $i18n } = useDmsApp()
+	return $i18n.t(value.slice(1), {})
+}

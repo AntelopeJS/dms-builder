@@ -17,6 +17,7 @@ import {
 	visibleNameKey,
 } from '../runtime/catalog'
 import { THEME_COLORS } from '../runtime/constants'
+import { displayText } from '../runtime/i18n'
 import { useBuilderMode } from '../runtime/mode'
 import { fitsEditor, typedEditor } from '../runtime/typed-values'
 import { mergePatch } from '../runtime/object'
@@ -1126,7 +1127,7 @@ const nestedProperties = computed(() =>
 			</div>
 			<p v-if="linkedTo" class="flex items-center gap-1 text-xs text-muted">
 				<UIcon :name="linkedTo.icon ?? 'i-ph-file-light'" class="size-3.5" />
-				Leads to {{ linkedTo.displayName }}
+				Leads to {{ displayText(linkedTo.displayName) }}
 			</p>
 		</div>
 

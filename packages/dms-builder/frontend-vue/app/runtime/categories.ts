@@ -1,3 +1,4 @@
+import { displayText } from './i18n'
 import type { CategorySummary, PageSummary } from './types'
 
 export interface CategoryOption {
@@ -48,7 +49,7 @@ export function categoryOptions(
 			.filter((entry) => (entry.parent ?? undefined) === parent)
 			.sort(byCategoryOrder)) {
 			options.push({
-				label: `${'\u00A0\u00A0'.repeat(depth)}${depth > 0 ? '↳ ' : ''}${category.displayName}`,
+				label: `${'\u00A0\u00A0'.repeat(depth)}${depth > 0 ? '↳ ' : ''}${displayText(category.displayName)}`,
 				value: category.ref,
 				depth,
 			})
