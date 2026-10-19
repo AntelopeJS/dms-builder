@@ -38,7 +38,7 @@ export interface OpWarning {
     | "page_not_written"
     /** A relation the module maps is no longer in the database, or the role can no longer see it. */
     | "relation_missing"
-    /** An SVG logo carried scripts, handlers or outside references, taken out. */
+    /** An SVG logo had scripts, event handlers or external references removed. */
     | "svg_sanitized";
   message: string;
 }
