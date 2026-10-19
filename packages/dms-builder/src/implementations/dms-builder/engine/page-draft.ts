@@ -17,7 +17,7 @@ import {
 } from "ts-morph";
 import { blockDescriptor, isControllerLeadingBlock } from "./catalog";
 import { buildPageBlocks } from "./block-tree";
-import { resolveAndUnwrap, resolveExpr, unwrapBuilderChain } from "./chain";
+import { isBlockInitializer, resolveAndUnwrap } from "./chain";
 import { type NamedConstant, objectLiteralToValue } from "./config-literal";
 import { patchSourceOptions } from "./source-options";
 import {
@@ -191,14 +191,7 @@ function blockStatics(cls: ClassDeclaration): PropertyDeclaration[] {
     .filter((prop) => !prop.getName().startsWith("_"))
     .filter((prop) => {
       const init = prop.getInitializer();
-      if (!init) {
-        return false;
-      }
-      const resolved = resolveExpr(init);
-      if (resolved.opaqueReason || !resolved.expr) {
-        return true;
-      }
-      return !!unwrapBuilderChain(resolved.expr).factory;
+      return init !== undefined && isBlockInitializer(init);
     });
 }
 
