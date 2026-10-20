@@ -152,6 +152,12 @@ export interface CreateResourceInput {
    * when provided.
    */
   routes?: ResourceRoute[];
+  /**
+   * The project module to write into, by its id in the project configuration. Unset, the
+   * project's own module. A module is one of the project's local modules with an `src/index.ts`;
+   * what it writes may only use declarations from that same module.
+   */
+  module?: string;
 }
 
 /**
@@ -193,6 +199,8 @@ export interface ResourceSummary {
   route: string;
   fieldCount: number;
   files: { database: string; dataApi: string };
+  /** The project module the resource lives in, when it is not the project's own. */
+  sourceModule?: string;
 }
 
 /** Options for `DeleteResource`. */

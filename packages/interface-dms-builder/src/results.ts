@@ -31,7 +31,13 @@ export interface OpWarning {
     | "datatype_fallback"
     | "data_not_dropped"
     /** A page moved category, so its route changed and old links break. */
-    | "route_changed";
+    | "route_changed"
+    /** A mapped resource was deleted; its rows belong to the external database and were kept. */
+    | "data_kept"
+    /** A mapped relation's tables were written, but its TableView page could not be. */
+    | "page_not_written"
+    /** A relation the module maps is no longer in the database, or the role can no longer see it. */
+    | "relation_missing";
   message: string;
 }
 
@@ -41,7 +47,8 @@ export type DuplicateScope =
   | "siblings"
   | "category"
   | "resource"
-  | "query";
+  | "query"
+  | "module";
 
 /** Every way an operation can fail. */
 export type BuilderError =

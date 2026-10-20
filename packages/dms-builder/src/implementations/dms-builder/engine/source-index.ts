@@ -2,12 +2,8 @@ import type {
   CategorySummary,
   PageSummary,
 } from "@antelopejs/interface-dms-builder";
-import {
-  createProject,
-  resolveProjectRoot,
-  sourcesChanged,
-  stampSources,
-} from "./project";
+import { createModulesProject, moduleOfFile } from "./modules";
+import { sourcesChanged, stampSources } from "./project";
 import {
   type CategoryRecord,
   type PageRecord,
@@ -33,7 +29,7 @@ function getSourceIndex(): ScanResult {
   if (cached && stamps && !sourcesChanged(stamps)) {
     return cached;
   }
-  const project = createProject(resolveProjectRoot());
+  const project = createModulesProject();
   cached = scanProject(project);
   stamps = stampSources(project);
   return cached;
@@ -61,17 +57,24 @@ export function listCategoryRecords(): CategoryRecord[] {
 }
 
 export function listPageSummaries(): PageSummary[] {
-  return Array.from(getSourceIndex().pages.values()).map((page) => ({
-    ref: page.ref,
-    id: page.id,
-    displayName: page.displayName,
-    category: page.categoryRef,
-    moduleId: page.moduleId,
-    filepath: page.filepath,
-    icon: page.icon,
-    order: page.order,
-    hidden: page.hidden,
-  }));
+  return Array.from(getSourceIndex().pages.values()).map((page) => {
+    const summary: PageSummary = {
+      ref: page.ref,
+      id: page.id,
+      displayName: page.displayName,
+      category: page.categoryRef,
+      moduleId: page.moduleId,
+      filepath: page.filepath,
+      icon: page.icon,
+      order: page.order,
+      hidden: page.hidden,
+    };
+    const source = moduleOfFile(page.filepath);
+    if (source && !source.isProject) {
+      summary.sourceModule = source.id;
+    }
+    return summary;
+  });
 }
 
 export function listCategorySummaries(): CategorySummary[] {

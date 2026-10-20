@@ -115,6 +115,8 @@ export const SECTION_BLOCK = 'Section'
 
 /** The icon every table is drawn with: the Tables tab, its list, a relation's target. */
 export const TABLE_ICON = 'i-ph-database-light'
+/** A database the project maps, as opposed to one of its tables. */
+export const DATABASE_ICON = 'i-ph-plugs-connected-light'
 
 /** One row of a section: a label beside the one block it holds. */
 export const FIELD_ROW = 'FieldRow'

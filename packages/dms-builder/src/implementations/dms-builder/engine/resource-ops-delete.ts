@@ -2,6 +2,7 @@
 //
 // Split out of resource-ops.ts to stay under the size the linter allows.
 
+import { mappedConnectionOfFile } from "./mapped-modules";
 import fs from "node:fs";
 import path from "node:path";
 import type {
@@ -103,6 +104,26 @@ function referencingResources(
     )
     .map((other) => other.ref);
 }
+/** The refusal for an operation that would create or alter a column of a mapped module's table. */
+function mappedRefusal<T>(filepath: string): OpResult<T> | undefined {
+  const connection = mappedConnectionOfFile(filepath);
+  if (!connection) {
+    return undefined;
+  }
+  return {
+    ok: false,
+    error: {
+      code: "invalid_config",
+      issues: [
+        {
+          pointer: "",
+          message: `this table mirrors the "${connection}" database, whose columns are its own; map columns with MapResources`,
+        },
+      ],
+    },
+  };
+}
+
 export async function deleteResource(
   ref: string,
   opts?: DeleteResourceOpts,
@@ -139,11 +160,24 @@ export async function deleteResource(
   if (indexFile) {
     transaction.trackDelete(indexFile);
   }
+  const mapped = mappedConnectionOfFile(record.databaseFile);
   const result = commit(transaction, undefined);
   if (!result.ok) {
     return result;
   }
   removeEmptyDir(path.dirname(record.databaseFile));
+  if (mapped) {
+    return {
+      ...result,
+      warnings: [
+        ...(result.warnings ?? []),
+        {
+          code: "data_kept",
+          message: `the rows of "${ref}" belong to the "${mapped}" database and were left in place`,
+        },
+      ],
+    };
+  }
   if (opts?.keepData) {
     return result;
   }
@@ -208,6 +242,10 @@ export function addField(
   const record = findResourceRecord(ref);
   if (!record) {
     return notFound<{ path: string }>(ref);
+  }
+  const mapped = mappedRefusal<{ path: string }>(record.databaseFile);
+  if (mapped) {
+    return mapped;
   }
   const opened = openResource(record);
   if (!opened) {
@@ -356,6 +394,12 @@ export function configureField(
   const located = locateField(fieldPath, opts);
   if (!("opened" in located)) return located;
   const { opened, dataApiProp, tableProp } = located;
+  if (patch.dbField !== undefined) {
+    const mapped = mappedRefusal<void>(opened.databaseFile.getFilePath());
+    if (mapped) {
+      return mapped;
+    }
+  }
   const merged = mergeFieldAspects(located, patch);
   const { ctx, imports } = createImportCollector({
     resolveRef: resourceRefResolver(),

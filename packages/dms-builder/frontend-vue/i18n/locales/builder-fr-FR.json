@@ -10,7 +10,8 @@
 			"workspaces": {
 				"page": "Page",
 				"tables": "Tables",
-				"data": "Données"
+				"data": "Données",
+				"database": "Base de données"
 			},
 			"mode": "Mode du builder",
 			"modes": {

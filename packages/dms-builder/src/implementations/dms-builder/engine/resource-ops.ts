@@ -39,11 +39,14 @@ import {
   duplicate,
   invalidConfig,
   invalidDataType,
+  moduleError,
   unsupported,
 } from "./ops";
 import { UnknownDataTypeError, UnknownReferenceError } from "./value";
 import { getWritableProject, refreshFromDisk, Transaction } from "./writable";
 import { describeValue } from "./describe-value";
+import { mappedConnectionOfFile } from "./mapped-modules";
+import { moduleOfFile } from "./modules";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
 
 const API_ROUTE_PREFIX = "/api/";
@@ -106,6 +109,7 @@ interface ResolvedPlacement {
 function resolveResourceBaseDir(
   src: string,
   location: ResourceLocation | undefined,
+  module: string | undefined,
 ): string | OpResult<CreateData> {
   if (location === undefined) {
     return src;
@@ -126,6 +130,14 @@ function resolveResourceBaseDir(
         `unknown category "${location.category}"`,
       );
     }
+    const misplaced = moduleError<CreateData>(
+      module,
+      category.importModule,
+      `category "${location.category}"`,
+    );
+    if (misplaced) {
+      return misplaced;
+    }
     return category.importModule?.endsWith(".ts")
       ? path.dirname(category.importModule)
       : src;
@@ -134,6 +146,14 @@ function resolveResourceBaseDir(
   if (!page) {
     return invalidConfig<CreateData>(`unknown page "${location.page}"`);
   }
+  const misplaced = moduleError<CreateData>(
+    module,
+    page.filepath,
+    `page "${location.page}"`,
+  );
+  if (misplaced) {
+    return misplaced;
+  }
   return path.dirname(page.filepath);
 }
 
@@ -141,13 +161,23 @@ function resolveResourcePlacement(
   project: Project,
   input: CreateResourceInput,
 ): ResolvedPlacement | OpResult<CreateData> {
-  const src = srcDir(project);
+  const unknownModule = moduleError<CreateData>(input.module, undefined, "");
+  if (unknownModule) {
+    return unknownModule;
+  }
+  const src = srcDir(project, input.module);
   if (!src) {
     return unsupported<CreateData>("no root barrel (src/index.ts) found");
   }
-  const baseDir = resolveResourceBaseDir(src, input.location);
+  const baseDir = resolveResourceBaseDir(src, input.location, input.module);
   if (typeof baseDir !== "string") {
     return baseDir;
+  }
+  const mapped = mappedConnectionOfFile(baseDir);
+  if (mapped) {
+    return invalidConfig<CreateData>(
+      `module "${moduleOfFile(baseDir)?.id}" mirrors the "${mapped}" database, where no table is created; map its relations with MapResources`,
+    );
   }
   const barrel = findNearestBarrel(project, baseDir);
   if (!barrel) {

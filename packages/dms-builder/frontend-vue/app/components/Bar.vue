@@ -8,7 +8,7 @@ import {
 	type CanvasDevice,
 } from '../runtime/canvas-view'
 import { rolesDecide } from '../runtime/access'
-import { TABLE_ICON } from '../runtime/constants'
+import { DATABASE_ICON, TABLE_ICON } from '../runtime/constants'
 import { displayText, t } from '../runtime/i18n'
 import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { saveStatus, type SaveStatusKind } from '../runtime/save-status'
@@ -21,6 +21,7 @@ const WORKSPACES: { value: Workspace; icon: string }[] = [
 	{ value: 'page', icon: 'i-ph-browser-light' },
 	{ value: 'tables', icon: TABLE_ICON },
 	{ value: 'data', icon: 'i-ph-function-light' },
+	{ value: 'database', icon: DATABASE_ICON },
 ]
 
 const STATUS_CLASSES: Record<SaveStatusKind, string> = {
