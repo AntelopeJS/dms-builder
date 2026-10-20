@@ -221,7 +221,7 @@ describe('the wiring of a database', () => {
 		providerModule: 'postgres-erp',
 		generatedModule: 'erp-tables',
 		variable: 'ERP_DATABASE_URL',
-		postgresVersion: '^0.1.4',
+		postgresVersion: '^0.2.0',
 		dmsPinned: false,
 		withDmsAi: true,
 	}

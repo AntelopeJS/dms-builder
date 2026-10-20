@@ -19,7 +19,7 @@ import type {
 
 const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
 const DATABASE_INTERFACE = '@antelopejs/interface-database'
-const POSTGRES_PACKAGE = '@antelopejs-private/postgres'
+const POSTGRES_PACKAGE = '@antelopejs/postgres'
 const STATEMENT_TIMEOUT_MS = 30000
 const DRAFT_PREFIX = 'dms-builder:database:'
 /** How long a mapping draft nobody came back to is kept. */

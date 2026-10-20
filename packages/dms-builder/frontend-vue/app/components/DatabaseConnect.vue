@@ -95,8 +95,8 @@ async function write(): Promise<void> {
 				<UFormField label="Connection" help="The name pages and routes use.">
 					<UInput v-model="form.connection" class="w-full" />
 				</UFormField>
-				<UFormField label="Postgres version" help="The range of @antelopejs-private/postgres to install.">
-					<UInput v-model="form.postgresVersion" placeholder="^0.1.4" class="w-full" />
+				<UFormField label="Postgres version" help="The range of @antelopejs/postgres to install.">
+					<UInput v-model="form.postgresVersion" placeholder="^0.2.0" class="w-full" />
 				</UFormField>
 				<UFormField label="Provider module">
 					<UInput v-model="form.providerModule" class="w-full" />
