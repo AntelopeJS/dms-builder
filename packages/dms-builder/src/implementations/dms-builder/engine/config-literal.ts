@@ -1,10 +1,12 @@
 import {
   Node,
   type PropertyAssignment,
+  type ShorthandPropertyAssignment,
   SyntaxKind,
   VariableDeclarationKind,
 } from "ts-morph";
-import { blockDescriptor, buildCatalog } from "./catalog";
+import { buildCatalog } from "./catalog";
+import { importedName, unwrapExpression } from "./expression";
 import { findResourceBySymbol } from "./resource-index";
 
 export interface LiteralResult {
@@ -67,7 +69,10 @@ function dataTypeCall(node: Node): LiteralResult | undefined {
   if (!Node.isNewExpression(node)) {
     return undefined;
   }
-  const callee = node.getExpression().getText();
+  const callee = importedName(
+    node.getExpression(),
+    buildCatalog().dataTypes.map((entry) => entry.import),
+  );
   const descriptor = buildCatalog().dataTypes.find(
     (candidate) => candidate.import.name === callee,
   );
@@ -81,7 +86,7 @@ function dataTypeCall(node: Node): LiteralResult | undefined {
   if (args.length > 1) {
     return undefined;
   }
-  const arg = args[0];
+  const arg = args[0] && unwrapExpression(args[0]);
   if (arg && !Node.isObjectLiteralExpression(arg)) {
     return undefined;
   }
@@ -106,19 +111,18 @@ function blockCall(node: Node): LiteralResult | undefined {
     return undefined;
   }
   const callee = node.getExpression();
-  if (!Node.isIdentifier(callee) || !blockDescriptor(callee.getText())) {
-    return undefined;
-  }
-  // A local declaration shadowing a catalog name is not that block: reading it
-  // back as one would have the emitter import a factory the file never used.
-  if (isLocallyDeclared(callee)) {
+  const name = importedName(
+    callee,
+    buildCatalog().blocks.map((entry) => entry.import),
+  );
+  if (!name) {
     return undefined;
   }
   const args = node.getArguments();
   if (args.length > 1) {
     return undefined;
   }
-  const arg = args[0];
+  const arg = args[0] && unwrapExpression(args[0]);
   if (arg && !Node.isObjectLiteralExpression(arg)) {
     return undefined;
   }
@@ -126,7 +130,7 @@ function blockCall(node: Node): LiteralResult | undefined {
   return {
     value: {
       $block: {
-        type: callee.getText(),
+        type: name,
         config: (config?.value as Record<string, unknown>) ?? {},
       },
     },
@@ -161,11 +165,21 @@ function resourceRef(node: Node): LiteralResult | undefined {
  * the same file, so the name the writer puts back never depends on an import it
  * does not manage.
  */
+const readingConstants = new Set<Node>();
+
 function constantValue(node: Node): { value: ConstantValue } | undefined {
   if (!Node.isIdentifier(node)) {
     return undefined;
   }
-  const definitions = node.getDefinitionNodes();
+  const parent = node.getParent();
+  const definitions =
+    parent && Node.isShorthandPropertyAssignment(parent)
+      ? (node
+          .getProject()
+          .getTypeChecker()
+          .getShorthandAssignmentValueSymbol(parent)
+          ?.getDeclarations() ?? [])
+      : node.getDefinitionNodes();
   const definition = definitions[0];
   if (
     definitions.length !== 1 ||
@@ -177,7 +191,14 @@ function constantValue(node: Node): { value: ConstantValue } | undefined {
   ) {
     return undefined;
   }
-  const initializer = literalToValue(definition.getInitializer());
+  if (readingConstants.has(definition)) return undefined;
+  readingConstants.add(definition);
+  let initializer: LiteralResult;
+  try {
+    initializer = literalToValue(definition.getInitializer());
+  } finally {
+    readingConstants.delete(definition);
+  }
   const { value } = initializer;
   if (
     !initializer.fullyLiteral ||
@@ -207,7 +228,9 @@ function constantRef(node: Node): LiteralResult | undefined {
   };
 }
 
-function propertyName(prop: PropertyAssignment): string {
+export function propertyName(
+  prop: PropertyAssignment | ShorthandPropertyAssignment,
+): string {
   const nameNode = prop.getNameNode();
   if (
     Node.isStringLiteral(nameNode) ||
@@ -222,6 +245,7 @@ function literalToValue(node: Node | undefined): LiteralResult {
   if (!node) {
     return { value: undefined, fullyLiteral: true };
   }
+  node = unwrapExpression(node);
   if (
     Node.isStringLiteral(node) ||
     Node.isNoSubstitutionTemplateLiteral(node)
@@ -270,6 +294,7 @@ function literalToValue(node: Node | undefined): LiteralResult {
 }
 
 export function objectLiteralToValue(node: Node): LiteralResult {
+  node = unwrapExpression(node);
   if (!Node.isObjectLiteralExpression(node)) {
     return opaqueExpr(node);
   }
@@ -277,17 +302,80 @@ export function objectLiteralToValue(node: Node): LiteralResult {
   const constants: NamedConstant[] = [];
   let fullyLiteral = true;
   for (const prop of node.getProperties()) {
-    if (!Node.isPropertyAssignment(prop)) {
+    if (
+      (!Node.isPropertyAssignment(prop) &&
+        !Node.isShorthandPropertyAssignment(prop)) ||
+      Node.isComputedPropertyName(prop.getNameNode())
+    ) {
       fullyLiteral = false;
       continue;
     }
     const key = propertyName(prop);
-    const child = literalToValue(prop.getInitializer());
+    if (key === "__proto__" || Object.hasOwn(result, key))
+      return opaqueExpr(node);
+    const child = literalToValue(
+      Node.isShorthandPropertyAssignment(prop)
+        ? prop.getNameNode()
+        : prop.getInitializer(),
+    );
     result[key] = child.value;
     constants.push(...nestedConstants(child, key));
     fullyLiteral = fullyLiteral && child.fullyLiteral;
   }
   return { value: result, fullyLiteral, constants };
+}
+
+/** Top-level options are the edit boundary; nested code locks its whole option. */
+export function editableOptions(node: Node | undefined): {
+  config: Record<string, unknown>;
+  lockedOptions: Record<string, string>;
+  reason?: string;
+} {
+  const config: Record<string, unknown> = {};
+  const lockedOptions: Record<string, string> = {};
+  if (!node) return { config, lockedOptions };
+  node = unwrapExpression(node);
+  if (!Node.isObjectLiteralExpression(node)) {
+    return {
+      config,
+      lockedOptions,
+      reason: "Computed or shared configuration: edit it in code",
+    };
+  }
+  const names = new Set<string>();
+  for (const prop of node.getProperties()) {
+    if (
+      (!Node.isPropertyAssignment(prop) &&
+        !Node.isShorthandPropertyAssignment(prop)) ||
+      Node.isComputedPropertyName(prop.getNameNode())
+    ) {
+      return {
+        config: {},
+        lockedOptions: {},
+        reason:
+          "Spreads, methods or computed keys can affect other options: edit this configuration in code",
+      };
+    }
+    const key = propertyName(prop);
+    if (names.has(key) || key === "__proto__") {
+      return {
+        config: {},
+        lockedOptions: {},
+        reason: "Duplicate or prototype keys require editing in code",
+      };
+    }
+    names.add(key);
+    const read = literalToValue(
+      Node.isShorthandPropertyAssignment(prop)
+        ? prop.getNameNode()
+        : prop.getInitializer(),
+    );
+    if (read.fullyLiteral) config[key] = read.value;
+    else
+      lockedOptions[key] =
+        "Defined by an expression in code; preserved unchanged on save";
+  }
+  return { config, lockedOptions };
 }
 
 function arrayLiteralToValue(node: Node): LiteralResult {

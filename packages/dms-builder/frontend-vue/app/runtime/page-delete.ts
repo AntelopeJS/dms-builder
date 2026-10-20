@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { useDmsRouter as useRouter } from '#dms/frontend-module'
+import { useDmsRouter } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
 import { openWhenServed } from './dev-reload'
 import { useBuilder } from './session'
@@ -15,7 +15,7 @@ import type { PageImpact, PageSummary } from './types'
 export function usePageDelete() {
 	const builder = useBuilder()
 	const session = builder.session
-	const router = useRouter()
+	const router = useDmsRouter()
 	// Auto-imported from the host's own layers, like every composable the loader
 	// scans; neither is part of the frontend-module SDK.
 	const devReload = useDevReload()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { pageRoutePath } from '#dms-core/app/utils/pageRoutes'
 import { describeSource, type SourceQuery } from '../runtime/data-source'
 import { findNode, walkDraft } from '../runtime/draft'
 import { blockKind, blockTitle } from '../runtime/naming'
@@ -109,11 +110,12 @@ watch(
  */
 const readers = computed(() => {
 	const found = new Map<string, string[]>()
-	const page = session.value.pageRef ?? ''
+	// The page's routes are served under the DMS's page prefix.
+	const routes = pageRoutePath(session.value.pageRef ?? '')
 	walkDraft(session.value.draft?.blocks ?? [], (block, path) => {
 		for (const url of stringsIn(block.config)) {
-			if (url.startsWith(page)) {
-				const endpoint = url.slice(page.length)
+			if (url.startsWith(`${routes}/`)) {
+				const endpoint = url.slice(routes.length)
 				found.set(endpoint, [...(found.get(endpoint) ?? []), path])
 			}
 		}
@@ -452,7 +454,7 @@ function create(): void {
 					<code
 						class="truncate rounded-md border border-default bg-elevated px-2.5 py-1.5 font-mono text-xs text-toned"
 					>
-						GET {{ session.pageRef }}{{ current.endpoint }}
+						GET {{ pageRoutePath(session.pageRef ?? '', current.endpoint) }}
 					</code>
 				</div>
 

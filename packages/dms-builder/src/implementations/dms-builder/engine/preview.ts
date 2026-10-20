@@ -364,7 +364,7 @@ function childMeta(block: BlockDraft): Record<string, unknown> | undefined {
 }
 
 function buildBlock(block: BlockDraft): unknown {
-  if (block.preserve) {
+  if (block.preserve || block.lockedOptions) {
     throw new DegradedBlockError("written by hand — kept as it stands");
   }
   const descriptor = block.type ? blockDescriptor(block.type) : undefined;

@@ -371,7 +371,7 @@ describe('what a card measures', () => {
 		await settle()
 
 		expect(draftQuery()).toMatchObject({ resource: 'order', response: 'card' })
-		expect(config().fetchUrl).toBe('/reports/sales/stats/chart-card')
+		expect(config().fetchUrl).toBe('/dms/pages/reports/sales/stats/chart-card')
 		expect(textOf(fold(root, 'Data'))).toContain('Count of order rows, by Status')
 	})
 
@@ -443,10 +443,10 @@ describe('what a card measures', () => {
 	})
 
 	it('says when the page’s code answers it, and builds it here only if asked', async () => {
-		const root = await panel([card('chartCard', { fetchUrl: '/shop/board/stats/chart-card2' })])
+		const root = await panel([card('chartCard', { fetchUrl: '/dms/pages/shop/board/stats/chart-card2' })])
 
 		expect(textOf(fold(root, 'Data'))).toContain("From the page's code")
-		expect(textOf(root)).toContain('GET /shop/board/stats/chart-card2')
+		expect(textOf(root)).toContain('GET /dms/pages/shop/board/stats/chart-card2')
 		expect(findAll(root, (node) => node.props['aria-label'] === 'Tables')).toHaveLength(0)
 
 		fire(button(root, 'Build it here instead'), 'click')
@@ -456,7 +456,7 @@ describe('what a card measures', () => {
 			'the tables to measure, to pick one from',
 		).toHaveLength(1)
 		expect(config().fetchUrl, 'nothing written until a table is picked').toBe(
-			'/shop/board/stats/chart-card2',
+			'/dms/pages/shop/board/stats/chart-card2',
 		)
 	})
 })

@@ -71,7 +71,7 @@ const rows = computed<LayerRow[]>(() => {
 		for (const block of blocks) {
 			const path = joinPath(parent, block.name)
 			const children = block.children ?? []
-			if (isStructural(catalog, block.type)) {
+			if (isStructural(catalog, block.type) && !block.preserve && !block.lockedOptions) {
 				// A row of one is no row anyone sees: its block stands alone. Nor
 				// is a section's row or a guard, whose settings are its block's.
 				if (children.length > 1 && !WRAPPER_BLOCKS.has(block.type ?? '')) {

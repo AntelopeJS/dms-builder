@@ -12,21 +12,26 @@ import type { EditablePageMeta } from "./structure";
 export interface BlockDraft {
   /** Static key (top-level) or `.child()` id (nested). Must be an identifier. */
   name: string;
-  /** A block type from the catalog. Ignored when `preserve` is set. */
+  /** A catalog type; informational and checked against source when preserved. */
   type?: string;
+  /** Understood options only. Omit locked options; the server retains their source. */
   config?: Record<string, unknown>;
+  /** Read-only UI hints. The server derives option locks from its own source. */
+  lockedOptions?: Record<string, string>;
   slot?: string;
   /** Child metadata emitted with `slot`, e.g. `{ colSpan: 2 }`. */
   meta?: Record<string, unknown>;
   /** Required for a controller-leading block type such as `TableView`. */
   controller?: ResourceRef;
+  /** Preserved parents may include their unchanged, recursively preserved children. */
   children?: BlockDraft[];
   /**
    * Write the block back exactly as it stands on disk, identified by its name
    * among its siblings. This is how an opaque block — a `CustomComponent`, a
    * computed expression, anything the builder can read but not rewrite —
    * survives a whole-tree write. A `preserve` block whose name no longer
-   * matches anything fails with `not_found`.
+   * matches anything fails validation. Partially editable blocks keep their
+   * source path, type, controller and child placement; they cannot be copied.
    */
   preserve?: boolean;
 }

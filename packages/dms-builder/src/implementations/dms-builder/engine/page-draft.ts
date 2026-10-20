@@ -1,5 +1,6 @@
 import type {
   OpWarning,
+  BlockNode,
   BlockDraft,
   MutationOpts,
   OpResult,
@@ -9,14 +10,22 @@ import {
   type ClassDeclaration,
   type Expression,
   Node,
+  SymbolFlags,
   type PropertyDeclaration,
   type PropertyDeclarationStructure,
   type SourceFile,
 } from "ts-morph";
 import { blockDescriptor, isControllerLeadingBlock } from "./catalog";
+import { buildPageBlocks } from "./block-tree";
 import { resolveAndUnwrap, resolveExpr, unwrapBuilderChain } from "./chain";
 import { type NamedConstant, objectLiteralToValue } from "./config-literal";
-import { applyImportRef, blockCallText, childArgText } from "./emit";
+import { patchSourceOptions } from "./source-options";
+import {
+  applyImportRef,
+  blockCallText,
+  childArgText,
+  importSpecifier,
+} from "./emit";
 import { getExtendsCall, stringLiteralValue } from "./literals";
 import {
   applyPatch,
@@ -70,6 +79,9 @@ interface BlockConstants {
 interface Originals {
   texts: OriginalTexts;
   constants: Map<string, BlockConstants>;
+  nodes: Map<string, BlockNode>;
+  expressions: Map<string, Expression>;
+  callees: Map<string, string>;
 }
 
 /**
@@ -84,11 +96,13 @@ function collectBlock(
   metaArg?: Node,
 ): void {
   originals.texts.set(path, expr.getText());
+  originals.expressions.set(path, expr);
   const { chain } = resolveAndUnwrap(expr);
   if (!chain) {
     return;
   }
   if (chain.factory && chain.factoryCall) {
+    originals.callees.set(path, chain.factoryCall.getExpression().getText());
     const args = chain.factoryCall.getArguments();
     originals.constants.set(path, {
       config: constantsIn(
@@ -109,10 +123,7 @@ function collectBlock(
 
 /** The constants among options, found where the reader resolves them. */
 function constantsIn(options: Node | undefined): ConstantsByPath {
-  const read =
-    options && Node.isObjectLiteralExpression(options)
-      ? objectLiteralToValue(options).constants
-      : undefined;
+  const read = options ? objectLiteralToValue(options).constants : undefined;
   return new Map(
     (read ?? []).map((constant) => [JSON.stringify(constant.path), constant]),
   );
@@ -217,8 +228,25 @@ function collectStatics(cls: ClassDeclaration): OriginalStatics {
   return statics;
 }
 
-function collectOriginals(cls: ClassDeclaration): Originals {
-  const originals: Originals = { texts: new Map(), constants: new Map() };
+function collectOriginals(
+  cls: ClassDeclaration,
+  blocks: BlockNode[],
+): Originals {
+  const originals: Originals = {
+    texts: new Map(),
+    constants: new Map(),
+    nodes: new Map(),
+    expressions: new Map(),
+    callees: new Map(),
+  };
+  function index(nodes: BlockNode[], parent = "") {
+    for (const node of nodes) {
+      const path = parent ? `${parent}/${node.name}` : node.name;
+      originals.nodes.set(path, node);
+      index(node.children ?? [], path);
+    }
+  }
+  index(blocks);
   for (const prop of blockStatics(cls)) {
     const init = prop.getInitializer();
     if (init) {
@@ -238,11 +266,27 @@ function draftText(
   if (block.preserve && preserved !== undefined) {
     return preserved;
   }
+  if (originals.nodes.get(path)?.lockedOptions) {
+    return patchSourceOptions(
+      originals.expressions.get(path)!,
+      originals.nodes.get(path)!,
+      withConstants(block.config ?? {}, originals.constants.get(path)?.config),
+      (block.children ?? []).map((child) => ({
+        expression: originals.expressions.get(`${path}/${child.name}`)!,
+        text: draftText(child, `${path}/${child.name}`, originals, ctx),
+      })),
+      ctx,
+    );
+  }
   const controllerText = block.controller
     ? serializeValue({ $ref: { resource: block.controller } }, ctx)
     : undefined;
   const base = blockCallText(
-    block.type ?? "",
+    (originals.nodes.get(path)?.type === block.type
+      ? originals.callees.get(path)
+      : undefined) ??
+      block.type ??
+      "",
     withConstants(block.config ?? {}, originals.constants.get(path)?.config),
     ctx,
     controllerText,
@@ -266,15 +310,20 @@ function draftText(
   );
 }
 
-function blockImports(block: BlockDraft, ctx: EmitContext): void {
-  if (!block.preserve) {
+function blockImports(
+  block: BlockDraft,
+  ctx: EmitContext,
+  originals: Originals,
+  path: string,
+): void {
+  if (!block.preserve && originals.nodes.get(path)?.type !== block.type) {
     const descriptor = block.type ? blockDescriptor(block.type) : undefined;
     if (descriptor) {
       ctx.addImport(descriptor.import);
     }
   }
   for (const child of block.children ?? []) {
-    blockImports(child, ctx);
+    blockImports(child, ctx, originals, `${path}/${child.name}`);
   }
 }
 
@@ -370,9 +419,35 @@ function rewriteStatics(
   );
   // Preserved blocks keep their original line breaks; reindent only what was
   // just written rather than reformatting the whole file.
-  for (const property of inserted) {
-    property.formatText();
+  const hasSource = (block: BlockDraft, path: string): boolean =>
+    !!block.preserve ||
+    !!originals.nodes.get(path)?.lockedOptions ||
+    (block.children ?? []).some((child) =>
+      hasSource(child, `${path}/${child.name}`),
+    );
+  for (const [index, property] of inserted.entries()) {
+    if (!hasSource(draft.blocks[index], draft.blocks[index].name))
+      property.formatText();
   }
+  // Structure printers indent multiline strings. Restore source-backed
+  // initializers through raw ranges after all printing/formatting is done.
+  const exact = inserted.flatMap((property, index) => {
+    if (!hasSource(draft.blocks[index], draft.blocks[index].name)) return [];
+    const initializer = property.getInitializerOrThrow();
+    return [
+      {
+        start: initializer.getStart(),
+        end: initializer.getEnd(),
+        text: texts[index].initializer,
+      },
+    ];
+  });
+  sourceFile.applyTextChanges(
+    exact.map((entry) => ({
+      span: { start: entry.start, length: entry.end - entry.start },
+      newText: entry.text,
+    })),
+  );
 }
 
 function emitFailure(
@@ -411,13 +486,16 @@ export function setPageBlocks(
   if (!cls) {
     return notFound<{ version: string }>(ref);
   }
-  const originals = collectOriginals(cls);
+  const originals = collectOriginals(
+    cls,
+    buildPageBlocks({ ...context.page, classNode: cls }),
+  );
   // What the file used before the rewrite. Pruning is then limited to these:
   // an import that was already unused is the author's business, not this
   // call's, and removing it would put a change they never asked for in the
   // diff of a save.
   const referencedNames = referencedImportNames(context.sourceFile);
-  const issues = validateDraft(draft, originals.texts);
+  const issues = validateDraft(draft, originals.texts, originals.nodes);
   if (issues.length > 0) {
     return { ok: false, error: { code: "invalid_config", issues } };
   }
@@ -452,7 +530,35 @@ export function setPageBlocks(
     throw error;
   }
   for (const block of draft.blocks) {
-    blockImports(block, ctx);
+    blockImports(block, ctx, originals, block.name);
+  }
+  const bindings = new Map(
+    context.sourceFile
+      .getSymbolsInScope(SymbolFlags.Value | SymbolFlags.Alias)
+      .map((symbol) => [symbol.getName(), symbol]),
+  );
+  for (const ref of imports) {
+    const name = ref.name.split(".")[0];
+    const binding = bindings.get(name);
+    const module = importSpecifier(context.sourceFile, ref);
+    if (
+      binding &&
+      module &&
+      !binding
+        .getDeclarations()
+        .some(
+          (declaration) =>
+            Node.isImportSpecifier(declaration) &&
+            declaration.getName() === name &&
+            declaration.getImportDeclaration().getModuleSpecifierValue() ===
+              module,
+        )
+    ) {
+      transaction.rollback();
+      return invalidConfig(
+        `Cannot emit "${name}": that name belongs to another binding. Rename it in source before adding this option or block`,
+      );
+    }
   }
   for (const importRef of imports) {
     applyImportRef(context.sourceFile, importRef);

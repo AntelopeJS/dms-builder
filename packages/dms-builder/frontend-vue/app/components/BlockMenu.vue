@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { findNode } from '../runtime/draft'
+import { findNode, walkDraft } from '../runtime/draft'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder } from '../runtime/session'
 
@@ -72,7 +72,8 @@ const entries = computed<MenuEntry[]>(() => {
 	// A block kept as it stands is matched by its name on disk, which a copy
 	// matches nothing of: the draft refuses it, so offering it is offering a
 	// click that does nothing.
-	const kept = target.value?.preserve === true
+	let kept = false
+	walkDraft(target.value ? [target.value] : [], (block) => { kept ||= !!block.preserve || !!block.lockedOptions })
 	return [
 		{
 			label: 'Edit settings',

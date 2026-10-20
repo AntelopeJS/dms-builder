@@ -27,6 +27,7 @@ import {
 } from './support/render'
 import { useBuilderMode } from '../app/runtime/mode'
 import { useBuilder, type BuilderController } from '../app/runtime/session'
+import { guardContent, unguardContent } from '../app/runtime/wrappers'
 import type { BlockNode } from '../app/runtime/types'
 
 /**
@@ -244,6 +245,51 @@ describe('the actions offered on a block', () => {
 })
 
 describe('a block the builder cannot rewrite', () => {
+	it('refuses ancestor duplication and guard changes that would lose a locked child source path', async () => {
+		const card: BlockNode = { ...editable('card', 'Text'), config: { title: 'Known' }, lockedOptions: { content: 'Source expression' } }
+		await openWith([{ ...editable('section', 'Section'), children: [card] }])
+		const before = JSON.stringify(builder.session.value.draft)
+		builder.duplicate('section')
+		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
+		expect(builder.mutate((draft) => { guardContent(draft, 'section') })).toBe(false)
+		expect(JSON.stringify(builder.session.value.draft)).toBe(before)
+		await openWith([{ ...editable('section', 'Section'), children: [{ ...editable('guard', 'Guard'), children: [card] }] }])
+		const guarded = JSON.stringify(builder.session.value.draft)
+		expect(builder.mutate((draft) => { unguardContent(draft, 'section') })).toBe(false)
+		expect(JSON.stringify(builder.session.value.draft)).toBe(guarded)
+	})
+
+	it('retains known identity and children while explaining the lock in simple mode', async () => {
+		useBuilderMode().setMode('simple')
+		await openWith([{ name: 'layout', path: 'layout', type: 'VStack', editable: false, opaqueReason: 'Shared configuration: edit it in code', children: [editable('card', 'Text')] }])
+		const draft = builder.session.value.draft!.blocks[0]!
+		expect(draft.type).toBe('VStack')
+		expect(draft.children?.[0]).toMatchObject({ type: 'Text', preserve: true })
+		builder.select('layout')
+		const view = mount(Config)
+		await nextTick()
+		expect(textOf(view.root)).toContain('Shared configuration: edit it in code')
+		builder.patchConfig('layout/card', { text: 'Cannot change' })
+		expect(builder.session.value.draft!.blocks[0]!.children?.[0]?.config).toBeUndefined()
+		view.unmount()
+	})
+
+	it('offers understood options, names locked ones, and refuses their mutation', async () => {
+		useBuilderMode().setMode('simple')
+		backend.catalog.blocks.push({ type: 'ExampleCard', label: 'Example card', container: false, shapeSource: 'test', config: { title: { type: 'string', ui: { label: 'Title' } }, result: { type: 'number', ui: { label: 'Result' } } } })
+		await openWith([{ name: 'card', path: 'card', type: 'ExampleCard', editable: true, config: { title: 'Before' }, lockedOptions: { result: 'Defined in code; preserved unchanged' } }])
+		builder.select('card')
+		const view = mount(Config, { components: { DmsBuilderOption: Option } })
+		await nextTick()
+		expect(textOf(view.root)).toContain('Some options are managed in code')
+		expect(textOf(view.root)).toContain('result: Defined in code')
+		expect(findAll(view.root, (node) => node.props.id === 'card:result')).toHaveLength(0)
+		builder.patchConfig('card', { title: 'After' })
+		builder.patchConfig('card', { result: 123 })
+		expect(builder.session.value.draft!.blocks[0]!.config).toEqual({ title: 'After' })
+		view.unmount()
+	})
+
 	it('says it is locked in words for whoever builds the page', async () => {
 		const reason = 'config holds an expression the builder cannot re-emit'
 		await openWith([opaque('legacy', reason)])

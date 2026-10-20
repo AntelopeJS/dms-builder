@@ -135,4 +135,34 @@ describe("the pages reading a table", () => {
     ]);
     expect(pageImpact("/shop/nowhere")).to.equal(undefined);
   });
+
+  it("counts a page calling one of the deleted page's routes as pointing at it", async function () {
+    this.timeout(120_000);
+    // A page's routes are served under the DMS's page prefix, not at its path.
+    const intake = expectOk(await GetPageStructure("/shop/intake"), "intake");
+    expectOk(
+      await SetPageBlocks(
+        "/shop/intake",
+        {
+          blocks: [
+            {
+              name: "boardOrders",
+              type: "KpiCard",
+              config: {
+                title: "Orders",
+                fetchUrl: "/dms/pages/shop/board/stats/orders",
+              },
+            },
+          ],
+        },
+        { expectedVersion: intake.version },
+      ),
+      "SetPageBlocks intake",
+    );
+
+    expect(pageImpact("/shop/board")?.linkedFrom).to.deep.include({
+      page: "/shop/intake",
+      displayName: "Intake",
+    });
+  });
 });

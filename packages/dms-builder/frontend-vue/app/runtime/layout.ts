@@ -111,7 +111,7 @@ function tidyBlock(
 	catalog: BlockCatalog,
 	touched: Set<BlockDraft> | undefined,
 ): BlockDraft[] {
-	if (block.preserve) {
+	if (block.preserve || block.lockedOptions) {
 		return [block]
 	}
 	if (block.children) {
@@ -226,7 +226,7 @@ function isPlain(block: BlockDraft, catalog: BlockCatalog): boolean {
 function holdsKept(block: BlockDraft): boolean {
 	let kept = false
 	walkDraft(block.children ?? [], (child) => {
-		kept ||= child.preserve === true
+		kept ||= child.preserve === true || !!child.lockedOptions
 	})
 	return kept
 }
@@ -280,7 +280,7 @@ function widestSpacer(grid: BlockDraft): number {
  */
 export function fitSpacerColumns(draft: PageDraft): void {
 	walkDraft(draft.blocks, (block) => {
-		if (block.type !== ROW_WRAPPER || block.preserve) {
+		if (block.type !== ROW_WRAPPER || block.preserve || block.lockedOptions) {
 			return
 		}
 		const written = block.config?.[MIN_COLUMN_WIDTH]
@@ -295,4 +295,3 @@ export function fitSpacerColumns(draft: PageDraft): void {
 		}
 	})
 }
-

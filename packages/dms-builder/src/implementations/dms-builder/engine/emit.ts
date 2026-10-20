@@ -154,7 +154,7 @@ function insertSortedImport(
   sourceFile.insertImportDeclaration(after.getChildIndex(), structure);
 }
 
-function importSpecifier(
+export function importSpecifier(
   sourceFile: SourceFile,
   ref: ImportRef,
 ): string | undefined {

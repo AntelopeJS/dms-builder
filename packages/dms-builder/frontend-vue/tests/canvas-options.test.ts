@@ -35,7 +35,7 @@ const QUERY = {
 	template: 'series',
 	params: { op: 'count', groupBy: 'status' },
 	response: 'card' as const,
-	endpoint: '/shop/board/stats/chart-card',
+	endpoint: '/stats/chart-card',
 }
 
 describe('a block rendered from the saved page', () => {
@@ -139,7 +139,7 @@ describe('a card reading a source built here', () => {
 	})
 
 	it("leaves a source the page's code answers, and a card reading none", () => {
-		const coded = { fetchUrl: '/shop/board/stats/chart-card2' }
+		const coded = { fetchUrl: '/dms/pages/shop/board/stats/chart-card2' }
 		expect(withDraftSource(coded, CARD, undefined)).toBe(coded)
 		expect(withDraftSource({ title: 'Orders' }, CARD, QUERY)).toEqual({ title: 'Orders' })
 	})

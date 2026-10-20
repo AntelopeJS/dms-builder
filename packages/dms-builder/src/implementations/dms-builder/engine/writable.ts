@@ -44,7 +44,19 @@ export function resetWritableProject(): void {
 export function refreshFromDisk(project: Project): void {
   for (const sourceFile of project.getSourceFiles()) {
     if (!sourceFile.isInNodeModules()) {
-      sourceFile.refreshFromFileSystemSync();
+      const filepath = sourceFile.getFilePath();
+      if (!fs.existsSync(filepath)) {
+        project.removeSourceFile(sourceFile);
+        continue;
+      }
+      const text = fs.readFileSync(filepath, "utf8");
+      // refreshFromFileSystemSync prints changed files through a writer,
+      // normalizing CRLF before the editor can preserve source expressions.
+      if (text !== sourceFile.getFullText()) {
+        sourceFile.applyTextChanges([
+          { span: { start: 0, length: sourceFile.getEnd() }, newText: text },
+        ]);
+      }
     }
   }
 }
@@ -399,7 +411,12 @@ export class Transaction {
       if (entry.kind === "create") {
         this.project.removeSourceFile(sourceFile);
       } else if (entry.before !== undefined) {
-        sourceFile.replaceWithText(entry.before);
+        sourceFile.applyTextChanges([
+          {
+            span: { start: 0, length: sourceFile.getEnd() },
+            newText: entry.before,
+          },
+        ]);
       }
     }
   }

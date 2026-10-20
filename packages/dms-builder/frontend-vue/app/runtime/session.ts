@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
-import { useDmsState as useState } from '#dms/frontend-module'
+import { useDmsState } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
 import {
 	descriptorOf,
@@ -70,6 +70,7 @@ import {
 	parentPath,
 	pathForPointer,
 	removeNode,
+	respectsSourceLocks,
 	siblingsAt,
 	structureToDraft,
 	uniqueName,
@@ -506,7 +507,7 @@ export interface BuilderController {
 }
 
 export function useBuilder(): BuilderController {
-	const session = useState<BuilderSession>(SESSION_STATE_KEY, emptySession)
+	const session = useDmsState<BuilderSession>(SESSION_STATE_KEY, emptySession)
 	const api = useBuilderApi()
 
 	const dirty = computed(
@@ -1061,6 +1062,10 @@ export function useBuilder(): BuilderController {
 		// And the period the cards bound to the page's period follow.
 		const periodPlaced = ensurePeriodSelector(next, session.value.catalog, current)
 		fitSpacerColumns(next)
+		if (!respectsSourceLocks(current, next)) {
+			notify('This setting or placement is managed in code and cannot be changed here')
+			return false
+		}
 		// Edits of one thing in quick succession are one step to undo: picking
 		// a table, a measure and a grouping is building one data source.
 		const now = Date.now()

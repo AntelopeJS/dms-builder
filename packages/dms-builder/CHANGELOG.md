@@ -1,5 +1,85 @@
 # Changelog
 
+## v0.5.2
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.5.1...v0.5.2)
+
+### 🩹 Fixes
+
+- **frontend:** Run on @antelopejs/dms-frontend 0.7 ([#56](https://github.com/AntelopeJS/dms-builder/pull/56))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
+## v0.5.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.5.0...v0.5.1)
+
+### 🚀 Enhancements
+
+- **builder:** Share simple options with fixed-data documentation previews ([#52](https://github.com/AntelopeJS/dms-builder/pull/52))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
+## v0.5.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.4.1...v0.5.0)
+
+### 🚀 Enhancements
+
+- **builder:** Safely edit source-backed DMS options ([#51](https://github.com/AntelopeJS/dms-builder/pull/51))
+
+### 🩹 Fixes
+
+- Install builder frontend with the root workspace ([#48](https://github.com/AntelopeJS/dms-builder/pull/48))
+- **deps:** Require builder interface with option locks ([8c91fa4](https://github.com/AntelopeJS/dms-builder/commit/8c91fa4))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.2.2 ([d707136](https://github.com/AntelopeJS/dms-builder/commit/d707136))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
+## v0.4.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.4.0...v0.4.1)
+
+### 📖 Documentation
+
+- Add user guide and module skill ([#39](https://github.com/AntelopeJS/dms-builder/pull/39))
+- Complete Builder options and align interface compatibility ([#46](https://github.com/AntelopeJS/dms-builder/pull/46))
+- Make dense guide sections easier to scan ([#47](https://github.com/AntelopeJS/dms-builder/pull/47))
+
+### 🏡 Chore
+
+- **interface:** Raise verified foundation dependency floors ([#49](https://github.com/AntelopeJS/dms-builder/pull/49))
+- **release:** @antelopejs/interface-dms-builder v0.2.1 ([6b36e99](https://github.com/AntelopeJS/dms-builder/commit/6b36e99))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
+## v0.4.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.3.0...v0.4.0)
+
+### 🚀 Enhancements
+
+- ⚠️  Migrate to DMS 0.9 and renderer 0.6 ([#45](https://github.com/AntelopeJS/dms-builder/pull/45))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Migrate to DMS 0.9 and renderer 0.6 ([#45](https://github.com/AntelopeJS/dms-builder/pull/45))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.3.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.2.7...v0.3.0)

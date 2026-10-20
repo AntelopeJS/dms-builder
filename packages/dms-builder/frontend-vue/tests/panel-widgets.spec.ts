@@ -305,7 +305,7 @@ describe('a ranking read from a table', () => {
 		const { root } = mount(DataSource, {
 			components: tableParts(),
 			props: {
-				modelValue: '/reports/sales/stats/top-countries',
+				modelValue: '/dms/pages/reports/sales/stats/top-countries',
 				responseShape: 'items',
 				blockName: 'topCountries',
 			},
@@ -497,7 +497,7 @@ describe('a block nested in an option', () => {
 			(node) => node.tag === 'DmsBuilderOption' && node.props.name === 'fetchUrl',
 		)
 		;(source!.props.onPatch as (patch: Record<string, unknown>) => void)({
-			fetchUrl: '/reports/sales/stats/revenue',
+			fetchUrl: '/dms/pages/reports/sales/stats/revenue',
 			periodScope: 'page',
 		})
 
@@ -508,7 +508,7 @@ describe('a block nested in an option', () => {
 					type: 'ChartLine',
 					config: {
 						smooth: true,
-						fetchUrl: '/reports/sales/stats/revenue',
+						fetchUrl: '/dms/pages/reports/sales/stats/revenue',
 						periodScope: 'page',
 					},
 				},

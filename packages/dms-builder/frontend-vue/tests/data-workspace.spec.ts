@@ -34,7 +34,7 @@ async function workspace(): Promise<TestNode> {
 				name: 'revenue',
 				type: 'Text',
 				editable: true,
-				config: { content: '/reports/sales/stats/revenue' },
+				config: { content: '/dms/pages/reports/sales/stats/revenue' },
 			},
 		],
 		queries: [

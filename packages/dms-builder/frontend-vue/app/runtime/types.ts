@@ -119,6 +119,7 @@ export interface BlockNode {
 	type: string | null
 	editable: boolean
 	opaqueReason?: string
+	lockedOptions?: Record<string, string>
 	slot?: string
 	meta?: Record<string, unknown>
 	config?: Record<string, unknown>
@@ -157,6 +158,7 @@ export interface BlockDraft {
 	controller?: string
 	children?: BlockDraft[]
 	preserve?: boolean
+	lockedOptions?: Record<string, string>
 	/**
 	 * Why the engine reported the block as one it cannot rewrite, carried over
 	 * from the structure so the canvas can say so where the block is. Read only:
