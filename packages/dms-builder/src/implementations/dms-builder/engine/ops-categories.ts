@@ -40,6 +40,7 @@ import {
   optionsPatch,
   commit,
   duplicate,
+  moduleError,
   invalidDataType,
   invalidReference,
   notFound,
@@ -97,9 +98,17 @@ export function createCategory(
   if (findCategoryRecord(ref)) {
     return duplicate<{ ref: CategoryRef }>(input.name, "category");
   }
+  const misplaced = moduleError<{ ref: CategoryRef }>(
+    input.module,
+    parent?.importModule,
+    `category "${input.parent}"`,
+  );
+  if (misplaced) {
+    return misplaced;
+  }
   const project = getWritableProject();
   refreshFromDisk(project);
-  const barrel = resolveRootBarrel(project);
+  const barrel = resolveRootBarrel(project, input.module);
   if (!barrel) {
     return unsupported<{ ref: CategoryRef }>(
       "no root barrel (src/index.ts) found",

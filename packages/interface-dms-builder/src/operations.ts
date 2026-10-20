@@ -33,6 +33,12 @@ export interface CreatePageInput {
    * the nearest barrel is wired. Must stay within the src tree.
    */
   dir?: string;
+  /**
+   * The project module to write into, by its id in the project configuration. Unset, the
+   * project's own module. A module is one of the project's local modules with an `src/index.ts`;
+   * what it writes may only use declarations from that same module.
+   */
+  module?: string;
 }
 
 /** Input for `CreateCategory`. */
@@ -42,6 +48,8 @@ export interface CreateCategoryInput {
   parent?: CategoryRef;
   icon?: string;
   order?: number;
+  /** As `CreatePageInput.module`. */
+  module?: string;
 }
 
 /** Input for `AddBlock`. */

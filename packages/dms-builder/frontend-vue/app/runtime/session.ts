@@ -121,11 +121,12 @@ type RailView =
 	| 'resource'
 
 /**
- * What the editor is working on, picked in the bar: the page, or one of the two
- * kinds of thing every page draws on — the tables and the data sources — which
- * get the whole width rather than a rail squeezed beside the page.
+ * What the editor is working on, picked in the bar: the page, one of the two
+ * kinds of thing every page draws on — the tables and the data sources — or a
+ * database the project maps, each given the whole width rather than a rail
+ * squeezed beside the page.
  */
-export type Workspace = 'page' | 'tables' | 'data'
+export type Workspace = 'page' | 'tables' | 'data' | 'database'
 
 /** The tabs of the side rail, which stay whatever is selected. */
 export type LeftTab = 'add' | 'layers' | 'pages'
