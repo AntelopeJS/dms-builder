@@ -148,26 +148,6 @@ export const LIVE_TOGGLE = 'LiveToggle'
 export const PAGE_TOOLBAR = 'PageToolbar'
 
 /**
- * How the controls the editor puts in a toolbar are set: as the DMS's
- * `pageToolbar()` sets them (`PAGE_TOOLBAR_LIVE_DEFAULTS`,
- * `PAGE_TOOLBAR_PERIOD_DEFAULTS`), so a page the editor built shows the same
- * bar as one written by hand. Mirrored rather than imported, like the state
- * keys above.
- */
-export const TOOLBAR_LIVE_DEFAULTS: Record<string, unknown> = {
-	align: 'right',
-	variant: 'pill',
-}
-export const TOOLBAR_PERIOD_DEFAULTS: Record<string, unknown> = {
-	variant: 'segmented',
-	align: 'right',
-	rangeLabel: 'relative',
-	presets: ['last-hour', 'last-24h', 'last-7-days', 'last-30-days'],
-	defaultPreset: 'last-24h',
-	comparisonControl: 'hidden',
-}
-
-/**
  * What the simple palette leaves to the developer view: blocks a setting
  * places where they are needed — the message a container shows when there is
  * nothing to show ("When there's nothing to show"), a live page's switch (the

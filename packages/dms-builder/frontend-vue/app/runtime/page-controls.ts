@@ -5,9 +5,10 @@
  *
  * Both go into the page's toolbar, the bar first in its body that draws them
  * at one size beside the time the page last read its data: the one the page
- * has, or one the editor puts at its top. A page written before the toolbar
- * keeps its controls where they are, and gets the next one beside them; so
- * does a page on a DMS that declares no toolbar.
+ * has, or one the editor puts at its top, set as the DMS's `pageToolbar()`
+ * sets them (the `initialChildren` of its `PageToolbar` type). A page written
+ * before the toolbar keeps its controls where they are, and gets the next one
+ * beside them.
  */
 import { descriptorOf, newBlockDraft } from './catalog'
 import {
@@ -15,11 +16,17 @@ import {
 	PAGE_PERIOD_SCOPE,
 	PAGE_TOOLBAR,
 	PERIOD_SELECTOR,
-	TOOLBAR_LIVE_DEFAULTS,
-	TOOLBAR_PERIOD_DEFAULTS,
 } from './constants'
 import { uniqueName, walkDraft } from './draft'
 import type { BlockCatalog, BlockDraft, BlockTypeDescriptor, PageDraft } from './types'
+
+/**
+ * The child `pageToolbar()` places for a control of this type: its id and the
+ * options it sets, as the catalog's `PageToolbar` declares them.
+ */
+function toolbarChildOf(catalog: BlockCatalog | null, type: string) {
+	return descriptorOf(catalog, PAGE_TOOLBAR)?.initialChildren?.find((child) => child.type === type)
+}
 
 /** Whether a block follows the page's own period, through its period option. */
 function followsPagePeriod(block: BlockDraft, catalog: BlockCatalog | null): boolean {
@@ -70,42 +77,38 @@ export function pageToolbarOf(draft: PageDraft): BlockDraft | undefined {
  * laid out before the toolbar — a selector or a switch of its own at its top
  * level — whose author would not want a second bar.
  */
-function placeControl(
-	draft: PageDraft,
-	catalog: BlockCatalog | null,
-	control: BlockDraft,
-	defaults: Record<string, unknown>,
-): void {
+function placeControl(draft: PageDraft, catalog: BlockCatalog | null, control: BlockDraft): void {
 	const toolbar = pageToolbarOf(draft)
 	if (toolbar && !managedInCode(toolbar)) {
-		addToToolbar(toolbar, control, defaults)
+		addToToolbar(toolbar, control, catalog)
 		return
 	}
-	const toolbarType = descriptorOf(catalog, PAGE_TOOLBAR)
 	const standalone = draft.blocks.some((block) => drivesPagePeriod(block) || isLiveToggle(block))
-	if (toolbar || !toolbarType || standalone) {
+	if (toolbar || standalone) {
 		placeStandalone(draft, control)
+		return
+	}
+	// Every DMS this module supports declares the toolbar (interface-dms floor).
+	const toolbarType = descriptorOf(catalog, PAGE_TOOLBAR)
+	if (!toolbarType) {
 		return
 	}
 	const created = newBlockDraft(toolbarType)
 	created.name = uniqueName(draft.blocks, 'toolbar')
-	addToToolbar(created, control, defaults)
+	addToToolbar(created, control, catalog)
 	draft.blocks.unshift(created)
 }
 
 /**
- * A control in the toolbar, set the way the toolbar draws it, and named as
- * `pageToolbar()` names it. The switch goes before the selector: the toolbar
- * orders them itself, and the source reads in the order the bar shows.
+ * A control in the toolbar, set and named as `pageToolbar()` sets and names
+ * it. The switch goes before the selector: the toolbar orders them itself,
+ * and the source reads in the order the bar shows.
  */
-function addToToolbar(
-	toolbar: BlockDraft,
-	control: BlockDraft,
-	defaults: Record<string, unknown>,
-): void {
+function addToToolbar(toolbar: BlockDraft, control: BlockDraft, catalog: BlockCatalog | null): void {
 	const children = (toolbar.children ??= [])
-	control.name = uniqueName(children, control.name)
-	control.config = { ...control.config, ...defaults }
+	const placed = toolbarChildOf(catalog, control.type)
+	control.name = uniqueName(children, placed?.id ?? control.name)
+	control.config = { ...control.config, ...placed?.options }
 	const selector = children.findIndex((child) => child.type === PERIOD_SELECTOR)
 	const at = isLiveToggle(control) && selector !== -1 ? selector : children.length
 	children.splice(at, 0, control)
@@ -123,19 +126,6 @@ function placeStandalone(draft: PageDraft, control: BlockDraft): void {
 		at += 1
 	}
 	draft.blocks.splice(at, 0, control)
-}
-
-/**
- * The options of `defaults` a block of this type declares: a DMS older than
- * the toolbar's defaults gets the control as it was.
- */
-function declared(
-	descriptor: BlockTypeDescriptor,
-	defaults: Record<string, unknown>,
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(defaults).filter(([key]) => key in descriptor.config),
-	)
 }
 
 function newControl(descriptor: BlockTypeDescriptor, name: string): BlockDraft {
@@ -166,12 +156,7 @@ export function ensurePeriodSelector(
 	) {
 		return false
 	}
-	placeControl(
-		draft,
-		catalog,
-		newControl(descriptor, 'period'),
-		declared(descriptor, TOOLBAR_PERIOD_DEFAULTS),
-	)
+	placeControl(draft, catalog, newControl(descriptor, 'period'))
 	return true
 }
 
@@ -195,12 +180,7 @@ export function setPageLive(
 	if (!descriptor || anyBlock(draft, isLiveToggle)) {
 		return
 	}
-	placeControl(
-		draft,
-		catalog,
-		newControl(descriptor, 'live'),
-		declared(descriptor, TOOLBAR_LIVE_DEFAULTS),
-	)
+	placeControl(draft, catalog, newControl(descriptor, 'live'))
 }
 
 /**
@@ -216,15 +196,11 @@ export function seedPageToolbar(
 ): void {
 	const live = descriptorOf(catalog, LIVE_TOGGLE)
 	if (live && draft.page?.live && !anyBlock(draft, isLiveToggle)) {
-		addToToolbar(toolbar, newControl(live, 'live'), declared(live, TOOLBAR_LIVE_DEFAULTS))
+		addToToolbar(toolbar, newControl(live, 'live'), catalog)
 	}
 	const period = descriptorOf(catalog, PERIOD_SELECTOR)
 	if (period && !anyBlock(draft, drivesPagePeriod)) {
-		addToToolbar(
-			toolbar,
-			newControl(period, 'period'),
-			declared(period, TOOLBAR_PERIOD_DEFAULTS),
-		)
+		addToToolbar(toolbar, newControl(period, 'period'), catalog)
 	}
 }
 

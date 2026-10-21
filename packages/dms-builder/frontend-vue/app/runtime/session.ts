@@ -16,7 +16,6 @@ import {
 	GUARD_BLOCK,
 	HISTORY_LIMIT,
 	PAGE_TOOLBAR,
-	PERIOD_SELECTOR,
 	PREVIEW_DEBOUNCE_MS,
 	ROW_WRAPPER,
 	SESSION_STATE_KEY,
@@ -148,12 +147,6 @@ const PAGE_LAYOUTS: Record<PageLayout, string[][]> = {
 	list: [['TableView']],
 	form: [['Form']],
 }
-
-/**
- * What a layout lays down instead of a type the project's DMS does not
- * declare: a period selector on its own where there is no toolbar to hold it.
- */
-const LAYOUT_STAND_INS: Record<string, string> = { [PAGE_TOOLBAR]: PERIOD_SELECTOR }
 
 const LEFT_TABS: Record<'library' | 'layers' | 'pages', LeftTab> = {
 	library: 'add',
@@ -1618,13 +1611,7 @@ export function useBuilder(): BuilderController {
 	function applyLayout(layout: PageLayout): void {
 		const catalog = session.value.catalog
 		const rows = PAGE_LAYOUTS[layout]
-			.map((row) =>
-				row
-					.map((type) =>
-						descriptorOf(catalog, type) ? type : (LAYOUT_STAND_INS[type] ?? type),
-					)
-					.filter((type) => descriptorOf(catalog, type)),
-			)
+			.map((row) => row.filter((type) => descriptorOf(catalog, type)))
 			.filter((row) => row.length > 0)
 		if (!rows.length) {
 			return

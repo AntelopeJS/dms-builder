@@ -202,7 +202,7 @@ describe('a layout to start from', () => {
 
 	it('lays the blocks the project declares, side by side where it says so, as one edit', () => {
 		backend.catalog.blocks.push(
-			...['PeriodSelector', 'KpiCard', 'ChartCard'].map((type) => ({
+			...['KpiCard', 'ChartCard'].map((type) => ({
 				type,
 				componentName: `Dms${type}`,
 				label: type,
@@ -216,7 +216,6 @@ describe('a layout to start from', () => {
 
 		const draft = builder.session.value.draft!
 		expect(placedPaths(draft, builder.session.value.catalog)).toEqual([
-			'periodSelector',
 			'grid/gridRow/kpiCard',
 			'grid/gridRow/kpiCard2',
 			'grid/gridRow/kpiCard3',

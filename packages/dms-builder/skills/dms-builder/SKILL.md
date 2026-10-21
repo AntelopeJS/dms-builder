@@ -24,7 +24,7 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 
 - Off under `ajs project start`: no routes (404), no frontend module, no Edit button. `api.enabled: true` forces it on.
 - Blocks are read back by shape: code that leaves the factory-call grammar becomes `opaque`, shown but not rewritten.
-- The period selector and Live / Pause switch the editor places go into the page's top-level `PageToolbar`, made at the top when missing (children `period` / `live`, set like `pageToolbar()`). A page with its own top-level selector or switch, a toolbar the editor cannot rewrite (a `pageToolbar()` call is not factory grammar) or a DMS without `PageToolbar` gets the control beside it instead.
+- The period selector and Live / Pause switch the editor places go into the page's top-level `PageToolbar`, made at the top when missing (children `period` / `live`, ids and options read from the catalog's `PageToolbar.initialChildren`, as `pageToolbar()` sets them). A page with its own top-level selector or switch, or a toolbar the editor cannot rewrite (a `pageToolbar()` call is not factory grammar), gets the control beside it instead.
 - A block's permission is named after its position: moving or renaming it drops role grants; the change list warns.
 - A type error anywhere in the project blocks every write: fix it first.
 - A query `AddQuery` writes is a page route served at `/dms/pages<pageRef><endpoint>` (DMS 0.9); a block's `fetchUrl` must use that address (`pageRoutePath` from `@antelopejs/interface-dms/page`).

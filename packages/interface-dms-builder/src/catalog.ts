@@ -229,6 +229,22 @@ export interface BlockTypeDescriptor {
    * `AddBlockInput.controller`; `config` describes the options (second) argument.
    */
   controllerArg?: boolean;
+  /**
+   * The children an editor places in a new block of this type, as the DMS's
+   * own helper places them in code: a `PageToolbar`'s `LiveToggle` and
+   * `PeriodSelector` with the defaults of `pageToolbar()`.
+   */
+  initialChildren?: BlockInitialChild[];
+}
+
+/** One child a new block starts with (see `BlockTypeDescriptor.initialChildren`). */
+export interface BlockInitialChild {
+  /** The child id under its parent, the one roles name it by. */
+  id: string;
+  /** The child's block type, a key of the catalog (`LiveToggle`). */
+  type: string;
+  /** The child's options. */
+  options: Record<string, unknown>;
 }
 
 /** A DataType usable as a Form field's `type`. */

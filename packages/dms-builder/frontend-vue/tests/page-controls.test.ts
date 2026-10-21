@@ -57,38 +57,27 @@ function controlsCatalog(base: BlockCatalog = testCatalog()): BlockCatalog {
 					showUpdatedAt: { type: 'boolean', optional: true },
 					refresh: { type: 'boolean', optional: true },
 				},
+				// What `pageToolbar()` places, as the DMS's catalog declares it.
+				initialChildren: [
+					{ id: 'live', type: 'LiveToggle', options: LIVE_IN_TOOLBAR },
+					{ id: 'period', type: 'PeriodSelector', options: PERIOD_IN_TOOLBAR },
+				],
 			},
-		].map((block) =>
-			// The toolbar's presets, as a DMS with the toolbar declares them.
-			block.type === 'PeriodSelector'
-				? {
-						...block,
-						config: {
-							...block.config,
-							variant: { type: 'string', optional: true },
-							presets: { type: 'array', optional: true },
-							defaultPreset: { type: 'string', optional: true },
-						},
-					}
-				: block,
-		),
+		],
 	} as BlockCatalog
 }
 
-const catalog = controlsCatalog()
-/** A DMS from before the page toolbar. */
-const withoutToolbar = {
-	...catalog,
-	blocks: catalog.blocks.filter((block) => block.type !== 'PageToolbar'),
-} as BlockCatalog
-
-/** How the controls the editor puts in a toolbar are set, of what the catalog declares. */
+/** How the DMS's catalog sets the controls of a new toolbar. */
 const PERIOD_IN_TOOLBAR = {
 	variant: 'segmented',
 	presets: ['last-hour', 'last-24h', 'last-7-days', 'last-30-days'],
 	defaultPreset: 'last-24h',
+	comparisonControl: 'menu',
+	defaultComparison: 'previous-period',
 }
 const LIVE_IN_TOOLBAR = { align: 'right', variant: 'pill' }
+
+const catalog = controlsCatalog()
 
 function kpi(name: string, periodScope?: string): BlockDraft {
 	return { name, type: 'KpiCard', config: periodScope ? { fetchUrl: '/x', periodScope } : { fetchUrl: '/x' } }
@@ -155,10 +144,6 @@ describe('the period a card follows', () => {
 		expect(next.blocks[0]?.children).toEqual([])
 	})
 
-	it('gets a selector of its own at the top on a DMS without a toolbar', () => {
-		const { next } = bind(page(kpi('revenue')), bindRevenue, withoutToolbar)
-		expect(names(next)).toEqual(['period:PeriodSelector', 'revenue:KpiCard'])
-	})
 
 	it('is left to a selector already on the page', () => {
 		const selector: BlockDraft = { name: 'range', type: 'PeriodSelector', config: {} }
