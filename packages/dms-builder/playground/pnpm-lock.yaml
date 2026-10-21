@@ -24,7 +24,7 @@ importers:
         specifier: '>=0.1.9 <1.0.0'
         version: 0.1.9(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4)(@antelopejs/interface-database@0.1.10(@antelopejs/interface-core@0.2.4))
       '@antelopejs/interface-dms':
-        specifier: '>=0.7.2 <1.0.0'
+        specifier: '>=0.8.0 <1.0.0'
         version: 0.7.2(baf8655f8e54b8fbf2a9669a652c5bcb)
     devDependencies:
       '@antelopejs/core':
