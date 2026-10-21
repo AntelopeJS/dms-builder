@@ -6,7 +6,8 @@
  * Both go into the page's toolbar, the bar first in its body that draws them
  * at one size beside the time the page last read its data: the one the page
  * has, or one the editor puts at its top, set as the DMS's `pageToolbar()`
- * sets them (the `initialChildren` of its `PageToolbar` type). A page written
+ * sets them (the `initialChildren` of its `PageToolbar` type), but for
+ * `TOOLBAR_CONTROL_OVERRIDES`. A page written
  * before the toolbar keeps its controls where they are, and gets the next one
  * beside them.
  */
@@ -16,6 +17,7 @@ import {
 	PAGE_PERIOD_SCOPE,
 	PAGE_TOOLBAR,
 	PERIOD_SELECTOR,
+	TOOLBAR_CONTROL_OVERRIDES,
 } from './constants'
 import { uniqueName, walkDraft } from './draft'
 import type { BlockCatalog, BlockDraft, BlockTypeDescriptor, PageDraft } from './types'
@@ -101,14 +103,14 @@ function placeControl(draft: PageDraft, catalog: BlockCatalog | null, control: B
 
 /**
  * A control in the toolbar, set and named as `pageToolbar()` sets and names
- * it. The switch goes before the selector: the toolbar orders them itself,
+ * it, but for the editor's own overrides. The switch goes before the selector: the toolbar orders them itself,
  * and the source reads in the order the bar shows.
  */
 function addToToolbar(toolbar: BlockDraft, control: BlockDraft, catalog: BlockCatalog | null): void {
 	const children = (toolbar.children ??= [])
 	const placed = toolbarChildOf(catalog, control.type)
 	control.name = uniqueName(children, placed?.id ?? control.name)
-	control.config = { ...control.config, ...placed?.options }
+	control.config = { ...control.config, ...placed?.options, ...TOOLBAR_CONTROL_OVERRIDES[control.type] }
 	const selector = children.findIndex((child) => child.type === PERIOD_SELECTOR)
 	const at = isLiveToggle(control) && selector !== -1 ? selector : children.length
 	children.splice(at, 0, control)

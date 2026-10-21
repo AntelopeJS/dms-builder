@@ -112,8 +112,9 @@ describe('the period a card follows', () => {
 		const { next, placed } = bind(page(kpi('revenue')), bindRevenue)
 		expect(placed).toBe(true)
 		expect(names(next)).toEqual(['toolbar:PageToolbar', 'revenue:KpiCard'])
+		// The DMS's settings, but no comparison menu: the editor's one override.
 		expect(next.blocks[0]?.children).toEqual([
-			{ name: 'period', type: 'PeriodSelector', config: PERIOD_IN_TOOLBAR },
+			{ name: 'period', type: 'PeriodSelector', config: { ...PERIOD_IN_TOOLBAR, comparisonControl: 'hidden' } },
 		])
 	})
 
