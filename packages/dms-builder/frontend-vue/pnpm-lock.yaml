@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@antelopejs/interface-dms':
-        specifier: '>=0.7.3 <1.0.0'
+        specifier: '>=0.8.0 <1.0.0'
         version: 0.7.3(baf8655f8e54b8fbf2a9669a652c5bcb)
       vue:
         specifier: ^3.5.18
@@ -19,7 +19,7 @@ importers:
         specifier: 1.16.0
         version: 1.16.0
       '@antelopejs/dms':
-        specifier: '>=0.9.3 <1.0.0'
+        specifier: '>=0.10.0 <1.0.0'
         version: 0.9.3(@antelopejs/core@1.16.0)(@antelopejs/interface-auth@0.0.7(@antelopejs/interface-api@0.0.15(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4))
       '@antelopejs/dms-frontend':
         specifier: '>=0.6.3 <1.0.0'

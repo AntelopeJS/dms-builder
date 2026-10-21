@@ -18,7 +18,7 @@ importers:
         specifier: '>=0.1.10 <1.0.0'
         version: 0.1.10(@antelopejs/interface-core@0.2.4)
       '@antelopejs/interface-dms':
-        specifier: '>=0.7.3 <1.0.0'
+        specifier: '>=0.8.0 <1.0.0'
         version: 0.7.3(baf8655f8e54b8fbf2a9669a652c5bcb)
       '@antelopejs/interface-dms-builder':
         specifier: '>=0.2.2 <0.3.0'
