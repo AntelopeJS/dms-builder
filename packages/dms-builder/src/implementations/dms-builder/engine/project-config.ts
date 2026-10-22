@@ -278,7 +278,7 @@ function bindVariables(
 }
 
 /** The overrides a module already declares, from either spelling `importOverrides` takes. */
-function existingOverrides(
+export function existingOverrides(
   initializer: Node | undefined,
 ): ImportOverrideInput[] {
   if (Node.isObjectLiteralExpression(initializer)) {

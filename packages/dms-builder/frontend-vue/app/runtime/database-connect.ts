@@ -3,7 +3,7 @@
  * turns into. The integrator names the connection and gives its connection details;
  * the modules and the variable the builder manages are named after it.
  */
-import type { ModuleEntryInput, ProjectConfigStep } from './database-types'
+import type { ModuleEntryInput, ProjectConfigStep, ProjectModules } from './database-types'
 
 const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
 const DATABASE_INTERFACE = '@antelopejs/interface-database'
@@ -184,9 +184,10 @@ function catalogConnection(id: string, driverModule: string): ModuleEntryInput {
 
 /**
  * The `ConfigureProject` batch that wires the database into the project: its driver, the module
- * for its tables, and a catalog connection for the builder and, when the project has it, dms-ai.
+ * for its tables, a catalog connection for the builder and, when the project has it, dms-ai, and
+ * the DMS module's pin to the project's own database when it needs one.
  */
-export function connectSteps(form: ConnectForm, projectModules: string[]): ProjectConfigStep[] {
+export function connectSteps(form: ConnectForm, project: ProjectModules): ProjectConfigStep[] {
 	const id = connectionId(form.name)
 	const names = managedNames(form)
 	const steps: ProjectConfigStep[] = [
@@ -210,8 +211,16 @@ export function connectSteps(form: ConnectForm, projectModules: string[]): Proje
 		},
 		{ op: 'ConfigureModule', id: DMS_BUILDER, entry: catalogConnection(id, names.driverModule) },
 	]
-	if (projectModules.includes(DMS_AI)) {
+	if (project.modules.includes(DMS_AI)) {
 		steps.push({ op: 'ConfigureModule', id: DMS_AI, entry: catalogConnection(id, names.driverModule) })
+	}
+	if (project.databasePin) {
+		const { module, provider } = project.databasePin
+		steps.push({
+			op: 'ConfigureModule',
+			id: module,
+			entry: { importOverrides: [{ interface: DATABASE_INTERFACE, source: provider }] },
+		})
 	}
 	return steps
 }

@@ -7,6 +7,7 @@ import type {
 	MapResourcesResult,
 	ProjectConfigResult,
 	ProjectConfigStep,
+	ProjectModules,
 	ProjectVariable,
 	RowSample,
 } from './database-types'
@@ -182,7 +183,7 @@ export function useBuilderApi() {
 		mapDatabase: (input: MapResourcesInput) =>
 			post<MapResourcesResult>('/database/map', input),
 		/** The ids of the modules the project's configuration lists. */
-		projectModules: () => get<{ modules: string[] }>('/database/project'),
+		projectModules: () => get<ProjectModules>('/database/project'),
 		/**
 		 * Applies the steps, or answers their diff on a dry run. A variable's value goes into the
 		 * project's `.env` before the configuration is written; the answer never carries it back.

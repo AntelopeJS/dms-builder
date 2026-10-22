@@ -187,6 +187,21 @@ export type ProjectConfigStep =
 	| { op: 'ConfigureModule'; id: string; entry: ModuleEntryInput }
 	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput }
 
+/**
+ * The `interface-database` pin the DMS module needs so the tables module's own pin to the new
+ * database leaves the DMS on the project's default one.
+ */
+export interface DatabasePin {
+	module: string
+	provider: string
+}
+
+/** The modules the project's configuration lists, and the pin connecting a database needs, if any. */
+export interface ProjectModules {
+	modules: string[]
+	databasePin?: DatabasePin
+}
+
 /** A variable's development value, sent with the batch that maps it and written into `.env` first. */
 export interface ProjectVariable {
 	name: string

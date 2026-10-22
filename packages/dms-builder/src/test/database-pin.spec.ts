@@ -1,0 +1,97 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { InterfaceConnection } from "@antelopejs/interface-core";
+import { expect } from "chai";
+import { setModuleConfig } from "../config";
+import { dmsDatabasePin } from "../implementations/dms-builder/engine/database-pin";
+
+const DMS_INTERFACE = "@antelopejs/interface-dms";
+const DATABASE_INTERFACE = "@antelopejs/interface-database";
+
+function config(dmsEntry: string, driverPriority = "-1"): string {
+  return `import { defineConfig } from "@antelopejs/interface-core/config";
+
+export default defineConfig({
+  name: "pins",
+  modules: {
+    dms: { ${dmsEntry} },
+    mongodb: { source: { type: "package", package: "@antelopejs/mongodb", version: "*" } },
+    "builder-db-erp": {
+      source: { type: "package", package: "@antelopejs/postgres", version: "*" },
+      exportPriority: { "@antelopejs/interface-database": ${driverPriority} },
+    },
+  },
+});
+`;
+}
+
+const DMS_SOURCE = `source: { type: "local", path: "../dms" }`;
+
+function connections(
+  providers: Record<string, string[]>,
+): (interfaceId: string) => InterfaceConnection[] {
+  return (interfaceId) =>
+    (providers[interfaceId] ?? []).map((provider, index) => ({
+      path: `${provider}.js`,
+      provider,
+      selected: index === 0,
+    }));
+}
+
+const PROJECT = connections({
+  [DMS_INTERFACE]: ["dms"],
+  [DATABASE_INTERFACE]: ["builder-db-erp", "mongodb"],
+});
+
+let root: string;
+
+function writeConfig(text: string): void {
+  fs.writeFileSync(path.join(root, "antelope.config.ts"), text);
+}
+
+/**
+ * A tables module pins `interface-database` to its own database and uses the DMS, so core passes
+ * that pin on to the DMS. The DMS is pinned to the project's default database so it is not
+ * reached with two bindings.
+ */
+describe("the DMS module's database pin", () => {
+  before(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "dms-builder-database-pin-"));
+    setModuleConfig({ projectRoot: root });
+  });
+
+  after(() => {
+    setModuleConfig();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("pins the DMS to the default provider, not the first one by name", () => {
+    writeConfig(config(DMS_SOURCE));
+    expect(dmsDatabasePin(PROJECT)).to.deep.equal({
+      module: "dms",
+      provider: "mongodb",
+    });
+  });
+
+  it("follows exportPriority as core does", () => {
+    writeConfig(config(DMS_SOURCE, "1"));
+    expect(dmsDatabasePin(PROJECT)?.provider).to.equal("builder-db-erp");
+  });
+
+  it("leaves a DMS that already pins interface-database as it is", () => {
+    writeConfig(
+      config(
+        `${DMS_SOURCE}, importOverrides: { "@antelopejs/interface-database": "builder-db-erp" }`,
+      ),
+    );
+    expect(dmsDatabasePin(PROJECT)).to.equal(undefined);
+  });
+
+  it("needs no pin when the project has no database of its own", () => {
+    writeConfig(config(DMS_SOURCE));
+    expect(dmsDatabasePin(connections({ [DMS_INTERFACE]: ["dms"] }))).to.equal(
+      undefined,
+    );
+  });
+});

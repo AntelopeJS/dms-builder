@@ -21,6 +21,10 @@ import {
   catalogOf,
   listCatalogConnections,
 } from "../implementations/dms-builder/engine/catalog-connection";
+import {
+  type DatabasePin,
+  dmsDatabasePin,
+} from "../implementations/dms-builder/engine/database-pin";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
 import {
   configureProjectWithVariable,
@@ -41,9 +45,10 @@ interface ProjectBody {
   variable?: ProjectVariable;
 }
 
-/** The modules the project's configuration lists, by id. */
+/** The modules the project's configuration lists, by id, and the pin connecting a database needs. */
 interface ProjectModules {
   modules: string[];
+  databasePin?: DatabasePin;
 }
 
 /** One of the builder's catalog connections, with what its provider answers about it. */
@@ -124,7 +129,7 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
   async projectModules(
     @AuthTenantOwner() _user: User,
   ): Promise<ProjectModules> {
-    return { modules: configuredModuleIds() };
+    return { modules: configuredModuleIds(), databasePin: dmsDatabasePin() };
   }
 
   @Post(ROUTES.databaseProject)

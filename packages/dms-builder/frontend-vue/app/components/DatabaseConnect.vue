@@ -16,6 +16,7 @@ import {
 	missingField,
 	parseConnectionUrl,
 } from '../runtime/database-connect'
+import type { ProjectModules } from '../runtime/database-types'
 import type { FileChange } from '../runtime/types'
 
 /**
@@ -37,7 +38,7 @@ const form = reactive<ConnectForm>({
 	fields: emptyFields('postgres'),
 	overrides: {},
 })
-const projectModules = ref<string[]>([])
+const project = ref<ProjectModules>({ modules: [] })
 const pasted = ref('')
 const pasteProblem = ref('')
 const preview = ref<FileChange[] | null>(null)
@@ -47,7 +48,7 @@ const written = ref(false)
 
 onMounted(async () => {
 	try {
-		projectModules.value = (await api.projectModules()).modules
+		project.value = await api.projectModules()
 	} catch (error) {
 		problem.value = `The project's modules could not be read: ${error instanceof Error ? error.message : String(error)}`
 	}
@@ -115,7 +116,7 @@ function refusal(result: { ok: false; error: unknown }): string {
 async function showDiff(): Promise<void> {
 	busy.value = true
 	problem.value = ''
-	const result = await api.configureProject(connectSteps(form, projectModules.value), true)
+	const result = await api.configureProject(connectSteps(form, project.value), true)
 	busy.value = false
 	if (!result.ok) {
 		problem.value = refusal(result)
@@ -129,7 +130,7 @@ async function write(): Promise<void> {
 	busy.value = true
 	problem.value = ''
 	const variable = { name: names.value.variable, value: connectionUrl(form.engine, form.fields) }
-	const result = await api.configureProject(connectSteps(form, projectModules.value), false, variable)
+	const result = await api.configureProject(connectSteps(form, project.value), false, variable)
 	form.fields.password = ''
 	busy.value = false
 	if (!result.ok) {

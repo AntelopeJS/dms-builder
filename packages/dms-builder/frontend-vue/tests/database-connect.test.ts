@@ -31,7 +31,7 @@ describe('the names the builder manages for a connection', () => {
 	})
 
 	it('keeps a name the integrator changed, and derives the others', () => {
-		const steps = connectSteps(form({ overrides: { tablesModule: 'erp-tables' } }), [])
+		const steps = connectSteps(form({ overrides: { tablesModule: 'erp-tables' } }), { modules: [] })
 		expect(steps.map((step) => `${step.op}:${step.id}`)).toEqual([
 			'AddModule:builder-db-erp',
 			'CreateLocalModule:erp-tables',
@@ -42,7 +42,7 @@ describe('the names the builder manages for a connection', () => {
 
 describe('the wiring of a database', () => {
 	it('adds the driver below every other database provider and touches no other module than the builder', () => {
-		const [driver, tables, builder] = connectSteps(form(), ['mongodb', 'dms-builder'])
+		const [driver, tables, builder] = connectSteps(form(), { modules: ['mongodb', 'dms-builder'] })
 		expect(driver).toMatchObject({
 			op: 'AddModule',
 			entry: {
@@ -59,7 +59,7 @@ describe('the wiring of a database', () => {
 	})
 
 	it('gives dms-ai a connection when the project has it', () => {
-		const steps = connectSteps(form(), ['dms-builder', 'dms-ai'])
+		const steps = connectSteps(form(), { modules: ['dms-builder', 'dms-ai'] })
 		expect(steps.at(-1)).toMatchObject({
 			op: 'ConfigureModule',
 			id: 'dms-ai',
@@ -67,8 +67,20 @@ describe('the wiring of a database', () => {
 		})
 	})
 
+	it('pins the DMS module to the project\'s own database when the builder says it needs it', () => {
+		const steps = connectSteps(form(), {
+			modules: ['dms', 'mongodb', 'dms-builder'],
+			databasePin: { module: 'dms', provider: 'mongodb' },
+		})
+		expect(steps.at(-1)).toEqual({
+			op: 'ConfigureModule',
+			id: 'dms',
+			entry: { importOverrides: [{ interface: '@antelopejs/interface-database', source: 'mongodb' }] },
+		})
+	})
+
 	it('never carries the connection details into the configuration', () => {
-		expect(JSON.stringify(connectSteps(form(), ['dms-ai']))).not.toMatch(/s3cret|db\.example|postgres:\/\//)
+		expect(JSON.stringify(connectSteps(form(), { modules: ['dms-ai'] }))).not.toMatch(/s3cret|db\.example|postgres:\/\//)
 	})
 
 	it('waits for a name, a host, a database and a user', () => {
