@@ -6,6 +6,7 @@ import { setModuleConfig } from "../config";
 import { ConfigureProject } from "../implementations/dms-builder";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
 import { setProjectVariable } from "../implementations/dms-builder/engine/project-env";
+import { BUILDER_CODE_INTERFACES } from "../implementations/dms-builder/engine/project-scaffold";
 import { invalidateResourceIndex } from "../implementations/dms-builder/engine/resource-index";
 import { invalidateSourceIndex } from "../implementations/dms-builder/engine/source-index";
 import { resetWritableProject } from "../implementations/dms-builder/engine/writable";
@@ -121,6 +122,21 @@ describe("a project that is its configuration alone", function () {
       "rimraf",
       "@types/node",
     );
+  });
+
+  it("scaffolds the module with the interface packages the builder's code imports", () => {
+    const manifest = readJson("modules/builder-db-erp-tables/package.json");
+    expect(manifest.dependencies).to.deep.equal(BUILDER_CODE_INTERFACES);
+  });
+
+  it("asks for those packages at the ranges the builder itself depends on", () => {
+    const own = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"),
+    ) as Record<string, Record<string, string>>;
+    const ranges = { ...own.devDependencies, ...own.dependencies };
+    for (const [name, range] of Object.entries(BUILDER_CODE_INTERFACES)) {
+      expect(ranges[name], name).to.equal(range);
+    }
   });
 
   it("writes the variable into .env, which no repository can commit", () => {

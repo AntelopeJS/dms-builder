@@ -3,6 +3,19 @@ import path from "node:path";
 import { DEFAULT_COMPILER_OPTIONS, resolveProjectRoot } from "./project";
 
 const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
+/**
+ * The interface packages the code the builder writes imports, at the builder's own ranges: a
+ * module it scaffolds depends on them, so what it later writes there resolves and builds once the
+ * restart that follows has installed them. The project's own range wins for one it declares.
+ */
+export const BUILDER_CODE_INTERFACES: Readonly<Record<string, string>> = {
+  "@antelopejs/interface-api": ">=0.0.15 <1.0.0",
+  "@antelopejs/interface-core": ">=0.2.4 <1.0.0",
+  "@antelopejs/interface-data-api": ">=0.2.2 <1.0.0",
+  "@antelopejs/interface-database": ">=0.1.10 <1.0.0",
+  "@antelopejs/interface-database-decorators": ">=0.1.9 <1.0.0",
+  "@antelopejs/interface-dms": ">=0.7.3 <1.0.0",
+};
 /** The build tooling a module needs, at these ranges when the project does not declare its own. */
 const DEFAULT_TOOLING: Readonly<Record<string, string>> = {
   typescript: "^6.0.3",
@@ -58,7 +71,10 @@ function manifestText(id: string, project: PackageManifest): string {
     private: true,
     main: "dist/index.js",
     scripts: { build: "rimraf dist && tsc", typecheck: "tsc --noEmit" },
-    dependencies: picked(all, (name) => INTERFACE_PACKAGE.test(name)),
+    dependencies: {
+      ...BUILDER_CODE_INTERFACES,
+      ...picked(all, (name) => INTERFACE_PACKAGE.test(name)),
+    },
     devDependencies: {
       ...DEFAULT_TOOLING,
       ...picked(all, (name) => name in DEFAULT_TOOLING),
