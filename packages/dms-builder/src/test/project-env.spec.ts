@@ -3,7 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect } from "chai";
 import { ConfigureProject } from "../implementations/dms-builder";
-import { setProjectVariable } from "../implementations/dms-builder/engine/project-env";
+import type { ProjectConfigStep } from "@antelopejs/interface-dms-builder";
+import {
+  configureProjectWithVariable,
+  setProjectVariable,
+} from "../implementations/dms-builder/engine/project-env";
 import {
   createFixture,
   destroyFixture,
@@ -84,5 +88,65 @@ describe("a project variable written by the builder", function () {
     expect(refusal(() => setProjectVariable(VARIABLE, 'x"\nOTHER=1'))).to.match(
       /quote or a line break/,
     );
+  });
+});
+
+/** The form sends the URL with the batch that maps it, so a config never names a value that failed. */
+describe("a batch sent with its variable's value", function () {
+  this.timeout(OP_TIMEOUT);
+
+  const steps: ProjectConfigStep[] = [
+    {
+      op: "ConfigureModule",
+      id: "erp-tables",
+      entry: { config: { mode: "external" }, env: { url: VARIABLE } },
+    },
+  ];
+
+  function configText(): string {
+    return fs.readFileSync(path.join(app.root, "antelope.config.ts"), "utf8");
+  }
+
+  beforeEach(() => {
+    app = createFixture({ modules: ["erp-tables"] });
+    spawnSync("git", ["init", "-q"], { cwd: app.root });
+  });
+
+  after(destroyFixture);
+
+  it("writes nothing when .env is refused", () => {
+    const before = configText();
+    const result = configureProjectWithVariable(steps, {
+      name: VARIABLE,
+      value: URL,
+    });
+    expect(JSON.stringify(result)).to.match(/not ignored by git/);
+    expect(configText()).to.equal(before);
+    expect(fs.existsSync(envFile())).to.equal(false);
+  });
+
+  it("writes .env, then the configuration that maps it and loads it", () => {
+    fs.writeFileSync(path.join(app.root, ".gitignore"), ".env\n");
+    expectOk(
+      configureProjectWithVariable(steps, { name: VARIABLE, value: URL }),
+      "ConfigureProject with its variable",
+    );
+    expect(fs.readFileSync(envFile(), "utf8")).to.equal(
+      `${VARIABLE}="${URL}"\n`,
+    );
+    expect(configText())
+      .to.include(`${VARIABLE}: "modules.erp-tables.config.url"`)
+      .and.to.include("process.loadEnvFile(projectEnvFile);");
+  });
+
+  it("leaves a configuration that loads .env already as it is, apart from the batch", () => {
+    const configPath = path.join(app.root, "antelope.config.ts");
+    fs.writeFileSync(configPath, `import "dotenv/config";\n${configText()}`);
+    fs.writeFileSync(path.join(app.root, ".gitignore"), ".env\n");
+    expectOk(
+      configureProjectWithVariable(steps, { name: VARIABLE, value: URL }),
+      "ConfigureProject with its variable",
+    );
+    expect(configText()).to.not.include("loadEnvFile");
   });
 });

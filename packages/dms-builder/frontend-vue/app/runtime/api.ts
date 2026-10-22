@@ -7,6 +7,7 @@ import type {
 	MapResourcesResult,
 	ProjectConfigResult,
 	ProjectConfigStep,
+	ProjectVariable,
 	RowSample,
 } from './database-types'
 import type {
@@ -182,14 +183,12 @@ export function useBuilderApi() {
 			post<MapResourcesResult>('/database/map', input),
 		/** The ids of the modules the project's configuration lists. */
 		projectModules: () => get<{ modules: string[] }>('/database/project'),
-		configureProject: (steps: ProjectConfigStep[], dryRun: boolean) =>
-			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun } }),
-		/** Writes the value into the project's `.env`; the answer never carries it back. */
-		setVariable: (name: string, value: string) =>
-			$authFetch<{ ok: boolean; name?: string; message?: string }>(
-				`${API_PREFIX}/database/variable`,
-				{ method: 'PUT', body: { name, value } },
-			),
+		/**
+		 * Applies the steps, or answers their diff on a dry run. A variable's value goes into the
+		 * project's `.env` before the configuration is written; the answer never carries it back.
+		 */
+		configureProject: (steps: ProjectConfigStep[], dryRun: boolean, variable?: ProjectVariable) =>
+			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun }, variable }),
 		/** A few rows for the integrator to look at, held in the panel and nowhere else. */
 		sampleRows: (connection: string, relation: string, limit: number) =>
 			$authFetch<RowSample>(`${API_PREFIX}/database/sample`, {

@@ -15,6 +15,7 @@ import {
   openDraft,
   StepRefusal,
 } from "./project-config";
+import { ensureEnvFileLoaded } from "./project-env-loading";
 import { isScaffoldRefusal } from "./project-scaffold";
 import { invalidateResourceIndex } from "./resource-index";
 import { invalidateSourceIndex } from "./source-index";
@@ -148,6 +149,7 @@ export function configureProject(
     for (const step of steps) {
       applyStep(draft, step);
     }
+    ensureEnvFileLoaded(draft);
   } catch (error) {
     const refused = refusal(error);
     if (refused) {

@@ -5,7 +5,6 @@ import {
   JSONBody,
   Parameter,
   Post,
-  Put,
 } from "@antelopejs/interface-api";
 import type { SampleRequest } from "@antelopejs/interface-database-catalog";
 import { AuthTenantOwner } from "@antelopejs/interface-dms/guards";
@@ -24,8 +23,8 @@ import {
 } from "../implementations/dms-builder/engine/catalog-connection";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
 import {
-  EnvRefusal,
-  setProjectVariable,
+  configureProjectWithVariable,
+  type ProjectVariable,
 } from "../implementations/dms-builder/engine/project-env";
 
 const HTTP_NOT_FOUND = 404;
@@ -38,16 +37,13 @@ interface SampleBody extends SampleRequest {
 interface ProjectBody {
   steps: ProjectConfigStep[];
   opts?: ProjectConfigOpts;
+  /** A variable's development value, written into `.env` before the configuration. */
+  variable?: ProjectVariable;
 }
 
 /** The modules the project's configuration lists, by id. */
 interface ProjectModules {
   modules: string[];
-}
-
-interface VariableBody {
-  name: string;
-  value: string;
 }
 
 /** One of the builder's catalog connections, with what its provider answers about it. */
@@ -133,23 +129,10 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
 
   @Post(ROUTES.databaseProject)
   async project(@AuthTenantOwner() _user: User, @JSONBody() body: ProjectBody) {
-    return engine.ConfigureProject(body.steps, body.opts);
-  }
-
-  @Put(ROUTES.databaseVariable)
-  async variable(
-    @AuthTenantOwner() _user: User,
-    @JSONBody() body: VariableBody,
-  ) {
-    try {
-      setProjectVariable(body.name, body.value);
-      return { ok: true, name: body.name };
-    } catch (error) {
-      if (error instanceof EnvRefusal) {
-        return refused(error);
-      }
-      throw error;
+    if (!body.variable || body.opts?.dryRun) {
+      return engine.ConfigureProject(body.steps, body.opts);
     }
+    return configureProjectWithVariable(body.steps, body.variable);
   }
 
   @Post(ROUTES.databaseSample)

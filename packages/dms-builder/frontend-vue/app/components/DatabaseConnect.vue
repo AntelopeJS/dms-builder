@@ -102,8 +102,14 @@ function pasteIntoHost(event: ClipboardEvent): void {
 	applyUrl(text)
 }
 
+interface Refusal {
+	detail?: string
+	issues?: { message: string }[]
+}
+
 function refusal(result: { ok: false; error: unknown }): string {
-	return JSON.stringify(result.error)
+	const error = result.error as Refusal
+	return error.issues?.map((issue) => issue.message).join('; ') ?? error.detail ?? JSON.stringify(error)
 }
 
 async function showDiff(): Promise<void> {
@@ -119,31 +125,17 @@ async function showDiff(): Promise<void> {
 	preview.value = result.changes
 }
 
-async function writeVariable(): Promise<void> {
-	const variable = names.value.variable
-	const set = await api
-		.setVariable(variable, connectionUrl(form.engine, form.fields))
-		.catch((error: unknown) => ({
-			ok: false,
-			message: error instanceof Error ? error.message : String(error),
-		}))
-	form.fields.password = ''
-	if (!set.ok) {
-		problem.value = `The configuration is written, but ${variable} is not: ${set.message ?? 'refused'}. Set it in .env.`
-	}
-}
-
 async function write(): Promise<void> {
 	busy.value = true
 	problem.value = ''
-	const result = await api.configureProject(connectSteps(form, projectModules.value), false)
+	const variable = { name: names.value.variable, value: connectionUrl(form.engine, form.fields) }
+	const result = await api.configureProject(connectSteps(form, projectModules.value), false, variable)
+	form.fields.password = ''
+	busy.value = false
 	if (!result.ok) {
-		busy.value = false
 		problem.value = refusal(result)
 		return
 	}
-	await writeVariable()
-	busy.value = false
 	written.value = true
 }
 </script>
@@ -285,7 +277,6 @@ async function write(): Promise<void> {
 				The connection exists once the project restarts. Every deployed environment sets
 				<span class="font-mono">{{ names.variable }}</span> where it keeps its secrets, never in git.
 			</p>
-			<p v-if="problem" class="text-error">{{ problem }}</p>
 			<div>
 				<UButton label="Done" size="sm" @click="emit('connected', id)" />
 			</div>

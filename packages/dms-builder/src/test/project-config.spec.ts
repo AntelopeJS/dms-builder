@@ -80,7 +80,14 @@ const CONNECT_STEPS: ProjectConfigStep[] = [
   },
 ];
 
-const CONNECTED_CONFIG = `import { defineConfig } from "@antelopejs/interface-core/config";
+const CONNECTED_CONFIG = `import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { defineConfig } from "@antelopejs/interface-core/config";
+
+const projectEnvFile = join(__dirname, ".env");
+if (existsSync(projectEnvFile)) {
+  process.loadEnvFile(projectEnvFile);
+}
 
 export default defineConfig({
   name: "fixture",

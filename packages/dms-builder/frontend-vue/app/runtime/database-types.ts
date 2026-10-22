@@ -187,6 +187,12 @@ export type ProjectConfigStep =
 	| { op: 'ConfigureModule'; id: string; entry: ModuleEntryInput }
 	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput }
 
+/** A variable's development value, sent with the batch that maps it and written into `.env` first. */
+export interface ProjectVariable {
+	name: string
+	value: string
+}
+
 export interface ProjectConfigResult {
 	files: string[]
 }
