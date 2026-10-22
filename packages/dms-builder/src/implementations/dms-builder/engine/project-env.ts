@@ -35,11 +35,17 @@ function overriddenVariables(configPath: string): Set<string> {
   );
 }
 
-function isGitIgnored(directory: string, file: string): boolean {
+const GIT_NOT_IGNORED = 1;
+
+/**
+ * Whether git would commit `file`: false once git ignores it, and false outside a repository,
+ * where nothing commits it.
+ */
+function isCommittable(directory: string, file: string): boolean {
   const checked = spawnSync("git", ["check-ignore", "-q", file], {
     cwd: directory,
   });
-  return checked.status === 0;
+  return checked.status === GIT_NOT_IGNORED;
 }
 
 function withVariable(before: string, name: string, value: string): string {
@@ -53,9 +59,9 @@ function withVariable(before: string, name: string, value: string): string {
 }
 
 /**
- * Sets a variable `envOverrides` maps in the project's `.env`, for development. It refuses unless
- * git ignores `.env`, so a value written here never reaches a commit. The value is never read
- * back or answered.
+ * Sets a variable `envOverrides` maps in the project's `.env`, for development. It refuses when the
+ * project is in a git repository that does not ignore `.env`, so a value written here never
+ * reaches a commit. The value is never read back or answered.
  */
 export function setProjectVariable(name: string, value: string): string {
   const configPath =
@@ -70,7 +76,7 @@ export function setProjectVariable(name: string, value: string): string {
     refuse(`the value of ${name} is empty, or holds a quote or a line break`);
   }
   const directory = path.dirname(configPath);
-  if (!isGitIgnored(directory, ENV_FILE)) {
+  if (isCommittable(directory, ENV_FILE)) {
     refuse(
       `${ENV_FILE} is not ignored by git, so the builder does not write to it`,
     );

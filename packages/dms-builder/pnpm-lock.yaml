@@ -23,6 +23,9 @@ importers:
       '@antelopejs/interface-dms-builder':
         specifier: '>=0.2.2 <0.3.0'
         version: link:../interface-dms-builder
+      diff:
+        specifier: ^9.0.0
+        version: 9.0.0
       ts-morph:
         specifier: ^23.0.0
         version: 23.0.0
@@ -1195,6 +1198,10 @@ packages:
 
   diff@7.0.0:
     resolution: {integrity: sha512-PJWHUb1RFevKCwaFA9RlG5tCd+FO5iRh9A8HEtkmBH2Li03iJriB6m6JIN4rGz3K3JLawI7/veA1xzRKP6ISBw==}
+    engines: {node: '>=0.3.1'}
+
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
 
   dotenv@16.6.1:
@@ -3219,6 +3226,8 @@ snapshots:
   destr@2.0.5: {}
 
   diff@7.0.0: {}
+
+  diff@9.0.0: {}
 
   dotenv@16.6.1: {}
 

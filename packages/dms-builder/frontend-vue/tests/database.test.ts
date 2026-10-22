@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
 	answerItem,
-	connectSteps,
 	draftFromMapped,
 	draftFromProposal,
 	includeResource,
@@ -212,35 +211,6 @@ describe('a mapping draft kept in the browser', () => {
 		expect(merged.fields[0].label).toBe('Customer code')
 		expect(merged.fields[1].declared).toBe('string')
 		expect(settledInput(changed, mergedDraft(changed, kept)).resources).toHaveLength(2)
-	})
-})
-
-describe('the wiring of a database', () => {
-	const form = {
-		connection: 'erp',
-		providerModule: 'postgres-erp',
-		generatedModule: 'erp-tables',
-		variable: 'ERP_DATABASE_URL',
-		postgresVersion: '^0.2.0',
-		dmsPinned: false,
-		withDmsAi: true,
-	}
-
-	it('adds the provider, the generated module, the mongodb priority and a connection per consumer', () => {
-		const steps = connectSteps(form)
-		expect(steps.map((step) => `${step.op}:${step.id}`)).toEqual([
-			'AddModule:postgres-erp',
-			'CreateLocalModule:erp-tables',
-			'ConfigureModule:mongodb',
-			'ConfigureModule:dms-builder',
-			'ConfigureModule:dms-ai',
-		])
-		expect(JSON.stringify(steps)).not.toMatch(/postgres:\/\//)
-	})
-
-	it('leaves mongodb and dms-ai alone when the project needs neither', () => {
-		const steps = connectSteps({ ...form, dmsPinned: true, withDmsAi: false })
-		expect(steps.map((step) => step.id)).toEqual(['postgres-erp', 'erp-tables', 'dms-builder'])
 	})
 })
 

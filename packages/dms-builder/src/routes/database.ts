@@ -22,6 +22,7 @@ import {
   catalogOf,
   listCatalogConnections,
 } from "../implementations/dms-builder/engine/catalog-connection";
+import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
 import {
   EnvRefusal,
   setProjectVariable,
@@ -37,6 +38,11 @@ interface SampleBody extends SampleRequest {
 interface ProjectBody {
   steps: ProjectConfigStep[];
   opts?: ProjectConfigOpts;
+}
+
+/** The modules the project's configuration lists, by id. */
+interface ProjectModules {
+  modules: string[];
 }
 
 interface VariableBody {
@@ -116,6 +122,13 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     @Parameter("module", "query") module: string,
   ) {
     return engine.GetMapping(connection, module);
+  }
+
+  @Get(ROUTES.databaseProject)
+  async projectModules(
+    @AuthTenantOwner() _user: User,
+  ): Promise<ProjectModules> {
+    return { modules: configuredModuleIds() };
   }
 
   @Post(ROUTES.databaseProject)

@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { resolveProjectRoot } from "./project";
+import { DEFAULT_COMPILER_OPTIONS, resolveProjectRoot } from "./project";
 
 const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
-const TOOLING = ["typescript", "rimraf", "@types/node"];
+/** The build tooling a module needs, at these ranges when the project does not declare its own. */
+const DEFAULT_TOOLING: Readonly<Record<string, string>> = {
+  typescript: "^6.0.3",
+  rimraf: "^6.1.3",
+  "@types/node": "^24.0.0",
+};
 const ENTRY_TEXT =
   "export function construct(): void {}\n\nexport async function start(): Promise<void> {}\n";
 
@@ -54,7 +59,10 @@ function manifestText(id: string, project: PackageManifest): string {
     main: "dist/index.js",
     scripts: { build: "rimraf dist && tsc", typecheck: "tsc --noEmit" },
     dependencies: picked(all, (name) => INTERFACE_PACKAGE.test(name)),
-    devDependencies: picked(all, (name) => TOOLING.includes(name)),
+    devDependencies: {
+      ...DEFAULT_TOOLING,
+      ...picked(all, (name) => name in DEFAULT_TOOLING),
+    },
     packageManager: project.packageManager,
     antelopeJs: { baseUrl: "dist" },
   };
@@ -95,10 +103,9 @@ export function scaffoldLocalModule(
     path.join(projectRoot, "package.json"),
     {},
   );
-  const tsconfig = readJson<TsConfig>(
-    path.join(projectRoot, "tsconfig.json"),
-    {},
-  );
+  const tsconfig = readJson<TsConfig>(path.join(projectRoot, "tsconfig.json"), {
+    compilerOptions: DEFAULT_COMPILER_OPTIONS,
+  });
   return {
     id,
     root,

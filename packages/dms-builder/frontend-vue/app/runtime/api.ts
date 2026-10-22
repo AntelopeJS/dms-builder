@@ -180,6 +180,8 @@ export function useBuilderApi() {
 			read<MappedRelation[]>('/database/mapping', { connection, module }),
 		mapDatabase: (input: MapResourcesInput) =>
 			post<MapResourcesResult>('/database/map', input),
+		/** The ids of the modules the project's configuration lists. */
+		projectModules: () => get<{ modules: string[] }>('/database/project'),
 		configureProject: (steps: ProjectConfigStep[], dryRun: boolean) =>
 			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun } }),
 		/** Writes the value into the project's `.env`; the answer never carries it back. */

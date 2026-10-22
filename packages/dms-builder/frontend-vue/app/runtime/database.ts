@@ -10,17 +10,11 @@ import type {
 	MappedRelation,
 	MappedResource,
 	MappingProposal,
-	ModuleEntryInput,
 	OpenItem,
-	ProjectConfigStep,
 	ProposedField,
 	ProposedResource,
 } from './database-types'
 
-const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
-const DATABASE_INTERFACE = '@antelopejs/interface-database'
-const POSTGRES_PACKAGE = '@antelopejs/postgres'
-const STATEMENT_TIMEOUT_MS = 30000
 const DRAFT_PREFIX = 'dms-builder:database:'
 /** How long a mapping draft nobody came back to is kept. */
 export const KEEP_MAPPING_DRAFT_MS = 7 * 24 * 60 * 60 * 1000
@@ -250,62 +244,6 @@ export function settledInput(
 /** The open items the draft has not answered yet. */
 export function unanswered(proposal: MappingProposal, draft: MappingDraft): OpenItem[] {
 	return proposal.open.filter((item) => !(item.id in draft.answers))
-}
-
-/** What the *Connect a database* form asks for. */
-export interface ConnectForm {
-	connection: string
-	providerModule: string
-	generatedModule: string
-	variable: string
-	postgresVersion: string
-	/** Whether the DMS modules are pinned to their database already, so mongodb needs no priority. */
-	dmsPinned: boolean
-	/** Whether the project has dms-ai, which then gets its own connection. */
-	withDmsAi: boolean
-}
-
-function catalogConnection(form: ConnectForm): ModuleEntryInput {
-	return {
-		importOverrides: [
-			{ interface: CATALOG_INTERFACE, source: form.providerModule, id: form.connection },
-		],
-	}
-}
-
-/** The `ConfigureProject` batch that wires the database into the project, as design §1 lists it. */
-export function connectSteps(form: ConnectForm): ProjectConfigStep[] {
-	const steps: ProjectConfigStep[] = [
-		{
-			op: 'AddModule',
-			id: form.providerModule,
-			entry: {
-				source: { type: 'package', package: POSTGRES_PACKAGE, version: form.postgresVersion },
-				config: { mode: 'external', statementTimeoutMs: STATEMENT_TIMEOUT_MS },
-				env: { url: form.variable },
-			},
-		},
-		{
-			op: 'CreateLocalModule',
-			id: form.generatedModule,
-			path: `modules/${form.generatedModule}`,
-			entry: {
-				importOverrides: [{ interface: DATABASE_INTERFACE, source: form.providerModule }],
-			},
-		},
-	]
-	if (!form.dmsPinned) {
-		steps.push({
-			op: 'ConfigureModule',
-			id: 'mongodb',
-			entry: { exportPriority: { [DATABASE_INTERFACE]: 1 } },
-		})
-	}
-	steps.push({ op: 'ConfigureModule', id: 'dms-builder', entry: catalogConnection(form) })
-	if (form.withDmsAi) {
-		steps.push({ op: 'ConfigureModule', id: 'dms-ai', entry: catalogConnection(form) })
-	}
-	return steps
 }
 
 interface StoredMapping {

@@ -175,6 +175,26 @@ function readModules(
   return roots.some((root) => root.isProject) ? roots : [...fallback, ...roots];
 }
 
+/** The ids of every module the configuration lists, whatever their source. */
+export function configuredModuleIds(): string[] {
+  const configPath = findConfigFile();
+  if (!configPath) {
+    return [];
+  }
+  const file = new Project().addSourceFileAtPath(configPath);
+  const modules = configObject(file)?.getProperty("modules");
+  const object = Node.isPropertyAssignment(modules)
+    ? modules.getInitializer()
+    : undefined;
+  if (!Node.isObjectLiteralExpression(object)) {
+    return [];
+  }
+  return object
+    .getProperties()
+    .filter(Node.isPropertyAssignment)
+    .map((property) => propertyKey(property.getNameNode()));
+}
+
 /** The module an operation targets: the one named, or the project's own. */
 export function targetModule(id?: string): ModuleRoot | undefined {
   const modules = projectModules();
