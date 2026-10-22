@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { DATABASE_ICON } from '../runtime/constants'
+import { defaultNames } from '../runtime/database-connect'
 import type { DatabaseConnection } from '../runtime/database-types'
 
 /**
@@ -33,7 +34,7 @@ function connected(id: string): void {
 function open(id: string): void {
 	selected.value = id
 	connecting.value = false
-	module.value = `${id}-tables`
+	module.value = defaultNames(id, 'postgres').tablesModule
 }
 
 onMounted(load)
@@ -54,10 +55,14 @@ onMounted(load)
 			/>
 			<div
 				v-if="pending && !connections?.some((entry) => entry.id === pending)"
-				class="rounded-md border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-toned"
+				class="flex items-center gap-2.5 px-2 py-2"
+				data-pending-connection
 			>
-				<b class="font-semibold text-highlighted">{{ pending }}</b> is written to the configuration.
-				Restart the project for it to connect.
+				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0 text-muted" />
+				<span class="flex min-w-0 flex-col">
+					<span class="truncate text-[13px] font-semibold text-highlighted">{{ pending }}</span>
+					<span class="truncate text-[11px] text-warning">Restart to connect</span>
+				</span>
 			</div>
 			<p v-else-if="connections && !connections.length" class="text-xs text-muted">
 				No database is connected to the builder yet.
