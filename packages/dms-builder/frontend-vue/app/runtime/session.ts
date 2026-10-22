@@ -14,12 +14,10 @@ import {
 	COLUMN_CONTAINER,
 	FIELD_ROW,
 	GUARD_BLOCK,
-	HISTORY_LIMIT,
 	PREVIEW_DEBOUNCE_MS,
 	ROW_WRAPPER,
 	SESSION_STATE_KEY,
 	TOAST_MS,
-	UNDO_GROUP_MS,
 	WRAPPER_BLOCKS,
 } from './constants'
 import {
@@ -47,6 +45,7 @@ import {
 } from './access'
 import { draftChanges, revertChange, type DraftChange } from './changes'
 import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-store'
+import { type LastEdit, NO_EDIT, pushStep, recordEdit, stepBack, stepForward } from './history'
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
@@ -57,6 +56,8 @@ import { ensurePeriodSelector, setPageLive } from './page-controls'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
+import { useThemeEditor } from './theme'
+import { forgetThemeSave, rememberThemeSave, reloadsPage } from './theme-reload'
 import {
 	cloneDraft,
 	countBlocks,
@@ -121,12 +122,12 @@ type RailView =
 	| 'resource'
 
 /**
- * What the editor is working on, picked in the bar: the page, one of the two
- * kinds of thing every page draws on — the tables and the data sources — or a
- * database the project maps, each given the whole width rather than a rail
- * squeezed beside the page.
+ * What the editor is working on, picked in the bar: the page, one of the
+ * things every page draws on — the tables, the data sources, the project's
+ * theme — or a database the project maps, each given the whole width rather
+ * than a rail squeezed beside the page.
  */
-export type Workspace = 'page' | 'tables' | 'data' | 'database'
+export type Workspace = 'page' | 'tables' | 'data' | 'database' | 'theme'
 
 /** The tabs of the side rail, which stay whatever is selected. */
 export type LeftTab = 'add' | 'layers' | 'pages'
@@ -239,6 +240,11 @@ export interface BuilderSession {
 	 * silently.
 	 */
 	pendingClose: boolean
+	/**
+	 * Set when leaving could not store a draft on this device (`the page`, `the
+	 * theme`); the leave dialog lists them and stays open.
+	 */
+	unstoredDraftLabels: string[]
 	/** An open block menu, positioned where it was summoned. */
 	menu: { path: string; x: number; y: number } | null
 	/** Keys of the write-through operations in flight, e.g. `product#price`. */
@@ -257,8 +263,11 @@ export interface BuilderSession {
 	applied: AppliedChange[]
 	/** When the draft last went from saved to holding changes; null while saved. */
 	dirtySince: number | null
-	/** How the last save went, until the draft is edited again. */
-	lastSave: { outcome: 'saved' | 'failed'; at: number } | null
+	/**
+	 * How the last save went, until the draft is edited again. `pageSaved`: the
+	 * page was written, then the theme was refused.
+	 */
+	lastSave: { outcome: 'saved' | 'failed'; at: number; pageSaved?: boolean } | null
 	/**
 	 * The layout a page just created starts from, laid on it once the editor
 	 * opens there — the page is written empty, the layout is the first edit.
@@ -325,6 +334,7 @@ function emptySession(): BuilderSession {
 		conflict: false,
 		pendingRoute: null,
 		pendingClose: false,
+		unstoredDraftLabels: [],
 		menu: null,
 		pending: [],
 		toast: null,
@@ -345,9 +355,10 @@ function emptySession(): BuilderSession {
 let previewTimer: ReturnType<typeof setTimeout> | undefined
 /** The thing the edits under way are about, while they are made as one step. */
 let editGroup: string | null = null
-/** The last step of undo pushed, and what it was about. */
-let lastStep: { group: string | null; at: number } = { group: null, at: 0 }
+let lastEdit: LastEdit = NO_EDIT
 let toastTimer: ReturnType<typeof setTimeout> | undefined
+/** Run by the toast's Undo instead of undo() when undoing takes more than the last edit. */
+let toastUndoAction: (() => void) | undefined
 let previewToken = 0
 
 /** A block with settings still empty, and which ones. */
@@ -358,7 +369,13 @@ interface BlockGap {
 
 export interface BuilderController {
 	session: Ref<BuilderSession>
+	/** Whether anything Save writes is unsaved: the page's draft or the theme's. */
 	dirty: ComputedRef<boolean>
+	/** Whether the page's own draft is unsaved, which is what holds a move to another page. */
+	pageDirty: ComputedRef<boolean>
+	/** Whether Undo and Redo have a step to take, in the workspace on screen. */
+	canUndo: ComputedRef<boolean>
+	canRedo: ComputedRef<boolean>
 	blockCount: ComputedRef<number>
 	problems: ComputedRef<string[]>
 	/** The settings each block still leaves empty, by its path. */
@@ -427,7 +444,12 @@ export interface BuilderController {
 	redo: () => void
 	cancel: () => void
 	save: () => Promise<void>
-	notify: (message: string, options?: { undo?: boolean }) => void
+	/**
+	 * Show a toast. `undo: true` offers to undo the last edit; a function is run
+	 * instead when undoing takes more.
+	 */
+	notify: (message: string, options?: { undo?: boolean | (() => void) }) => void
+	undoFromToast: () => void
 	/** Every unsaved change of the draft, as the change list shows it. */
 	unsaved: ComputedRef<DraftChange[]>
 	/** The pages reading a table, once known: what a change to it reaches. */
@@ -463,6 +485,8 @@ export interface BuilderController {
 	restoreAnyway: () => void
 	/** Throw away the draft kept from an earlier visit. */
 	dropRestored: () => void
+	/** Discard every unsaved theme change, the restored draft included, with Undo offered in the toast. */
+	dropRestoredTheme: () => void
 	loadResourceFields: (ref: string) => Promise<void>
 	loadResource: (ref: string, force?: boolean) => Promise<void>
 	loadQueryTemplates: () => Promise<void>
@@ -509,11 +533,20 @@ export interface BuilderController {
 export function useBuilder(): BuilderController {
 	const session = useDmsState<BuilderSession>(SESSION_STATE_KEY, emptySession)
 	const api = useBuilderApi()
+	const themeEditor = useThemeEditor()
 
-	const dirty = computed(
+	const pageDirty = computed(
 		() =>
 			!!session.value.draft &&
 			JSON.stringify(session.value.draft) !== JSON.stringify(session.value.baseline),
+	)
+	const dirty = computed(() => pageDirty.value || themeEditor.dirty.value)
+	const isThemeWorkspace = computed(() => session.value.workspace === 'theme')
+	const canUndo = computed(() =>
+		isThemeWorkspace.value ? themeEditor.canUndo.value : session.value.history.length > 0,
+	)
+	const canRedo = computed(() =>
+		isThemeWorkspace.value ? themeEditor.canRedo.value : session.value.future.length > 0,
 	)
 	const blockCount = computed(() =>
 		session.value.draft
@@ -625,21 +658,34 @@ export function useBuilder(): BuilderController {
 	})
 
 	/**
-	 * Say what just happened, where the author is looking. `undo` offers to take
-	 * it back from the toast itself, for a change that is one edit of the draft.
+	 * Show a toast where the author is looking. `undo: true` offers to undo the
+	 * last edit from the toast; a function is run instead when undoing takes
+	 * more, such as a discard of both the page and the theme, each on its own
+	 * history.
 	 */
-	function notify(message: string, options: { undo?: boolean } = {}): void {
+	function notify(message: string, options: { undo?: boolean | (() => void) } = {}): void {
+		const offersUndo = options.undo !== undefined && options.undo !== false
 		session.value.toast = message
-		session.value.toastUndo = options.undo === true
+		session.value.toastUndo = offersUndo
+		toastUndoAction = typeof options.undo === 'function' ? options.undo : undefined
 		clearTimeout(toastTimer)
 		toastTimer = setTimeout(
 			() => {
 				session.value.toast = null
 				session.value.toastUndo = false
+				toastUndoAction = undefined
 			},
 			// An offer to undo stays long enough to be taken up.
-			options.undo ? TOAST_MS * 2 : TOAST_MS,
+			offersUndo ? TOAST_MS * 2 : TOAST_MS,
 		)
+	}
+
+	function undoFromToast(): void {
+		const takeBack = toastUndoAction ?? undo
+		toastUndoAction = undefined
+		session.value.toast = null
+		session.value.toastUndo = false
+		takeBack()
 	}
 
 	/**
@@ -725,7 +771,7 @@ export function useBuilder(): BuilderController {
 
 	/** Keep track of when the draft started to differ from the page. */
 	function noteDirty(): void {
-		if (!dirty.value) {
+		if (!pageDirty.value) {
 			session.value.dirtySince = null
 			return
 		}
@@ -734,7 +780,7 @@ export function useBuilder(): BuilderController {
 
 	/** Start the next edit on a step of its own, whatever it is about. */
 	function newStep(): void {
-		lastStep = { group: null, at: 0 }
+		lastEdit = NO_EDIT
 	}
 
 	/**
@@ -851,7 +897,10 @@ export function useBuilder(): BuilderController {
 				? session.value.startLayout.layout
 				: undefined
 		const kept = storedDraft(pageRef)
-		session.value = { ...emptySession(), active: true, loading: true, pageRef }
+		// The theme belongs to no page: navigating keeps the theme workspace
+		// open, often to check the theme on another page.
+		const workspace = session.value.active && isThemeWorkspace.value ? 'theme' : 'page'
+		session.value = { ...emptySession(), active: true, loading: true, pageRef, workspace }
 		try {
 			const [catalog, resources] = await Promise.all([
 				api.catalog(),
@@ -878,11 +927,20 @@ export function useBuilder(): BuilderController {
 			}
 		} finally {
 			session.value.loading = false
+			// isolateChrome writes a rule on the frame's attribute, so it also
+			// covers frame elements rendered later.
+			if (session.value.active) {
+				themeEditor.isolateChrome()
+				// The theme belongs to no page either: a draft stored on this
+				// device comes back on whichever page the editor opens.
+				void themeEditor.restoreKept()
+			}
 		}
 	}
 
 	function close(): void {
 		clearTimeout(previewTimer)
+		themeEditor.clear()
 		session.value = emptySession()
 	}
 
@@ -895,6 +953,7 @@ export function useBuilder(): BuilderController {
 	 */
 	function leave(): void {
 		if (dirty.value) {
+			session.value.unstoredDraftLabels = []
 			session.value.pendingClose = true
 			return
 		}
@@ -902,12 +961,34 @@ export function useBuilder(): BuilderController {
 	}
 
 	/**
+	 * Store the page's and the theme's unsaved drafts on this device for the
+	 * next visit; both are already stored as they change. Resolves, once the
+	 * theme's logo files are written, to whether everything was stored; what
+	 * was not goes to `unstoredDraftLabels`.
+	 */
+	async function storeDraftsOnDevice(): Promise<boolean> {
+		const unstoredDraftLabels = [
+			pageDirty.value && !keepDraft() ? 'the page' : '',
+			themeEditor.dirty.value && !(await themeEditor.storeOnDevice()) ? 'the theme' : '',
+		].filter((label) => label !== '')
+		session.value.unstoredDraftLabels = unstoredDraftLabels
+		return unstoredDraftLabels.length === 0
+	}
+
+	/**
 	 * Answer that question: `keep` saves the draft first; else it is dropped, or
-	 * — `onDevice` — left kept on this device for the next visit.
+	 * — `onDevice` — left stored on this device for the next visit. If it cannot
+	 * be stored, the question stays open: leaving would drop it all the same.
 	 */
 	async function resolveClose(keep: boolean, onDevice = false): Promise<void> {
-		if (!keep && !onDevice && session.value.pageRef) {
-			forgetDraft(session.value.pageRef)
+		if (!keep && !onDevice) {
+			if (session.value.pageRef) {
+				forgetDraft(session.value.pageRef)
+			}
+			themeEditor.forgetOnDevice()
+		}
+		if (onDevice && !(await storeDraftsOnDevice())) {
+			return
 		}
 		if (keep) {
 			await save()
@@ -923,6 +1004,7 @@ export function useBuilder(): BuilderController {
 
 	function stayOpen(): void {
 		session.value.pendingClose = false
+		session.value.unstoredDraftLabels = []
 	}
 
 	/** Start again from the page as it is on disk, dropping the draft. */
@@ -974,7 +1056,7 @@ export function useBuilder(): BuilderController {
 		if (!session.value.active || session.value.pageRef === path) {
 			return
 		}
-		if (dirty.value) {
+		if (pageDirty.value) {
 			session.value.pendingRoute = path
 			return
 		}
@@ -1010,14 +1092,9 @@ export function useBuilder(): BuilderController {
 	}
 
 	function pushHistory(): void {
-		if (!session.value.draft) {
-			return
+		if (session.value.draft) {
+			pushStep(session.value, cloneDraft(session.value.draft))
 		}
-		session.value.history = [
-			...session.value.history.slice(-HISTORY_LIMIT + 1),
-			cloneDraft(session.value.draft),
-		]
-		session.value.future = []
 	}
 
 	/**
@@ -1068,17 +1145,7 @@ export function useBuilder(): BuilderController {
 		}
 		// Edits of one thing in quick succession are one step to undo: picking
 		// a table, a measure and a grouping is building one data source.
-		const now = Date.now()
-		if (
-			editGroup !== null &&
-			lastStep.group === editGroup &&
-			now - lastStep.at < UNDO_GROUP_MS
-		) {
-			session.value.future = []
-		} else {
-			pushHistory()
-		}
-		lastStep = { group: editGroup, at: now }
+		lastEdit = recordEdit(session.value, () => cloneDraft(current), editGroup, lastEdit)
 		session.value.draft = next
 		session.value.lastSave = null
 		noteDirty()
@@ -1170,9 +1237,17 @@ export function useBuilder(): BuilderController {
 	/** Switch the bar's workspace, the page's own state left as it was. */
 	function setWorkspace(workspace: Workspace): void {
 		session.value.menu = null
+		if (isThemeWorkspace.value && workspace !== 'theme') {
+			// The preview mode is the theme editor's, not the viewer's: the page
+			// goes back to the viewer's.
+			themeEditor.setPreviewMode(null)
+		}
 		if (workspace === 'tables' && session.value.workspace !== 'tables') {
 			setView('resource')
 			return
+		}
+		if (workspace === 'theme') {
+			void themeEditor.load()
 		}
 		session.value.workspace = workspace
 	}
@@ -1500,18 +1575,19 @@ export function useBuilder(): BuilderController {
 
 	/**
 	 * Keep the draft on this device while it holds changes, and forget it once
-	 * it holds none: saved, discarded, or undone back to the page.
+	 * it holds none: saved, discarded, or undone back to the page. Returns
+	 * false only when storing it failed.
 	 */
-	function keepDraft(): void {
+	function keepDraft(): boolean {
 		const { pageRef, draft, version } = session.value
 		if (!pageRef || !draft) {
-			return
+			return true
 		}
-		if (dirty.value) {
-			storeDraft(pageRef, { draft, version, at: session.value.dirtySince ?? Date.now() })
-		} else {
-			forgetDraft(pageRef)
+		if (pageDirty.value) {
+			return storeDraft(pageRef, { draft, version, at: session.value.dirtySince ?? Date.now() })
 		}
+		forgetDraft(pageRef)
+		return true
 	}
 
 	/** Lay a kept draft on the page, as one edit Undo takes back. */
@@ -1578,7 +1654,11 @@ export function useBuilder(): BuilderController {
 		}
 	}
 
-	/** Throw away the draft kept from an earlier visit. */
+	/**
+	 * Dismiss the page's restored-draft banner. A stale draft, never applied, is
+	 * forgotten on this device; an applied one is discarded with every unsaved
+	 * page change, with Undo offered in the toast. The theme has its own banner.
+	 */
 	function dropRestored(): void {
 		const restored = session.value.restored
 		session.value.restored = null
@@ -1591,7 +1671,22 @@ export function useBuilder(): BuilderController {
 			}
 			return
 		}
-		cancel()
+		session.value.error = null
+		const discarded = pageDirty.value
+		if (discarded) {
+			discardPage()
+		}
+		notify('Changes discarded', { undo: discarded && undoPage })
+	}
+
+	/** Discard every unsaved theme change, the restored draft included, as one step Undo brings back. */
+	function dropRestoredTheme(): void {
+		themeEditor.state.value.restoredDraft = null
+		const discarded = themeEditor.dirty.value
+		if (discarded) {
+			themeEditor.discard()
+		}
+		notify('Theme changes discarded', { undo: discarded && themeEditor.undo })
 	}
 
 	/**
@@ -1926,12 +2021,19 @@ export function useBuilder(): BuilderController {
 	}
 
 	function undo(): void {
-		const previous = session.value.history.at(-1)
-		if (!previous || !session.value.draft) {
+		if (isThemeWorkspace.value) {
+			themeEditor.undo()
 			return
 		}
-		session.value.future = [cloneDraft(session.value.draft), ...session.value.future]
-		session.value.history = session.value.history.slice(0, -1)
+		undoPage()
+	}
+
+	function undoPage(): void {
+		const current = session.value.draft
+		const previous = current && stepBack(session.value, cloneDraft(current))
+		if (!previous) {
+			return
+		}
 		session.value.draft = previous
 		newStep()
 		noteDirty()
@@ -1941,12 +2043,15 @@ export function useBuilder(): BuilderController {
 	}
 
 	function redo(): void {
-		const next = session.value.future[0]
-		if (!next || !session.value.draft) {
+		if (isThemeWorkspace.value) {
+			themeEditor.redo()
 			return
 		}
-		session.value.history = [...session.value.history, cloneDraft(session.value.draft)]
-		session.value.future = session.value.future.slice(1)
+		const current = session.value.draft
+		const next = current && stepForward(session.value, cloneDraft(current))
+		if (!next) {
+			return
+		}
 		session.value.draft = next
 		newStep()
 		noteDirty()
@@ -1955,21 +2060,128 @@ export function useBuilder(): BuilderController {
 		schedulePreview()
 	}
 
+	/**
+	 * Put back what is saved: the page when its draft changed, the theme when
+	 * it did. Each goes on its own history, so Undo in the workspace on screen
+	 * brings its own changes back; the toast's Undo brings back both.
+	 */
 	function cancel(): void {
+		const discarded = { theme: themeEditor.dirty.value, page: pageDirty.value }
+		if (discarded.theme) {
+			themeEditor.discard()
+		}
+		session.value.error = null
+		if (discarded.page) {
+			discardPage()
+		}
+		const bringBack = (): void => {
+			if (discarded.page) {
+				undoPage()
+			}
+			if (discarded.theme) {
+				themeEditor.undo()
+			}
+		}
+		notify('Changes discarded', { undo: (discarded.page || discarded.theme) && bringBack })
+	}
+
+	function discardPage(): void {
 		if (!session.value.baseline) {
 			return
 		}
 		pushHistory()
 		session.value.draft = cloneDraft(session.value.baseline)
 		session.value.selection = null
-		session.value.error = null
 		noteDirty()
 		keepDraft()
 		schedulePreview()
-		notify('Changes discarded', { undo: true })
 	}
 
+	/**
+	 * Write everything the editor holds unsaved, the page first: the theme is
+	 * saved only once the page has gone through, so one refusal is on screen at
+	 * a time. A page with nothing unsaved is left alone when the theme is what
+	 * changed — rewriting it would only give an unrelated gap on it a chance to
+	 * refuse the theme's save.
+	 */
 	async function save(): Promise<void> {
+		const pageWasDirty = pageDirty.value
+		if (pageWasDirty || !themeEditor.dirty.value) {
+			await savePage()
+			if (session.value.error) {
+				return
+			}
+		}
+		await saveTheme(pageWasDirty ? 'Page and theme saved' : 'Theme saved', pageWasDirty)
+	}
+
+	/**
+	 * A theme refusal worded for the theme: the page's own wording names a page
+	 * and its blocks, which a theme has neither of.
+	 */
+	function themeRefusal(error: BuilderError): BuilderError {
+		const details: Record<string, () => string> = {
+			stale: () =>
+				'The theme files changed on disk since the editor read them. It has read them again, your changes kept on top: Save writes your changes over them, Discard keeps the files as they are.',
+			invalid_config: () =>
+				'issues' in error
+					? `The theme was not saved: ${error.issues.map((issue) => issue.message).join(' · ')}.`
+					: 'The theme was not saved.',
+			typecheck_failed: () =>
+				'diagnostics' in error
+					? `The theme was not saved: the layer's ${error.diagnostics.map((diagnostic) => `${diagnostic.file.split('/').pop()} line ${diagnostic.line}`).join(', ')} cannot be read as written.`
+					: 'The theme was not saved: a file of the layer cannot be read as written.',
+			not_found: () =>
+				"The theme was not saved: the project's frontend layer is not where it was. Open the theme again to read it anew.",
+			// The module's own reason: a palette or logo set by an expression in
+			// the app config, or a request that got no answer.
+			unsupported: () =>
+				'detail' in error
+					? `The theme was not saved: ${error.detail.replace(/\.?$/, '.')}`
+					: 'The theme was not saved.',
+		}
+		const describe = details[error.code]
+		return describe ? { code: 'unsupported', detail: describe() } : error
+	}
+
+	/**
+	 * Save the theme. `pageJustSaved`: the page was written just before, so a
+	 * refusal is the theme's alone, and the save status says so.
+	 */
+	async function saveTheme(successMessage: string, pageJustSaved = false): Promise<void> {
+		if (!themeEditor.dirty.value) {
+			return
+		}
+		session.value.saving = true
+		// A refusal still on screen is about the theme as it was: leaving must
+		// wait on this save's result, not on that one.
+		session.value.error = null
+		// Remembered before the request: the reload the save causes can come
+		// before the response.
+		rememberThemeSave(session.value.pageRef ?? '', successMessage)
+		let willReload = false
+		try {
+			const result = await themeEditor.save()
+			if (!result) {
+				return
+			}
+			willReload = result.ok && reloadsPage(result.changes)
+			if (!result.ok && result.error.code === 'stale') {
+				await themeEditor.refresh()
+			}
+			session.value.lastSave = result.ok
+				? { outcome: 'saved', at: Date.now() }
+				: { outcome: 'failed', at: Date.now(), pageSaved: pageJustSaved }
+			report(result.ok ? result : { ok: false, error: themeRefusal(result.error) }, successMessage)
+		} finally {
+			if (!willReload) {
+				forgetThemeSave()
+			}
+			session.value.saving = false
+		}
+	}
+
+	async function savePage(): Promise<void> {
 		const { pageRef, draft, version } = session.value
 		if (!pageRef || !draft) {
 			return
@@ -2371,7 +2583,7 @@ export function useBuilder(): BuilderController {
 			// An unsaved draft is the same page at its new address, and goes
 			// there with it. Left on the old ref, saving it answers `not_found`,
 			// and the editor stops the move to the new route to ask about it.
-			if (dirty.value && result.data.ref !== pageRef) {
+			if (pageDirty.value && result.data.ref !== pageRef) {
 				session.value.pageRef = result.data.ref
 				await refresh()
 			}
@@ -2603,6 +2815,9 @@ export function useBuilder(): BuilderController {
 	return {
 		session,
 		dirty,
+		pageDirty,
+		canUndo,
+		canRedo,
 		blockCount,
 		problems,
 		gaps,
@@ -2646,6 +2861,7 @@ export function useBuilder(): BuilderController {
 		cancel,
 		save,
 		notify,
+		undoFromToast,
 		unsaved,
 		readersOf,
 		accessWarnings,
@@ -2661,6 +2877,7 @@ export function useBuilder(): BuilderController {
 		grouped,
 		restoreAnyway,
 		dropRestored,
+		dropRestoredTheme,
 		keepMine,
 		loadResourceFields,
 		loadResource,

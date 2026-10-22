@@ -25,11 +25,13 @@ import type {
   FieldSpec,
   MutationOpts,
   PageDraft,
+  ThemeDraft,
 } from "@antelopejs/interface-dms-builder";
 import {
   DEFAULT_ROUTE_PREFIX,
   QUERY_PREVIEW_PARAMETER,
   ROUTES,
+  THEME_BODY_LIMIT_BYTES,
 } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
@@ -92,6 +94,16 @@ interface QueryBody {
 interface ConfigureQueryBody {
   query: string;
   patch: Partial<AddQueryInput>;
+  expectedVersion?: string;
+}
+
+/**
+ * A theme save, as the request holds it: `SetTheme` checks the draft's shape
+ * itself, so a malformed one comes back `invalid_config` rather than failing
+ * as a server error.
+ */
+interface ThemeBody {
+  draft?: ThemeDraft;
   expectedVersion?: string;
 }
 
@@ -402,5 +414,26 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   async refresh(@AuthTenantOwner() _user: User) {
     await engine.RefreshSourceIndex();
     return { ok: true };
+  }
+
+  @Get(ROUTES.theme)
+  async theme(@AuthTenantOwner() _user: User) {
+    return engine.GetTheme();
+  }
+
+  @Post(ROUTES.theme)
+  async saveTheme(
+    @AuthTenantOwner() _user: User,
+    @JSONBody(THEME_BODY_LIMIT_BYTES) body: ThemeBody | undefined,
+  ) {
+    return engine.SetTheme(
+      body?.draft as ThemeDraft,
+      opts(body?.expectedVersion),
+    );
+  }
+
+  @Post(ROUTES.themeLayer)
+  async createThemeLayer(@AuthTenantOwner() _user: User) {
+    return engine.CreateThemeLayer();
   }
 }

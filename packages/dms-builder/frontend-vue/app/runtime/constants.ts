@@ -344,3 +344,49 @@ export const OTHER_DATA_TYPE_ICON = 'i-ph-dots-three-circle'
  * action: what the editor sends someone to when it says a role lost one.
  */
 export const ROLES_PAGE_PATH = '/settings/workspace/roles'
+
+export const THEME_STATE_KEY = 'dms-builder:theme'
+
+/** Where a tab remembers a theme save across the page reload the save causes. */
+export const THEME_SAVE_MARKER_KEY = 'dms-builder:theme-save'
+/** The dev server reloads within a second or two of the write. */
+export const THEME_SAVE_MARKER_MAX_AGE_MS = 30_000
+
+/** The style element the theme editor previews its draft through, last in `<head>`. */
+export const THEME_PREVIEW_STYLE_ID = 'dms-builder-theme-preview'
+/** The style element that keeps the builder's own frame on the DMS look. */
+export const THEME_CHROME_STYLE_ID = 'dms-builder-theme-chrome'
+/** The style element declaring the fonts a theme can host, from the CDN, until one is saved. */
+export const THEME_FONTS_STYLE_ID = 'dms-builder-theme-fonts'
+/**
+ * The attribute the builder's own frame carries — the bar, the rails, the
+ * panels — which the theme being edited does not paint.
+ */
+export const CHROME_ATTRIBUTE = 'data-builder-chrome'
+/** Class form of CHROME_ATTRIBUTE, passed through the `ui` prop of Nuxt UI overlays teleported out of the frame. */
+export const CHROME_CLASS = 'dms-builder-chrome'
+
+/** The largest logo the module accepts, mirrored so a picker can say so before a save. */
+export const MAX_LOGO_BYTES = 512 * 1024
+/**
+ * The logo types the module accepts, by the extension they are picked by. An
+ * icon has two names: Chrome on macOS types an `.ico` file
+ * `image/vnd.microsoft.icon`, other browsers `image/x-icon`.
+ */
+export const LOGO_TYPES_BY_EXTENSION: Record<string, readonly string[]> = {
+	svg: ['image/svg+xml'],
+	png: ['image/png'],
+	jpg: ['image/jpeg'],
+	jpeg: ['image/jpeg'],
+	webp: ['image/webp'],
+	ico: ['image/x-icon', 'image/vnd.microsoft.icon'],
+}
+/** The types the email's logo is sent as, the only ones the module takes for it. */
+export const EMAIL_LOGO_TYPES: readonly string[] = ['image/png', 'image/jpeg']
+/**
+ * The height a logo is drawn at for the email's PNG: twice the 48 pixels an
+ * email header shows it at, for screens of double density.
+ */
+export const EMAIL_LOGO_HEIGHT = 96
+/** The widest an email's PNG logo is drawn, the width of the email's column. */
+export const EMAIL_LOGO_MAX_WIDTH = 600

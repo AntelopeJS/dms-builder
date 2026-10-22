@@ -4,7 +4,7 @@
  * exercised outside a generated Inertia workspace; only what this package
  * imports from the host is declared.
  */
-import { ref, type Ref } from 'vue'
+import { reactive, ref, type Ref } from 'vue'
 
 export interface DmsModuleOptions {
   public: Record<string, unknown>
@@ -27,6 +27,13 @@ export function defineDmsPlugin(setup: DmsPluginSetup): DmsPluginSetup {
 }
 
 const states = new Map<string, Ref<unknown>>()
+
+/** The app config the host merges every module's into; empty here, as no module adds to it. */
+const appConfig = reactive<Record<string, unknown>>({})
+
+export function useDmsAppConfig(): Record<string, unknown> {
+  return appConfig
+}
 
 export function useDmsState<T>(key: string, init: () => T): Ref<T> {
   if (!states.has(key)) {

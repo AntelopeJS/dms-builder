@@ -9,7 +9,7 @@ import {
 import { GetRuntimeInfo } from "@antelopejs/interface-core/runtime";
 import { frontendModule } from "./frontend-module";
 
-export type { BuilderApiConfig, DmsBuilderConfig } from "./config";
+export type { BuilderApiConfig, DmsBuilderConfig, ThemeConfig } from "./config";
 
 export async function construct(config?: DmsBuilderConfig): Promise<void> {
   setModuleConfig(config);

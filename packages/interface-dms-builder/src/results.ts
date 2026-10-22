@@ -37,7 +37,9 @@ export interface OpWarning {
     /** A mapped relation's tables were written, but its TableView page could not be. */
     | "page_not_written"
     /** A relation the module maps is no longer in the database, or the role can no longer see it. */
-    | "relation_missing";
+    | "relation_missing"
+    /** An SVG logo had scripts, event handlers or external references removed. */
+    | "svg_sanitized";
   message: string;
 }
 

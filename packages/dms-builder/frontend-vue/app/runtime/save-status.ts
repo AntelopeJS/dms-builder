@@ -20,7 +20,8 @@ export interface SaveStatusInput {
 	changes: number
 	/** How many blocks still need a setting before the page can be saved. */
 	problems: number
-	lastSave: { outcome: 'saved' | 'failed'; at: number } | null
+	/** `pageSaved`: the page was written, then the theme was refused. */
+	lastSave: { outcome: 'saved' | 'failed'; at: number; pageSaved?: boolean } | null
 }
 
 function plural(count: number, word: string): string {
@@ -44,7 +45,7 @@ export function saveStatus(input: SaveStatusInput): SaveStatus {
 	if (input.dirty && input.lastSave?.outcome === 'failed') {
 		return {
 			kind: 'error',
-			label: 'Save failed · nothing written',
+			label: input.lastSave.pageSaved ? 'Theme not saved · page saved' : 'Save failed · nothing written',
 			icon: 'i-ph-warning-circle-light',
 		}
 	}

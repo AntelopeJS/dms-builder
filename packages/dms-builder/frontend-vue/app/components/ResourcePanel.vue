@@ -199,7 +199,7 @@ async function addField(spec: FieldSpec): Promise<void> {
 <template>
 	<!-- The tables in a list that stays, the open one beside it: going from one
 	table to another is one click, not back and forth. -->
-	<div class="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
+	<div class="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]" data-builder-chrome>
 		<aside
 			class="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-default bg-(--dms-bg-sidebar) p-3"
 			aria-label="Tables"

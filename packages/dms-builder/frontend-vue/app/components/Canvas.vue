@@ -5,6 +5,14 @@ import { effectOfDrag, namedHost } from '../runtime/dropping'
 import { dropSentence } from '../runtime/naming'
 import { useBuilder, type PageLayout } from '../runtime/session'
 
+const props = defineProps<{
+	/**
+	 * Read-only preview for the theme workspace: the page is inert, and the
+	 * add-block and Page settings controls are hidden.
+	 */
+	preview?: boolean
+}>()
+
 const builder = useBuilder()
 const session = builder.session
 const view = useCanvasView()
@@ -143,7 +151,7 @@ function answerCursor(event: DragEvent): void {
 		@dragover.prevent="onDragOver"
 		@drop.prevent="builder.drop()"
 	>
-		<div class="mx-auto" :style="pageStyle">
+		<div class="mx-auto" :style="pageStyle" :inert="props.preview || undefined">
 			<header class="mb-6 flex items-start gap-3">
 				<span
 					class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-(--dms-accent-tint) text-primary ring-1 ring-(--dms-accent-line) ring-inset"
@@ -159,6 +167,7 @@ function answerCursor(event: DragEvent): void {
 					</p>
 				</div>
 				<UButton
+					v-if="!preview"
 					icon="i-ph-sliders-horizontal-light"
 					label="Page settings"
 					size="xs"
@@ -184,7 +193,7 @@ function answerCursor(event: DragEvent): void {
 				<p class="max-w-sm text-sm text-muted">
 					Drag a block from the side rail, or start from a layout.
 				</p>
-				<div class="flex flex-wrap justify-center gap-2">
+				<div v-if="!preview" class="flex flex-wrap justify-center gap-2">
 					<UButton
 						icon="i-ph-plus-light"
 						label="Add a block"
@@ -244,6 +253,7 @@ function answerCursor(event: DragEvent): void {
 				<!-- The way in at the end of the page means the end of the page,
 				the way a container's own does for the container. -->
 				<button
+					v-if="!preview"
 					type="button"
 					class="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-(--dms-border-top) font-mono text-sm text-dimmed hover:border-(--dms-accent-line) hover:text-primary"
 					data-way-in="page"
