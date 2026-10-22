@@ -148,17 +148,6 @@ export const LIVE_TOGGLE = 'LiveToggle'
 export const PAGE_TOOLBAR = 'PageToolbar'
 
 /**
- * The one setting the editor puts over the DMS's own for a control it places
- * in a toolbar (`PageToolbar.initialChildren`): its period selector draws no
- * comparison menu. The page still compares with the previous period, kept on
- * behind the selector, as the editor has always placed it; an author who wants
- * the menu sets the selector's comparison control.
- */
-export const TOOLBAR_CONTROL_OVERRIDES: Record<string, Record<string, unknown>> = {
-	[PERIOD_SELECTOR]: { comparisonControl: 'hidden' },
-}
-
-/**
  * What the simple palette leaves to the developer view: blocks a setting
  * places where they are needed — the message a container shows when there is
  * nothing to show ("When there's nothing to show"), a live page's switch (the
