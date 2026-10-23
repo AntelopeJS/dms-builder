@@ -6,7 +6,7 @@
 	"license": "Apache-2.0",
 	"packageManager": "pnpm@10.2.0",
 	"engines": {
-		"@antelopejs/dms-frontend": ">=0.8.0 <1.0.0"
+		"@antelopejs/dms-frontend": ">=0.8.0 <0.9.0"
 	},
 	"scripts": {
 		"typecheck": "ajs dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
