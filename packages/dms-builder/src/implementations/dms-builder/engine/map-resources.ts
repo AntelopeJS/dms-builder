@@ -27,7 +27,7 @@ import {
   invalidConfig,
   unsupported,
 } from "./ops";
-import { createPage } from "./ops-blocks";
+import { configurePage, createPage } from "./ops-blocks";
 import { createCategory } from "./ops-categories";
 import { deletePage } from "./page-delete";
 import { addSortedExport, barrelSpecifier, srcDir } from "./placement";
@@ -262,14 +262,24 @@ function pageRefOf(category: string, resource: PlannedResource): string {
   return joinSlug(record?.fullSlug ?? "", pageName(resource));
 }
 
-/** A remapped TableView keeps its page, with the caption and label the new choices give it. */
+/** A remapped TableView keeps its page, with the title, caption and label the new choices give it. */
 function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
+  const renamed = configurePage(ref, { displayName: resource.displayName });
+  if (!renamed.ok) {
+    return renamed;
+  }
   const patch: Record<string, unknown> = { caption: resource.displayName };
   if (resource.label) {
     patch.labelKey = resource.label;
   }
   const configured = configureBlock(`${ref}#${TABLE_BLOCK}`, patch);
-  return configured.ok ? { ...configured, data: ref } : configured;
+  return configured.ok
+    ? {
+        ...configured,
+        data: ref,
+        changes: [...renamed.changes, ...configured.changes],
+      }
+    : configured;
 }
 
 /** The page a relation's choices call for: created, updated, or removed when it lost its TableView. */

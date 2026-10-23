@@ -169,6 +169,24 @@ describe("mapping again a database already mapped", function () {
     ).to.deep.equal([]);
   });
 
+  it("gives a relation mapped again under a new title that title, read back the same", async () => {
+    const before = await GetMapping("erp", MODULE);
+    const contacts = (before.ok ? before.data : [])
+      .filter((entry) => entry.resource.relation === "sales.contacts")
+      .map((entry) => ({ ...asMapped(entry), title: "People" }));
+    const remapped = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: contacts,
+    });
+    expectOk(remapped, "MapResources with a new title");
+    const read = await GetMapping("erp", MODULE);
+    const after = read.ok
+      ? read.data.find((entry) => entry.resource.relation === "sales.contacts")
+      : undefined;
+    expect(after?.resource.title.value).to.equal("People");
+  });
+
   it("rewrites a relation mapped before from new choices, and keeps its page", async () => {
     const remapped = await MapResources({
       module: MODULE,
