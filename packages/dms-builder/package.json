@@ -1,6 +1,6 @@
 {
   "name": "@antelopejs/dms-builder",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Visual and programmatic editing of an AntelopeJS DMS project: every page edit is an AST rewrite of the project sources, typechecked before it is written.",
   "keywords": [
     "antelopejs",
@@ -94,5 +94,6 @@
     "skills": [
       "./skills"
     ]
-  }
+  },
+  "dmsFrontend": "dist/frontend-module.js"
 }

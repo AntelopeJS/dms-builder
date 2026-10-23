@@ -1,4 +1,5 @@
 import { GetRuntimeInfo } from "@antelopejs/interface-core/runtime";
+import { builderEnabled } from "./frontend-module";
 
 /** The HTTP API a builder UI talks to. */
 export interface BuilderApiConfig {
@@ -30,12 +31,8 @@ export function getModuleConfig(): DmsBuilderConfig {
 }
 
 async function resolveEnabled(): Promise<boolean> {
-  const configured = moduleConfig.api?.enabled;
-  if (configured !== undefined) {
-    return configured;
-  }
   const { dev } = await GetRuntimeInfo();
-  return dev;
+  return builderEnabled(moduleConfig, dev);
 }
 
 /**
