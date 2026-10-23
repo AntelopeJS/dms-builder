@@ -14,7 +14,7 @@ export const BUILDER_CODE_INTERFACES: Readonly<Record<string, string>> = {
   "@antelopejs/interface-data-api": ">=0.2.2 <1.0.0",
   "@antelopejs/interface-database": ">=0.1.10 <1.0.0",
   "@antelopejs/interface-database-decorators": ">=0.1.9 <1.0.0",
-  "@antelopejs/interface-dms": ">=0.7.3 <1.0.0",
+  "@antelopejs/interface-dms": ">=0.8.0 <1.0.0",
 };
 /** The build tooling a module needs, at these ranges when the project does not declare its own. */
 const DEFAULT_TOOLING: Readonly<Record<string, string>> = {
