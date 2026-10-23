@@ -6,6 +6,7 @@
 import { descriptorOf, isStructural } from './catalog'
 import { COLUMN_CONTAINER, ROW_CONTAINERS, ROW_WRAPPER } from './constants'
 import { findNode, parentPath } from './draft'
+import { displayText } from './i18n'
 import type { DropTarget } from './dropping'
 import type { BlockCatalog, BlockDraft, PageDraft } from './types'
 
@@ -21,7 +22,8 @@ function text(value: unknown): string | undefined {
 
 /**
  * What a block is called on the page: its own title when it has one, the start
- * of its text when it is prose, else what kind of block it is.
+ * of its text when it is prose, else what kind of block it is. A title written
+ * as a `$` key reads in the active locale, as the page shows it.
  */
 export function blockTitle(
 	block: BlockDraft,
@@ -31,10 +33,11 @@ export function blockTitle(
 	for (const key of TITLE_KEYS) {
 		const title = text(config[key])
 		if (title) {
-			return title
+			return displayText(title)
 		}
 	}
-	const prose = text(config.content)
+	const content = text(config.content)
+	const prose = content && displayText(content)
 	if (prose) {
 		return prose.length > SNIPPET_LENGTH
 			? `${prose.slice(0, SNIPPET_LENGTH).trimEnd()}…`

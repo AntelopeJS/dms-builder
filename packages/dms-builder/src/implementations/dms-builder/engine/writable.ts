@@ -20,13 +20,13 @@ import {
   type VariableDeclaration,
 } from "ts-morph";
 import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
-import { createProject, resolveProjectRoot } from "./project";
+import { createModulesProject, targetModule } from "./modules";
 
 let writable: Project | undefined;
 
 export function getWritableProject(): Project {
   if (!writable) {
-    writable = createProject(resolveProjectRoot());
+    writable = createModulesProject();
   }
   return writable;
 }
@@ -61,8 +61,15 @@ export function refreshFromDisk(project: Project): void {
   }
 }
 
-export function resolveRootBarrel(project: Project): SourceFile | undefined {
-  const root = resolveProjectRoot();
+/** The root barrel of a module: the project's own unless another is named. */
+export function resolveRootBarrel(
+  project: Project,
+  module?: string,
+): SourceFile | undefined {
+  const root = targetModule(module)?.root;
+  if (!root) {
+    return undefined;
+  }
   const candidates = [
     path.join(root, "src/index.ts"),
     path.join(root, "index.ts"),
@@ -307,7 +314,7 @@ function relevantDiagnostics(project: Project): TypecheckError[] {
     .map(diagnosticToError);
 }
 
-function diffText(before: string, after: string): string {
+export function diffText(before: string, after: string): string {
   if (before === after) {
     return "";
   }

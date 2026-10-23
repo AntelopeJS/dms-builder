@@ -1,0 +1,121 @@
+{
+	"dms_builder": {
+		"action": {
+			"edit_page": "Builder — modifier cette page"
+		},
+		"bar": {
+			"editing": "Édition",
+			"editing_title": "Mode édition · ⌘B",
+			"workspace": "Espace de travail",
+			"workspaces": {
+				"page": "Page",
+				"tables": "Tables",
+				"data": "Données",
+				"database": "Base de données"
+			},
+			"mode": "Mode du builder",
+			"modes": {
+				"simple": "Simple",
+				"advanced": "Développeur"
+			},
+			"open_changes": "Ouvrir la liste des modifications",
+			"undo": "Annuler",
+			"undo_title": "Annuler · ⌘Z",
+			"redo": "Rétablir",
+			"redo_title": "Rétablir · ⌘⇧Z",
+			"view_as": "Voir la page en tant que rôle",
+			"view_as_title": "Voir la page telle qu’un rôle la voit",
+			"viewing_as": "En tant que {role}",
+			"owner": "Vous, le propriétaire",
+			"owner_description": "Voit tout",
+			"members": "{count} membre | {count} membre | {count} membres",
+			"canvas_view": "Zoom et largeur du canevas",
+			"save": "Enregistrer",
+			"save_title": "Enregistrer · ⌘S",
+			"done": "Terminer",
+			"done_title": "Quitter l’éditeur · ⌘B"
+		},
+		"devices": {
+			"desktop": "Ordinateur",
+			"tablet": "Tablette",
+			"phone": "Téléphone"
+		},
+		"save_status": {
+			"saving": "Vérification et enregistrement…",
+			"failed": "Échec de l’enregistrement · rien n’a été écrit",
+			"fix": "{problems} à corriger",
+			"fix_unsaved": "{problems} à corriger · {changes} non enregistrées",
+			"fix_some_unsaved": "{problems} à corriger · modifications non enregistrées",
+			"unsaved": "Modifications non enregistrées",
+			"unsaved_count": "{count} modification non enregistrée | {count} modification non enregistrée | {count} modifications non enregistrées",
+			"saved": "Enregistré · {time}",
+			"clean": "Toutes les modifications sont enregistrées"
+		},
+		"banners": {
+			"this_page": "Cette page",
+			"dismiss": "Fermer",
+			"discard": "Abandonner",
+			"stay": "Rester",
+			"leave": {
+				"title": "Enregistrer avant de quitter ?",
+				"description": "{page} contient des modifications non enregistrées.",
+				"body": "Conservées sur cet appareil, elles vous seront proposées à nouveau la prochaine fois que vous modifierez cette page, pendant sept jours. Rien n’est écrit tant qu’elles ne sont pas enregistrées.",
+				"without_saving": "Quitter sans enregistrer",
+				"keep_draft": "Quitter, garder le brouillon",
+				"save": "Enregistrer et quitter"
+			},
+			"role_preview": {
+				"region": "Aperçu par rôle",
+				"viewing": "Aperçu de",
+				"as": "en tant que",
+				"role": "Rôle sous lequel voir la page",
+				"unsaved_included": "· modifications non enregistrées incluses",
+				"page_hidden": "Page masquée pour {role}",
+				"hidden": "{count} bloc masqué | {count} bloc masqué | {count} blocs masqués",
+				"limited": "{count} avec moins d’actions",
+				"exit": "Quitter l’aperçu"
+			},
+			"restored": {
+				"stale": "Les modifications non enregistrées de {time} ont été faites sur une ancienne version de cette page ; les remettre annule ce qui a changé depuis.",
+				"back": "Vos modifications non enregistrées sont de retour",
+				"kept_since": "conservées sur cet appareil depuis {time}.",
+				"put_back": "Les remettre",
+				"review": "Vérifier"
+			},
+			"pending_route": {
+				"before": "contient des modifications non enregistrées. Enregistrez-les avant d’ouvrir",
+				"after": ", ou restez sur cette page.",
+				"save": "Enregistrer et continuer"
+			},
+			"conflict": {
+				"message": "Cette page a été modifiée en dehors du builder depuis son ouverture. Gardez votre version pour écraser ces modifications, ou rechargez et abandonnez la vôtre.",
+				"copy": "Copier mon brouillon",
+				"keep": "Garder ma version",
+				"reload": "Recharger la page"
+			},
+			"error": {
+				"nothing_written": "Rien n’a été écrit.",
+				"details": "Détails",
+				"hide_details": "Masquer les détails",
+				"retry": "Réessayer"
+			},
+			"dismiss_warnings": "Fermer les avertissements"
+		},
+		"toasts": {
+			"copied_draft": "Brouillon copié en JSON",
+			"copied_block": "Bloc copié en JSON",
+			"configuration_applied": "Configuration appliquée",
+			"copied": "Copié dans le presse-papiers",
+			"tab_duplicated": "Onglet dupliqué",
+			"tab_deleted": "Onglet supprimé",
+			"locked": "Ce réglage ou cet emplacement est géré dans le code et ne peut pas être modifié ici",
+			"period_added": "Un sélecteur de période a été ajouté en haut de la page, pour que la carte le suive",
+			"block_added": "{block} ajouté",
+			"layout_added": "Mise en page ajoutée",
+			"block_removed": "Bloc supprimé",
+			"removed": "{block} supprimé",
+			"block_duplicated": "Bloc dupliqué",
+			"changes_discarded": "Modifications abandonnées"
+		}
+	}
+}

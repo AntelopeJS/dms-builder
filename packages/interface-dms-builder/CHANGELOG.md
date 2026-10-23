@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.2.3
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.2.2...v0.2.3)
+
+### 🚀 Enhancements
+
+- **builder:** Share simple options with fixed-data documentation previews ([#52](https://github.com/AntelopeJS/dms-builder/pull/52))
+- Analyse and map an external database into a module bound to it ([#43](https://github.com/AntelopeJS/dms-builder/pull/43))
+
+### 🩹 Fixes
+
+- **deps:** Require builder interface with option locks ([8c91fa4](https://github.com/AntelopeJS/dms-builder/commit/8c91fa4))
+- **frontend:** Run on @antelopejs/dms-frontend 0.7 ([#56](https://github.com/AntelopeJS/dms-builder/pull/56))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/dms-builder v0.5.0 ([d0fb198](https://github.com/AntelopeJS/dms-builder/commit/d0fb198))
+- **release:** @antelopejs/dms-builder v0.5.1 ([103920e](https://github.com/AntelopeJS/dms-builder/commit/103920e))
+- **release:** @antelopejs/dms-builder v0.5.2 ([6a5a034](https://github.com/AntelopeJS/dms-builder/commit/6a5a034))
+
+### ❤️ Contributors
+
+- Thomas ([@Thomasims](http://github.com/Thomasims))
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.2.2
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.2.1...v0.2.2)

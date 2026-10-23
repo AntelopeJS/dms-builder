@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { t } from '../runtime/i18n'
 import { useBuilder } from '../runtime/session'
 import type { PageDraft } from '../runtime/types'
 
@@ -19,7 +20,7 @@ function apply(): void {
 		}
 		builder.setDraft(parsed)
 		error.value = null
-		builder.notify('Configuration applied')
+		builder.notify(t('toasts.configuration_applied'))
 	} catch (parseError) {
 		error.value =
 			parseError instanceof Error ? parseError.message : String(parseError)
@@ -28,7 +29,7 @@ function apply(): void {
 
 async function copy(): Promise<void> {
 	await navigator.clipboard?.writeText(draftText.value)
-	builder.notify('Copied to the clipboard')
+	builder.notify(t('toasts.copied'))
 }
 </script>
 

@@ -5,6 +5,7 @@ import { descriptorOf, shownRegion } from '../runtime/catalog'
 import { THEME_COLORS } from '../runtime/constants'
 import { findNode } from '../runtime/draft'
 import { PANEL_CARD } from '../runtime/form-panel'
+import { t } from '../runtime/i18n'
 import { useBuilder } from '../runtime/session'
 import {
 	addTab,
@@ -97,7 +98,7 @@ function duplicate(tab: TabLine): void {
 	})
 	if (copy) {
 		show(copy)
-		builder.notify('Tab duplicated')
+		builder.notify(t('toasts.tab_duplicated'))
 	}
 }
 
@@ -112,7 +113,7 @@ function remove(tab: TabLine): void {
 	if (neighbour && wasOpen) {
 		show(neighbour.id)
 	}
-	builder.notify('Tab deleted')
+	builder.notify(t('toasts.tab_deleted'))
 }
 
 function actions(tab: TabLine) {

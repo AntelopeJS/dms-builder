@@ -64,6 +64,7 @@ import {
   commit,
   duplicate,
   invalidConfig,
+  moduleError,
   invalidDataType,
   invalidReference,
   isError,
@@ -251,8 +252,9 @@ function placeByDir(
   project: ReturnType<typeof getWritableProject>,
   dir: string,
   name: string,
+  module?: string,
 ): PagePlacement | undefined {
-  const src = srcDir(project);
+  const src = srcDir(project, module);
   if (!src) {
     return undefined;
   }
@@ -280,9 +282,10 @@ function resolvePagePlacement(
   category: CategoryRecord,
   name: string,
   dir?: string,
+  module?: string,
 ): PagePlacement | undefined {
   if (dir !== undefined) {
-    return placeByDir(project, dir, name);
+    return placeByDir(project, dir, name, module);
   }
   if (category.importModule?.endsWith(".ts")) {
     const categoryDir = path.dirname(category.importModule);
@@ -297,7 +300,7 @@ function resolvePagePlacement(
       };
     }
   }
-  const root = resolveRootBarrel(project);
+  const root = resolveRootBarrel(project, module);
   if (!root) {
     return undefined;
   }
@@ -350,6 +353,14 @@ export function createPage(
   if (findPageRecord(ref)) {
     return duplicate<{ ref: PageRef; filepath: string }>(input.name, "page");
   }
+  const misplaced = moduleError<{ ref: PageRef; filepath: string }>(
+    input.module,
+    category.importModule,
+    `category "${input.category}"`,
+  );
+  if (misplaced) {
+    return misplaced;
+  }
   const project = getWritableProject();
   refreshFromDisk(project);
   const placement = resolvePagePlacement(
@@ -357,6 +368,7 @@ export function createPage(
     category,
     input.name,
     input.dir,
+    input.module,
   );
   if (!placement) {
     return unsupported<{ ref: PageRef; filepath: string }>(

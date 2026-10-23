@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { DEFAULT_DATA_TYPE, TABLE_ICON, TABLE_ROUTES } from '../runtime/constants'
 import { walkDraft } from '../runtime/draft'
+import { displayText } from '../runtime/i18n'
 import { useBuilderMode } from '../runtime/mode'
 import { useBuilder, type TableTab } from '../runtime/session'
 import { servedRoutes } from '../runtime/table-routes'
@@ -111,7 +112,7 @@ const headline = computed(() => {
 		`served at ${read.route}`,
 		pages
 			? pages.length
-				? `read by ${pages.map((page) => page.displayName).join(', ')}`
+				? `read by ${pages.map((page) => displayText(page.displayName)).join(', ')}`
 				: 'read by no page'
 			: readersHere
 				? `read by ${plural(readersHere, 'block')} on this page`
