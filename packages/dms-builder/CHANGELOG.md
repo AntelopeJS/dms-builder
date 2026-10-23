@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.6.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.5.3...v0.6.0)
+
+### 🚀 Enhancements
+
+- **frontend:** The frontend registration as a pure function, declared as dmsFrontend ([#58](https://github.com/AntelopeJS/dms-builder/pull/58))
+- **builder:** Translate the entry point and editor chrome (en, fr) ([#53](https://github.com/AntelopeJS/dms-builder/pull/53))
+- **builder:** Place page controls in the DMS page toolbar ([#54](https://github.com/AntelopeJS/dms-builder/pull/54))
+
+### 🩹 Fixes
+
+- **builder:** Read blocks imported from base subpaths and keep unknown ones ([#55](https://github.com/AntelopeJS/dms-builder/pull/55))
+- **playground:** Declare the board's test form a create ([#57](https://github.com/AntelopeJS/dms-builder/pull/57))
+
+### 📦 Build
+
+- Run on @antelopejs/dms 0.10 and @antelopejs/dms-frontend 0.8 ([#59](https://github.com/AntelopeJS/dms-builder/pull/59))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+- Maxime Westhoven ([@mwesto](http://github.com/mwesto))
+
 ## v0.5.3
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.5.2...v0.5.3)
