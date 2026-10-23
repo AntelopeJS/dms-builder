@@ -24,7 +24,7 @@ import type { BlockCatalog, BlockDraft, BlockTypeDescriptor, PageDraft } from '.
  * The child `pageToolbar()` places for a control of this type: its id and the
  * options it sets, as the catalog's `PageToolbar` declares them.
  */
-function toolbarChildOf(catalog: BlockCatalog | null, type: string) {
+function toolbarChildOf(catalog: BlockCatalog | null, type: string | undefined) {
 	return descriptorOf(catalog, PAGE_TOOLBAR)?.initialChildren?.find((child) => child.type === type)
 }
 
