@@ -143,7 +143,7 @@ function schemasQuestion(
   return {
     id: `schemas:${input.connection}`,
     kind: "schemas",
-    question: `The database has ${pending.length} relations, more than one analysis reads at once, so none were read yet. Pick the schemas to analyse.`,
+    question: `The database has ${pending.length} tables, more than one analysis reads at once, so none were read yet. Pick the schemas to analyse.`,
     options: [...counts].map(([schema, count]) => ({
       value: schema,
       title: `${schema} (${count})`,

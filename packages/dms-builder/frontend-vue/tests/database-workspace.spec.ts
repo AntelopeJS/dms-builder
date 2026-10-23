@@ -155,8 +155,8 @@ describe('the Database workspace', () => {
 		fire(button(root, 'Apply'), 'click')
 		await settle()
 		expect(backend.calledPaths()).not.toContain('POST /api/builder/database/map')
-		expect(textOf(root)).toContain('Apply writes, in one change')
-		fire(button(root, 'Write it'), 'click')
+		expect(textOf(root)).toContain('Applying will:')
+		fire(button(root, 'Confirm'), 'click')
 		await settle()
 
 		const map = backend.calls.filter((call) => call.path === '/api/builder/database/map')
@@ -253,7 +253,7 @@ describe('a question the analysis left open', () => {
 
 		fire(button(root, 'Apply'), 'click')
 		await settle()
-		fire(button(root, 'Write it'), 'click')
+		fire(button(root, 'Confirm'), 'click')
 		await settle()
 		const map = backend.calls.find((call) => call.path === '/api/builder/database/map')
 		expect(map?.body).toMatchObject({ resources: [{ relation: 'erp.customers', label: 'code' }] })
@@ -272,8 +272,8 @@ describe('a question the analysis left open', () => {
 		expect(textOf(root)).not.toContain(PURPOSE.question)
 		fire(button(root, 'Apply'), 'click')
 		await settle()
-		expect(textOf(root)).toContain('written meanwhile as:')
-		fire(button(root, 'Write it'), 'click')
+		expect(textOf(root)).toContain('applied meanwhile as:')
+		fire(button(root, 'Confirm'), 'click')
 		await settle()
 		const map = backend.calls.find((call) => call.path === '/api/builder/database/map')
 		expect(map?.body).toMatchObject({
@@ -301,8 +301,9 @@ describe('a relation the module maps already', () => {
 		expect(textOf(mounted.root)).toContain('erp.legacy is mapped, but the database no longer has it')
 		fire(button(mounted.root, 'erp.customers'), 'click')
 		await settle()
-		fire(button(mounted.root, 'Map again'), 'click')
+		fire(button(mounted.root, 'Apply changes'), 'click')
 		await settle()
+		expect(textOf(mounted.root)).toContain('Saved. The Customers page updates once the module reloads')
 
 		const map = backend.calls.filter((call) => call.path === '/api/builder/database/map')
 		expect(map).toHaveLength(1)
@@ -310,6 +311,30 @@ describe('a relation the module maps already', () => {
 			resources: [{ relation: 'erp.customers', fields: [{ column: 'name' }] }],
 		})
 		expect(map[0]?.body).not.toHaveProperty('excluded')
+	})
+
+	it('says next to Apply changes why it could not save', async () => {
+		backend.answers['GET /api/builder/database/mapping'] = {
+			ok: true,
+			data: [{ ref: 'erp/erp/customers', resource: CUSTOMERS, included: ['name'] }],
+			changes: [],
+		}
+		backend.answers['POST /api/builder/database/map'] = {
+			ok: false,
+			error: { code: 'invalid_config', issues: [{ pointer: '', message: 'relation erp.customers has no column "name"' }] },
+		}
+		const mounted = mount(DatabaseProposal, {
+			props: { connection: 'erp', module: 'erp-tables' },
+			components: COMPONENTS,
+		})
+		unmount = mounted.unmount
+		await settle()
+		fire(button(mounted.root, 'erp.customers'), 'click')
+		await settle()
+		fire(button(mounted.root, 'Apply changes'), 'click')
+		await settle()
+		expect(textOf(mounted.root)).toContain('relation erp.customers has no column "name"')
+		expect(textOf(mounted.root)).not.toContain('Saved.')
 	})
 })
 

@@ -96,7 +96,7 @@ function labelItem(facts: RelationFacts, proposed: string | null): OpenItem {
     id: `label:${facts.relation}`,
     kind: "label",
     relation: facts.relation,
-    question: `Which column names a row of ${facts.relation}? It is what its list shows first, and what the relation columns pointing at it show.`,
+    question: `Which column names a row of ${facts.relation}? It is what its list shows first, and what columns of other tables pointing at it show.`,
     options: columns.map((column) => ({
       value: column.name,
       title:
@@ -113,7 +113,7 @@ function purposeItem(facts: RelationFacts): OpenItem {
     id: `purpose:${facts.relation}`,
     kind: "purpose",
     relation: facts.relation,
-    question: `What should ${facts.relation} become? Its names, comments and profile do not say what it holds.`,
+    question: `What should ${facts.relation} become? Its names, comments and data do not say what it holds.`,
     options: [
       { value: "tableView", title: "A page to list and edit its rows" },
       { value: "statsOnly", title: "Counted in stats, no page" },

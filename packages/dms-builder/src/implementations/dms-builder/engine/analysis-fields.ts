@@ -152,7 +152,7 @@ function referenceItem(
     kind: "reference",
     relation: facts.relation,
     column: column.name,
-    question: `Does ${facts.relation}.${column.name} point at a row of another relation? ${share}% of its values are found in ${relation}.${target}. As a reference, the column shows that row's label and filters by it.`,
+    question: `Does ${facts.relation}.${column.name} point at a row of another table? ${share}% of its values are found in ${relation}.${target}. As a reference, the column shows that row's label and filters by it.`,
     options: [
       { value: null, title: "A plain column" },
       {

@@ -36,8 +36,15 @@ const resource = defineModel<ResourceDraft>('resource', { required: true })
 const SAMPLE_LIMIT = 20
 const PREVIEW_ROWS = 5
 const PERCENT = 100
+const TYPE_NAMES: Record<string, string> = {
+	string: 'Text',
+	number: 'Number',
+	date: 'Date',
+	boolean: 'Boolean',
+	object: 'Object',
+}
 const PURPOSE_CHOICES: { value: string; label: string; help: string }[] = [
-	{ value: 'tableView', label: 'A page to list and edit its rows', help: 'A TableView page, listed in the menu.' },
+	{ value: 'tableView', label: 'A page to list and edit its rows', help: 'A page listed in the menu.' },
 	{ value: 'statsOnly', label: 'Counted in stats, no page', help: 'Stats pages can count and chart it.' },
 	{ value: 'excluded', label: 'Left out', help: 'Not mapped, and not proposed again.' },
 ]
@@ -142,12 +149,15 @@ const writes = computed(() => {
 	const proposed = props.proposed?.writes
 	if (!proposed) return ''
 	const allowed = (['insert', 'update', 'delete'] as const).filter((kind) => proposed[kind])
-	return allowed.length ? `the role may ${allowed.join(', ')}` : 'the role here writes nothing'
+	const verbs = { insert: 'add', update: 'change', delete: 'delete' }
+	return allowed.length
+		? `The database login can ${allowed.map((kind) => verbs[kind]).join(', ')} rows`
+		: 'The database login cannot change rows'
 })
 
 function accepts(column: string): { label: string; value: string }[] {
 	return (proposedFields.value.get(column)?.accepts ?? []).map((declared) => ({
-		label: declared,
+		label: TYPE_NAMES[declared] ?? declared,
 		value: declared,
 	}))
 }
@@ -172,7 +182,8 @@ function shown(value: SampledValue | undefined): string {
 
 /** Why a choice is what it is, as the badge beside it says on hover. */
 function why(choice: Proposed<unknown> | undefined): string {
-	return choice ? `${choice.kind === 'fact' ? 'Fact' : 'Default'}: ${ruleSentence(choice.rule)}` : ''
+	if (!choice) return ''
+	return choice.kind === 'default' ? `Suggested: ${ruleSentence(choice.rule)}` : ruleSentence(choice.rule)
 }
 
 async function sampleRows(): Promise<void> {
@@ -201,10 +212,10 @@ async function sampleRows(): Promise<void> {
 			<span class="font-mono text-xs text-muted">{{ resource.relation }}</span>
 			<template v-if="!purposeItem">
 				<UTooltip :text="why(proposed?.tableView)">
-					<USwitch v-model="resource.tableView" label="TableView" />
+					<USwitch v-model="resource.tableView" label="Has a page" />
 				</UTooltip>
 				<UTooltip :text="why(proposed?.writable)">
-					<USwitch v-model="resource.writable" :disabled="!resource.tableView" label="Editable" />
+					<USwitch v-model="resource.writable" :disabled="!resource.tableView" label="Rows can be edited" />
 				</UTooltip>
 			</template>
 			<span class="text-xs text-muted">{{ writes }}</span>
@@ -266,9 +277,9 @@ async function sampleRows(): Promise<void> {
 				<tr>
 					<th class="py-1 pr-2">Column</th>
 					<th class="py-1 pr-2">Type</th>
-					<th class="py-1 pr-2">Title</th>
+					<th class="py-1 pr-2">Column title</th>
 					<th v-for="flag in FLAGS" :key="flag.key" class="py-1 pr-2">{{ flag.label }}</th>
-					<th class="py-1">Measured</th>
+					<th class="py-1">In the data</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -297,7 +308,7 @@ async function sampleRows(): Promise<void> {
 							</div>
 						</div>
 						<span v-else-if="field.relation" class="block font-mono text-[11px] text-muted">
-							→ {{ field.relation }}<template v-if="proposedFields.get(field.column)?.relation?.implied"> (implied: {{ ruleSentence('F5') }})</template>
+							→ {{ field.relation }}<template v-if="proposedFields.get(field.column)?.relation?.implied"> (found in the data: {{ ruleSentence('F5') }})</template>
 						</span>
 					</td>
 					<td class="py-1.5 pr-2">
@@ -326,14 +337,14 @@ async function sampleRows(): Promise<void> {
 		</table>
 
 		<p v-for="entry in proposed?.leftOut ?? []" :key="entry.column" class="text-xs text-muted">
-			<span class="font-mono">{{ entry.column }}</span> is left out: {{ entry.reason }} ({{ entry.rule }}).
+			<span class="font-mono">{{ entry.column }}</span> is left out: {{ entry.reason }}.
 		</p>
 
 		<section class="flex flex-col gap-2">
 			<div class="flex items-center gap-2">
 				<UButton
 					icon="i-ph-rows-light"
-					label="Sample again"
+					label="Show other rows"
 					size="sm"
 					variant="soft"
 					:loading="sampling"
