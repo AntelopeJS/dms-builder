@@ -37,6 +37,7 @@ import {
   type ResourceRecord,
   resourceRefResolver,
 } from "./resource-index";
+import { relabelPointingColumns } from "./relabel-columns";
 import { joinSlug } from "./scan";
 import { findCategoryRecord, findPageRecord } from "./source-index";
 import { type EmitContext, UnknownReferenceError } from "./value";
@@ -190,6 +191,8 @@ function writeAll(
       ),
     };
   });
+  const records = mappedRecordsOf(input.module);
+  relabelPointingColumns(project, transaction, records, plan);
   registerSchemas(barrel, [
     ...new Set(plan.resources.map((resource) => resource.description.schema)),
   ]);

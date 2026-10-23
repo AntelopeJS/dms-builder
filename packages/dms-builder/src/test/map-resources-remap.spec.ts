@@ -259,6 +259,26 @@ describe("mapping again a database already mapped", function () {
     expect(contacts).to.include('keyMapping: { label: "name", value: "_id" }');
   });
 
+  it("relabels the columns pointing at a relation mapped again under a new label", async () => {
+    const read = await GetMapping("erp", MODULE);
+    const accounts = (read.ok ? read.data : []).find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    );
+    const other = accounts?.resource.fields.find(
+      (field) => field.column !== "name" && field.accepts.includes("string"),
+    )?.column;
+    expect(other, "a second text column on sales.accounts").to.be.a("string");
+    const remapped = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [{ ...asMapped(accounts!), label: other }],
+    });
+    expectOk(remapped, "MapResources with a new label");
+    expect(moduleFile("sales/contacts/data-api.ts")).to.include(
+      `keyMapping: { label: "${other}", value: "_id" }`,
+    );
+  });
+
   it("records relations decided against, and forgets one once it is mapped", async () => {
     const manifest = () =>
       JSON.parse(
