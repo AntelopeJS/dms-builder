@@ -6,7 +6,12 @@ import {
   Node,
 } from "ts-morph";
 import { isControllerLeadingBlock } from "./catalog";
-import { type ChainInfo, resolveExpr, unwrapBuilderChain } from "./chain";
+import {
+  type ChainInfo,
+  isUnknownBlock,
+  resolveExpr,
+  unwrapBuilderChain,
+} from "./chain";
 import { editableOptions, objectLiteralToValue } from "./config-literal";
 import { unwrapExpression } from "./expression";
 import { stringLiteralValue } from "./literals";
@@ -124,7 +129,15 @@ function buildBlockNode(
   }
   const chain = unwrapBuilderChain(resolved.expr);
   if (!chain.factory || !chain.factoryCall) {
-    return undefined;
+    return isUnknownBlock(resolved.expr)
+      ? buildOpaque(
+          path,
+          name,
+          "Block the builder has no factory for: edit it in code",
+          slot,
+          meta,
+        )
+      : undefined;
   }
   const children = chain.childCalls
     .map((call) => buildChildNode(call, path, ownerClass))

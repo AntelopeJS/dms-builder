@@ -23,7 +23,7 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 ## Gotchas
 
 - Off under `ajs project start`: no routes (404), no frontend module, no Edit button. `api.enabled: true` forces it on.
-- Blocks are read back by shape: code that leaves the factory-call grammar becomes `opaque`, shown but not rewritten.
+- Blocks are read back by shape: code that leaves the factory-call grammar becomes `opaque`, shown but not rewritten. Factories imported from a `base/<block>` subpath read like the `base` barrel; a component with no catalog factory (a helper's return value) is listed opaque and preserved on save.
 - A block's permission is named after its position: moving or renaming it drops role grants; the change list warns.
 - A type error anywhere in the project blocks every write: fix it first.
 - A query `AddQuery` writes is a page route served at `/dms/pages<pageRef><endpoint>` (DMS 0.9); a block's `fetchUrl` must use that address (`pageRoutePath` from `@antelopejs/interface-dms/page`).
