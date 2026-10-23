@@ -15,6 +15,7 @@ import {
 	FIELD_ROW,
 	GUARD_BLOCK,
 	HISTORY_LIMIT,
+	PAGE_TOOLBAR,
 	PREVIEW_DEBOUNCE_MS,
 	ROW_WRAPPER,
 	SESSION_STATE_KEY,
@@ -50,10 +51,11 @@ import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
+import { displayText, t } from './i18n'
 import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { ownerOf, tidyWrappers } from './wrappers'
-import { ensurePeriodSelector, setPageLive } from './page-controls'
+import { ensurePeriodSelector, seedPageToolbar, setPageLive } from './page-controls'
 import { linesHeight, SPACER_BLOCK, spacerAxis, spacerGrow } from './spacer-panel'
 import { useBuilderMode } from './mode'
 import { mergePatch } from './object'
@@ -140,7 +142,7 @@ export type PageLayout = 'dashboard' | 'list' | 'form'
 /** What each layout lays down, row by row; a row of several sits side by side. */
 const PAGE_LAYOUTS: Record<PageLayout, string[][]> = {
 	dashboard: [
-		['PeriodSelector'],
+		[PAGE_TOOLBAR],
 		['KpiCard', 'KpiCard', 'KpiCard'],
 		['ChartCard', 'TopListCard'],
 	],
@@ -1063,7 +1065,7 @@ export function useBuilder(): BuilderController {
 		const periodPlaced = ensurePeriodSelector(next, session.value.catalog, current)
 		fitSpacerColumns(next)
 		if (!respectsSourceLocks(current, next)) {
-			notify('This setting or placement is managed in code and cannot be changed here')
+			notify(t('toasts.locked'))
 			return false
 		}
 		// Edits of one thing in quick succession are one step to undo: picking
@@ -1086,7 +1088,7 @@ export function useBuilder(): BuilderController {
 		refollow(next, followed)
 		schedulePreview()
 		if (periodPlaced) {
-			notify('Added a period selector at the top of the page, for the card to follow')
+			notify(t('toasts.period_added'))
 		}
 		return true
 	}
@@ -1452,14 +1454,23 @@ export function useBuilder(): BuilderController {
 			placed.name = nameOnPage(draft, placed.name)
 			adoptSlot(draft, host.parent, placed)
 			linesForSpacer(draft, host.parent, placed)
-			if (insertNode(draft, host.parent, host.index, placed)) {
+			let at = host.index
+			if (type === PAGE_TOOLBAR) {
+				seedPageToolbar(draft, session.value.catalog, placed)
+				// A page's toolbar is the first thing in its body: placed on the
+				// page with no spot aimed at, that is where it goes.
+				if (host.parent === null && index === null && !wrap) {
+					at = 0
+				}
+			}
+			if (insertNode(draft, host.parent, at, placed)) {
 				node = placed
 			}
 		})
 		const created = node && placedAt(node)
 		if (created) {
 			select(created)
-			notify(`${descriptor.label ?? descriptor.type} added`)
+			notify(t('toasts.block_added', { block: descriptor.label ?? descriptor.type }))
 		}
 	}
 
@@ -1629,12 +1640,15 @@ export function useBuilder(): BuilderController {
 					}
 					const placed = newBlockDraft(descriptor, rankOf(draft, type))
 					placed.name = nameOnPage(draft, placed.name)
+					if (type === PAGE_TOOLBAR) {
+						seedPageToolbar(draft, catalog, placed)
+					}
 					const path = insertNode(draft, placement.parent, placement.index, placed)
 					first ??= path
 				}
 			}
 		})
-		notify('Layout added', { undo: true })
+		notify(t('toasts.layout_added'), { undo: true })
 	}
 
 	/**
@@ -1711,7 +1725,9 @@ export function useBuilder(): BuilderController {
 		// Named, and undone from where it is said: one key took it away, so
 		// one click brings it back.
 		notify(
-			block ? `Removed ${blockTitle(block, session.value.catalog)}` : 'Block removed',
+			block
+				? t('toasts.removed', { block: blockTitle(block, session.value.catalog) })
+				: t('toasts.block_removed'),
 			{ undo: true },
 		)
 	}
@@ -1725,7 +1741,7 @@ export function useBuilder(): BuilderController {
 		const created = node && placedAt(node)
 		if (created) {
 			select(created)
-			notify('Block duplicated')
+			notify(t('toasts.block_duplicated'))
 		}
 	}
 
@@ -1966,7 +1982,7 @@ export function useBuilder(): BuilderController {
 		noteDirty()
 		keepDraft()
 		schedulePreview()
-		notify('Changes discarded', { undo: true })
+		notify(t('toasts.changes_discarded'), { undo: true })
 	}
 
 	async function save(): Promise<void> {
@@ -2137,14 +2153,14 @@ export function useBuilder(): BuilderController {
 
 	/** A page as the menu names it, else by its address. */
 	function pageName(ref: string): string {
-		return session.value.pages.find((page) => page.ref === ref)?.displayName ?? ref
+		const name = session.value.pages.find((page) => page.ref === ref)?.displayName
+		return name ? displayText(name) : ref
 	}
 
 	/** A category as the menu names it, else by its ref. */
 	function categoryName(ref: string): string {
-		return (
-			session.value.categories.find((entry) => entry.ref === ref)?.displayName ?? ref
-		)
+		const name = session.value.categories.find((entry) => entry.ref === ref)?.displayName
+		return name ? displayText(name) : ref
 	}
 
 	/** The pages and categories the builder can create alongside, and navigate to. */

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { DEVICE_WIDTHS, useCanvasView } from '../runtime/canvas-view'
 import { effectOfDrag, namedHost } from '../runtime/dropping'
+import { displayText } from '../runtime/i18n'
 import { dropSentence } from '../runtime/naming'
 import { useBuilder, type PageLayout } from '../runtime/session'
 
@@ -55,8 +56,8 @@ const page = computed(() => {
 	const meta = session.value.structure?.page
 	const patch = session.value.draft?.page ?? {}
 	return {
-		displayName: (patch.displayName as string) ?? meta?.displayName ?? '',
-		description: (patch.description as string) ?? meta?.description ?? '',
+		displayName: displayText((patch.displayName as string) ?? meta?.displayName ?? ''),
+		description: displayText((patch.description as string) ?? meta?.description ?? ''),
 		icon: (patch.icon as string) ?? meta?.icon ?? 'i-ph-file',
 	}
 })

@@ -1,5 +1,6 @@
 import type {
   BlockCatalog,
+  BlockInitialChild,
   DataSourceDescriptor,
   BlockTypeDescriptor,
   ConfigSchema,
@@ -31,6 +32,7 @@ interface DeclaredBlockType {
   childMeta?: ConfigSchema;
   defaults: Record<string, unknown>;
   fixedOptions?: Record<string, unknown>;
+  initialChildren?: BlockInitialChild[];
 }
 
 interface BlockTypesModule {
@@ -124,6 +126,7 @@ function fromDeclared(declared: DeclaredBlockType): BlockTypeDescriptor {
     shapeSource: "annotated",
     description: declared.meta.description,
     controllerArg: declared.controllerArg,
+    initialChildren: declared.initialChildren,
   };
 }
 

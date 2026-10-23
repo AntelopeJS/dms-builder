@@ -9,6 +9,7 @@
  * Only these: an option whose address is a route the page calls (`fetchUrl`,
  * `submitUrl`) is not somewhere a reader goes.
  */
+import { displayText } from './i18n'
 import type { PageSummary } from './types'
 
 const PAGE_LINK_KEYS = new Set(['to', 'backTo'])
@@ -41,7 +42,7 @@ export function pageLinkItems(pages: PageSummary[]): PageLinkItem[] {
 	return [...pages]
 		.sort((a, b) => a.displayName.localeCompare(b.displayName))
 		.map((page) => ({
-			label: page.displayName,
+			label: displayText(page.displayName),
 			icon: page.icon ?? PAGE_ICON,
 			ref: page.ref,
 		}))

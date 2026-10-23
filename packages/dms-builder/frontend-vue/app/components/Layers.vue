@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { descriptorOf, isStructural, lineIcon } from '../runtime/catalog'
 import { WRAPPER_BLOCKS } from '../runtime/constants'
 import { joinPath } from '../runtime/draft'
+import { displayText } from '../runtime/i18n'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
@@ -38,11 +39,12 @@ const { advanced } = useBuilderMode()
 const query = ref('')
 const folded = ref(new Set<string>())
 
-const pageTitle = computed(
-	() =>
+const pageTitle = computed(() =>
+	displayText(
 		(session.value.draft?.page?.displayName as string | undefined) ??
-		session.value.structure?.page.displayName ??
-		'Page',
+			session.value.structure?.page.displayName ??
+			'Page',
+	),
 )
 
 const problems = computed(() => new Set(builder.problems.value))

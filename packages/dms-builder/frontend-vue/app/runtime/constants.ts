@@ -1,3 +1,4 @@
+import { displayKey } from './i18n'
 import type { TypedKind } from './typed-values'
 import type { FieldFlag } from './types'
 
@@ -14,7 +15,8 @@ export const ACTION_ID = 'dms-builder-edit'
 // The DMS renders this action on its own builder button, keyed by id; the
 // icon is only a fallback for a host that lays it out generically.
 export const ACTION_ICON = 'i-ph-hammer-light'
-export const ACTION_LABEL = 'Builder — edit this page'
+// A `$` key: the host translates it for the button's tooltip and aria-label.
+export const ACTION_LABEL = displayKey('action.edit_page')
 export const ACTION_ORDER = 90
 
 export const API_PREFIX = '/api/builder'
@@ -142,6 +144,12 @@ export const PAGE_PERIOD_SCOPE = 'page'
 
 /** The Live / Pause switch of a live page. */
 export const LIVE_TOGGLE = 'LiveToggle'
+
+/**
+ * The bar first in a page's body holding its period selector and its Live /
+ * Pause switch, beside the time the page last read its data.
+ */
+export const PAGE_TOOLBAR = 'PageToolbar'
 
 /**
  * What the simple palette leaves to the developer view: blocks a setting

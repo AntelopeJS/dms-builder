@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { lineIcon } from '../runtime/catalog'
+import { displayText } from '../runtime/i18n'
 import { useBuilderMode } from '../runtime/mode'
 import { blockKind, blockPosition, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
@@ -29,8 +30,9 @@ const heading = computed<Heading | undefined>(() => {
 	switch (session.value.inspector) {
 		case 'page': {
 			const page = session.value.structure?.page
-			const title =
-				(draft?.page?.displayName as string | undefined) ?? page?.displayName ?? 'Page'
+			const title = displayText(
+				(draft?.page?.displayName as string | undefined) ?? page?.displayName ?? 'Page',
+			)
 			const count = builder.blockCount.value
 			return {
 				icon: (draft?.page?.icon as string | undefined) ?? page?.icon ?? 'i-ph-file-light',

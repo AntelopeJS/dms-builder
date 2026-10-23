@@ -40,11 +40,42 @@ function controlsCatalog(base: BlockCatalog = testCatalog()): BlockCatalog {
 				group: 'data',
 				container: false,
 				shapeSource: 'test',
-				config: {},
+				config: {
+					align: { type: 'string', optional: true },
+					variant: { type: 'string', optional: true },
+				},
+			},
+			{
+				type: 'PageToolbar',
+				componentName: 'dms-page-toolbar-block',
+				label: 'Page toolbar',
+				group: 'data',
+				container: true,
+				shapeSource: 'test',
+				config: {
+					size: { type: 'string', optional: true },
+					showUpdatedAt: { type: 'boolean', optional: true },
+					refresh: { type: 'boolean', optional: true },
+				},
+				// What `pageToolbar()` places, as the DMS's catalog declares it.
+				initialChildren: [
+					{ id: 'live', type: 'LiveToggle', options: LIVE_IN_TOOLBAR },
+					{ id: 'period', type: 'PeriodSelector', options: PERIOD_IN_TOOLBAR },
+				],
 			},
 		],
 	} as BlockCatalog
 }
+
+/** How the DMS's catalog sets the controls of a new toolbar. */
+const PERIOD_IN_TOOLBAR = {
+	variant: 'segmented',
+	presets: ['last-hour', 'last-24h', 'last-7-days', 'last-30-days'],
+	defaultPreset: 'last-24h',
+	comparisonControl: 'menu',
+	defaultComparison: 'previous-period',
+}
+const LIVE_IN_TOOLBAR = { align: 'right', variant: 'pill' }
 
 const catalog = controlsCatalog()
 
@@ -56,8 +87,17 @@ function page(...blocks: BlockDraft[]): PageDraft {
 	return { blocks }
 }
 
-function names(draft: PageDraft): string[] {
-	return draft.blocks.map((block) => `${block.name}:${block.type}`)
+function names(draft: PageDraft | BlockDraft[]): string[] {
+	const blocks = Array.isArray(draft) ? draft : draft.blocks
+	return blocks.map((block) => `${block.name}:${block.type}`)
+}
+
+function toolbar(...children: BlockDraft[]): BlockDraft {
+	return { name: 'toolbar', type: 'PageToolbar', config: {}, children }
+}
+
+function bindRevenue(draft: PageDraft): void {
+	draft.blocks.find((block) => block.name === 'revenue')!.config = { fetchUrl: '/x', periodScope: 'page' }
 }
 
 /** The draft after `edit`, with the period selector the edit calls for. */
@@ -68,13 +108,44 @@ function bind(before: PageDraft, edit: (draft: PageDraft) => void, known = catal
 }
 
 describe('the period a card follows', () => {
-	it('gets a selector at the top of the page once a card is bound to it', () => {
-		const { next, placed } = bind(page(kpi('revenue')), (draft) => {
-			draft.blocks[0]!.config = { fetchUrl: '/x', periodScope: 'page' }
-		})
+	it('gets a selector in a toolbar at the top of the page once a card is bound to it', () => {
+		const { next, placed } = bind(page(kpi('revenue')), bindRevenue)
 		expect(placed).toBe(true)
-		expect(names(next)).toEqual(['period:PeriodSelector', 'revenue:KpiCard'])
+		expect(names(next)).toEqual(['toolbar:PageToolbar', 'revenue:KpiCard'])
+		// The DMS's settings as they are, comparison menu included: the same
+		// toolbar as `pageToolbar()` in code.
+		expect(next.blocks[0]?.children).toEqual([
+			{ name: 'period', type: 'PeriodSelector', config: PERIOD_IN_TOOLBAR },
+		])
 	})
+
+	it('goes into the toolbar the page has, after what it holds', () => {
+		const chip: BlockDraft = { name: 'scope', type: 'Text', config: {} }
+		const { next } = bind(page(kpi('revenue'), toolbar(chip)), bindRevenue)
+		expect(names(next)).toEqual(['revenue:KpiCard', 'toolbar:PageToolbar'])
+		expect(names(next.blocks[1]!.children!)).toEqual(['scope:Text', 'period:PeriodSelector'])
+	})
+
+	it('is left to a selector already in the toolbar', () => {
+		const selector: BlockDraft = { name: 'period', type: 'PeriodSelector', config: {} }
+		const { placed } = bind(page(toolbar(selector), kpi('revenue')), bindRevenue)
+		expect(placed).toBe(false)
+	})
+
+	it('goes beside the controls of a page laid out before the toolbar', () => {
+		const live: BlockDraft = { name: 'live', type: 'LiveToggle', config: {} }
+		const { next } = bind(page(live, kpi('revenue')), bindRevenue)
+		expect(names(next)).toEqual(['period:PeriodSelector', 'live:LiveToggle', 'revenue:KpiCard'])
+		expect(next.blocks[0]?.config).toEqual({})
+	})
+
+	it('stays out of a toolbar written in code, and goes under it', () => {
+		const managed: BlockDraft = { ...toolbar(), preserve: true }
+		const { next } = bind(page(managed, kpi('revenue')), bindRevenue)
+		expect(names(next)).toEqual(['toolbar:PageToolbar', 'period:PeriodSelector', 'revenue:KpiCard'])
+		expect(next.blocks[0]?.children).toEqual([])
+	})
+
 
 	it('is left to a selector already on the page', () => {
 		const selector: BlockDraft = { name: 'range', type: 'PeriodSelector', config: {} }
@@ -104,6 +175,42 @@ describe('the period a card follows', () => {
 })
 
 describe('a live page', () => {
+	it('gets its switch in the toolbar, before the period selector', () => {
+		const selector: BlockDraft = { name: 'period', type: 'PeriodSelector', config: {} }
+		const draft = page(toolbar(selector), kpi('revenue'))
+		setPageLive(draft, catalog, {})
+		expect(names(draft.blocks[0]!.children!)).toEqual(['live:LiveToggle', 'period:PeriodSelector'])
+		expect(draft.blocks[0]!.children![0]!.config).toEqual(LIVE_IN_TOOLBAR)
+	})
+
+	it('gets a toolbar holding its switch when it has no control yet, gone with it', () => {
+		const draft = page(kpi('revenue'))
+		setPageLive(draft, catalog, {})
+		expect(names(draft)).toEqual(['toolbar:PageToolbar', 'revenue:KpiCard'])
+		expect(names(draft.blocks[0]!.children!)).toEqual(['live:LiveToggle'])
+
+		setPageLive(draft, catalog, null)
+		expect(names(draft)).toEqual(['revenue:KpiCard'])
+	})
+
+	it('keeps the toolbar once not live when it holds more than the switch', () => {
+		const selector: BlockDraft = { name: 'period', type: 'PeriodSelector', config: {} }
+		const draft = page(toolbar({ name: 'live', type: 'LiveToggle', config: {} }, selector))
+		setPageLive(draft, catalog, null)
+		expect(names(draft)).toEqual(['toolbar:PageToolbar'])
+		expect(names(draft.blocks[0]!.children!)).toEqual(['period:PeriodSelector'])
+	})
+
+	it('leaves the switch of a toolbar written in code, which draws nothing once not live', () => {
+		const managed: BlockDraft = {
+			...toolbar({ name: 'live', type: 'LiveToggle', config: {} }),
+			lockedOptions: { size: 'size' },
+		}
+		const draft = page(managed)
+		setPageLive(draft, catalog, null)
+		expect(names(draft.blocks[0]!.children!)).toEqual(['live:LiveToggle'])
+	})
+
 	it('gets its switch at the top, under the period selector it starts with', () => {
 		const draft = page({ name: 'period', type: 'PeriodSelector', config: {} }, kpi('revenue'))
 		setPageLive(draft, catalog, {})
@@ -154,13 +261,21 @@ describe('the editor placing them', () => {
 
 	it('places the selector as the card is bound to the period, and says so', () => {
 		builder.patchConfig('revenue', { periodScope: 'page' })
-		expect(blocks()).toEqual(['period', 'revenue'])
+		expect(blocks()).toEqual(['toolbar', 'revenue'])
 		expect(builder.session.value.toast).toMatch(/period selector/)
+	})
+
+	it('puts a toolbar placed from the palette at the top, with the controls the page needs', () => {
+		builder.patchPage({ live: {} })
+		builder.addBlock('PageToolbar')
+		expect(blocks()).toEqual(['pageToolbar', 'revenue'])
+		const placed = builder.session.value.draft?.blocks[0]
+		expect(placed?.children?.map((child) => child.name)).toEqual(['live', 'period'])
 	})
 
 	it('makes the page live and back in one edit each', () => {
 		builder.setLive({})
-		expect(blocks()).toEqual(['live', 'revenue'])
+		expect(blocks()).toEqual(['toolbar', 'revenue'])
 		expect(builder.unsaved.value.map((change) => change.title)).toContain('Page · Live updates')
 		builder.undo()
 		expect(blocks()).toEqual(['revenue'])

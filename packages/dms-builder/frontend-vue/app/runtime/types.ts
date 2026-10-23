@@ -98,6 +98,8 @@ export interface BlockTypeDescriptor {
 	shapeSource: string
 	description?: string
 	controllerArg?: boolean
+	/** The children the DMS's own helper places in a new block of this type. */
+	initialChildren?: { id: string; type: string; options: Record<string, unknown> }[]
 }
 
 export interface DataTypeDescriptor {

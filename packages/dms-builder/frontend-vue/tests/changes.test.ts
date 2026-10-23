@@ -202,7 +202,7 @@ describe('a layout to start from', () => {
 
 	it('lays the blocks the project declares, side by side where it says so, as one edit', () => {
 		backend.catalog.blocks.push(
-			...['PeriodSelector', 'KpiCard', 'ChartCard'].map((type) => ({
+			...['KpiCard', 'ChartCard'].map((type) => ({
 				type,
 				componentName: `Dms${type}`,
 				label: type,
@@ -216,13 +216,34 @@ describe('a layout to start from', () => {
 
 		const draft = builder.session.value.draft!
 		expect(placedPaths(draft, builder.session.value.catalog)).toEqual([
-			'periodSelector',
 			'grid/gridRow/kpiCard',
 			'grid/gridRow/kpiCard2',
 			'grid/gridRow/kpiCard3',
 			'chartCard',
 		])
 		expect(builder.session.value.history).toHaveLength(1)
+	})
+
+	it('starts a dashboard with the page toolbar, holding its period, where the DMS has one', () => {
+		backend.catalog.blocks.push(
+			...['PageToolbar', 'KpiCard', 'ChartCard'].map((type) => ({
+				type,
+				componentName: `Dms${type}`,
+				label: type,
+				group: 'data',
+				container: type === 'PageToolbar',
+				config: {},
+				shapeSource: 'test',
+			})),
+		)
+		builder.applyLayout('dashboard')
+
+		const draft = builder.session.value.draft!
+		expect(placedPaths(draft, builder.session.value.catalog).slice(0, 3)).toEqual([
+			'pageToolbar',
+			'pageToolbar/period',
+			'grid/gridRow/kpiCard',
+		])
 	})
 })
 
