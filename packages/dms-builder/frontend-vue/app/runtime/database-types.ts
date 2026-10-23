@@ -53,6 +53,7 @@ export interface ProposedResource {
 	fields: ProposedField[]
 	leftOut: ProposedLeftOut[]
 	writes: ProposedWrites
+	rows?: number
 }
 
 export interface ProposedExclusion {

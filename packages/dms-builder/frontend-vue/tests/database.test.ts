@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
 	answerItem,
+	currentAnswer,
 	draftFromMapped,
 	draftFromProposal,
 	includeResource,
 	KEEP_MAPPING_DRAFT_MS,
 	mergedDraft,
+	pointingAt,
 	remapInput,
 	settledInput,
 	storedMappingDraft,
@@ -239,5 +241,57 @@ describe('a relation the module maps already', () => {
 		expect(input.resources[0]).toMatchObject({ relation: 'erp.customers', writable: true, label: 'name' })
 		expect(input.resources[0].fields.map((entry) => entry.column)).toEqual(['name'])
 		expect(input).not.toHaveProperty('excluded')
+	})
+})
+
+describe('where a label shows, and what an open question holds meanwhile', () => {
+	const ORDERS = resource('erp.orders', [field('id'), field('notes')], 'id')
+	const INVOICES = resource('erp.invoices', [field('id'), field('order_id', 'erp.orders')], 'id')
+	const PROPOSAL: MappingProposal = {
+		connection: 'erp',
+		module: 'erp-tables',
+		database: { engine: 'postgresql 17.5', role: 'erp_reader', writes: 'none' },
+		resources: [ORDERS, INVOICES],
+		excluded: [],
+		open: [
+			{
+				id: 'label:erp.orders',
+				kind: 'label',
+				relation: 'erp.orders',
+				question: '',
+				options: [],
+				proposed: 'id',
+			},
+			{
+				id: 'reference:erp.orders.notes',
+				kind: 'reference',
+				relation: 'erp.orders',
+				column: 'notes',
+				question: '',
+				options: [],
+				proposed: null,
+			},
+		],
+	}
+
+	it('names the relation columns of the draft and of the module that point at a relation', () => {
+		const draft = draftFromProposal(PROPOSAL)
+		const mapped: MappedRelation[] = [
+			{
+				ref: 'erp/erp/returns',
+				resource: resource('erp.returns', [field('order_id', 'erp.orders'), field('old_order', 'erp.orders')], null),
+				included: ['order_id'],
+			},
+		]
+		expect(pointingAt(draft, mapped, 'erp.orders')).toEqual(['erp.invoices.order_id', 'erp.returns.order_id'])
+		includeResource(draft, 'erp.invoices', false)
+		expect(pointingAt(draft, mapped, 'erp.orders')).toEqual(['erp.returns.order_id'])
+	})
+
+	it('says what Apply writes for a question left open', () => {
+		const draft = draftFromProposal(PROPOSAL)
+		expect(PROPOSAL.open.map((item) => currentAnswer(draft, item))).toEqual(['labelled by id', 'a plain column'])
+		answerItem(draft, PROPOSAL.open[1]!, 'erp.invoices')
+		expect(currentAnswer(draft, PROPOSAL.open[1]!)).toBe('a reference to erp.invoices')
 	})
 })

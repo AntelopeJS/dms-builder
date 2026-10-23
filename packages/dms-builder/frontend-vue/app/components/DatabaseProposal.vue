@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import {
 	answerItem,
+	currentAnswer,
 	draftFromMapped,
 	draftFromProposal,
 	forgetMappingDraft,
@@ -10,6 +11,7 @@ import {
 	mappedTableViewsOf,
 	mergedDraft,
 	type MappingDraft,
+	pointingAt,
 	remapInput,
 	type ResourceDraft,
 	ruleSentence,
@@ -31,7 +33,8 @@ import type {
 /**
  * A connection's mapping, decided in the builder: the analysis runs, its
  * proposal comes back with every choice marked as a catalog fact or a default
- * and the questions it could not decide on top, the integrator settles it, and
+ * and the questions it could not decide asked at the relation they are about,
+ * the integrator settles it, and
  * Apply sends one `MapResources` once they have read what it writes. The
  * relations the module maps already are listed too, and one changed there is
  * mapped again on its own. Nothing is written before the integrator says so.
@@ -63,6 +66,7 @@ let disposed = false
 
 const proposal = computed<MappingProposal | undefined>(() => state.value?.proposal)
 const open = computed(() => (proposal.value && draft.value ? unanswered(proposal.value, draft.value) : []))
+const schemasItem = computed(() => open.value.find((item) => item.kind === 'schemas'))
 const tableViews = computed(() => draft.value?.resources.filter((entry) => entry.include && entry.tableView) ?? [])
 const statsOnly = computed(() => draft.value?.resources.filter((entry) => entry.include && !entry.tableView) ?? [])
 const left = computed(() => draft.value?.resources.filter((entry) => !entry.include) ?? [])
@@ -154,6 +158,10 @@ onBeforeUnmount(() => {
 
 function answer(item: OpenItem, value: unknown): void {
 	if (draft.value) answerItem(draft.value, item, value)
+}
+
+function openFor(relation: string): OpenItem[] {
+	return open.value.filter((item) => item.relation === relation)
 }
 
 function discardDraft(): void {
@@ -251,37 +259,21 @@ async function remap(relation: string): Promise<void> {
 			are made in the page workspace, or by the assistant.
 		</div>
 
-		<template v-if="proposal && draft && !applied">
-			<section v-if="open.length" class="flex flex-col gap-2">
-				<p class="text-sm font-semibold text-highlighted">To decide ({{ open.length }})</p>
-				<div
-					v-for="item in open"
-					:key="item.id"
-					class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
-				>
-					<span class="min-w-0 flex-1 text-toned">{{ item.question }}</span>
-					<template v-if="item.kind === 'schemas'">
-						<USelect
-							v-model="schemas"
-							multiple
-							:items="item.options.map((option) => ({ label: option.title, value: String(option.value) }))"
-							placeholder="Schemas"
-							size="xs"
-							class="w-64"
-						/>
-						<UButton label="Analyse these" size="xs" :disabled="!schemas.length" @click="analyse(schemas)" />
-					</template>
-					<USelect
-						v-else
-						:items="item.options.map((option) => ({ label: option.title, value: JSON.stringify(option.value) }))"
-						placeholder="Answer"
-						size="xs"
-						class="w-64"
-						@update:model-value="answer(item, JSON.parse($event as string))"
-					/>
-				</div>
-			</section>
-		</template>
+		<section
+			v-if="proposal && draft && !applied && schemasItem"
+			class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
+		>
+			<span class="min-w-0 flex-1 text-toned">{{ schemasItem.question }}</span>
+			<USelect
+				v-model="schemas"
+				multiple
+				:items="schemasItem.options.map((option) => ({ label: option.title, value: String(option.value) }))"
+				placeholder="Schemas"
+				size="xs"
+				class="w-64"
+			/>
+			<UButton label="Analyse these" size="xs" :disabled="!schemas.length" @click="analyse(schemas)" />
+		</section>
 
 		<div v-if="(proposal && draft && !applied) || mapped.length" class="grid min-h-0 grid-cols-[280px_minmax(0,1fr)] gap-4">
 			<aside class="flex flex-col gap-3" aria-label="Relations">
@@ -308,6 +300,9 @@ async function remap(relation: string): Promise<void> {
 							>
 								{{ entry.relation }}
 							</UButton>
+							<UBadge v-if="openFor(entry.relation).length" color="warning" variant="subtle" size="sm">
+								{{ openFor(entry.relation).length }} to decide
+							</UBadge>
 							<UTooltip v-if="proposedRule(entry.relation)" :text="ruleSentence(proposedRule(entry.relation)!.rule)">
 								<UBadge :color="KIND_COLORS[proposedRule(entry.relation)!.kind]" variant="subtle" size="sm">
 									{{ proposedRule(entry.relation)!.kind }}
@@ -345,6 +340,9 @@ async function remap(relation: string): Promise<void> {
 						v-model:resource="draft.resources[currentIndex]"
 						:connection="connection"
 						:proposed="currentProposed"
+						:open="openFor(selected.relation)"
+						:pointing="pointingAt(draft, mapped, selected.relation)"
+						@answer="answer"
 					/>
 				</template>
 				<template v-else-if="selected?.kind === 'mapped' && mappedDrafts[selected.relation]">
@@ -352,6 +350,7 @@ async function remap(relation: string): Promise<void> {
 						v-model:resource="mappedDrafts[selected.relation]"
 						:connection="connection"
 						:proposed="currentProposed"
+						:pointing="pointingAt(draft, mapped, selected.relation)"
 					/>
 					<div class="mt-3 flex items-center gap-3">
 						<UButton label="Map again" size="sm" :loading="busy" @click="remap(selected.relation)" />
@@ -374,7 +373,13 @@ async function remap(relation: string): Promise<void> {
 				<p v-if="summary.excluded?.length">
 					· {{ summary.excluded.length }} relations recorded as left out, so the next analysis does not propose them
 				</p>
-				<p v-if="open.length">· {{ open.length }} questions stay open and come back next time</p>
+				<template v-if="open.length">
+					<p>· {{ open.length }} questions stay open and come back next time, written meanwhile as:</p>
+					<p v-for="item in open" :key="item.id" class="pl-3">
+						<span class="font-mono">{{ item.column ? `${item.relation}.${item.column}` : item.relation ?? connection }}</span>:
+						{{ currentAnswer(draft, item) }}
+					</p>
+				</template>
 			</div>
 			<div class="flex items-center gap-3">
 				<template v-if="confirming">

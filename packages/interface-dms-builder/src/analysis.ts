@@ -88,6 +88,8 @@ export interface ProposedResource {
   fields: ProposedField[];
   leftOut: ProposedLeftOut[];
   writes: ProposedWrites;
+  /** Its rows, counted by the profile or estimated; absent when neither is known. */
+  rows?: number;
 }
 
 /** A relation the analysis does not propose, and why. */

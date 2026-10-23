@@ -273,6 +273,29 @@ describe("the relation rules of the analysis", () => {
     ]);
   });
 
+  it("offers every column as the label, the key too, and says how many rows there are", () => {
+    const lines = Relation({
+      relation: "erp.lines",
+      key: ["line_no"],
+      columns: [
+        Column("line_no", "number"),
+        Column("qty", "number"),
+        Column("password_hash", "string"),
+      ],
+      referencedBy: [
+        Reference("erp.returns", "line_no", "erp.lines", "line_no"),
+      ],
+    });
+    const proposal = proposeMapping(
+      Input([lines], [Profiled("erp.lines", 40, {})]),
+    );
+    expect(proposal.open[0].options).to.deep.equal([
+      { value: "line_no", title: "line_no (the key)" },
+      { value: "qty", title: "qty" },
+    ]);
+    expect(proposal.resources[0].rows).to.equal(40);
+  });
+
   it("maps a keyed table with only a time axis for stats only (R8)", () => {
     const events = Relation({
       relation: "erp.events",
@@ -406,6 +429,17 @@ describe("references the database does not declare", () => {
     expect(proposal.open.map((item) => item.id)).to.include(
       "reference:erp.invoices.order_ref",
     );
+  });
+
+  it("offers a plain column, the target found, and every TableView whose key fits", () => {
+    const item = analysed(0.97).open.find(
+      (entry) => entry.id === "reference:erp.invoices.order_ref",
+    );
+    expect(item?.options).to.deep.equal([
+      { value: null, title: "A plain column" },
+      { value: "erp.orders", title: "A reference to erp.orders (97% found)" },
+      { value: "erp.customers", title: "A reference to erp.customers" },
+    ]);
   });
 
   it("ignores one found in part", () => {

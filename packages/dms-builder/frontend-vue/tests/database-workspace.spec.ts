@@ -169,17 +169,116 @@ describe('the Database workspace', () => {
 		expect(textOf(root)).toContain('Applied.')
 	})
 
-	it('shows a few rows to the integrator, and keeps them in no draft', async () => {
+	it('shows a few rows to the integrator when a relation opens, and keeps them in no draft', async () => {
 		const root = await proposalPanel()
 		fire(button(root, 'erp.customers'), 'click')
-		await settle()
-		fire(button(root, 'Sample rows'), 'click')
 		await settle()
 
 		expect(textOf(root)).toContain('Ada Lovelace')
 		expect([...stored.values()].join('')).not.toContain('Ada Lovelace')
 		const sample = backend.calls.find((call) => call.path === '/api/builder/database/sample')
 		expect(sample?.body).toEqual({ connection: 'erp', relation: 'erp.customers', limit: 20 })
+	})
+})
+
+function select(root: TestNode, predicate: (node: TestNode) => boolean): TestNode {
+	const match = findAll(root, (node) => node.tag === 'USelect' && predicate(node))[0]
+	if (!match) {
+		throw new Error('no such select')
+	}
+	return match
+}
+
+describe('a question the analysis left open', () => {
+	const LABEL = {
+		id: 'label:erp.customers',
+		kind: 'label' as const,
+		relation: 'erp.customers',
+		question: 'Which column names a row of erp.customers?',
+		options: [
+			{ value: 'code', title: 'code (the key)' },
+			{ value: 'name', title: 'name' },
+		],
+		proposed: 'name',
+	}
+	const PURPOSE = {
+		id: 'purpose:erp.audit',
+		kind: 'purpose' as const,
+		relation: 'erp.audit',
+		question: 'What should erp.audit become?',
+		options: [],
+		proposed: null,
+		resource: { ...CUSTOMERS, relation: 'erp.audit', title: proposed('Audit', 'L2') },
+	}
+
+	function withOpen(): void {
+		const customers: ProposedResource = {
+			...CUSTOMERS,
+			rows: 40,
+			fields: [
+				{ ...field('code'), profile: { traits: [], nulls: 0, distinct: 40 } },
+				{ ...field('name'), profile: { traits: [], nulls: 10, distinct: 25 } },
+			],
+		}
+		backend.answers['GET /api/builder/database/analysis'] = {
+			ok: true,
+			data: { ...DONE, proposal: { ...PROPOSAL, resources: [customers], open: [LABEL, PURPOSE] } },
+			changes: [],
+		}
+	}
+
+	it('is asked at the control it decides, with counts and a preview of sampled rows', async () => {
+		withOpen()
+		const root = await proposalPanel()
+		expect(textOf(root)).not.toContain(LABEL.question)
+		expect(textOf(root)).toContain('1 to decide')
+		fire(button(root, 'erp.customers'), 'click')
+		await settle()
+
+		expect(textOf(root)).toContain(LABEL.question)
+		const label = select(root, (node) => node.props.placeholder === 'No label')
+		expect(label.props.items).toEqual([
+			{ label: 'code · the key · 100% filled · 40 values', value: 'code' },
+			{ label: 'name · 75% filled · 25 values', value: 'name' },
+		])
+		expect(textOf(root)).toContain('Sampled rows read:')
+		expect(textOf(root)).toContain('Ada Lovelace')
+
+		fire(label, 'update:modelValue', 'code' as never)
+		await settle()
+		expect(textOf(root)).not.toContain(LABEL.question)
+		expect(textOf(root)).toContain('C0000001')
+		expect([...stored.values()].join('')).not.toContain('Ada Lovelace')
+		expect([...stored.values()].join('')).not.toContain('C0000001')
+
+		fire(button(root, 'Apply'), 'click')
+		await settle()
+		fire(button(root, 'Write it'), 'click')
+		await settle()
+		const map = backend.calls.find((call) => call.path === '/api/builder/database/map')
+		expect(map?.body).toMatchObject({ resources: [{ relation: 'erp.customers', label: 'code' }] })
+		expect(JSON.stringify(map?.body)).not.toContain('Ada Lovelace')
+	})
+
+	it('settles what a relation becomes from plain choices in its panel', async () => {
+		withOpen()
+		const root = await proposalPanel()
+		fire(button(root, 'erp.audit'), 'click')
+		await settle()
+		expect(textOf(root)).toContain(PURPOSE.question)
+
+		fire(button(root, 'Counted in stats, no page'), 'click')
+		await settle()
+		expect(textOf(root)).not.toContain(PURPOSE.question)
+		fire(button(root, 'Apply'), 'click')
+		await settle()
+		expect(textOf(root)).toContain('written meanwhile as:')
+		fire(button(root, 'Write it'), 'click')
+		await settle()
+		const map = backend.calls.find((call) => call.path === '/api/builder/database/map')
+		expect(map?.body).toMatchObject({
+			resources: [{ relation: 'erp.customers' }, { relation: 'erp.audit', tableView: false }],
+		})
 	})
 })
 

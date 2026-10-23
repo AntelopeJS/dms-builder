@@ -241,6 +241,48 @@ export function settledInput(
 	}
 }
 
+/** What an open item holds in the draft for now, as Apply would write it. */
+export function currentAnswer(draft: MappingDraft, item: OpenItem): string {
+	const resource = resourceIn(draft, item.relation)
+	if (item.kind === 'label') {
+		return resource?.label ? `labelled by ${resource.label}` : 'no label'
+	}
+	if (item.kind === 'reference') {
+		const field = resource?.fields.find((candidate) => candidate.column === item.column)
+		return field?.relation ? `a reference to ${field.relation}` : 'a plain column'
+	}
+	if (item.kind === 'purpose') {
+		return 'left out'
+	}
+	return 'not analysed'
+}
+
+/** The relation columns of the draft and the module that point at a relation, as `relation.column`. */
+export function pointingAt(
+	draft: MappingDraft | null,
+	mapped: MappedRelation[],
+	relation: string,
+): string[] {
+	const fromDraft = (draft?.resources ?? [])
+		.filter((resource) => resource.include)
+		.flatMap((resource) =>
+			resource.fields
+				.filter((field) => field.include && field.relation === relation)
+				.map((field) => `${resource.relation}.${field.column}`),
+		)
+	const drafted = new Set((draft?.resources ?? []).map((resource) => resource.relation))
+	const fromMapped = mapped
+		.filter((entry) => !drafted.has(entry.resource.relation))
+		.flatMap((entry) =>
+			entry.resource.fields
+				.filter(
+					(field) => field.relation?.value === relation && entry.included.includes(field.column),
+				)
+				.map((field) => `${entry.resource.relation}.${field.column}`),
+		)
+	return [...fromDraft, ...fromMapped]
+}
+
 /** The open items the draft has not answered yet. */
 export function unanswered(proposal: MappingProposal, draft: MappingDraft): OpenItem[] {
 	return proposal.open.filter((item) => !(item.id in draft.answers))
