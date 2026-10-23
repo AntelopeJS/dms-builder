@@ -146,6 +146,12 @@ export const PAGE_PERIOD_SCOPE = 'page'
 export const LIVE_TOGGLE = 'LiveToggle'
 
 /**
+ * The bar first in a page's body holding its period selector and its Live /
+ * Pause switch, beside the time the page last read its data.
+ */
+export const PAGE_TOOLBAR = 'PageToolbar'
+
+/**
  * What the simple palette leaves to the developer view: blocks a setting
  * places where they are needed — the message a container shows when there is
  * nothing to show ("When there's nothing to show"), a live page's switch (the
