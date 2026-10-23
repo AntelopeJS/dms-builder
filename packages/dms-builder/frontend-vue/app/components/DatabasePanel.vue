@@ -15,6 +15,8 @@ const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
 const module = ref('')
+/** Tables of the open connection changed and not applied yet. */
+const unsaved = ref(0)
 /** A connection written to the configuration, which exists once the project restarts. */
 const pending = ref<string | null>(null)
 
@@ -31,7 +33,20 @@ function connected(id: string): void {
 	void load()
 }
 
+/** Leaving the open connection drops its unapplied changes, so it asks first. */
+function mayLeave(): boolean {
+	return (
+		unsaved.value === 0 ||
+		window.confirm(`${unsaved.value} changed tables are not applied yet. Leave them unsaved?`)
+	)
+}
+
+function startConnecting(): void {
+	if (connecting.value || mayLeave()) connecting.value = !connecting.value
+}
+
 function open(id: string): void {
+	if (id !== selected.value && !mayLeave()) return
 	selected.value = id
 	connecting.value = false
 	module.value = defaultNames(id, 'postgres').tablesModule
@@ -51,7 +66,7 @@ onMounted(load)
 				label="Connect a database"
 				size="sm"
 				:variant="connecting ? 'soft' : 'solid'"
-				@click="connecting = !connecting"
+				@click="startConnecting"
 			/>
 			<div
 				v-if="pending && !connections?.some((entry) => entry.id === pending)"
@@ -101,6 +116,7 @@ onMounted(load)
 				:key="`${selected}:${module}`"
 				:connection="selected"
 				:module="module"
+				@unsaved="unsaved = $event"
 			/>
 		</section>
 	</div>

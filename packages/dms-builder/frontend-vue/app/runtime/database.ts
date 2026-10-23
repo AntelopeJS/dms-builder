@@ -431,19 +431,29 @@ export function draftFromMapped(entry: MappedRelation): ResourceDraft {
 	return draft
 }
 
-/** The `MapResources` that maps one relation again from its changed draft. */
+/** The `MapResources` that maps relations the module maps already again, from their changed drafts. */
 export function remapInput(
 	connection: string,
 	module: string,
-	resource: ResourceDraft,
+	resources: ResourceDraft[],
 	mappedTableViews: ReadonlySet<string>,
 ): MapResourcesInput {
-	const draft: MappingDraft = { connection, module, resources: [resource], answers: {}, excluded: {} }
+	const draft: MappingDraft = { connection, module, resources, answers: {}, excluded: {} }
 	return {
 		module,
 		connection,
-		resources: [mappedResource(draft, resource, mappedTableViews)],
+		resources: resources.map((resource) => mappedResource(draft, resource, mappedTableViews)),
 	}
+}
+
+/** The drafts of mapped relations changed since they were read, by relation. */
+export function unsavedRelations(
+	drafts: Record<string, ResourceDraft>,
+	read: Record<string, ResourceDraft>,
+): string[] {
+	return Object.keys(drafts).filter(
+		(relation) => JSON.stringify(drafts[relation]) !== JSON.stringify(read[relation]),
+	)
 }
 
 /** The relations the module maps as TableViews, which relation columns may point at. */

@@ -13,6 +13,7 @@ import {
 	storedMappingDraft,
 	storeMappingDraft,
 	unanswered,
+	unsavedRelations,
 } from '../app/runtime/database'
 import type {
 	MappedRelation,
@@ -232,11 +233,11 @@ describe('a relation the module maps already', () => {
 		])
 	})
 
-	it('is mapped again on its own, from its changed draft', () => {
+	it('is mapped again from its changed draft', () => {
 		const draft = draftFromMapped(mapped)
 		draft.fields[2].include = false
 		draft.writable = true
-		const input = remapInput('erp', 'erp-tables', draft, new Set())
+		const input = remapInput('erp', 'erp-tables', [draft], new Set())
 		expect(input.resources).toHaveLength(1)
 		expect(input.resources[0]).toMatchObject({ relation: 'erp.customers', writable: true, label: 'name' })
 		expect(input.resources[0].fields.map((entry) => entry.column)).toEqual(['name'])
@@ -293,5 +294,18 @@ describe('where a label shows, and what an open question holds meanwhile', () =>
 		expect(PROPOSAL.open.map((item) => currentAnswer(draft, item))).toEqual(['labelled by id', 'a plain column'])
 		answerItem(draft, PROPOSAL.open[1]!, 'erp.invoices')
 		expect(currentAnswer(draft, PROPOSAL.open[1]!)).toBe('a reference to erp.invoices')
+	})
+})
+
+describe('the mapped relations changed and not applied yet', () => {
+	it('are the drafts that differ from what was read', () => {
+		const read = {
+			'erp.customers': draftFromMapped({ ref: 'erp/erp/customers', resource: resource('erp.customers', [field('name')], 'name'), included: ['name'] }),
+			'erp.orders': draftFromMapped({ ref: 'erp/erp/orders', resource: resource('erp.orders', [field('id')], 'id'), included: ['id'] }),
+		}
+		const drafts = structuredClone(read)
+		expect(unsavedRelations(drafts, read)).toEqual([])
+		drafts['erp.orders'].label = null
+		expect(unsavedRelations(drafts, read)).toEqual(['erp.orders'])
 	})
 })

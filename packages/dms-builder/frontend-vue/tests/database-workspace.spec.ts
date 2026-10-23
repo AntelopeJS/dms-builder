@@ -283,15 +283,47 @@ describe('a question the analysis left open', () => {
 })
 
 describe('a relation the module maps already', () => {
-	it('is listed, opened with its current choices, and mapped again on its own', async () => {
+	const ORDERS: ProposedResource = {
+		...CUSTOMERS,
+		relation: 'erp.orders',
+		label: proposed('number', 'L1'),
+		title: proposed('Orders', 'L2'),
+		fields: [field('number'), { ...field('customer'), relation: { ...proposed('erp.customers', 'F4'), implied: false } }],
+	}
+
+	async function mappedPanel(): Promise<TestNode> {
+		backend.answers['GET /api/builder/database/mapping'] = {
+			ok: true,
+			data: [
+				{ ref: 'erp/erp/customers', resource: CUSTOMERS, included: ['code', 'name'] },
+				{ ref: 'erp/erp/orders', resource: ORDERS, included: ['number', 'customer'] },
+			],
+			changes: [],
+		}
+		const mounted = mount(DatabaseProposal, {
+			props: { connection: 'erp', module: 'erp-tables' },
+			components: COMPONENTS,
+		})
+		unmount = mounted.unmount
+		await settle()
+		return mounted.root
+	}
+
+	async function makeEditable(root: TestNode, relation: string): Promise<void> {
+		fire(button(root, relation), 'click')
+		await settle()
+		const toggle = findAll(root, (node) => node.tag === 'USwitch' && node.props.label === 'Rows can be edited')[0]!
+		fire(toggle, 'update:modelValue', true as never)
+		await settle()
+	}
+
+	it('is listed, opened with its current choices, and has nothing to apply until changed', async () => {
 		backend.answers['GET /api/builder/database/mapping'] = {
 			ok: true,
 			data: [{ ref: 'erp/erp/customers', resource: CUSTOMERS, included: ['name'] }],
 			changes: [],
+			warnings: [{ code: 'relation_missing', message: 'erp.legacy is mapped, but the database no longer has it' }],
 		}
-		backend.answers['GET /api/builder/database/mapping'].warnings = [
-			{ code: 'relation_missing', message: 'erp.legacy is mapped, but the database no longer has it' },
-		]
 		const mounted = mount(DatabaseProposal, {
 			props: { connection: 'erp', module: 'erp-tables' },
 			components: COMPONENTS,
@@ -301,40 +333,54 @@ describe('a relation the module maps already', () => {
 		expect(textOf(mounted.root)).toContain('erp.legacy is mapped, but the database no longer has it')
 		fire(button(mounted.root, 'erp.customers'), 'click')
 		await settle()
-		fire(button(mounted.root, 'Apply changes'), 'click')
-		await settle()
-		expect(textOf(mounted.root)).toContain('Saved. The Customers page updates once the module reloads')
+		expect(button(mounted.root, 'Apply changes').props.disabled).toBe(true)
+		expect(textOf(mounted.root)).toContain('No changes to apply.')
+	})
 
+	it('marks every changed table unsaved and applies them in one MapResources', async () => {
+		const root = await mappedPanel()
+		await makeEditable(root, 'erp.customers')
+		await makeEditable(root, 'erp.orders')
+		expect(findAll(root, (node) => node.tag === 'UBadge' && textOf(node).trim() === 'unsaved')).toHaveLength(2)
+		expect(textOf(root)).toContain('Not saved yet: Customers, Orders.')
+
+		fire(button(root, 'Apply changes (2 tables)'), 'click')
+		await settle()
 		const map = backend.calls.filter((call) => call.path === '/api/builder/database/map')
 		expect(map).toHaveLength(1)
 		expect(map[0]?.body).toMatchObject({
-			resources: [{ relation: 'erp.customers', fields: [{ column: 'name' }] }],
+			resources: [
+				{ relation: 'erp.customers', writable: true },
+				{ relation: 'erp.orders', writable: true },
+			],
 		})
 		expect(map[0]?.body).not.toHaveProperty('excluded')
+		expect(textOf(root)).toContain('Saved Customers, Orders. The pages update once the module reloads')
 	})
 
-	it('says next to Apply changes why it could not save', async () => {
-		backend.answers['GET /api/builder/database/mapping'] = {
-			ok: true,
-			data: [{ ref: 'erp/erp/customers', resource: CUSTOMERS, included: ['name'] }],
-			changes: [],
-		}
+	it('says which tables show a new label through the columns pointing at it', async () => {
+		const root = await mappedPanel()
+		fire(button(root, 'erp.customers'), 'click')
+		await settle()
+		fire(select(root, (node) => node.props.placeholder === 'No label'), 'update:modelValue', 'code' as never)
+		await settle()
+		fire(button(root, 'Apply changes'), 'click')
+		await settle()
+		expect(textOf(root)).toContain('The columns pointing at them in Orders show the new label too.')
+	})
+
+	it('says next to Apply changes why it could not save, and keeps the change', async () => {
 		backend.answers['POST /api/builder/database/map'] = {
 			ok: false,
 			error: { code: 'invalid_config', issues: [{ pointer: '', message: 'relation erp.customers has no column "name"' }] },
 		}
-		const mounted = mount(DatabaseProposal, {
-			props: { connection: 'erp', module: 'erp-tables' },
-			components: COMPONENTS,
-		})
-		unmount = mounted.unmount
+		const root = await mappedPanel()
+		await makeEditable(root, 'erp.customers')
+		fire(button(root, 'Apply changes'), 'click')
 		await settle()
-		fire(button(mounted.root, 'erp.customers'), 'click')
-		await settle()
-		fire(button(mounted.root, 'Apply changes'), 'click')
-		await settle()
-		expect(textOf(mounted.root)).toContain('relation erp.customers has no column "name"')
-		expect(textOf(mounted.root)).not.toContain('Saved.')
+		expect(textOf(root)).toContain('relation erp.customers has no column "name"')
+		expect(textOf(root)).not.toContain('Saved')
+		expect(findAll(root, (node) => node.tag === 'UBadge' && textOf(node).trim() === 'unsaved')).toHaveLength(1)
 	})
 })
 
