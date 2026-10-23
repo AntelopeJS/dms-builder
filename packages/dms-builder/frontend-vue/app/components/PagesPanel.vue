@@ -8,6 +8,7 @@ import {
 	categoryRoute,
 } from '../runtime/categories'
 import { openWhenServed } from '../runtime/dev-reload'
+import { displayText } from '../runtime/i18n'
 import { usePageDelete } from '../runtime/page-delete'
 import { useBuilder, type PageLayout } from '../runtime/session'
 import type { PageSummary } from '../runtime/types'
@@ -573,7 +574,7 @@ async function write(): Promise<void> {
 			@select="visit"
 		>
 			<template #item-label="{ item }">
-				{{ item.label }}
+				{{ displayText(item.label) }}
 				<span v-if="item.kind === 'page'" class="font-mono text-xs text-muted">{{
 					item.ref
 				}}</span>
@@ -611,7 +612,7 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`Delete ${item.label}`"
+							:aria-label="`Delete ${displayText(item.label)}`"
 							title="Delete"
 							:loading="deleting === item.ref"
 							:class="{
@@ -630,7 +631,7 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`Move ${item.label} up the menu`"
+							:aria-label="`Move ${displayText(item.label)} up the menu`"
 							title="Earlier in the menu · written at once"
 							:disabled="session.pending.includes(item.ref)"
 							@click="builder.moveCategory(item.ref, -1)"
@@ -640,7 +641,7 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`Move ${item.label} down the menu`"
+							:aria-label="`Move ${displayText(item.label)} down the menu`"
 							title="Later in the menu · written at once"
 							:disabled="session.pending.includes(item.ref)"
 							@click="builder.moveCategory(item.ref, 1)"
@@ -650,8 +651,8 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`New page in ${item.label}`"
-							:title="`New page in ${item.label}`"
+							:aria-label="`New page in ${displayText(item.label)}`"
+							:title="`New page in ${displayText(item.label)}`"
 							@click="start('page', item.ref)"
 						/>
 						<UButton
@@ -659,7 +660,7 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`Rename ${item.label}`"
+							:aria-label="`Rename ${displayText(item.label)}`"
 							title="Rename"
 							@click="startRename(item.node)"
 						/>
@@ -669,7 +670,7 @@ async function write(): Promise<void> {
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:aria-label="`Delete ${item.label}`"
+							:aria-label="`Delete ${displayText(item.label)}`"
 							title="Delete the empty category"
 							@click="builder.deleteCategory(item.ref)"
 						/>

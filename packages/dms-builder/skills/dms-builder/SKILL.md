@@ -27,4 +27,5 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 - A block's permission is named after its position: moving or renaming it drops role grants; the change list warns.
 - A type error anywhere in the project blocks every write: fix it first.
 - A query `AddQuery` writes is a page route served at `/dms/pages<pageRef><endpoint>` (DMS 0.9); a block's `fetchUrl` must use that address (`pageRoutePath` from `@antelopejs/interface-dms/page`).
+- Editor texts live in `frontend-vue/i18n/locales/builder-{en-GB,fr-FR}.json` (namespace `dms_builder`, English fallback); the header button's label is the key `$dms_builder.action.edit_page`. The entry point, bar, strips and toasts are translated; the panels are still English. App display strings written as `$` keys (page titles, category names, block headings) are drawn through `displayText()` (`app/runtime/i18n.ts`); edit fields keep the raw key.
 - Page content rules (blocks backend-side, custom only for a missing block, `.meta()` on custom blocks) come from `dms-best-practices`.

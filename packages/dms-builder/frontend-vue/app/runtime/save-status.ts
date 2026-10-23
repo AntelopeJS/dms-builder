@@ -5,6 +5,8 @@
  * to know whether their work is safe.
  */
 
+import { t } from './i18n'
+
 export type SaveStatusKind = 'clean' | 'dirty' | 'saving' | 'saved' | 'fix' | 'error'
 
 export interface SaveStatus {
@@ -23,10 +25,6 @@ export interface SaveStatusInput {
 	lastSave: { outcome: 'saved' | 'failed'; at: number } | null
 }
 
-function plural(count: number, word: string): string {
-	return `${count} ${word}${count === 1 ? '' : 's'}`
-}
-
 /** The time of a save, as the bar says it: `14:12`. */
 export function clockTime(at: number): string {
 	const date = new Date(at)
@@ -36,24 +34,26 @@ export function clockTime(at: number): string {
 
 export function saveStatus(input: SaveStatusInput): SaveStatus {
 	const unsaved = input.changes
-		? `${plural(input.changes, 'unsaved change')}`
-		: 'Unsaved changes'
+		? t('save_status.unsaved_count', {}, input.changes)
+		: t('save_status.unsaved')
 	if (input.saving) {
-		return { kind: 'saving', label: 'Checking & saving…', icon: 'i-ph-circle-notch' }
+		return { kind: 'saving', label: t('save_status.saving'), icon: 'i-ph-circle-notch' }
 	}
 	if (input.dirty && input.lastSave?.outcome === 'failed') {
 		return {
 			kind: 'error',
-			label: 'Save failed · nothing written',
+			label: t('save_status.failed'),
 			icon: 'i-ph-warning-circle-light',
 		}
 	}
 	if (input.problems) {
 		return {
 			kind: 'fix',
-			label: input.dirty
-				? `${input.problems} to fix · ${input.changes || 'some'} unsaved`
-				: `${input.problems} to fix`,
+			label: !input.dirty
+				? t('save_status.fix', { problems: input.problems })
+				: input.changes
+					? t('save_status.fix_unsaved', { problems: input.problems, changes: input.changes })
+					: t('save_status.fix_some_unsaved', { problems: input.problems }),
 			icon: 'i-ph-warning-light',
 		}
 	}
@@ -63,9 +63,9 @@ export function saveStatus(input: SaveStatusInput): SaveStatus {
 	if (input.lastSave?.outcome === 'saved') {
 		return {
 			kind: 'saved',
-			label: `Saved · ${clockTime(input.lastSave.at)}`,
+			label: t('save_status.saved', { time: clockTime(input.lastSave.at) }),
 			icon: 'i-ph-check-circle-light',
 		}
 	}
-	return { kind: 'clean', label: 'All changes saved', icon: 'i-ph-check-circle-light' }
+	return { kind: 'clean', label: t('save_status.clean'), icon: 'i-ph-check-circle-light' }
 }
