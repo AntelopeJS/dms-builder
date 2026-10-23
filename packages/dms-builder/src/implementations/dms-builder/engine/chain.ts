@@ -1,4 +1,9 @@
-import { type CallExpression, type Expression, Node } from "ts-morph";
+import {
+  type CallExpression,
+  type Expression,
+  Node,
+  type Type,
+} from "ts-morph";
 import { buildCatalog } from "./catalog";
 import { importedName, unwrapExpression } from "./expression";
 
@@ -64,6 +69,42 @@ export function resolveExpr(expr: Expression): ResolvedExpr {
     }
   }
   return { expr };
+}
+
+const COMPONENT_TYPES = new Set(["Component", "ComponentBuilder"]);
+
+function isComponentType(type: Type, seen = new Set<Type>()): boolean {
+  if (seen.has(type)) return false;
+  seen.add(type);
+  const name = type.getSymbol()?.getName();
+  if (name && COMPONENT_TYPES.has(name)) return true;
+  return [...type.getIntersectionTypes(), ...type.getBaseTypes()].some((part) =>
+    isComponentType(part, seen),
+  );
+}
+
+/**
+ * A component the catalog has no factory for — one from another module, or
+ * made by a helper. The builder cannot edit it, but it is on the page all the
+ * same: reported opaque, and kept as written by a save, rather than dropped.
+ */
+export function isUnknownBlock(expr: Expression): boolean {
+  const node = unwrapExpression(expr);
+  if (!Node.isCallExpression(node) && !Node.isNewExpression(node)) return false;
+  try {
+    return isComponentType(node.getType());
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a static's initializer is one of the page's blocks, opaque or not. */
+export function isBlockInitializer(init: Expression): boolean {
+  const resolved = resolveExpr(init);
+  if (resolved.opaqueReason || !resolved.expr) return true;
+  return (
+    !!unwrapBuilderChain(resolved.expr).factory || isUnknownBlock(resolved.expr)
+  );
 }
 
 export interface UnwrapResult {

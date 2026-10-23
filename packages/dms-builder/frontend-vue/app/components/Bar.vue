@@ -1,27 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
+	CANVAS_DEVICES,
 	CANVAS_ZOOMS,
-	DEVICE_LABELS,
+	deviceLabel,
 	useCanvasView,
 	type CanvasDevice,
 } from '../runtime/canvas-view'
 import { rolesDecide } from '../runtime/access'
-import { TABLE_ICON } from '../runtime/constants'
+import { DATABASE_ICON, TABLE_ICON } from '../runtime/constants'
+import { displayText, t } from '../runtime/i18n'
 import { useBuilderMode, type BuilderMode } from '../runtime/mode'
 import { saveStatus, type SaveStatusKind } from '../runtime/save-status'
 import { useBuilder, type Workspace } from '../runtime/session'
 
-const MODES: { label: string; value: BuilderMode }[] = [
-	{ label: 'Simple', value: 'simple' },
-	{ label: 'Developer', value: 'advanced' },
-]
+const MODES: BuilderMode[] = ['simple', 'advanced']
 
 /** What the editor works on: the page, or what every page draws from. */
-const WORKSPACES: { label: string; value: Workspace; icon: string }[] = [
-	{ label: 'Page', value: 'page', icon: 'i-ph-browser-light' },
-	{ label: 'Tables', value: 'tables', icon: TABLE_ICON },
-	{ label: 'Data', value: 'data', icon: 'i-ph-function-light' },
+const WORKSPACES: { value: Workspace; icon: string }[] = [
+	{ value: 'page', icon: 'i-ph-browser-light' },
+	{ value: 'tables', icon: TABLE_ICON },
+	{ value: 'data', icon: 'i-ph-function-light' },
+	{ value: 'database', icon: DATABASE_ICON },
 ]
 
 const STATUS_CLASSES: Record<SaveStatusKind, string> = {
@@ -45,6 +45,13 @@ const DEVICE_ICONS: Record<CanvasDevice, string> = {
 	phone: 'i-ph-device-mobile-light',
 }
 
+const modeItems = computed(() =>
+	MODES.map((value) => ({ label: t(`bar.modes.${value}`), value })),
+)
+const workspaceItems = computed(() =>
+	WORKSPACES.map((item) => ({ ...item, label: t(`bar.workspaces.${item.value}`) })),
+)
+
 const builder = useBuilder()
 const session = builder.session
 const { mode, setMode } = useBuilderMode()
@@ -53,11 +60,12 @@ const view = useCanvasView()
 const canUndo = computed(() => session.value.history.length > 0)
 const canRedo = computed(() => session.value.future.length > 0)
 
-const title = computed(
-	() =>
+const title = computed(() =>
+	displayText(
 		(session.value.draft?.page?.displayName as string | undefined) ??
-		session.value.structure?.page.displayName ??
-		'',
+			session.value.structure?.page.displayName ??
+			'',
+	),
 )
 
 const status = computed(() =>
@@ -81,8 +89,8 @@ const roles = computed(() =>
 const viewAsItems = computed(() => [
 	[
 		{
-			label: 'You, the owner',
-			description: 'Shown everything',
+			label: t('bar.owner'),
+			description: t('bar.owner_description'),
 			icon: 'i-ph-crown-simple-light',
 			type: 'checkbox' as const,
 			checked: !session.value.viewAs,
@@ -91,7 +99,7 @@ const viewAsItems = computed(() => [
 	],
 	roles.value.map((role) => ({
 		label: role.name,
-		description: `${role.members} member${role.members === 1 ? '' : 's'}`,
+		description: t('bar.members', {}, role.members),
 		icon: 'i-ph-user-circle-light',
 		type: 'checkbox' as const,
 		checked: session.value.viewAs === role.id,
@@ -107,8 +115,8 @@ const viewItems = computed(() => [
 		checked: view.zoom.value === zoom,
 		onSelect: () => view.setZoom(zoom),
 	})),
-	(Object.keys(DEVICE_LABELS) as CanvasDevice[]).map((device) => ({
-		label: DEVICE_LABELS[device],
+	CANVAS_DEVICES.map((device) => ({
+		label: deviceLabel(device),
 		icon: DEVICE_ICONS[device],
 		type: 'checkbox' as const,
 		checked: view.device.value === device,
@@ -123,10 +131,10 @@ const viewItems = computed(() => [
 	>
 		<span
 			class="inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full bg-(--dms-accent-fill) pr-2.5 pl-2 font-mono text-[11px] font-semibold tracking-[0.06em] text-(--dms-accent-on-fill) uppercase shadow-(--dms-halo-accent)"
-			title="Edit mode · ⌘B"
+			:title="t('bar.editing_title')"
 		>
 			<UIcon name="i-ph-hammer-light" class="size-3.5" />
-			Editing
+			{{ t('bar.editing') }}
 		</span>
 		<div class="grid min-w-0 leading-tight max-lg:hidden">
 			<b class="truncate text-sm font-semibold text-highlighted">{{ title }}</b>
@@ -137,9 +145,9 @@ const viewItems = computed(() => [
 
 		<DmsSegmented
 			:model-value="session.workspace"
-			:items="WORKSPACES"
+			:items="workspaceItems"
 			size="sm"
-			aria-label="Workspace"
+			:aria-label="t('bar.workspace')"
 			class="ml-2 shrink-0"
 			@update:model-value="builder.setWorkspace($event as Workspace)"
 		/>
@@ -152,7 +160,7 @@ const viewItems = computed(() => [
 				class="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md border px-2 text-xs font-medium whitespace-nowrap"
 				:class="STATUS_CLASSES[status.kind]"
 				:data-status="status.kind"
-				title="Open the change list"
+				:title="t('bar.open_changes')"
 				@click="builder.setView('changes')"
 			>
 				<UIcon
@@ -178,8 +186,8 @@ const viewItems = computed(() => [
 				color="neutral"
 				variant="ghost"
 				:disabled="!canUndo"
-				aria-label="Undo"
-				title="Undo · ⌘Z"
+				:aria-label="t('bar.undo')"
+				:title="t('bar.undo_title')"
 				@click="builder.undo()"
 			/>
 			<UButton
@@ -188,8 +196,8 @@ const viewItems = computed(() => [
 				color="neutral"
 				variant="ghost"
 				:disabled="!canRedo"
-				aria-label="Redo"
-				title="Redo · ⌘⇧Z"
+				:aria-label="t('bar.redo')"
+				:title="t('bar.redo_title')"
 				@click="builder.redo()"
 			/>
 			<span class="mx-1 h-4.5 w-px bg-(--ui-border)" />
@@ -201,15 +209,19 @@ const viewItems = computed(() => [
 				:content="{ align: 'end' }"
 			>
 				<UButton
-					:label="builder.viewedAs.value ? `As ${builder.viewedAs.value.name}` : undefined"
+					:label="
+						builder.viewedAs.value
+							? t('bar.viewing_as', { role: builder.viewedAs.value.name })
+							: undefined
+					"
 					:icon="builder.viewedAs.value ? 'i-ph-eye' : 'i-ph-eye-light'"
 					trailing-icon="i-ph-caret-down-light"
 					size="sm"
 					:color="builder.viewedAs.value ? 'primary' : 'neutral'"
 					:variant="builder.viewedAs.value ? 'soft' : 'ghost'"
 					class="max-w-44 text-xs"
-					aria-label="View the page as a role"
-					title="View the page as a role sees it"
+					:aria-label="t('bar.view_as')"
+					:title="t('bar.view_as_title')"
 				/>
 			</UDropdownMenu>
 
@@ -222,7 +234,7 @@ const viewItems = computed(() => [
 					color="neutral"
 					variant="ghost"
 					class="font-mono text-xs max-xl:hidden"
-					aria-label="Zoom and width of the canvas"
+					:aria-label="t('bar.canvas_view')"
 				/>
 			</UDropdownMenu>
 
@@ -230,27 +242,27 @@ const viewItems = computed(() => [
 			reads the code the builder writes. -->
 			<DmsSegmented
 				:model-value="mode"
-				:items="MODES"
+				:items="modeItems"
 				size="xs"
-				aria-label="Builder mode"
+				:aria-label="t('bar.mode')"
 				class="mr-1 shrink-0"
 				@update:model-value="setMode($event as BuilderMode)"
 			/>
 			<UButton
 				icon="i-ph-floppy-disk-light"
-				label="Save"
+				:label="t('bar.save')"
 				size="sm"
 				:loading="session.saving"
 				:disabled="!builder.dirty.value"
-				title="Save · ⌘S"
+				:title="t('bar.save_title')"
 				@click="builder.save()"
 			/>
 			<UButton
-				label="Done"
+				:label="t('bar.done')"
 				size="sm"
 				color="neutral"
 				variant="outline"
-				title="Leave the editor · ⌘B"
+				:title="t('bar.done_title')"
 				@click="builder.leave()"
 			/>
 		</div>

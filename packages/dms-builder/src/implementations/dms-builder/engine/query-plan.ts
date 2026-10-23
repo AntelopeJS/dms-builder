@@ -98,13 +98,36 @@ function literalText(value: unknown, ts: string): string {
   return JSON.stringify(value);
 }
 
+const IDENTIFIER_START = /^[A-Za-z_$]/;
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
+/**
+ * A field name usable inside a parameter name: as it is when it is an identifier, its words in
+ * camelCase otherwise — a column named `Order Date` reads `minOrderDate`.
+ */
+function parameterStem(field: string): string {
+  if (IDENTIFIER.test(field)) {
+    return field;
+  }
+  const words = field.split(/[^A-Za-z0-9]+/).filter((word) => word.length > 0);
+  const stem = words
+    .map((word, index) =>
+      index === 0
+        ? word.toLowerCase()
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+    )
+    .join("");
+  return IDENTIFIER_START.test(stem) ? stem : `field${stem}`;
+}
+
 /**
  * A model parameter name from the field it filters — `minPrice`, `maxPrice`,
  * `priceNot`, or just `price` — never the route's public name. The two names are
  * independent: the route exposes its own, the model reads a meaningful one. On a
  * name clash (two ops on one field), fall back to a numeric suffix.
  */
-function deriveName(field: string, op: FilterOp, taken: Set<string>): string {
+function deriveName(column: string, op: FilterOp, taken: Set<string>): string {
+  const field = parameterStem(column);
   const capital = field.charAt(0).toUpperCase() + field.slice(1);
   const base =
     op === "ge" || op === "gt"

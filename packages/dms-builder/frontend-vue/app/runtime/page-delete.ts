@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { useDmsRouter } from '#dms/frontend-module'
 import { useBuilderApi } from './api'
 import { openWhenServed } from './dev-reload'
+import { displayText } from './i18n'
 import { useBuilder } from './session'
 import type { PageImpact, PageSummary } from './types'
 
@@ -40,7 +41,7 @@ export function usePageDelete() {
 			} go with it.`,
 		]
 		if (impact.linkedFrom.length) {
-			const names = impact.linkedFrom.map((page) => page.displayName).join(', ')
+			const names = impact.linkedFrom.map((page) => displayText(page.displayName)).join(', ')
 			lines.push(`${names} still link${impact.linkedFrom.length === 1 ? 's' : ''} to it: those links will lead nowhere.`)
 		}
 		return lines
@@ -58,7 +59,7 @@ export function usePageDelete() {
 		const open = session.value.pageRef === page.ref
 		const impact = await impactOf(page.ref)
 		const asked = await confirm({
-			title: `Delete ${page.displayName}?`,
+			title: `Delete ${displayText(page.displayName)}?`,
 			description: [
 				'The page leaves the project, with the routes it declares and the queries only it reads.',
 				...impact,

@@ -23,9 +23,10 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 ## Gotchas
 
 - Off under `ajs project start`: no routes (404), no frontend module, no Edit button. `api.enabled: true` forces it on.
-- Blocks are read back by shape: code that leaves the factory-call grammar becomes `opaque`, shown but not rewritten.
+- Blocks are read back by shape: code that leaves the factory-call grammar becomes `opaque`, shown but not rewritten. Factories imported from a `base/<block>` subpath read like the `base` barrel; a component with no catalog factory (a helper's return value) is listed opaque and preserved on save.
 - The period selector and Live / Pause switch the editor places go into the page's top-level `PageToolbar`, made at the top when missing (children `period` / `live`, ids and options read from the catalog's `PageToolbar.initialChildren`, as `pageToolbar()` sets them, with no override of the editor's). A page with its own top-level selector or switch, or a toolbar the editor cannot rewrite (a `pageToolbar()` call is not factory grammar), gets the control beside it instead.
 - A block's permission is named after its position: moving or renaming it drops role grants; the change list warns.
 - A type error anywhere in the project blocks every write: fix it first.
 - A query `AddQuery` writes is a page route served at `/dms/pages<pageRef><endpoint>` (DMS 0.9); a block's `fetchUrl` must use that address (`pageRoutePath` from `@antelopejs/interface-dms/page`).
+- Editor texts live in `frontend-vue/i18n/locales/builder-{en-GB,fr-FR}.json` (namespace `dms_builder`, English fallback); the header button's label is the key `$dms_builder.action.edit_page`. The entry point, bar, strips and toasts are translated; the panels are still English. App display strings written as `$` keys (page titles, category names, block headings) are drawn through `displayText()` (`app/runtime/i18n.ts`); edit fields keep the raw key.
 - Page content rules (blocks backend-side, custom only for a missing block, `.meta()` on custom blocks) come from `dms-best-practices`.

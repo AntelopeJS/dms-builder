@@ -1,18 +1,13 @@
-import path from "node:path";
 import { ImplementInterface } from "@antelopejs/interface-core";
 import { AddFrontendModule } from "@antelopejs/interface-dms/page";
 import {
   type DmsBuilderConfig,
+  getModuleConfig,
   isBuilderEnabled,
   setModuleConfig,
 } from "./config";
-import {
-  FRONTEND_MODULE_CONFIG_KEY,
-  FRONTEND_MODULE_DIR,
-  FRONTEND_MODULE_ENABLED_OPTION,
-  FRONTEND_MODULE_NAME,
-  FRONTEND_MODULE_PRIORITY,
-} from "./constants/routes";
+import { GetRuntimeInfo } from "@antelopejs/interface-core/runtime";
+import { frontendModule } from "./frontend-module";
 
 export type { BuilderApiConfig, DmsBuilderConfig } from "./config";
 
@@ -35,19 +30,7 @@ export async function construct(config?: DmsBuilderConfig): Promise<void> {
  * connected, which is what serves the module to the frontend.
  */
 export async function start(): Promise<void> {
-  if (!(await isBuilderEnabled())) {
-    return;
-  }
-  await AddFrontendModule({
-    name: FRONTEND_MODULE_NAME,
-    sourcePath: path.join(__dirname, FRONTEND_MODULE_DIR),
-    renderer: { name: "vue", version: "3" },
-    configKey: FRONTEND_MODULE_CONFIG_KEY,
-    priority: FRONTEND_MODULE_PRIORITY,
-    // Belt and braces: the module is only registered at all when the builder
-    // is enabled, but a frontend can be built once and served later, so the
-    // manifest says so out loud and the module checks it before registering
-    // its plugin.
-    options: { [FRONTEND_MODULE_ENABLED_OPTION]: true },
-  });
+  const { dev } = await GetRuntimeInfo();
+  const registration = frontendModule(getModuleConfig(), { dev });
+  if (registration) await AddFrontendModule(registration);
 }

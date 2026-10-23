@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { displayText } from '../runtime/i18n'
 import { useBuilder } from '../runtime/session'
 
 /**
@@ -29,7 +30,7 @@ const reach = computed(() => {
 	}
 	return {
 		label: `${props.table} · ${pages.length} page${pages.length === 1 ? '' : 's'}`,
-		names: pages.map((page) => page.displayName).join(', '),
+		names: pages.map((page) => displayText(page.displayName)).join(', '),
 	}
 })
 </script>

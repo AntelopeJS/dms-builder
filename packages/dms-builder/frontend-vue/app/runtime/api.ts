@@ -1,5 +1,15 @@
 import { API_PREFIX, PAGE_LAYOUT_PATH } from './constants'
 import type {
+	AnalysisState,
+	DatabaseConnection,
+	MappedRelation,
+	MapResourcesInput,
+	MapResourcesResult,
+	ProjectConfigResult,
+	ProjectConfigStep,
+	RowSample,
+} from './database-types'
+import type {
 	AddQueryInput,
 	BlockCatalog,
 	CategorySummary,
@@ -160,6 +170,29 @@ export function useBuilderApi() {
 			post<QueryPreview>('/query-preview', {
 				query,
 				args: args ?? {},
+			}),
+		databaseConnections: () => get<DatabaseConnection[]>('/database/connections'),
+		analyseDatabase: (connection: string, module: string, schemas?: string[]) =>
+			post<AnalysisState>('/database/analyse', { connection, module, schemas }),
+		analysis: (id: string) => read<AnalysisState>('/database/analysis', { id }),
+		/** The relations the module maps for the connection, as their current choices. */
+		mapping: (connection: string, module: string) =>
+			read<MappedRelation[]>('/database/mapping', { connection, module }),
+		mapDatabase: (input: MapResourcesInput) =>
+			post<MapResourcesResult>('/database/map', input),
+		configureProject: (steps: ProjectConfigStep[], dryRun: boolean) =>
+			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun } }),
+		/** Writes the value into the project's `.env`; the answer never carries it back. */
+		setVariable: (name: string, value: string) =>
+			$authFetch<{ ok: boolean; name?: string; message?: string }>(
+				`${API_PREFIX}/database/variable`,
+				{ method: 'PUT', body: { name, value } },
+			),
+		/** A few rows for the integrator to look at, held in the panel and nowhere else. */
+		sampleRows: (connection: string, relation: string, limit: number) =>
+			$authFetch<RowSample>(`${API_PREFIX}/database/sample`, {
+				method: 'POST',
+				body: { connection, relation, limit },
 			}),
 	}
 }

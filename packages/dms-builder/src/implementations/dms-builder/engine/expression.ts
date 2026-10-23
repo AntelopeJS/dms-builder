@@ -17,6 +17,39 @@ export function unwrapExpression(node: Node): Node {
   return node;
 }
 
+const exportsOf = new Map<string, Record<string, unknown> | undefined>();
+
+function loadExports(module: string): Record<string, unknown> | undefined {
+  if (!exportsOf.has(module)) {
+    try {
+      exportsOf.set(module, require(module) as Record<string, unknown>);
+    } catch {
+      exportsOf.set(module, undefined);
+    }
+  }
+  return exportsOf.get(module);
+}
+
+/**
+ * Whether `name` imported from `module` is the catalog entry's export.
+ *
+ * The DMS documents per-block subpaths beside its barrel — `KpiCard` from
+ * `…/base/kpi-card` is the `KpiCard` of `…/base`. A subpath is accepted when it
+ * exports the very same value at run time, not because it is spelled like one:
+ * a subpath that binds another value under that name is not the catalog's.
+ */
+function fromEntryModule(
+  module: string,
+  name: string,
+  entry: { name: string; module?: string },
+): boolean {
+  if (entry.name !== name || !entry.module) return false;
+  if (module === entry.module) return true;
+  if (!module.startsWith(`${entry.module}/`)) return false;
+  const value = loadExports(module)?.[name];
+  return value !== undefined && value === loadExports(entry.module)?.[name];
+}
+
 /** Resolve bindings, not their spelling: a local KpiCard is not a DMS import. */
 export function importedName(
   node: Node,
@@ -33,9 +66,7 @@ export function importedName(
         .getImportDeclaration()
         .getModuleSpecifierValue();
       const name = declaration.getName();
-      if (
-        imports.some((entry) => entry.module === module && entry.name === name)
-      )
+      if (imports.some((entry) => fromEntryModule(module, name, entry)))
         return name;
     }
     if (
@@ -75,9 +106,10 @@ function propertyImport(
     const module = namespace
       .getFirstAncestorByKind(SyntaxKind.ImportDeclaration)
       ?.getModuleSpecifierValue();
-    return imports.find(
-      (entry) => entry.module === module && entry.name === node.getName(),
-    )?.name;
+    return module === undefined
+      ? undefined
+      : imports.find((entry) => fromEntryModule(module, node.getName(), entry))
+          ?.name;
   }
   return undefined;
 }

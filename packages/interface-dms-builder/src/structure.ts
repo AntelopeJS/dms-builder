@@ -100,6 +100,8 @@ export interface PageSummary {
   order?: number;
   /** Whether the menu leaves the page out; its route still answers. */
   hidden?: boolean;
+  /** The project module the page lives in, when it is not the project's own. */
+  sourceModule?: string;
 }
 
 /** A lightweight category listing entry. */

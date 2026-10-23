@@ -18,6 +18,7 @@ import { applyImportRef, blockCallText, childArgText } from "./emit";
 import { stringLiteralValue } from "./literals";
 import { contentVersion } from "./page-structure";
 import { parseBlockPath, propertyKey } from "./paths";
+import { moduleMismatch } from "./modules";
 import { invalidateResourceIndex, resourceRefResolver } from "./resource-index";
 import { type PageRecord } from "./scan";
 import { findPageRecord, invalidateSourceIndex } from "./source-index";
@@ -52,6 +53,16 @@ export function duplicate<T = void>(
 
 export function unsupported<T = void>(detail: string): OpResult<T> {
   return { ok: false, error: { code: "unsupported", detail } };
+}
+
+/** The refusal for an operation that names a module it cannot write into. */
+export function moduleError<T = void>(
+  module: string | undefined,
+  declaredIn: string | undefined,
+  what: string,
+): OpResult<T> | undefined {
+  const mismatch = moduleMismatch(module, declaredIn, what);
+  return mismatch ? invalidConfig<T>(mismatch) : undefined;
 }
 
 export function invalidConfig<T = void>(message: string): OpResult<T> {

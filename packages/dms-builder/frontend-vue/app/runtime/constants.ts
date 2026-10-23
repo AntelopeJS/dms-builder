@@ -1,3 +1,4 @@
+import { displayKey } from './i18n'
 import type { TypedKind } from './typed-values'
 import type { FieldFlag } from './types'
 
@@ -14,7 +15,8 @@ export const ACTION_ID = 'dms-builder-edit'
 // The DMS renders this action on its own builder button, keyed by id; the
 // icon is only a fallback for a host that lays it out generically.
 export const ACTION_ICON = 'i-ph-hammer-light'
-export const ACTION_LABEL = 'Builder — edit this page'
+// A `$` key: the host translates it for the button's tooltip and aria-label.
+export const ACTION_LABEL = displayKey('action.edit_page')
 export const ACTION_ORDER = 90
 
 export const API_PREFIX = '/api/builder'
@@ -113,6 +115,8 @@ export const SECTION_BLOCK = 'Section'
 
 /** The icon every table is drawn with: the Tables tab, its list, a relation's target. */
 export const TABLE_ICON = 'i-ph-database-light'
+/** A database the project maps, as opposed to one of its tables. */
+export const DATABASE_ICON = 'i-ph-plugs-connected-light'
 
 /** One row of a section: a label beside the one block it holds. */
 export const FIELD_ROW = 'FieldRow'

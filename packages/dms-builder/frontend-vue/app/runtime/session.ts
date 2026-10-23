@@ -51,6 +51,7 @@ import { forgetDraft, storeDraft, storedDraft, type StoredDraft } from './draft-
 import { FORM_BLOCK, formTableOf, unaskedRequired } from './form-table'
 import { deriveKeys } from './keys'
 import { blockTitle } from './naming'
+import { displayText, t } from './i18n'
 import { byCategoryOrder } from './categories'
 import { fitSpacerColumns, pathOfNode, tidyLayout } from './layout'
 import { ownerOf, tidyWrappers } from './wrappers'
@@ -122,11 +123,12 @@ type RailView =
 	| 'resource'
 
 /**
- * What the editor is working on, picked in the bar: the page, or one of the two
- * kinds of thing every page draws on — the tables and the data sources — which
- * get the whole width rather than a rail squeezed beside the page.
+ * What the editor is working on, picked in the bar: the page, one of the two
+ * kinds of thing every page draws on — the tables and the data sources — or a
+ * database the project maps, each given the whole width rather than a rail
+ * squeezed beside the page.
  */
-export type Workspace = 'page' | 'tables' | 'data'
+export type Workspace = 'page' | 'tables' | 'data' | 'database'
 
 /** The tabs of the side rail, which stay whatever is selected. */
 export type LeftTab = 'add' | 'layers' | 'pages'
@@ -1063,7 +1065,7 @@ export function useBuilder(): BuilderController {
 		const periodPlaced = ensurePeriodSelector(next, session.value.catalog, current)
 		fitSpacerColumns(next)
 		if (!respectsSourceLocks(current, next)) {
-			notify('This setting or placement is managed in code and cannot be changed here')
+			notify(t('toasts.locked'))
 			return false
 		}
 		// Edits of one thing in quick succession are one step to undo: picking
@@ -1086,7 +1088,7 @@ export function useBuilder(): BuilderController {
 		refollow(next, followed)
 		schedulePreview()
 		if (periodPlaced) {
-			notify('Added a period selector at the top of the page, for the card to follow')
+			notify(t('toasts.period_added'))
 		}
 		return true
 	}
@@ -1468,7 +1470,7 @@ export function useBuilder(): BuilderController {
 		const created = node && placedAt(node)
 		if (created) {
 			select(created)
-			notify(`${descriptor.label ?? descriptor.type} added`)
+			notify(t('toasts.block_added', { block: descriptor.label ?? descriptor.type }))
 		}
 	}
 
@@ -1646,7 +1648,7 @@ export function useBuilder(): BuilderController {
 				}
 			}
 		})
-		notify('Layout added', { undo: true })
+		notify(t('toasts.layout_added'), { undo: true })
 	}
 
 	/**
@@ -1723,7 +1725,9 @@ export function useBuilder(): BuilderController {
 		// Named, and undone from where it is said: one key took it away, so
 		// one click brings it back.
 		notify(
-			block ? `Removed ${blockTitle(block, session.value.catalog)}` : 'Block removed',
+			block
+				? t('toasts.removed', { block: blockTitle(block, session.value.catalog) })
+				: t('toasts.block_removed'),
 			{ undo: true },
 		)
 	}
@@ -1737,7 +1741,7 @@ export function useBuilder(): BuilderController {
 		const created = node && placedAt(node)
 		if (created) {
 			select(created)
-			notify('Block duplicated')
+			notify(t('toasts.block_duplicated'))
 		}
 	}
 
@@ -1978,7 +1982,7 @@ export function useBuilder(): BuilderController {
 		noteDirty()
 		keepDraft()
 		schedulePreview()
-		notify('Changes discarded', { undo: true })
+		notify(t('toasts.changes_discarded'), { undo: true })
 	}
 
 	async function save(): Promise<void> {
@@ -2149,14 +2153,14 @@ export function useBuilder(): BuilderController {
 
 	/** A page as the menu names it, else by its address. */
 	function pageName(ref: string): string {
-		return session.value.pages.find((page) => page.ref === ref)?.displayName ?? ref
+		const name = session.value.pages.find((page) => page.ref === ref)?.displayName
+		return name ? displayText(name) : ref
 	}
 
 	/** A category as the menu names it, else by its ref. */
 	function categoryName(ref: string): string {
-		return (
-			session.value.categories.find((entry) => entry.ref === ref)?.displayName ?? ref
-		)
+		const name = session.value.categories.find((entry) => entry.ref === ref)?.displayName
+		return name ? displayText(name) : ref
 	}
 
 	/** The pages and categories the builder can create alongside, and navigate to. */
