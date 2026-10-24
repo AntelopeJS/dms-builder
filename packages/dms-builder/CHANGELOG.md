@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.6.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.6.0...v0.6.1)
+
+### 📦 Build
+
+- Run on @antelopejs/dms 0.11 and @antelopejs/dms-frontend 0.9 ([#60](https://github.com/AntelopeJS/dms-builder/pull/60))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.2.4 ([f4f6954](https://github.com/AntelopeJS/dms-builder/commit/f4f6954))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.6.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.5.3...v0.6.0)
