@@ -51,13 +51,13 @@ Start the backend with `ajs project run -w`, then the frontend with `ajs dms dev
 
 | Package | Version |
 | --- | --- |
-| `@antelopejs/dms` | `>=0.9.0 <1.0.0` |
-| `@antelopejs/interface-dms` | `>=0.7.0 <1.0.0` |
-| `@antelopejs/dms-frontend` (renderer) | `>=0.6.0 <0.7.0` |
+| `@antelopejs/dms` | `>=0.11.0 <1.0.0` |
+| `@antelopejs/interface-dms` | `>=0.9.0 <1.0.0` |
+| `@antelopejs/dms-frontend` (renderer) | `>=0.9.0 <0.10.0` |
 | `@antelopejs/interface-dms-builder` | `>=0.2.0 <0.3.0` |
 | API provider | `@antelopejs/api`, for the HTTP routes |
 
-On DMS 0.8, use `@antelopejs/dms-builder` 0.3.
+On DMS 0.10 or earlier, use `@antelopejs/dms-builder` 0.6.
 
 ## Documentation
 
