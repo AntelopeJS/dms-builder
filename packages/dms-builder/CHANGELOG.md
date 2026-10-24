@@ -4,6 +4,11 @@
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.6.0...v0.6.1)
 
+### Upgrade notes
+
+- ⚠️ **Minimum versions raised:** requires `@antelopejs/dms` 0.11 (`>=0.11.0`), `@antelopejs/interface-dms` 0.9 (`>=0.9.0`) and the renderer `@antelopejs/dms-frontend` 0.9 (the frontend layer's `engines` is `>=0.9.0 <0.10.0`: the 0.9 loader refuses an older layer, and an older loader refuses this one). `@antelopejs/interface-database` is floored at `>=0.1.11`, as interface-dms 0.9 asks. Upgrade the backend, interface and renderer together; on DMS 0.10 or earlier, stay on dms-builder 0.6.0 ([#60](https://github.com/AntelopeJS/dms-builder/pull/60)).
+- No API, configuration or data change. Still implements `@antelopejs/interface-dms-builder` 0.2 (`>=0.2.2 <0.3.0`).
+
 ### 📦 Build
 
 - Run on @antelopejs/dms 0.11 and @antelopejs/dms-frontend 0.9 ([#60](https://github.com/AntelopeJS/dms-builder/pull/60))
