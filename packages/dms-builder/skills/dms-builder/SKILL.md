@@ -18,7 +18,7 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 
 ## Config
 
-`projectRoot` (absolute source root, default the working directory), `api.enabled` (default: the core's dev flag). `factoring` was removed in 0.3. Version 0.4+ needs `@antelopejs/dms` 0.9 (`interface-dms` 0.7) and `@antelopejs/dms-frontend` 0.6.
+`projectRoot` (absolute source root, default the working directory), `api.enabled` (default: the core's dev flag). `factoring` was removed in 0.3. It needs `@antelopejs/dms` 0.11 (`interface-dms` 0.9) and `@antelopejs/dms-frontend` 0.9.
 
 ## Gotchas
 
