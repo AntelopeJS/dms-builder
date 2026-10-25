@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "antelopejs/no-comments": 436,
+    "antelopejs/no-fs-read-in-tests": 15,
+    "anti-slop/no-known-value-widening": 54,
+    "anti-slop/no-runtime-typeof": 61,
+    "anti-slop/no-shape-in-symbol-names": 81,
+    "anti-slop/no-unknown-parameters": 57,
+    "anti-slop/no-unknown-returns": 35,
+    "anti-slop/no-unsafe-dictionary-type": 142,
+    "anti-slop/require-safety-comment-for-type-assertion": 110,
+    "jest/valid-title": 1
+  },
+  "oversizeFiles": {
+    ".github/social-card.png": 245222,
+    "packages/dms-builder/frontend-vue/app/components/Config.vue": 25037,
+    "packages/dms-builder/frontend-vue/app/components/DataSource.vue": 28371,
+    "packages/dms-builder/frontend-vue/app/components/Node.vue": 27513,
+    "packages/dms-builder/frontend-vue/app/components/Option.vue": 34507,
+    "packages/dms-builder/frontend-vue/app/components/PagesPanel.vue": 20395,
+    "packages/dms-builder/frontend-vue/app/runtime/catalog.ts": 32727,
+    "packages/dms-builder/frontend-vue/app/runtime/dropping.ts": 23546,
+    "packages/dms-builder/frontend-vue/app/runtime/session.ts": 81057,
+    "packages/dms-builder/frontend-vue/tests/builder-placement.test.ts": 39176,
+    "packages/dms-builder/frontend-vue/tests/canvas-drop.spec.ts": 53912,
+    "packages/dms-builder/frontend-vue/tests/chart-card-panel.spec.ts": 20024,
+    "packages/dms-builder/frontend-vue/tests/drop-target.test.ts": 24823,
+    "packages/dms-builder/frontend-vue/tests/editor-feedback.spec.ts": 37012,
+    "packages/dms-builder/frontend-vue/tests/panel-widgets.spec.ts": 29114
+  }
+}
