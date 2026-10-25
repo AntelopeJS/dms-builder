@@ -17,61 +17,24 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Independent jobs instead of one sequence: the wall-clock is the slowest of
-# them (verify-source), not their sum.
+# them, not their sum.
 jobs:
-  backend:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      # The interface is built once, by its own step: the module's `build`
-      # would otherwise build it a second time.
-      DMS_PREBUILT: "1"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-
-      # Each package's build runs `tsc` over the same tsconfig as its
-      # `typecheck` script, so the builds also gate on type errors: oxlint's
-      # type-aware pass degrades to `any` on a broken tsconfig without
-      # failing, and this is what catches it.
-      - run: pnpm --filter @antelopejs/interface-dms-builder build
-      - run: pnpm --filter @antelopejs/dms-builder prepack
-
-      - uses: AntelopeJS/tooling-configs/actions/docs@310e3d861b2da2244902854379176c91e1ebc68e
-        with:
-          files: |
-            README.md
-            packages/dms-builder/README.md
-            packages/dms-builder/docs
-            packages/interface-dms-builder/README.md
-            packages/interface-dms-builder/docs
-          typescript-project: packages/interface-dms-builder/docs/tsconfig.json
-
-      # Package contract, builder switch and query templates, over the
-      # compiled `dist`, in one node process tree.
-      - run: pnpm --filter @antelopejs/dms-builder test:node
-
-      # Lint and format are shared configs owned by the workspace root.
-      - run: pnpm lint
-      - run: pnpm --filter @antelopejs/dms-builder knip
-
-  frontend-unit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        with:
-          workspace: "false"
-
-      - run: pnpm --dir packages/dms-builder/frontend-vue lint
-      - run: pnpm --dir packages/dms-builder/frontend-vue test
-      # The specs that mount the builder's components, through their own
-      # vitest config (it compiles the SFCs).
-      - run: pnpm --dir packages/dms-builder/frontend-vue test:components
+  # `pnpm run checks`: typecheck, lint (oxlint and the Vue layer's ESLint),
+  # format, knip, the node, Vue unit and component suites, size, ratchet and
+  # sync.
+  checks:
+    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1
+    with:
+      docs-files: |
+        README.md
+        packages/dms-builder/README.md
+        packages/dms-builder/docs
+        packages/interface-dms-builder/README.md
+        packages/interface-dms-builder/docs
+      docs-typescript-project: packages/interface-dms-builder/docs/tsconfig.json
 
   # `ajs dms verify-source`: the production build of the DMS core layer with
-  # this one, then vue-tsc. The longest job, so nothing else waits on it.
+  # this one, then vue-tsc. Its own job, so it runs alongside `checks`.
   frontend-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -100,17 +63,18 @@ jobs:
       - run: pnpm --filter @antelopejs/dms-builder test:unit
 
   # The single check to require on `main`: it keeps the historical job name,
-  # and fails unless every job above succeeded. `skipped` counts as a pass so
-  # engine-specs, which only runs on push, never leaves a pull request pending.
+  # and fails unless every job above succeeded. `skipped` counts as a pass only
+  # for engine-specs, which runs on push alone, so a pull request is never left
+  # pending.
   ubuntu:
     if: always()
-    needs: [backend, frontend-unit, frontend-verify, engine-specs]
+    needs: [checks, frontend-verify, engine-specs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          for result in $RESULTS; do
-            [ "$result" = success ] || [ "$result" = skipped ] || exit 1
-          done
+      - if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          needs.checks.result == 'skipped' ||
+          needs.frontend-verify.result == 'skipped'
+        run: exit 1

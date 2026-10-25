@@ -70,7 +70,7 @@
     "@antelopejs/core": ">=1.17.1 <2",
     "@antelopejs/interface-data-api": ">=0.4.0 <1.0.0",
     "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
-    "@antelopejs/tooling-configs": ">=0.0.9 <1.0.0",
+    "@antelopejs/tooling-configs": "^0.2.0",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",

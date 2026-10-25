@@ -4,7 +4,11 @@
     "rootDir": "..",
     "composite": false,
     "incremental": false,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@antelopejs/interface-dms-builder": ["../src/index.ts"],
+      "@antelopejs/interface-dms-builder/*": ["../src/*"]
+    }
   },
   "include": ["../src/**/*.ts", "**/*.ts"]
 }
