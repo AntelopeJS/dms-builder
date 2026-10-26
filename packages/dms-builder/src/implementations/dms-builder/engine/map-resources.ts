@@ -6,7 +6,6 @@ import type {
   MapResourcesResult,
   MappedResult,
   OpResult,
-  OpWarning,
 } from "@antelopejs/interface-dms-builder";
 import type { Project, SourceFile } from "ts-morph";
 import { catalogOf } from "./catalog-connection";
@@ -20,16 +19,7 @@ import {
 } from "./map-resources-plan";
 import { markMapped } from "./mapped-modules";
 import { moduleOfFile, targetModule } from "./modules";
-import {
-  addBlock,
-  commit,
-  configureBlock,
-  invalidConfig,
-  unsupported,
-} from "./ops";
-import { configurePage, createPage } from "./ops-blocks";
-import { createCategory } from "./ops-categories";
-import { deletePage } from "./page-delete";
+import { commit, invalidConfig, unsupported } from "./ops";
 import { addSortedExport, barrelSpecifier, srcDir } from "./placement";
 import { buildDataApiFile, buildDatabaseFile } from "./resource-emit-types";
 import {
@@ -37,9 +27,11 @@ import {
   type ResourceRecord,
   resourceRefResolver,
 } from "./resource-index";
-import { relabelPointingColumns } from "./relabel-columns";
-import { joinSlug } from "./scan";
-import { findCategoryRecord, findPageRecord } from "./source-index";
+import {
+  relabelPointingColumns,
+  unlabelledTargetRefusal,
+} from "./relabel-columns";
+import { writePages } from "./map-resources-pages";
 import { type EmitContext, UnknownReferenceError } from "./value";
 import {
   getWritableProject,
@@ -51,7 +43,6 @@ import {
 const DECORATORS_MODULE = "@antelopejs/interface-database-decorators";
 const REGISTER_SCHEMA = "RegisterSchema";
 const START = "start";
-const TABLE_BLOCK = "table";
 const SELECT_DECORATOR = "Select";
 const ID_FIELD = "_id";
 const FULL_INDEX = `export * from "./database";\nexport * from "./data-api";\n`;
@@ -177,6 +168,11 @@ function writeAll(
       ),
     };
   }
+  const records = mappedRecordsOf(input.module);
+  const unlabelled = unlabelledTargetRefusal(project, records, plan);
+  if (unlabelled) {
+    return { result: unsupported<MappedResult[]>(unlabelled) };
+  }
   const transaction = new Transaction(project);
   transaction.track(barrel);
   const resolveRef = batchResolver(plan);
@@ -191,159 +187,11 @@ function writeAll(
       ),
     };
   });
-  const records = mappedRecordsOf(input.module);
   relabelPointingColumns(project, transaction, records, plan);
   registerSchemas(barrel, [
     ...new Set(plan.resources.map((resource) => resource.description.schema)),
   ]);
   return { result: commit(transaction, mapped) };
-}
-
-function pageName(resource: PlannedResource): string {
-  return path
-    .relative(path.dirname(path.dirname(resource.folder)), resource.folder)
-    .split(path.sep)
-    .join("-");
-}
-
-/** The connection's category in the module, created the first time a TableView needs it. */
-function ensureCategory(input: MapResourcesInput): OpResult<string> {
-  const ref = `pages.${input.connection}`;
-  if (findCategoryRecord(ref)) {
-    return { ok: true, data: ref, changes: [] };
-  }
-  const created = createCategory({
-    name: input.connection,
-    displayName: input.connection.toUpperCase(),
-    module: input.module,
-  });
-  return created.ok ? { ...created, data: created.data.ref } : created;
-}
-
-function addPage(
-  input: MapResourcesInput,
-  category: string,
-  resource: PlannedResource,
-): OpResult<string> {
-  const page = createPage({
-    name: pageName(resource),
-    displayName: resource.displayName,
-    category,
-    module: input.module,
-  });
-  if (!page.ok) {
-    return page;
-  }
-  const config: Record<string, unknown> = { caption: resource.displayName };
-  if (resource.label) {
-    config.labelKey = resource.label;
-  }
-  const block = addBlock({
-    page: page.data.ref,
-    name: TABLE_BLOCK,
-    type: "TableView",
-    controller: resource.ref,
-    config,
-  });
-  return block.ok
-    ? {
-        ok: true,
-        data: page.data.ref,
-        changes: [...page.changes, ...block.changes],
-      }
-    : block;
-}
-
-interface PagesWritten {
-  changes: FileChange[];
-  warnings: OpWarning[];
-  category?: string;
-}
-
-function pageRefOf(category: string, resource: PlannedResource): string {
-  const record = findCategoryRecord(category);
-  return joinSlug(record?.fullSlug ?? "", pageName(resource));
-}
-
-/** A remapped TableView keeps its page, with the title, caption and label the new choices give it. */
-function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
-  const renamed = configurePage(ref, { displayName: resource.displayName });
-  if (!renamed.ok) {
-    return renamed;
-  }
-  const patch: Record<string, unknown> = { caption: resource.displayName };
-  if (resource.label) {
-    patch.labelKey = resource.label;
-  }
-  const configured = configureBlock(`${ref}#${TABLE_BLOCK}`, patch);
-  return configured.ok
-    ? {
-        ...configured,
-        data: ref,
-        changes: [...renamed.changes, ...configured.changes],
-      }
-    : configured;
-}
-
-/** The page a relation's choices call for: created, updated, or removed when it lost its TableView. */
-function syncPage(
-  input: MapResourcesInput,
-  category: string,
-  resource: PlannedResource,
-): OpResult<string | undefined> {
-  const ref = pageRefOf(category, resource);
-  const existing = findPageRecord(ref);
-  if (!resource.tableView) {
-    if (!existing) {
-      return { ok: true, data: undefined, changes: [] };
-    }
-    const removed = deletePage(ref);
-    return removed.ok ? { ...removed, data: undefined } : removed;
-  }
-  return existing
-    ? updatePage(ref, resource)
-    : addPage(input, category, resource);
-}
-
-function writePages(
-  input: MapResourcesInput,
-  plan: MappingPlan,
-  mapped: MappedResult[],
-): PagesWritten {
-  const written: PagesWritten = { changes: [], warnings: [] };
-  const category = `pages.${input.connection}`;
-  const needsCategory = plan.resources.some((resource) => resource.tableView);
-  if (!needsCategory && !findCategoryRecord(category)) {
-    return written;
-  }
-  const ensured = ensureCategory(input);
-  if (!ensured.ok) {
-    written.warnings.push({
-      code: "page_not_written",
-      message: JSON.stringify(ensured.error),
-    });
-    return written;
-  }
-  written.changes.push(...ensured.changes);
-  written.category = ensured.data;
-  for (const resource of plan.resources) {
-    const page = syncPage(input, ensured.data, resource);
-    if (!page.ok) {
-      written.warnings.push({
-        code: "page_not_written",
-        message: `${resource.relation}: ${JSON.stringify(page.error)}`,
-      });
-      continue;
-    }
-    written.changes.push(...page.changes);
-    const entry = mapped.find(
-      (candidate) => candidate.relation === resource.relation,
-    );
-    if (entry && page.data) {
-      entry.page = page.data;
-    }
-  }
-  return written;
 }
 
 function relationOf(record: ResourceRecord): string {

@@ -4,8 +4,10 @@ import {
 	connectSteps,
 	connectionUrl,
 	defaultNames,
+	connectionId,
 	detailsFields,
 	emptyFields,
+	fieldProblem,
 	isConnectionUrl,
 	missingField,
 	parseConnectionUrl,
@@ -29,6 +31,10 @@ describe('the names the builder manages for a connection', () => {
 			variable: 'BUILDER_DB_CLIENT_ERP_URL',
 			version: '>=0.2.1 <1.0.0',
 		})
+	})
+
+	it('folds accents rather than splitting the word', () => {
+		expect(connectionId('Données Comptabilité')).toBe('donnees-comptabilite')
 	})
 
 	it('keeps a name the integrator changed, and derives the others', () => {
@@ -106,7 +112,7 @@ describe('the tables module of a new connection', () => {
 
 describe('the details of a connection made before', () => {
 	it('fill the fields, SSL from its mode, the password left empty', () => {
-		const fields = detailsFields('postgres', {
+		const fields = detailsFields({
 			scheme: 'postgres',
 			host: 'db.example',
 			port: '5433',
@@ -174,13 +180,29 @@ describe('a connection URL', () => {
 
 	it('leaves out a port the saved details left out', () => {
 		const details = { scheme: 'postgres', host: 'h', port: '', database: 'db', user: 'u', hasPassword: true, options: {} }
-		expect(connectionUrl('postgres', detailsFields('postgres', details))).toBe('postgres://u@h/db')
+		expect(connectionUrl('postgres', detailsFields(details))).toBe('postgres://u@h/db')
 	})
 
 	it('builds one from the fields, with sslmode when SSL is on', () => {
 		expect(connectionUrl('postgres', { ...form().fields, ssl: true })).toBe(
 			'postgres://reader:s3cret@db.example:5432/erp?sslmode=require',
 		)
+	})
+
+	it('writes the database name as the driver decodes it, and refuses one it cannot', () => {
+		const fields = { ...form().fields, database: 'sales$2024' }
+		expect(connectionUrl('postgres', fields)).toBe('postgres://reader:s3cret@db.example:5432/sales$2024')
+		expect(parseConnectionUrl('postgres', 'postgres://u@h/sales%242024').database).toBe('sales%242024')
+		expect(fieldProblem({ ...fields, database: 'a?b' })).toMatch(/\?/)
+	})
+
+	it('writes a socket directory as one host, and an IPv6 address in brackets', () => {
+		expect(connectionUrl('postgres', { ...form().fields, host: '/var/run/postgresql', port: '' })).toBe(
+			'postgres://reader:s3cret@%2Fvar%2Frun%2Fpostgresql/erp',
+		)
+		expect(connectionUrl('postgres', { ...form().fields, host: '::1' })).toBe('postgres://reader:s3cret@[::1]:5432/erp')
+		expect(fieldProblem({ ...form().fields, host: 'db.example ' })).toBeUndefined()
+		expect(fieldProblem({ ...form().fields, host: 'db.example:5433' })).toMatch(/port/)
 	})
 
 	it('is recognised by its scheme when pasted into the host', () => {

@@ -30,12 +30,11 @@ function labelText(property: PropertyAssignment): string | undefined {
     : value?.getText();
 }
 
-/** The labels of the relation columns in `file` pointing at `apiName` that do not read `label` yet. */
-function staleLabels(
+/** The `keyMapping` objects of the relation columns in `file` pointing at `apiName`. */
+function pointingMappings(
   file: SourceFile,
   apiName: string,
-  label: string,
-): PropertyAssignment[] {
+): ObjectLiteralExpression[] {
   return relationConfigs(file).flatMap((config) => {
     const controller = config.getProperty("dataApiController");
     const keyMapping = config.getProperty("keyMapping");
@@ -47,13 +46,58 @@ function staleLabels(
       return [];
     }
     const mapping = keyMapping.getInitializer();
-    const current = Node.isObjectLiteralExpression(mapping)
-      ? mapping.getProperty("label")
-      : undefined;
+    return Node.isObjectLiteralExpression(mapping) ? [mapping] : [];
+  });
+}
+
+/** The labels of the relation columns in `file` pointing at `apiName` that do not read `label` yet. */
+function staleLabels(
+  file: SourceFile,
+  apiName: string,
+  label: string,
+): PropertyAssignment[] {
+  return pointingMappings(file, apiName).flatMap((mapping) => {
+    const current = mapping.getProperty("label");
     return Node.isPropertyAssignment(current) && labelText(current) !== label
       ? [current]
       : [];
   });
+}
+
+/** The module's mapped relations outside the batch, with their data-api file. */
+function otherFiles(
+  project: Project,
+  records: Map<string, ResourceRecord>,
+  plan: MappingPlan,
+): [string, SourceFile][] {
+  const batch = new Set(plan.resources.map((resource) => resource.relation));
+  return [...records].flatMap(([relation, record]): [string, SourceFile][] => {
+    const file = batch.has(relation)
+      ? undefined
+      : project.getSourceFile(record.dataApiFile);
+    return file ? [[relation, file]] : [];
+  });
+}
+
+/**
+ * Why the batch cannot be written, when it leaves a relation with no label while a column of the
+ * module's other relations shows it by its label: that column would point at nothing to show.
+ */
+export function unlabelledTargetRefusal(
+  project: Project,
+  records: Map<string, ResourceRecord>,
+  plan: MappingPlan,
+): string | undefined {
+  const unlabelled = plan.resources.filter((resource) => !resource.label);
+  for (const [relation, file] of otherFiles(project, records, plan)) {
+    const target = unlabelled.find(
+      (resource) => pointingMappings(file, resource.names.apiName).length > 0,
+    );
+    if (target) {
+      return `${relation} refers to ${target.relation}, which would have no label to show`;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -66,16 +110,11 @@ export function relabelPointingColumns(
   records: Map<string, ResourceRecord>,
   plan: MappingPlan,
 ): void {
-  const batch = new Set(plan.resources.map((resource) => resource.relation));
   const labelled = plan.resources.filter((resource) => resource.label);
-  for (const [relation, record] of records) {
-    if (batch.has(relation) || labelled.length === 0) {
-      continue;
-    }
-    const file = project.getSourceFile(record.dataApiFile);
-    if (!file) {
-      continue;
-    }
+  if (labelled.length === 0) {
+    return;
+  }
+  for (const [, file] of otherFiles(project, records, plan)) {
     const stale = labelled.flatMap((resource) =>
       staleLabels(file, resource.names.apiName, resource.label!).map(
         (property) => ({ property, label: resource.label! }),

@@ -3,18 +3,24 @@ import fs from "node:fs";
 import path from "node:path";
 import { Node, Project } from "ts-morph";
 import type {
+  FileChange,
   OpResult,
   ProjectConfigResult,
   ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
-import { envValue, withEnvLine, withoutEnvLine } from "./env-lines";
+import {
+  envValue,
+  VARIABLE_NAME,
+  withEnvLine,
+  withoutEnvLine,
+} from "./env-lines";
 import { configObject, findConfigFile, propertyNamed } from "./modules";
 import { invalidConfig } from "./ops";
 import { configureProject } from "./project-config-ops";
 
 const ENV_FILE = ".env";
 const ENV_OVERRIDES = "envOverrides";
-const VARIABLE_NAME = /^[A-Z_][A-Z0-9_]*$/;
+const ENV_EXAMPLE = ".env.example";
 const UNQUOTABLE = /["\n\r]/;
 
 /** A variable the builder may not write, and why. */
@@ -96,21 +102,49 @@ export function projectVariable(name: string): string | undefined {
   return envValue(fs.readFileSync(file, "utf8"), name);
 }
 
-/** Whether the project's `.env` sets the variable. */
-export function hasProjectVariable(name: string): boolean {
-  return projectVariable(name) !== undefined;
+/** A file of the project's `.env` family with lines taken out: what it held, and holds after. */
+export interface EnvRemoval {
+  change: FileChange;
+  before: string;
+  after: string;
 }
 
-/** Removes a variable's line from the project's `.env`, when it has one. */
-export function removeProjectVariable(name: string): void {
-  const file = projectEnvFile();
-  if (!VARIABLE_NAME.test(name) || !file || !fs.existsSync(file)) {
-    return;
+/**
+ * The lines assigning `names` taken out of the project's `.env` and `.env.example`, for each that
+ * has one. A change shows the names taken out, never their values.
+ */
+export function variableRemovals(names: string[]): EnvRemoval[] {
+  const envFile = projectEnvFile();
+  if (!envFile) {
+    return [];
   }
-  const before = fs.readFileSync(file, "utf8");
-  const after = withoutEnvLine(before, name);
-  if (after !== before) {
-    fs.writeFileSync(file, after, { mode: 0o600 });
+  const files = [envFile, path.join(path.dirname(envFile), ENV_EXAMPLE)];
+  return files
+    .filter((file) => fs.existsSync(file))
+    .flatMap((file) => {
+      const before = fs.readFileSync(file, "utf8");
+      const removed = names.filter(
+        (name) =>
+          VARIABLE_NAME.test(name) && envValue(before, name) !== undefined,
+      );
+      if (removed.length === 0) {
+        return [];
+      }
+      const after = removed.reduce(withoutEnvLine, before);
+      const diff = removed.map((name) => `-${name}=…`).join("\n");
+      return [{ change: { path: file, kind: "modify", diff }, before, after }];
+    });
+}
+
+/** Writes each file as `pick` gives it, `.env` readable by its owner only. */
+export function writeEnvFiles(
+  removals: EnvRemoval[],
+  pick: (removal: EnvRemoval) => string,
+): void {
+  for (const removal of removals) {
+    const mode =
+      path.basename(removal.change.path) === ENV_FILE ? 0o600 : undefined;
+    fs.writeFileSync(removal.change.path, pick(removal), { mode });
   }
 }
 
@@ -163,7 +197,20 @@ function stepVariables(steps: ProjectConfigStep[]): Set<string> {
   );
 }
 
-function restoreEnvFile(file: string, before: string | undefined): void {
+/** What the project's `.env` holds, or nothing when there is none. */
+export function envFileText(): string | undefined {
+  const file = projectEnvFile();
+  return file && fs.existsSync(file)
+    ? fs.readFileSync(file, "utf8")
+    : undefined;
+}
+
+/** Puts the project's `.env` back as `before` held it, or removes it when there was none. */
+export function restoreProjectEnv(before: string | undefined): void {
+  const file = projectEnvFile();
+  if (!file) {
+    return;
+  }
   if (before === undefined) {
     fs.rmSync(file, { force: true });
     return;
@@ -175,7 +222,7 @@ function restoreEnvFile(file: string, before: string | undefined): void {
  * Writes a batch and the development value of a variable it maps: `.env` first, after a dry run
  * accepted the batch, so the configuration never names a variable whose value failed to be
  * written. When `.env` is refused, nothing else is written either, and when the batch fails after
- * it, `.env` goes back to what it held, or goes when there was none.
+ * it, or throws, `.env` goes back to what it held, or goes when there was none.
  */
 export function configureProjectWithVariable(
   steps: ProjectConfigStep[],
@@ -185,9 +232,7 @@ export function configureProjectWithVariable(
   if (!checked.ok) {
     return checked;
   }
-  const file = projectEnvFile();
-  const before =
-    file && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : undefined;
+  const before = envFileText();
   const mapped = stepVariables(steps);
   try {
     setProjectVariable(variable.name, variable.value, mapped);
@@ -197,9 +242,15 @@ export function configureProjectWithVariable(
     }
     throw error;
   }
-  const configured = configureProject(steps);
-  if (!configured.ok && file) {
-    restoreEnvFile(file, before);
+  let configured: OpResult<ProjectConfigResult>;
+  try {
+    configured = configureProject(steps);
+  } catch (error) {
+    restoreProjectEnv(before);
+    throw error;
+  }
+  if (!configured.ok) {
+    restoreProjectEnv(before);
   }
   return configured;
 }

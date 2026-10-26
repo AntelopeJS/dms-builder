@@ -11,6 +11,7 @@ import {
 	connectionUrl,
 	defaultNames,
 	emptyFields,
+	fieldProblem,
 	isConnectionUrl,
 	managedNames,
 	missingField,
@@ -39,23 +40,32 @@ const form = reactive<ConnectForm>({
 	fields: emptyFields('postgres'),
 	overrides: {},
 })
-const project = ref<ProjectModules>({ modules: [] })
+/** The project's modules and the pin connecting needs; nothing until read, so no batch is planned without them. */
+const project = ref<ProjectModules | null>(null)
+const projectProblem = ref('')
 const pasted = ref('')
 const pasteProblem = ref('')
 const preview = ref<FileChange[] | null>(null)
 const busy = ref(false)
 const problem = ref('')
 const written = ref(false)
+/** Counts the edits of the form, so an answer to an older one is dropped. */
+let edits = 0
 
-onMounted(async () => {
+async function readProject(): Promise<void> {
+	projectProblem.value = ''
 	try {
 		project.value = await api.projectModules()
 	} catch (error) {
-		problem.value = `The project's modules could not be read: ${error instanceof Error ? error.message : String(error)}`
+		const message = (error as { data?: { message?: string } }).data?.message
+		projectProblem.value = `The project's modules could not be read: ${message ?? (error instanceof Error ? error.message : String(error))}`
 	}
-})
+}
+
+onMounted(readProject)
 
 watch(form, () => {
+	edits += 1
 	preview.value = null
 }, { deep: true })
 
@@ -63,6 +73,8 @@ const id = computed(() => connectionId(form.name))
 const names = computed(() => managedNames(form))
 const defaults = computed(() => defaultNames(form.name, form.engine))
 const missing = computed(() => missingField(form))
+const invalid = computed(() => fieldProblem(form.fields))
+const blocked = computed(() => !!missing.value || !!invalid.value || !project.value || busy.value)
 const extraOptions = computed(() => Object.entries(form.fields.options))
 
 function setName(key: keyof ManagedNames, value: string): void {
@@ -105,10 +117,13 @@ function pasteIntoHost(event: ClipboardEvent): void {
 }
 
 async function showDiff(): Promise<void> {
+	if (!project.value) return
 	busy.value = true
 	problem.value = ''
+	const asked = edits
 	const result = await api.configureProject(connectSteps(form, project.value), true)
 	busy.value = false
+	if (asked !== edits) return
 	if (!result.ok) {
 		problem.value = refusalText(result.error)
 		preview.value = null
@@ -118,16 +133,17 @@ async function showDiff(): Promise<void> {
 }
 
 async function write(): Promise<void> {
+	if (!project.value) return
 	busy.value = true
 	problem.value = ''
 	const variable = { name: names.value.variable, value: connectionUrl(form.engine, form.fields) }
 	const result = await api.configureProject(connectSteps(form, project.value), false, variable)
-	form.fields.password = ''
 	busy.value = false
 	if (!result.ok) {
 		problem.value = refusalText(result.error)
 		return
 	}
+	form.fields.password = ''
 	written.value = true
 }
 </script>
@@ -248,13 +264,19 @@ async function write(): Promise<void> {
 				</div>
 			</DmsBuilderFoldCard>
 
+			<p v-if="projectProblem" class="flex items-center gap-2 text-xs text-error">
+				{{ projectProblem }}
+				<UButton label="Try again" size="xs" variant="soft" @click="readProject" />
+			</p>
 			<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
 
 			<div class="flex items-center gap-2">
-				<UButton label="Show the changes" variant="soft" :disabled="!!missing || busy" @click="showDiff" />
-				<UButton label="Write them" :disabled="!!missing || busy || !preview" @click="write" />
+				<UButton label="Show the changes" variant="soft" :disabled="blocked" @click="showDiff" />
+				<UButton label="Write them" :disabled="blocked || !preview" @click="write" />
 				<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('cancel')" />
 				<span v-if="missing" class="text-xs text-muted">Needs {{ missing }}.</span>
+				<span v-else-if="invalid" class="text-xs text-error">Check the details: {{ invalid }}.</span>
+				<span v-else-if="!project && !projectProblem" class="text-xs text-muted">Reading the project…</span>
 			</div>
 
 			<DmsBuilderDiffView v-if="preview" :changes="preview" />

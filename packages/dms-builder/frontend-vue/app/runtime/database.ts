@@ -16,6 +16,7 @@ import type {
 } from './database-types'
 
 const DRAFT_PREFIX = 'dms-builder:database:'
+const MAPPED_PREFIX = 'dms-builder:database-mapped:'
 /** How long a mapping draft nobody came back to is kept. */
 export const KEEP_MAPPING_DRAFT_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -241,20 +242,42 @@ export function settledInput(
 	}
 }
 
-/** What an open item holds in the draft for now, as Apply would write it. */
-export function currentAnswer(draft: MappingDraft, item: OpenItem): string {
-	const resource = resourceIn(draft, item.relation)
-	if (item.kind === 'label') {
-		return resource?.label ? `labelled by ${resource.label}` : 'no label'
-	}
-	if (item.kind === 'reference') {
-		const field = resource?.fields.find((candidate) => candidate.column === item.column)
-		return field?.relation ? `a reference to ${field.relation}` : 'a plain column'
-	}
-	if (item.kind === 'purpose') {
+/** What a relation becomes, as the summary of Apply words it. */
+export function purposeText(resource: { include?: boolean; tableView: boolean; writable: boolean }): string {
+	if (resource.include === false) {
 		return 'left out'
 	}
-	return 'not analysed'
+	if (!resource.tableView) {
+		return 'add it to stats, with no page'
+	}
+	return `add a page${resource.writable ? ' where rows can be edited' : ', read-only'}`
+}
+
+/** What an open item holds in the draft for now, as Apply would write it. */
+export function currentAnswer(
+	draft: MappingDraft,
+	item: OpenItem,
+	mappedTableViews: ReadonlySet<string> = new Set(),
+): string {
+	const resource = resourceIn(draft, item.relation)
+	if (item.kind === 'schemas') {
+		return 'not analysed'
+	}
+	if (!resource?.include) {
+		return 'left out'
+	}
+	if (item.kind === 'purpose') {
+		return purposeText(resource)
+	}
+	if (item.kind === 'label') {
+		return resource.label ? `labelled by ${resource.label}` : 'no label'
+	}
+	const field = resource.fields.find((candidate) => candidate.column === item.column)
+	if (!field?.include) {
+		return 'column left out'
+	}
+	const relation = relationKept(draft, field.relation, mappedTableViews)
+	return relation ? `a reference to ${relation}` : 'a plain column'
 }
 
 /** The relation columns of the draft and the module that point at a relation, as `relation.column`. */
@@ -444,6 +467,68 @@ export function remapInput(
 		connection,
 		resources: resources.map((resource) => mappedResource(draft, resource, mappedTableViews)),
 	}
+}
+
+interface StoredMapped {
+	drafts: Record<string, ResourceDraft>
+	at: number
+}
+
+function mappedKey(connection: string, module: string): string {
+	return `${MAPPED_PREFIX}${connection}:${module}`
+}
+
+/**
+ * Keeps the changed drafts of mapped relations in the browser, so leaving the panel, the workspace
+ * or the builder before applying them loses nothing; none kept, nothing stored.
+ */
+export function storeMappedDrafts(
+	connection: string,
+	module: string,
+	drafts: Record<string, ResourceDraft>,
+	now = Date.now(),
+): void {
+	try {
+		if (Object.keys(drafts).length === 0) {
+			storage()?.removeItem(mappedKey(connection, module))
+			return
+		}
+		const value: StoredMapped = { drafts, at: now }
+		storage()?.setItem(mappedKey(connection, module), JSON.stringify(value))
+	} catch {
+		// Storage refused: the drafts live in the panel until it closes.
+	}
+}
+
+/** The changed drafts of mapped relations kept for a connection and module, unless they are too old. */
+export function storedMappedDrafts(
+	connection: string,
+	module: string,
+	now = Date.now(),
+): Record<string, ResourceDraft> {
+	try {
+		const raw = storage()?.getItem(mappedKey(connection, module))
+		const value = raw ? (JSON.parse(raw) as StoredMapped) : undefined
+		if (!value?.drafts || now - value.at > KEEP_MAPPING_DRAFT_MS) {
+			return {}
+		}
+		return value.drafts
+	} catch {
+		return {}
+	}
+}
+
+/** The drafts once the mapping is read again: what was read, with the kept changes of relations it still maps. */
+export function keptMappedDrafts(
+	read: Record<string, ResourceDraft>,
+	kept: Record<string, ResourceDraft>,
+): Record<string, ResourceDraft> {
+	return Object.fromEntries(
+		Object.entries(read).map(([relation, draft]) => [
+			relation,
+			JSON.parse(JSON.stringify(kept[relation] ?? draft)) as ResourceDraft,
+		]),
+	)
 }
 
 /** The drafts of mapped relations changed since they were read, by relation. */

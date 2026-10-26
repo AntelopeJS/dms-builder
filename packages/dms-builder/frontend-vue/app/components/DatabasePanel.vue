@@ -15,34 +15,59 @@ const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
 const module = ref('')
+/** The module field as typed; the mapping follows it once the field is left. */
+const moduleInput = ref('')
 /** Tables of the open connection changed and not applied yet. */
 const unsaved = ref(0)
-/** A connection written to the configuration, which exists once the project restarts. */
-const pending = ref<string | null>(null)
+/** Connections written to the configuration, which exist once the project restarts. */
+const pending = ref<string[]>([])
 /** Connections taken out of the configuration, still served until the project restarts. */
 const removed = ref<string[]>([])
 /** What the open connection wired, read from the configuration. */
 const info = ref<ConnectionInfo | null>(null)
 const infoProblem = ref('')
+/** Whether the open connection's wiring was read, so its mapping opens on the module it holds its tables in. */
+const infoRead = ref(false)
 
 function connectionProblem(error: unknown): string {
-	const message = (error as { data?: { message?: string } }).data?.message
-	return message ? `Edit and Remove are unavailable: ${message}` : ''
+	const data = (error as { data?: { message?: string; code?: string } }).data
+	if (data?.message) {
+		return `Edit and Remove are unavailable: ${data.message}`
+	}
+	return data?.code === 'not_found'
+		? 'This connection is no longer in the configuration: restart the project to finish.'
+		: 'Edit and Remove are unavailable: the connection could not be read.'
 }
 /** What the section beside the list shows for the open connection. */
 const view = ref<'mapping' | 'edit' | 'remove'>('mapping')
 
 async function load(): Promise<void> {
 	connections.value = await api.databaseConnections().catch(() => [])
-	if (!selected.value && connections.value.length) {
-		void open(connections.value[0].id)
+	const first = connections.value.find((entry) => !removed.value.includes(entry.id))
+	if (!selected.value && first) {
+		void open(first.id)
 	}
 }
 
 function connected(id: string): void {
 	connecting.value = false
-	pending.value = id
+	pending.value = [...pending.value.filter((entry) => entry !== id), id]
+	removed.value = removed.value.filter((entry) => entry !== id)
 	void load()
+}
+
+/** What a listed connection's line says under its name. */
+function status(entry: DatabaseConnection): { text: string; tone: string } {
+	if (pending.value.includes(entry.id)) {
+		return { text: 'Restart to connect', tone: 'text-warning' }
+	}
+	if (removed.value.includes(entry.id)) {
+		return { text: 'Removed, restart to finish', tone: 'text-warning' }
+	}
+	if (entry.error) {
+		return { text: entry.error, tone: 'text-error' }
+	}
+	return { text: `${entry.engine} ${entry.version} · ${entry.database} · ${entry.role}`, tone: 'text-muted' }
 }
 
 /** Leaving the open connection drops its unapplied changes, so it asks first. */
@@ -58,12 +83,17 @@ function startConnecting(): void {
 }
 
 async function open(id: string): Promise<void> {
-	if (id !== selected.value && !mayLeave()) return
+	if (id === selected.value) {
+		connecting.value = false
+		view.value = 'mapping'
+		return
+	}
+	if (!mayLeave()) return
 	selected.value = id
 	connecting.value = false
 	view.value = 'mapping'
 	info.value = null
-	module.value = defaultNames(id, 'postgres').tablesModule
+	infoRead.value = false
 	await readInfo(id)
 }
 
@@ -75,7 +105,26 @@ async function readInfo(id: string): Promise<void> {
 	})
 	if (selected.value !== id) return
 	info.value = read
-	module.value = read?.wiring.modules[0]?.id ?? module.value
+	if (!infoRead.value) {
+		module.value =
+			read?.wiring.modules[0]?.id ?? read?.wiring.unrecorded[0]?.id ?? defaultNames(id, 'postgres').tablesModule
+		moduleInput.value = module.value
+		infoRead.value = true
+	}
+}
+
+/** Opens the mapping of the module typed, once the field is left, asking first when changes would be dropped. */
+function useModule(): void {
+	const next = moduleInput.value.trim()
+	if (!next || next === module.value) {
+		moduleInput.value = module.value
+		return
+	}
+	if (!mayLeave()) {
+		moduleInput.value = module.value
+		return
+	}
+	module.value = next
 }
 
 function show(next: 'edit' | 'remove'): void {
@@ -87,9 +136,17 @@ function show(next: 'edit' | 'remove'): void {
 }
 
 function wasRemoved(id: string): void {
-	removed.value = [...removed.value, id]
-	selected.value = null
+	removed.value = [...removed.value.filter((entry) => entry !== id), id]
+	pending.value = pending.value.filter((entry) => entry !== id)
+}
+
+/** Back to the mapping, or to no connection when the open one was removed. */
+function closeView(): void {
 	view.value = 'mapping'
+	if (selected.value && removed.value.includes(selected.value)) {
+		selected.value = null
+		info.value = null
+	}
 }
 
 onMounted(load)
@@ -109,17 +166,18 @@ onMounted(load)
 				@click="startConnecting"
 			/>
 			<div
-				v-if="pending && !connections?.some((entry) => entry.id === pending)"
+				v-for="id in pending.filter((entry) => !connections?.some((listed) => listed.id === entry))"
+				:key="id"
 				class="flex items-center gap-2.5 px-2 py-2"
 				data-pending-connection
 			>
 				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0 text-muted" />
 				<span class="flex min-w-0 flex-col">
-					<span class="truncate text-[13px] font-semibold text-highlighted">{{ pending }}</span>
+					<span class="truncate text-[13px] font-semibold text-highlighted">{{ id }}</span>
 					<span class="truncate text-[11px] text-warning">Restart to connect</span>
 				</span>
 			</div>
-			<p v-else-if="connections && !connections.length" class="text-xs text-muted">
+			<p v-if="connections && !connections.length && !pending.length" class="text-xs text-muted">
 				No database is connected to the builder yet.
 			</p>
 			<UButton
@@ -136,17 +194,20 @@ onMounted(load)
 				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0" />
 				<span class="flex min-w-0 flex-col">
 					<span class="truncate text-[13px] font-semibold text-highlighted">{{ entry.id }}</span>
-					<span v-if="removed.includes(entry.id)" class="truncate text-[11px] text-warning">
-						Removed, restart to finish
-					</span>
-					<span v-else class="truncate font-mono text-[11px]" :class="entry.error ? 'text-error' : 'text-muted'">
-						{{ entry.error ?? `${entry.engine} ${entry.version} · ${entry.database} · ${entry.role}` }}
+					<span class="truncate text-[11px]" :class="[status(entry).tone, status(entry).tone === 'text-muted' ? 'font-mono' : '']">
+						{{ status(entry).text }}
 					</span>
 				</span>
 			</UButton>
 			<template v-if="selected && !connecting">
 				<UFormField label="Module for its tables" size="xs">
-					<UInput v-model="module" size="xs" class="w-full font-mono" />
+					<UInput
+						v-model="moduleInput"
+						size="xs"
+						class="w-full font-mono"
+						@blur="useModule"
+						@keydown.enter="useModule"
+					/>
 				</UFormField>
 				<p v-if="infoProblem" class="text-xs text-error">{{ infoProblem }}</p>
 				<div v-if="info" class="flex gap-2">
@@ -172,7 +233,7 @@ onMounted(load)
 
 		<section class="flex min-h-0 min-w-0 flex-col overflow-y-auto">
 			<DmsBuilderDatabaseConnect
-				v-if="connecting || (connections && !connections.length && !pending)"
+				v-if="connecting || (connections && !connections.length && !pending.length)"
 				@cancel="connecting = false"
 				@connected="connected"
 			/>
@@ -181,7 +242,7 @@ onMounted(load)
 				:key="`edit:${selected}`"
 				:connection="selected"
 				:info="info"
-				@close="view = 'mapping'"
+				@close="closeView"
 				@saved="readInfo(selected)"
 			/>
 			<DmsBuilderDatabaseConnectionRemove
@@ -189,11 +250,11 @@ onMounted(load)
 				:key="`remove:${selected}`"
 				:connection="selected"
 				:info="info"
-				@close="view = 'mapping'"
+				@close="closeView"
 				@removed="wasRemoved"
 			/>
 			<DmsBuilderDatabaseProposal
-				v-else-if="selected"
+				v-else-if="selected && infoRead && !removed.includes(selected)"
 				:key="`${selected}:${module}`"
 				:connection="selected"
 				:module="module"

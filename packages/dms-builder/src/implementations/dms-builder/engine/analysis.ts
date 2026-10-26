@@ -175,6 +175,10 @@ function proposedResource(
   if (facts.rows !== null) {
     resource.rows = facts.rows;
   }
+  const profiledRows = facts.profile?.sample?.rows ?? facts.rows;
+  if (facts.profile && profiledRows !== null) {
+    resource.profiledRows = profiledRows;
+  }
   return { resource, open: [...verdict.open, ...fields.open] };
 }
 

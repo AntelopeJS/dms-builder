@@ -1,3 +1,4 @@
+import { nativeKind } from "./native-kind";
 import type {
   ColumnDescription,
   ColumnProfile,
@@ -37,6 +38,8 @@ export interface ReferenceTarget {
   key: string[];
   /** The declarations the key accepts, when it is one column. */
   keyAccepts: string[];
+  /** The kind of value the key holds, when it is one column, as `nativeKind` reads it. */
+  keyKind?: string;
 }
 
 export function referenceTarget(
@@ -52,6 +55,7 @@ export function referenceTarget(
     tableView,
     key,
     keyAccepts: keyColumn?.accepts.map((entry) => entry.declared) ?? [],
+    keyKind: keyColumn && nativeKind(keyColumn.native),
   };
 }
 
@@ -120,19 +124,21 @@ function containmentOf(reference: ImpliedReference): number {
     : 0;
 }
 
-/** Single-keyed TableViews whose key accepts what the column holds, by name. */
+/** Single-keyed TableViews whose key holds the kind of value the column holds, by name. */
 function otherTargets(
   column: ColumnDescription,
   context: FieldContext,
   except: string,
 ): string[] {
   const holds = new Set(column.accepts.map((entry) => entry.declared));
+  const kind = nativeKind(column.native);
   return [...context.targets]
     .filter(
       ([relation, target]) =>
         relation !== except &&
         target.tableView &&
         target.key.length === 1 &&
+        target.keyKind === kind &&
         target.keyAccepts.some((declared) => holds.has(declared)),
     )
     .map(([relation]) => relation)

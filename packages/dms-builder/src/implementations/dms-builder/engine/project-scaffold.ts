@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { ts } from "ts-morph";
 import { DEFAULT_COMPILER_OPTIONS, resolveProjectRoot } from "./project";
 
 const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
@@ -16,7 +17,11 @@ export const BUILDER_CODE_INTERFACES = {
   "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
   "@antelopejs/interface-dms": ">=0.9.0 <1.0.0",
 } satisfies Record<string, string>;
-/** The build tooling a module needs, at these ranges when the project does not declare its own. */
+/**
+ * The build tooling a module needs, at these ranges when the project does not declare its own.
+ * TypeScript stays at this range for a module given the builder's default compiler options, which
+ * an older compiler refuses.
+ */
 const DEFAULT_TOOLING = {
   typescript: "^6.0.3",
   rimraf: "^6.1.3",
@@ -47,10 +52,22 @@ interface TsConfig {
 
 class ScaffoldRefusal extends Error {}
 
-function readJson<T>(file: string, fallback: T): T {
-  return fs.existsSync(file)
-    ? (JSON.parse(fs.readFileSync(file, "utf8")) as T)
-    : fallback;
+/** A JSON file of the project, read as TypeScript reads one: comments and trailing commas allowed. */
+function readJson<T>(file: string): T | undefined {
+  if (!fs.existsSync(file)) {
+    return undefined;
+  }
+  const read = ts.parseConfigFileTextToJson(
+    file,
+    fs.readFileSync(file, "utf8"),
+  );
+  if (read.error) {
+    throw new ScaffoldRefusal(
+      `${path.basename(file)} cannot be read: ${ts.flattenDiagnosticMessageText(read.error.messageText, " ")}`,
+    );
+  }
+  // SAFETY: the file's own shape is its owner's; only the fields typed here are read.
+  return read.config as T;
 }
 
 function picked(
@@ -70,8 +87,14 @@ function manifestText(
   id: string,
   project: PackageManifest,
   connection: string | undefined,
+  defaultOptions: boolean,
 ): string {
   const all = { ...project.devDependencies, ...project.dependencies };
+  const tooling = picked(
+    all,
+    (name) =>
+      name in DEFAULT_TOOLING && !(defaultOptions && name === "typescript"),
+  );
   const manifest = {
     name: id,
     version: "0.0.1",
@@ -84,7 +107,7 @@ function manifestText(
     },
     devDependencies: {
       ...DEFAULT_TOOLING,
-      ...picked(all, (name) => name in DEFAULT_TOOLING),
+      ...tooling,
     },
     packageManager: project.packageManager,
     antelopeJs: { baseUrl: "dist" },
@@ -119,20 +142,20 @@ export function scaffoldLocalModule(
   if (fs.existsSync(root)) {
     throw new ScaffoldRefusal(`module path "${relativePath}" already exists`);
   }
-  const project = readJson<PackageManifest>(
-    path.join(projectRoot, "package.json"),
-    {},
-  );
-  const tsconfig = readJson<TsConfig>(path.join(projectRoot, "tsconfig.json"), {
-    compilerOptions: DEFAULT_COMPILER_OPTIONS,
-  });
+  const project =
+    readJson<PackageManifest>(path.join(projectRoot, "package.json")) ?? {};
+  const own = readJson<TsConfig>(path.join(projectRoot, "tsconfig.json"));
+  const tsconfig = own ?? { compilerOptions: DEFAULT_COMPILER_OPTIONS };
   return {
     id,
     root,
     entryFile: path.join(root, "src", "index.ts"),
     entryText: ENTRY_TEXT,
     files: new Map([
-      [path.join(root, "package.json"), manifestText(id, project, connection)],
+      [
+        path.join(root, "package.json"),
+        manifestText(id, project, connection, own === undefined),
+      ],
       [path.join(root, "tsconfig.json"), tsconfigText(tsconfig)],
     ]),
     source: localSource(root),

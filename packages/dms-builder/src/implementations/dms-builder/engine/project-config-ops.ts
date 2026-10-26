@@ -90,11 +90,15 @@ function envExampleWrite(draft: ConfigDraft): PlannedWrite | undefined {
   };
 }
 
-/** Writes the scaffolds' entry files through a typechecked transaction, then everything else. */
-function commitDraft(
-  draft: ConfigDraft,
-  writes: PlannedWrite[],
-): OpResult<ProjectConfigResult> {
+type ScaffoldEntries =
+  | { ok: true; changes: FileChange[] }
+  | { ok: false; result: OpResult<ProjectConfigResult> };
+
+/** Writes the scaffolds' entry files through a typechecked transaction; none, when there are none. */
+function writeScaffoldEntries(draft: ConfigDraft): ScaffoldEntries {
+  if (draft.scaffolds.length === 0) {
+    return { ok: true, changes: [] };
+  }
   const project = getWritableProject();
   const transaction = new Transaction(project);
   for (const scaffold of draft.scaffolds) {
@@ -108,14 +112,61 @@ function commitDraft(
     transaction.rollback();
     return {
       ok: false,
-      error: { code: "typecheck_failed", diagnostics: errors },
+      result: {
+        ok: false,
+        error: { code: "typecheck_failed", diagnostics: errors },
+      },
     };
   }
-  const entries = transaction.flush();
-  for (const write of writes) {
-    fs.mkdirSync(path.dirname(write.change.path), { recursive: true });
-    fs.writeFileSync(write.change.path, write.content);
+  return { ok: true, changes: transaction.flush() };
+}
+
+/**
+ * Writes each file; when one cannot be written, puts back those written before it and removes the
+ * scaffolded folders, so a retry finds the project as it was.
+ */
+function writeAllOrNone(draft: ConfigDraft, writes: PlannedWrite[]): void {
+  const written: { path: string; before: string | undefined }[] = [];
+  try {
+    for (const write of writes) {
+      const file = write.change.path;
+      const before = fs.existsSync(file)
+        ? fs.readFileSync(file, "utf8")
+        : undefined;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, write.content);
+      written.push({ path: file, before });
+    }
+  } catch (error) {
+    for (const { path: file, before } of written.reverse()) {
+      if (before === undefined) {
+        fs.rmSync(file, { force: true });
+      } else {
+        fs.writeFileSync(file, before);
+      }
+    }
+    for (const scaffold of draft.scaffolds) {
+      fs.rmSync(scaffold.root, { recursive: true, force: true });
+    }
+    resetWritableProject();
+    throw error;
   }
+}
+
+/**
+ * Writes the scaffolds' entry files, then everything else. Only a scaffold adds code to typecheck:
+ * the configuration is not part of the project's program.
+ */
+function commitDraft(
+  draft: ConfigDraft,
+  writes: PlannedWrite[],
+): OpResult<ProjectConfigResult> {
+  const scaffolded = writeScaffoldEntries(draft);
+  if (!scaffolded.ok) {
+    return scaffolded.result;
+  }
+  const entries = scaffolded.changes;
+  writeAllOrNone(draft, writes);
   resetWritableProject();
   invalidateSourceIndex();
   invalidateResourceIndex();

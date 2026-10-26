@@ -12,6 +12,7 @@ import {
   type PropertyAssignment,
   type SourceFile,
 } from "ts-morph";
+import { VARIABLE_NAME } from "./env-lines";
 import { configObject, propertyKey } from "./modules";
 import { indentationText, resolveProjectRoot } from "./project";
 import { keyText, literalText } from "./project-config-text";
@@ -267,6 +268,9 @@ function bindVariables(
   }
   ensureObject(draft, [ENV_OVERRIDES]);
   for (const [configPath, variable] of Object.entries(env)) {
+    if (!VARIABLE_NAME.test(variable)) {
+      refuse(`${variable} is not a variable name`);
+    }
     const target = `${MODULES}.${id}.config.${configPath}`;
     const overrides =
       objectAt(draft, [ENV_OVERRIDES]) ??
@@ -302,18 +306,20 @@ export function existingOverrides(
     : [];
 }
 
+function overrideOf(element: Node): ImportOverrideInput {
+  const entry = plainObject(element, IMPORT_OVERRIDES);
+  return {
+    interface:
+      stringOf(propertyNamed(entry, "interface")?.getInitializer()) ?? "",
+    source: stringOf(propertyNamed(entry, "source")?.getInitializer()),
+    id: stringOf(propertyNamed(entry, "id")?.getInitializer()),
+  };
+}
+
 function overridesOfArray(
   array: ArrayLiteralExpression,
 ): ImportOverrideInput[] {
-  return array.getElements().map((element) => {
-    const entry = plainObject(element, IMPORT_OVERRIDES);
-    return {
-      interface:
-        stringOf(propertyNamed(entry, "interface")?.getInitializer()) ?? "",
-      source: stringOf(propertyNamed(entry, "source")?.getInitializer()),
-      id: stringOf(propertyNamed(entry, "id")?.getInitializer()),
-    };
-  });
+  return array.getElements().map(overrideOf);
 }
 
 function describeBinding(entry: ImportOverrideInput): string {
@@ -345,7 +351,7 @@ function mergedOverrides(
 }
 
 /** The pins-only spelling when nothing needs more, the array spelling otherwise. */
-export function overridesValue(
+function overridesValue(
   entries: ImportOverrideInput[],
 ): Record<string, string | undefined> | ImportOverrideInput[] {
   if (
@@ -426,7 +432,10 @@ export function createLocalModule(
   addModule(draft, step.id, { ...step.entry, source: scaffold.source });
 }
 
-/** Each module entry of the configuration written as an object literal, by id. */
+/**
+ * Each module entry of the configuration written as a plain object literal, by id. An entry
+ * written otherwise, a version string or a spread, is left out: nothing the builder reads is there.
+ */
 export function moduleEntries(
   draft: ConfigDraft,
 ): [string, ObjectLiteralExpression][] {
@@ -436,10 +445,12 @@ export function moduleEntries(
     if (!Node.isPropertyAssignment(property)) {
       continue;
     }
-    const id = propertyKey(property.getNameNode());
-    const entry = objectAt(draft, [MODULES, id]);
-    if (entry) {
-      entries.push([id, entry]);
+    const entry = property.getInitializer();
+    if (
+      Node.isObjectLiteralExpression(entry) &&
+      !entry.getProperties().some(Node.isSpreadAssignment)
+    ) {
+      entries.push([propertyKey(property.getNameNode()), entry]);
     }
   }
   return entries;
@@ -450,4 +461,25 @@ export function overridesOf(entry: ObjectLiteralExpression) {
   return existingOverrides(
     propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
   );
+}
+
+/**
+ * The `importOverrides` a module entry declares as plain literals, for a reader: an element written
+ * any other way is left out instead of refused, since no connection the builder wrote is there.
+ */
+export function readableOverrides(
+  entry: ObjectLiteralExpression,
+): ImportOverrideInput[] {
+  const overrides = propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer();
+  if (!Node.isArrayLiteralExpression(overrides)) {
+    return existingOverrides(overrides);
+  }
+  return overrides
+    .getElements()
+    .filter(
+      (element) =>
+        Node.isObjectLiteralExpression(element) &&
+        !element.getProperties().some(Node.isSpreadAssignment),
+    )
+    .map(overrideOf);
 }

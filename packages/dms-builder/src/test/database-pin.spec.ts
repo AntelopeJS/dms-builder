@@ -88,6 +88,30 @@ describe("the DMS module's database pin", () => {
     expect(dmsDatabasePin(PROJECT)).to.equal(undefined);
   });
 
+  it("reads a priority written with separators as core does", () => {
+    writeConfig(config(DMS_SOURCE, "-1_0"));
+    expect(dmsDatabasePin(PROJECT)?.provider).to.equal("mongodb");
+  });
+
+  it("refuses to choose when a priority is not written as a plain number", () => {
+    writeConfig(
+      config(DMS_SOURCE).replace(
+        '{ "@antelopejs/interface-database": -1 }',
+        "{ [DATABASE]: 1 }",
+      ),
+    );
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(
+      /does not say plainly which database/,
+    );
+  });
+
+  it("refuses when the DMS's overrides cannot be read, instead of guessing it pins none", () => {
+    writeConfig(config(`${DMS_SOURCE}, importOverrides: [authPin]`));
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(
+      /not a plain object literal/,
+    );
+  });
+
   it("needs no pin when the project has no database of its own", () => {
     writeConfig(config(DMS_SOURCE));
     expect(dmsDatabasePin(connections({ [DMS_INTERFACE]: ["dms"] }))).to.equal(

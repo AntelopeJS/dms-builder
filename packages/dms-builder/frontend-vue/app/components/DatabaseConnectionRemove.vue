@@ -7,7 +7,8 @@ import type { FileChange } from '../runtime/types'
 
 /**
  * *Remove*: what taking the connection out of the project changes, then the
- * change itself. Its tables module goes with it, folder included.
+ * change itself. Its tables module goes with it, folder included, and its driver
+ * when nothing else uses it.
  */
 
 const props = defineProps<{ connection: string; info: ConnectionInfo }>()
@@ -24,6 +25,7 @@ const folders = computed(() =>
 	props.info.wiring.modules.map((module) => module.path),
 )
 const moduleNames = computed(() => props.info.wiring.modules.map((module) => module.id))
+const kept = computed(() => props.info.wiring.unrecorded.map((module) => module.id))
 
 async function plan(): Promise<void> {
 	busy.value = true
@@ -52,6 +54,7 @@ async function remove(): Promise<void> {
 		return
 	}
 	removed.value = true
+	emit('removed', props.connection)
 }
 
 onMounted(plan)
@@ -68,21 +71,30 @@ onMounted(plan)
 			<div class="flex flex-col gap-1.5 text-sm text-default">
 				<p class="font-semibold text-highlighted">Removing will:</p>
 				<ul class="ml-4 list-disc text-xs leading-relaxed">
-					<li>
-						remove the driver <span class="font-mono">{{ info.wiring.driver }}</span>
-						<template v-if="moduleNames.length">
-							and the module <span class="font-mono">{{ moduleNames.join(', ') }}</span>
-						</template>
-						from <span class="font-mono">antelope.config.ts</span>, so its pages are no longer served;
+					<li v-if="info.wiring.ownsDriver || moduleNames.length">
+						remove
+						<template v-if="info.wiring.ownsDriver">the driver <span class="font-mono">{{ info.wiring.driver }}</span></template>
+						<template v-if="info.wiring.ownsDriver && moduleNames.length"> and </template>
+						<template v-if="moduleNames.length">the module <span class="font-mono">{{ moduleNames.join(', ') }}</span></template>
+						from <span class="font-mono">antelope.config.ts</span><template v-if="moduleNames.length">, so its pages are no longer served</template>;
+					</li>
+					<li v-if="!info.wiring.ownsDriver">
+						keep the driver <span class="font-mono">{{ info.wiring.driver }}</span> and its URL: it is the
+						project's own database, or another module reads through it;
+					</li>
+					<li v-if="kept.length">
+						keep <span class="font-mono">{{ kept.join(', ') }}</span>: it reads through the driver but does not
+						record this connection, so it was not made for it;
 					</li>
 					<li v-if="folders.length">
 						delete <span class="font-mono">{{ folders.join(', ') }}</span>, with the tables and pages written
 						there;
 					</li>
 					<li>remove the <span class="font-mono">{{ connection }}</span> connection of the builder and dms-ai;</li>
-					<li v-if="info.wiring.variable">
-						remove <span class="font-mono">{{ info.wiring.variable }}</span> from
-						<span class="font-mono">envOverrides</span> and <span class="font-mono">.env</span>.
+					<li v-if="info.wiring.ownsDriver && info.wiring.variables.length">
+						remove <span class="font-mono">{{ info.wiring.variables.join(', ') }}</span> from
+						<span class="font-mono">envOverrides</span>, <span class="font-mono">.env</span> and
+						<span class="font-mono">.env.example</span>.
 					</li>
 				</ul>
 			</div>
@@ -111,7 +123,7 @@ onMounted(plan)
 		>
 			<p><b class="font-semibold text-highlighted">Removed. Restart the project.</b></p>
 			<div>
-				<UButton label="Done" size="sm" @click="emit('removed', connection)" />
+				<UButton label="Done" size="sm" @click="emit('close')" />
 			</div>
 		</div>
 	</div>

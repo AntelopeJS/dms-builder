@@ -146,10 +146,8 @@ function readModules(
   const file = new Project({
     useInMemoryFileSystem: false,
   }).addSourceFileAtPath(configPath);
-  const modules = configObject(file)?.getProperty("modules");
-  const object = Node.isPropertyAssignment(modules)
-    ? modules.getInitializer()
-    : undefined;
+  const config = configObject(file);
+  const object = config && propertyNamed(config, "modules");
   if (!Node.isObjectLiteralExpression(object)) {
     return fallback;
   }
@@ -182,10 +180,8 @@ export function configuredModuleIds(): string[] {
     return [];
   }
   const file = new Project().addSourceFileAtPath(configPath);
-  const modules = configObject(file)?.getProperty("modules");
-  const object = Node.isPropertyAssignment(modules)
-    ? modules.getInitializer()
-    : undefined;
+  const config = configObject(file);
+  const object = config && propertyNamed(config, "modules");
   if (!Node.isObjectLiteralExpression(object)) {
     return [];
   }

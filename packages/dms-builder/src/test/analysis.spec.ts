@@ -442,6 +442,44 @@ describe("references the database does not declare", () => {
     ]);
   });
 
+  it("offers no TableView whose key holds another kind of value than the column", () => {
+    const uuids = Relation({
+      relation: "erp.invoices",
+      key: ["id"],
+      columns: [
+        Column("id", "number"),
+        Column("number", "string"),
+        Column("order_ref", "string", { native: "uuid" }),
+      ],
+    });
+    const proposal = proposeMapping(
+      Input([CUSTOMERS, ORDERS, uuids], profiles, {
+        references: [
+          {
+            from: { relation: "erp.invoices", column: "order_ref" },
+            to: { relation: "erp.orders", column: "id" },
+            match: {
+              status: "ok",
+              value: {
+                containment: 0.97,
+                checkedRows: 50,
+                sampled: false,
+                targetIsKey: true,
+              },
+            },
+          },
+        ],
+      }),
+    );
+    const item = proposal.open.find(
+      (entry) => entry.id === "reference:erp.invoices.order_ref",
+    );
+    expect(item?.options.map((option) => option.value)).to.deep.equal([
+      null,
+      "erp.orders",
+    ]);
+  });
+
   it("ignores one found in part", () => {
     const proposal = analysed(0.5);
     expect(proposal.open.map((item) => item.id)).to.not.include(

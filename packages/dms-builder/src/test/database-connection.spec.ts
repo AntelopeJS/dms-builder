@@ -7,9 +7,9 @@ import { ConfigureProject } from "../implementations/dms-builder";
 import {
   connectionDetails,
   connectionWiring,
-  removeDatabaseConnection,
   setConnectionUrl,
 } from "../implementations/dms-builder/engine/database-connection";
+import { removeDatabaseConnection } from "../implementations/dms-builder/engine/database-connection-remove";
 import {
   configureProjectWithVariable,
   projectVariable,
@@ -51,6 +51,7 @@ function connectSteps(
         },
         config: { mode: "external" },
         env: { url: `BUILDER_DB_${connection.toUpperCase()}_URL` },
+        exportPriority: { [DATABASE]: -1 },
       },
     },
     tables,
@@ -102,7 +103,10 @@ describe("a database connection after it was made", function () {
       connection: "erp",
       driver: "builder-db-erp",
       modules: [{ id: "erp-tables", path: "modules/erp-tables" }],
+      unrecorded: [],
+      ownsDriver: true,
       variable: "BUILDER_DB_ERP_URL",
+      variables: ["BUILDER_DB_ERP_URL"],
     });
     const details = connectionDetails(wiring!);
     expect(expectOk(details, "connectionDetails")).to.deep.equal({
@@ -178,7 +182,49 @@ describe("a database connection after it was made", function () {
     expect(projectVariable("BUILDER_DB_ERP_URL")).to.match(/^postgres:/);
   });
 
-  it("refuses while a module of the project's own reads through the driver, and deletes nothing", async () => {
+  it("keeps a password the URL gives as a parameter, and never answers it", () => {
+    expectOk(
+      setConnectionUrl(
+        "erp",
+        `postgres://reader@db.example:5432/erp?password=${PASSWORD}`,
+      ),
+      "setConnectionUrl",
+    );
+    const read = connectionDetails(connectionWiring("erp")!);
+    expect(expectOk(read, "connectionDetails")).to.deep.include({
+      hasPassword: true,
+      options: {},
+    });
+    expect(JSON.stringify(read)).to.not.include(PASSWORD);
+    expectOk(
+      setConnectionUrl("erp", "postgres://reader@db.example:5432/erp2"),
+      "setConnectionUrl",
+    );
+    expect(projectVariable("BUILDER_DB_ERP_URL")).to.equal(
+      `postgres://reader@db.example:5432/erp2?password=${PASSWORD}`,
+    );
+    const moved = setConnectionUrl("erp", "postgres://reader@db2.example/erp");
+    expect(moved.ok).to.equal(false);
+    expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
+  });
+
+  it("keeps the password for the same user however the URL spells it", () => {
+    expectOk(
+      setConnectionUrl(
+        "erp",
+        `postgres://app+ro:${PASSWORD}@db.example:5432/erp`,
+      ),
+      "setConnectionUrl",
+    );
+    expectOk(
+      setConnectionUrl("erp", "postgres://app%2Bro@db.example:5432/erp"),
+      "setConnectionUrl",
+    );
+    expect(projectVariable("BUILDER_DB_ERP_URL")).to.include(PASSWORD);
+    expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
+  });
+
+  it("keeps a driver another module of the project reads through, with its URL", async () => {
     expectOk(
       await ConfigureProject([
         {
@@ -194,14 +240,18 @@ describe("a database connection after it was made", function () {
       ]),
       "AddModule reports",
     );
-    expect(connectionWiring("erp")?.modules).to.deep.equal([
-      { id: "erp-tables", path: "modules/erp-tables" },
-    ]);
-    const refused = removeDatabaseConnection("erp");
-    expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
-      /still a source in the importOverrides of .*reports/,
-    );
-    expect(moduleFolderExists(app.root, "erp-tables")).to.equal(true);
+    expect(connectionWiring("erp")).to.deep.include({
+      modules: [{ id: "erp-tables", path: "modules/erp-tables" }],
+      ownsDriver: false,
+    });
+    const planned = removeDatabaseConnection("erp", { dryRun: true });
+    const { files } = expectOk(planned, "removeDatabaseConnection dry run");
+    expect(files.map((file) => path.basename(file))).to.not.include(".env");
+    const diff = planned.ok
+      ? planned.changes.map((change) => change.diff).join("\n")
+      : "";
+    expect(diff).to.match(/^-\s+"erp-tables": \{/m);
+    expect(diff).to.not.match(/^-\s+"builder-db-erp": \{/m);
     expectOk(
       await ConfigureProject([{ op: "RemoveModule", id: "reports" }]),
       "RemoveModule reports",
@@ -217,6 +267,56 @@ describe("a database connection after it was made", function () {
     );
   });
 
+  it("keeps a driver ranked above the project's own database, which may be that database", async () => {
+    expectOk(
+      await ConfigureProject([
+        {
+          op: "ConfigureModule",
+          id: "builder-db-erp",
+          entry: { exportPriority: { [DATABASE]: 1 } },
+        },
+      ]),
+      "ConfigureModule builder-db-erp",
+    );
+    expect(connectionWiring("erp")?.ownsDriver).to.equal(false);
+    expectOk(
+      await ConfigureProject([
+        {
+          op: "ConfigureModule",
+          id: "builder-db-erp",
+          entry: { exportPriority: { [DATABASE]: -1 } },
+        },
+      ]),
+      "ConfigureModule builder-db-erp",
+    );
+    expect(connectionWiring("erp")?.ownsDriver).to.equal(true);
+  });
+
+  it("reads the wiring past a module written as a version", () => {
+    const config = projectFile(app.root, "antelope.config.ts");
+    fs.writeFileSync(
+      path.join(app.root, "antelope.config.ts"),
+      config.replace(/modules: \{/, 'modules: {\n    "legacy-api": "^1.5.0",'),
+    );
+    expect(connectionWiring("erp")?.driver).to.equal("builder-db-erp");
+    fs.writeFileSync(path.join(app.root, "antelope.config.ts"), config);
+  });
+
+  it("reads the tables module's record from a package.json saved with a byte order mark", () => {
+    const manifest = path.join(
+      app.root,
+      "modules",
+      "erp-tables",
+      "package.json",
+    );
+    const text = projectFile(app.root, "modules/erp-tables/package.json");
+    fs.writeFileSync(manifest, `\uFEFF${text}`);
+    expect(connectionWiring("erp")?.modules).to.deep.equal([
+      { id: "erp-tables", path: "modules/erp-tables" },
+    ]);
+    fs.writeFileSync(manifest, text);
+  });
+
   it("answers what a removal would change, without the URL, and changes nothing on a dry run", () => {
     const planned = removeDatabaseConnection("erp", { dryRun: true });
     const { files } = expectOk(planned, "removeDatabaseConnection dry run");
@@ -228,13 +328,31 @@ describe("a database connection after it was made", function () {
     expect(connectionWiring("erp")?.driver).to.equal("builder-db-erp");
   });
 
-  it("removes the connection with its tables module and folder", () => {
+  it("removes the connection with its tables module, folder, driver and variables, and leaves the rest as written", () => {
     expect(builderRecord(app.root, "erp-tables").database).to.deep.equal({
       connection: "erp",
     });
+    const config = projectFile(app.root, "antelope.config.ts");
+    fs.writeFileSync(
+      path.join(app.root, "antelope.config.ts"),
+      config.replace(
+        /(\{\s*interface: "@antelopejs\/interface-database-catalog")/,
+        '{ interface: "@antelopejs/interface-x", source: X_SOURCE }, // kept\n$1',
+      ),
+    );
+    expect(projectFile(app.root, "antelope.config.ts")).to.include("// kept");
+    fs.writeFileSync(
+      path.join(app.root, ".env.example"),
+      "BUILDER_DB_ERP_URL=\nOTHER=1\n",
+    );
     expectOk(removeDatabaseConnection("erp"), "removeDatabaseConnection");
     expect(connectionWiring("erp")).to.equal(undefined);
     expect(projectVariable("BUILDER_DB_ERP_URL")).to.equal(undefined);
     expect(moduleFolderExists(app.root, "erp-tables")).to.equal(false);
+    const after = projectFile(app.root, "antelope.config.ts");
+    expect(after).to.include("// kept");
+    expect(after).to.include("source: X_SOURCE");
+    expect(after).to.not.include("builder-db-erp");
+    expect(projectFile(app.root, ".env.example")).to.equal("OTHER=1\n");
   });
 });

@@ -214,7 +214,8 @@ describe('a question the analysis left open', () => {
 	function withOpen(): void {
 		const customers: ProposedResource = {
 			...CUSTOMERS,
-			rows: 40,
+			rows: 4000,
+			profiledRows: 40,
 			fields: [
 				{ ...field('code'), profile: { traits: [], nulls: 0, distinct: 40 } },
 				{ ...field('name'), profile: { traits: [], nulls: 10, distinct: 25 } },
@@ -369,6 +370,21 @@ describe('a relation the module maps already', () => {
 		expect(textOf(root)).toContain('The columns pointing at them in Orders show the new label too.')
 	})
 
+	it('keeps a change not applied yet when the panel closes and opens again', async () => {
+		const root = await mappedPanel()
+		await makeEditable(root, 'erp.customers')
+		unmount?.()
+		const reopened = await mappedPanel()
+		expect(findAll(reopened, (node) => node.tag === 'UBadge' && textOf(node).trim() === 'unsaved')).toHaveLength(1)
+		const customers = findAll(reopened, (node) => node.tag === 'UButton' && textOf(node).includes('erp.customers'))[0]!
+		fire(customers, 'click')
+		await settle()
+		fire(button(reopened, 'Apply changes'), 'click')
+		await settle()
+		const map = backend.calls.filter((call) => call.path === '/api/builder/database/map')
+		expect(map.at(-1)?.body).toMatchObject({ resources: [{ relation: 'erp.customers', writable: true }] })
+	})
+
 	it('says next to Apply changes why it could not save, and keeps the change', async () => {
 		backend.answers['POST /api/builder/database/map'] = {
 			ok: false,
@@ -385,6 +401,47 @@ describe('a relation the module maps already', () => {
 })
 
 describe('connecting a database', () => {
+	function inputs(root: TestNode): TestNode[] {
+		return findAll(root, (node) => node.tag === 'UInput')
+	}
+
+	it('keeps the password when a write is refused, so the retry does not drop it', async () => {
+		backend.answers['GET /api/builder/database/project'] = { modules: [] }
+		backend.answers['POST /api/builder/database/project'] = { ok: true, data: { files: [] }, changes: [] }
+		const mounted = mount(DatabaseConnect, { components: COMPONENTS })
+		unmount = mounted.unmount
+		await settle()
+		const [name, , host, , database, user, password] = inputs(mounted.root)
+		for (const [input, value] of [[name, 'erp'], [host, 'db.example'], [database, 'erp'], [user, 'reader'], [password, 's3cret']] as const) {
+			fire(input!, 'update:modelValue', value as never)
+		}
+		await settle()
+		fire(button(mounted.root, 'Show the changes'), 'click')
+		await settle()
+		backend.answers['POST /api/builder/database/project'] = {
+			ok: false,
+			error: { code: 'invalid_config', issues: [{ pointer: '', message: '.env is not ignored by git' }] },
+		}
+		fire(button(mounted.root, 'Write them'), 'click')
+		await settle()
+		expect(textOf(mounted.root)).toContain('.env is not ignored by git')
+		expect(inputs(mounted.root)[6]?.props.modelValue).toBe('s3cret')
+	})
+
+	it('refuses a host that carries a port, before showing anything', async () => {
+		backend.answers['GET /api/builder/database/project'] = { modules: [] }
+		const mounted = mount(DatabaseConnect, { components: COMPONENTS })
+		unmount = mounted.unmount
+		await settle()
+		const [name, , host, , database, user] = inputs(mounted.root)
+		for (const [input, value] of [[name, 'erp'], [host, 'db.example:5433'], [database, 'erp'], [user, 'reader']] as const) {
+			fire(input!, 'update:modelValue', value as never)
+		}
+		await settle()
+		expect(button(mounted.root, 'Show the changes').props.disabled).toBe(true)
+		expect(textOf(mounted.root)).toContain('no spaces, port or path')
+	})
+
 	it('writes nothing until the diff was shown', async () => {
 		backend.answers['POST /api/builder/database/project'] = { ok: true, data: { files: [] }, changes: [] }
 		const mounted = mount(DatabaseConnect, { components: COMPONENTS })

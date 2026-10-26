@@ -90,6 +90,11 @@ export interface ProposedResource {
   writes: ProposedWrites;
   /** Its rows, counted by the profile or estimated; absent when neither is known. */
   rows?: number;
+  /**
+   * The rows its column profiles were measured on: the sample's, when the profile sampled the
+   * relation, else its rows. A column's `nulls` is out of these.
+   */
+  profiledRows?: number;
 }
 
 /** A relation the analysis does not propose, and why. */

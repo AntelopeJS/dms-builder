@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ExcludedRelation } from "@antelopejs/interface-dms-builder";
 import { moduleOfFile, targetModule } from "./modules";
+import { resolveProjectRoot } from "./project";
+import { StepRefusal } from "./project-config";
 
 const MANIFEST = "package.json";
 
@@ -35,9 +37,23 @@ function manifestPath(root: string): string {
   return path.join(root, MANIFEST);
 }
 
+const BYTE_ORDER_MARK = /^\uFEFF/;
+
+/** A module's manifest; refused, naming the file, when it is not JSON. */
 function readManifest(root: string): MappedManifest & Record<string, unknown> {
   const file = manifestPath(root);
-  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+  if (!fs.existsSync(file)) {
+    return {};
+  }
+  try {
+    return JSON.parse(
+      fs.readFileSync(file, "utf8").replace(BYTE_ORDER_MARK, ""),
+    );
+  } catch (error) {
+    throw new StepRefusal(
+      `${path.relative(resolveProjectRoot(), file)} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 function updatedExclusions(

@@ -97,7 +97,7 @@ const keyColumns = computed(
 /** Counts only, never a value: how full the column is and how many values it has. */
 function counts(column: string): string {
 	const profile = proposedFields.value.get(column)?.profile
-	const rows = props.proposed?.rows
+	const rows = props.proposed?.profiledRows
 	const parts: string[] = []
 	if (keyColumns.value.has(column)) parts.push('the key')
 	if (profile?.nulls !== undefined && rows !== undefined && rows > 0 && profile.nulls <= rows) {

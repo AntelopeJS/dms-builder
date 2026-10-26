@@ -86,6 +86,12 @@ export interface ProjectConfigOpts {
   dryRun?: boolean;
 }
 
+/** Options for `CreateLocalModule`. */
+export interface CreateLocalModuleOpts extends ProjectConfigOpts {
+  /** The connection whose tables the module holds, as `CreateLocalModuleStep.connection`. */
+  connection?: string;
+}
+
 /** The files a project-config operation wrote, or would write. */
 export interface ProjectConfigResult {
   files: string[];
@@ -124,13 +130,13 @@ export const ConfigureModule =
     ) => Promise<OpResult<ProjectConfigResult>>
   >();
 
-/** One `CreateLocalModule` step. */
+/** One `CreateLocalModule` step; `opts.connection` is the step's `connection`. */
 export const CreateLocalModule =
   InterfaceFunction<
     (
       id: string,
       path: string,
       entry?: ModuleEntryInput,
-      opts?: ProjectConfigOpts,
+      opts?: CreateLocalModuleOpts,
     ) => Promise<OpResult<ProjectConfigResult>>
   >();

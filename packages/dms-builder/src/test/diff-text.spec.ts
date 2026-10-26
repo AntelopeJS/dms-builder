@@ -36,4 +36,9 @@ describe("the diff of a written file", () => {
       "+b",
     ]);
   });
+
+  it("starts an empty side at line 0, as unified diffs do", () => {
+    expect(diffText("", "a\nb\n").split("\n")[0]).to.equal("@@ -0,0 +1,2 @@");
+    expect(diffText("a\nb\n", "").split("\n")[0]).to.equal("@@ -1,2 +0,0 @@");
+  });
 });

@@ -1,3 +1,5 @@
+/** A name `.env` can assign, as Node's `loadEnvFile` and dotenv read one. */
+export const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ASSIGNMENT = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/;
 const QUOTES = new Set(['"', "'", "`"]);
 const TRAILING_COMMENT = /\s+#.*$/;

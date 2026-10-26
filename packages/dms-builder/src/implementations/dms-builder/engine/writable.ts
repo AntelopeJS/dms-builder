@@ -317,8 +317,13 @@ function relevantDiagnostics(project: Project): TypecheckError[] {
 
 const DIFF_CONTEXT_LINES = 3;
 
+/** A hunk side's start as unified diffs write it: the line before, for a side with no lines. */
+function sideStart(start: number, lines: number): number {
+  return lines === 0 ? start - 1 : start;
+}
+
 function hunkText(hunk: StructuredPatchHunk): string {
-  const header = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+  const header = `@@ -${sideStart(hunk.oldStart, hunk.oldLines)},${hunk.oldLines} +${sideStart(hunk.newStart, hunk.newLines)},${hunk.newLines} @@`;
   return [header, ...hunk.lines].join("\n");
 }
 

@@ -12,6 +12,7 @@ import type {
   MappedResource,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
+import { nativeKind } from "./native-kind";
 import { pascalCase } from "./emit";
 import type { ResourceNames } from "./resource-emit";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
@@ -251,6 +252,13 @@ function referenceTarget(
   ) {
     refuse(
       `${field.relation} has no single-column key and TableView, so ${field.column} cannot be a relation column onto it`,
+    );
+  }
+  const key = columnOf(target.description, target.description.key.columns[0]);
+  const native = columnOf(description, field.column).native;
+  if (nativeKind(key.native) !== nativeKind(native)) {
+    refuse(
+      `${relationName(description)}.${field.column} holds ${native} and the key of ${field.relation} holds ${key.native}, so no value of one can find a row of the other`,
     );
   }
   return target;

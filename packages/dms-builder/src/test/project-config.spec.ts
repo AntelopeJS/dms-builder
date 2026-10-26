@@ -16,6 +16,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { tsConfigFile } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const DATABASE = "@antelopejs/interface-database";
@@ -222,6 +223,22 @@ describe("project-config operations", function () {
     expect(ledger?.sourceModule).to.equal("erp-tables");
   });
 
+  it("scaffolds a local module from a tsconfig.json with comments and trailing commas", async () => {
+    fs.writeFileSync(
+      path.join(app.root, "tsconfig.json"),
+      '{\n  // the project\'s options\n  "compilerOptions": { "strict": true, },\n}\n',
+    );
+    expectOk(
+      await ConfigureProject([
+        { op: "CreateLocalModule", id: "reports", path: "modules/reports" },
+      ]),
+      "CreateLocalModule",
+    );
+    expect(
+      tsConfigFile(app.root, "modules/reports/tsconfig.json").compilerOptions,
+    ).to.include({ strict: true });
+  });
+
   it("writes nothing when one step of a batch is refused", async () => {
     const result = await ConfigureProject([
       CONNECT_STEPS[0],
@@ -298,5 +315,49 @@ describe("project-config operations", function () {
     fs.writeFileSync(configPath(), `// TODO: dotenv\n${PROJECT_CONFIG}`);
     expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
     expect(readConfig()).to.include("process.loadEnvFile(projectEnvFile);");
+  });
+
+  it("loads .env beside a dotenv that loads another file, and not beside one that loads it", async () => {
+    const other =
+      'import { config } from "dotenv";\nconfig({ path: ".env.local" });\n';
+    fs.writeFileSync(configPath(), other + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.include("process.loadEnvFile(projectEnvFile);");
+    const same =
+      'import { config } from "dotenv";\nconfig({ path: join(__dirname, ".env") });\n';
+    fs.writeFileSync(configPath(), same + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.not.include("loadEnvFile");
+  });
+
+  it("names its loading code apart from a constant the configuration declares", async () => {
+    const own = 'const projectEnvFile = ".env.shared";\n';
+    fs.writeFileSync(configPath(), own + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig())
+      .to.include(own)
+      .and.to.include('const projectEnvFile2 = join(__dirname, ".env");')
+      .and.to.include("process.loadEnvFile(projectEnvFile2);");
+  });
+
+  it("refuses a variable that is not a name, and writes nothing", async () => {
+    fs.writeFileSync(path.join(app.root, ".env.example"), "MONGODB_URL=\n");
+    const refused = await ConfigureProject([
+      {
+        op: "ConfigureModule",
+        id: "mongodb",
+        entry: { env: { url: "DB_URL(" } },
+      },
+    ]);
+    expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+      /DB_URL\( is not a variable name/,
+    );
+    expect(readConfig()).to.equal(PROJECT_CONFIG);
+  });
+
+  it("writes the configuration while the project's code does not typecheck", async () => {
+    app.write("broken.ts", 'export const count: number = "none";\n');
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.include("postgres-erp");
   });
 });

@@ -19,6 +19,9 @@ import {
   type Fixture,
 } from "./harness";
 import { builderRecord, setBuilderRecord } from "./helpers/module-manifest";
+import { projectFile } from "./helpers/project-files";
+import { invalidateSourceIndex } from "../implementations/dms-builder/engine/source-index";
+import { resetWritableProject } from "../implementations/dms-builder/engine/writable";
 import {
   DESCRIPTIONS,
   FAKE_CATALOG,
@@ -287,6 +290,52 @@ describe("mapping again a database already mapped", function () {
     const touched = again.ok ? again.changes.map((change) => change.path) : [];
     expect(touched.filter((file) => file.includes("contacts"))).to.deep.equal(
       [],
+    );
+  });
+
+  it("refuses to leave a relation without a label while a column shows it by its label", async () => {
+    const read = await GetMapping("erp", MODULE);
+    const accounts = (read.ok ? read.data : []).find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    );
+    const { label: _label, ...unlabelled } = asMapped(accounts!);
+    const refused = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [unlabelled],
+    });
+    expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+      /sales\.contacts refers to sales\.accounts, which would have no label to show/,
+    );
+  });
+
+  it("keeps a page title written by hand when the relation is mapped again under another", async () => {
+    const page = (await ListPages()).find(
+      (entry) => entry.id === "sales-accounts",
+    );
+    const file = path.relative(app.root, page!.filepath);
+    fs.writeFileSync(
+      path.join(app.root, file),
+      `const ACCOUNTS_TITLE = "Accounts";\n${projectFile(app.root, file).replace(/displayName: "[^"]*"/, "displayName: ACCOUNTS_TITLE")}`,
+    );
+    resetWritableProject();
+    invalidateSourceIndex();
+    const read = await GetMapping("erp", MODULE);
+    const accounts = (read.ok ? read.data : []).find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    );
+    expectOk(
+      await MapResources({
+        module: MODULE,
+        connection: "erp",
+        resources: [
+          { ...asMapped(accounts!), title: "Customers", writable: true },
+        ],
+      }),
+      "MapResources with a new title",
+    );
+    expect(projectFile(app.root, file)).to.include(
+      "displayName: ACCOUNTS_TITLE",
     );
   });
 

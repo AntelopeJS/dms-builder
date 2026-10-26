@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { connectionUrl, detailsFields, keepsServer, refusalText } from '../runtime/database-connect'
+import { connectionUrl, detailsFields, fieldProblem, keepsServer, refusalText } from '../runtime/database-connect'
 import type { ConnectionInfo } from '../runtime/database-types'
 
 /**
@@ -16,7 +16,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const api = useBuilderApi()
 
-const saved = props.info.details ? detailsFields('postgres', props.info.details) : null
+const saved = props.info.details ? detailsFields(props.info.details) : null
 const fields = ref(saved ? { ...saved, options: { ...saved.options } } : null)
 const busy = ref(false)
 const problem = ref('')
@@ -25,6 +25,7 @@ const extraOptions = computed(() => Object.entries(fields.value?.options ?? {}))
 const keepsPassword = computed(
 	() => !!saved && !!fields.value && !!props.info.details?.hasPassword && keepsServer(saved, fields.value),
 )
+const invalid = computed(() => (fields.value ? fieldProblem(fields.value) : undefined))
 const needsPassword = computed(
 	() => !!fields.value && !!props.info.details?.hasPassword && !keepsPassword.value && !fields.value.password,
 )
@@ -37,12 +38,12 @@ async function save(): Promise<void> {
 		props.connection,
 		connectionUrl('postgres', fields.value, `${props.info.details?.scheme ?? 'postgres'}:`),
 	)
-	fields.value.password = ''
 	busy.value = false
 	if (!result.ok) {
 		problem.value = refusalText(result.error)
 		return
 	}
+	fields.value.password = ''
 	done.value = true
 	emit('saved')
 }
@@ -103,9 +104,14 @@ async function save(): Promise<void> {
 			</section>
 
 			<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
+			<p v-else-if="invalid" class="text-xs text-error">Check the details: {{ invalid }}.</p>
 
 			<div class="flex items-center gap-2">
-				<UButton :label="busy ? 'Saving…' : 'Save'" :disabled="busy || !fields.host || !fields.database || needsPassword" @click="save" />
+				<UButton
+					:label="busy ? 'Saving…' : 'Save'"
+					:disabled="busy || !fields.host.trim() || !fields.database || needsPassword || !!invalid"
+					@click="save"
+				/>
 				<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('close')" />
 			</div>
 		</template>

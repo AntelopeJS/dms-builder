@@ -54,6 +54,8 @@ export interface ProposedResource {
 	leftOut: ProposedLeftOut[]
 	writes: ProposedWrites
 	rows?: number
+	/** The rows its column profiles were measured on; a column's `nulls` is out of these. */
+	profiledRows?: number
 }
 
 export interface ProposedExclusion {
@@ -217,8 +219,15 @@ export interface ProjectConfigResult {
 export interface ConnectionWiring {
 	connection: string
 	driver: string
+	/** The local modules holding its tables, their record naming the connection. */
 	modules: { id: string; path: string }[]
+	/** Local modules read through the driver whose record names no connection: kept on removal. */
+	unrecorded: { id: string; path: string }[]
+	/** Whether the driver goes with the connection: it is not the project's own database, nor shared. */
+	ownsDriver: boolean
 	variable?: string
+	/** Every variable supplying the driver's configuration. */
+	variables: string[]
 }
 
 /** A connection's details as its URL holds them, the password left out. */

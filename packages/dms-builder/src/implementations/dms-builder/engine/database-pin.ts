@@ -31,18 +31,23 @@ function providerOf(connections: InterfaceConnection[]): string | undefined {
   return connection?.provider;
 }
 
-function priorityValue(node: Node | undefined): number {
+/** A priority written as a number, signed or not; nothing for anything core would have to evaluate. */
+function priorityValue(node: Node | undefined): number | undefined {
   if (Node.isNumericLiteral(node)) {
-    return node.getLiteralValue();
+    return Number(node.getText().replace(/_/g, ""));
   }
   if (
     Node.isPrefixUnaryExpression(node) &&
-    node.getOperatorToken() === SyntaxKind.MinusToken &&
     Node.isNumericLiteral(node.getOperand())
   ) {
-    return -Number(node.getOperand().getText());
+    const value = priorityValue(node.getOperand());
+    const operator = node.getOperatorToken();
+    if (operator === SyntaxKind.MinusToken) {
+      return value === undefined ? undefined : -value;
+    }
+    return operator === SyntaxKind.PlusToken ? value : undefined;
   }
-  return DEFAULT_PRIORITY;
+  return undefined;
 }
 
 function moduleEntry(
@@ -53,24 +58,59 @@ function moduleEntry(
   return Node.isObjectLiteralExpression(entry) ? entry : undefined;
 }
 
-function databasePriority(entry: ObjectLiteralExpression | undefined): number {
+/**
+ * A provider's `interface-database` priority as core would rank it, or nothing when the
+ * configuration does not spell it as a plain number the builder can read.
+ */
+export function databasePriority(
+  entry: ObjectLiteralExpression | undefined,
+): number | undefined {
   const priorities = entry && propertyNamed(entry, "exportPriority");
-  return Node.isObjectLiteralExpression(priorities)
-    ? priorityValue(propertyNamed(priorities, DATABASE_INTERFACE))
-    : DEFAULT_PRIORITY;
+  if (priorities === undefined) {
+    return DEFAULT_PRIORITY;
+  }
+  if (
+    !Node.isObjectLiteralExpression(priorities) ||
+    priorities
+      .getProperties()
+      .some(
+        (property) =>
+          !Node.isPropertyAssignment(property) ||
+          Node.isComputedPropertyName(property.getNameNode()),
+      )
+  ) {
+    return undefined;
+  }
+  const priority = propertyNamed(priorities, DATABASE_INTERFACE);
+  return priority === undefined ? DEFAULT_PRIORITY : priorityValue(priority);
 }
 
-/** Core's default provider: the highest `exportPriority`, the first id on a tie. */
-function defaultProvider(
-  modules: ObjectLiteralExpression,
+function unreadable(dms: string): never {
+  throw new StepRefusal(
+    `the DMS module "${dms}" needs an ${DATABASE_INTERFACE} pin, and the configuration does not say plainly which database the project uses by default: pin ${DATABASE_INTERFACE} on "${dms}" first`,
+  );
+}
+
+/**
+ * Core's default provider among `providers`: the highest `exportPriority`, the first id on a tie;
+ * nothing when a priority cannot be read.
+ */
+export function defaultDatabaseProvider(
   providers: string[],
+  priorityOf: (id: string) => number | undefined,
 ): string | undefined {
-  const ranked = providers
-    .map((id) => ({ id, priority: databasePriority(moduleEntry(modules, id)) }))
-    .sort(
-      (left, right) =>
-        right.priority - left.priority || left.id.localeCompare(right.id),
-    );
+  const ranked: { id: string; priority: number }[] = [];
+  for (const id of providers) {
+    const priority = priorityOf(id);
+    if (priority === undefined) {
+      return undefined;
+    }
+    ranked.push({ id, priority });
+  }
+  ranked.sort(
+    (left, right) =>
+      right.priority - left.priority || left.id.localeCompare(right.id),
+  );
   return ranked[0]?.id;
 }
 
@@ -78,6 +118,17 @@ function pinsDatabase(entry: ObjectLiteralExpression): boolean {
   return existingOverrides(propertyNamed(entry, "importOverrides")).some(
     (override) => override.interface === DATABASE_INTERFACE,
   );
+}
+
+/** Whether an environment of the configuration changes a module's `exportPriority`. */
+function environmentPriorities(modules: ObjectLiteralExpression): boolean {
+  const root = modules
+    .getParentIfKind(SyntaxKind.PropertyAssignment)
+    ?.getParent();
+  const environments = Node.isObjectLiteralExpression(root)
+    ? propertyNamed(root, "environments")
+    : undefined;
+  return environments?.getText().includes("exportPriority") ?? false;
 }
 
 function configModules(): ObjectLiteralExpression | undefined {
@@ -98,6 +149,8 @@ function configModules(): ObjectLiteralExpression | undefined {
 /**
  * The DMS module's pin to the project's default database, when it needs one: nothing when the
  * DMS already pins `interface-database`, provides it, or the project has no database of its own.
+ * Refused when the configuration does not say plainly which database that is, or how the DMS binds
+ * it, so a connection is never written with a pin to the wrong one, or without the one it needs.
  */
 export function dmsDatabasePin(
   lookup: ConnectionLookup = ownConnections,
@@ -111,9 +164,15 @@ export function dmsDatabasePin(
   const providers = lookup(DATABASE_INTERFACE)
     .map((connection) => connection.provider)
     .filter((provider): provider is string => provider !== undefined);
-  if (providers.includes(dms)) {
+  if (providers.includes(dms) || providers.length === 0) {
     return undefined;
   }
-  const provider = defaultProvider(modules, [...new Set(providers)]);
-  return provider ? { module: dms, provider } : undefined;
+  if (environmentPriorities(modules)) {
+    unreadable(dms);
+  }
+  const provider =
+    defaultDatabaseProvider([...new Set(providers)], (id) =>
+      databasePriority(moduleEntry(modules, id)),
+    ) ?? unreadable(dms);
+  return { module: dms, provider };
 }

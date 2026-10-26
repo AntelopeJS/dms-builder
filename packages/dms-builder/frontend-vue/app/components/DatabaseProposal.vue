@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { errorDetail } from '../runtime/errors'
+import { refusalText } from '../runtime/database-connect'
 import {
 	answerItem,
 	currentAnswer,
@@ -9,15 +9,19 @@ import {
 	draftFromProposal,
 	forgetMappingDraft,
 	includeResource,
+	keptMappedDrafts,
 	mappedTableViewsOf,
 	mergedDraft,
 	type MappingDraft,
 	pointingAt,
+	purposeText,
 	remapInput,
 	type ResourceDraft,
 	ruleSentence,
 	settledInput,
+	storedMappedDrafts,
 	storedMappingDraft,
+	storeMappedDrafts,
 	storeMappingDraft,
 	unanswered,
 	unsavedRelations,
@@ -62,7 +66,9 @@ const problem = ref('')
 const busy = ref(false)
 const confirming = ref(false)
 const applied = ref<MapResourcesResult | null>(null)
-const remapped = ref<{ titles: string[]; page?: string; relabelled: string[] } | null>(null)
+const remapped = ref<{ titles: string[]; page?: string; relabelled: string[]; warnings: string[] } | null>(null)
+/** What Apply warned about: a page it could not write. */
+const appliedWarnings = ref<string[]>([])
 const remapProblem = ref('')
 /** What reading the mapping warned about: a mapped relation the database no longer has. */
 const mappedWarnings = ref<string[]>([])
@@ -109,28 +115,42 @@ function failed(message: string): void {
 	}
 }
 
-async function loadMapped(): Promise<void> {
+/** The unsaved drafts, from the browser and the panel, without those `sent` holds as they were sent. */
+function draftsToKeep(sent: Record<string, string>): Record<string, ResourceDraft> {
+	const kept: Record<string, ResourceDraft> = {
+		...storedMappedDrafts(props.connection, props.module),
+		...Object.fromEntries(unsaved.value.map((relation) => [relation, mappedDrafts.value[relation]!])),
+	}
+	return Object.fromEntries(
+		Object.entries(kept).filter(([relation, draft]) => sent[relation] !== JSON.stringify(draft)),
+	)
+}
+
+/**
+ * Reads the module's mapped relations again. The changes not applied yet are kept: those of other
+ * relations, and those made to a relation while what `sent` holds for it was being written.
+ */
+async function loadMapped(sent: Record<string, string> = {}): Promise<void> {
 	const result = await api.mapping(props.connection, props.module)
 	if (disposed) return
 	if (!result.ok) {
-		problem.value = JSON.stringify(result.error)
+		problem.value = refusalText(result.error)
 		return
 	}
+	const kept = draftsToKeep(sent)
 	mapped.value = result.data
 	mappedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
 	mappedRead.value = Object.fromEntries(
 		result.data.map((entry) => [entry.resource.relation, draftFromMapped(entry)]),
 	)
-	mappedDrafts.value = Object.fromEntries(
-		result.data.map((entry) => [entry.resource.relation, draftFromMapped(entry)]),
-	)
+	mappedDrafts.value = keptMappedDrafts(mappedRead.value, kept)
 }
 
 async function poll(id: string): Promise<void> {
 	const result = await api.analysis(id)
 	if (disposed) return
 	if (!result.ok) {
-		failed(JSON.stringify(result.error))
+		failed(refusalText(result.error))
 		return
 	}
 	state.value = result.data
@@ -151,7 +171,7 @@ async function analyse(only?: string[]): Promise<void> {
 	const result = await api.analyseDatabase(props.connection, props.module, only)
 	if (disposed) return
 	if (!result.ok) {
-		failed(JSON.stringify(result.error))
+		failed(refusalText(result.error))
 		return
 	}
 	state.value = result.data
@@ -163,6 +183,18 @@ function onBeforeUnload(event: BeforeUnloadEvent): void {
 }
 
 watch(draft, (value) => value && storeMappingDraft(value), { deep: true })
+watch(
+	mappedDrafts,
+	() => {
+		if (!Object.keys(mappedRead.value).length) return
+		storeMappedDrafts(
+			props.connection,
+			props.module,
+			Object.fromEntries(unsaved.value.map((relation) => [relation, mappedDrafts.value[relation]!])),
+		)
+	},
+	{ deep: true },
+)
 watch(
 	() => unsaved.value.length,
 	(count) => {
@@ -201,6 +233,11 @@ function proposedRule(relation: string): { rule: string; kind: ProposedKind } | 
 	return proposed && { rule: proposed.tableView.rule, kind: proposed.tableView.kind }
 }
 
+/** A page's address in the DMS, from its ref, which starts with a slash or not. */
+function pageHref(page: string): string {
+	return page.startsWith('/') ? page : `/${page}`
+}
+
 function select(kind: Selection['kind'], relation: string): void {
 	selected.value = { kind, relation }
 	remapProblem.value = ''
@@ -214,10 +251,11 @@ async function apply(): Promise<void> {
 	busy.value = false
 	confirming.value = false
 	if (!result.ok) {
-		problem.value = JSON.stringify(result.error)
+		problem.value = refusalText(result.error)
 		return
 	}
 	applied.value = result.data
+	appliedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
 	forgetMappingDraft(props.connection, props.module)
 	await loadMapped()
 }
@@ -239,21 +277,25 @@ async function remap(): Promise<void> {
 	busy.value = true
 	remapped.value = null
 	remapProblem.value = ''
-	const resources = relations.map((relation) => mappedDrafts.value[relation]!)
+	const resources = relations.map(
+		(relation) => JSON.parse(JSON.stringify(mappedDrafts.value[relation])) as ResourceDraft,
+	)
+	const sent = Object.fromEntries(resources.map((resource) => [resource.relation, JSON.stringify(resource)]))
 	const result = await api.mapDatabase(
 		remapInput(props.connection, props.module, resources, mappedTableViews.value),
 	)
 	busy.value = false
 	if (!result.ok) {
-		remapProblem.value = errorDetail(result.error).join(' ') || JSON.stringify(result.error)
+		remapProblem.value = refusalText(result.error)
 		return
 	}
 	remapped.value = {
 		titles: resources.map((resource) => resource.title),
 		page: relations.length === 1 ? result.data.resources[0]?.page : undefined,
 		relabelled: relabelledBy(relations),
+		warnings: (result.warnings ?? []).map((warning) => warning.message),
 	}
-	await loadMapped()
+	await loadMapped(sent)
 }
 </script>
 
@@ -300,6 +342,7 @@ async function remap(): Promise<void> {
 			<b class="font-semibold text-highlighted">Applied.</b>
 			{{ applied.resources.length }} tables added. Their pages appear in the menu under
 			{{ connection.toUpperCase() }} within a few seconds.
+			<p v-for="warning in appliedWarnings" :key="warning" class="text-warning">{{ warning }}</p>
 		</div>
 
 		<section
@@ -418,7 +461,8 @@ async function remap(): Promise<void> {
 							<template v-if="remapped.relabelled.length">
 								The columns pointing at them in {{ remapped.relabelled.join(', ') }} show the new label too.
 							</template>
-							<a v-if="remapped.page" :href="`/${remapped.page}`" class="text-primary underline">Open the page</a>
+							<template v-for="warning in remapped.warnings" :key="warning">{{ warning }}. </template>
+							<a v-if="remapped.page" :href="pageHref(remapped.page)" class="text-primary underline">Open the page</a>
 						</span>
 						<span v-else-if="unsaved.length" class="text-xs text-warning">
 							Not saved yet: {{ unsaved.map((relation) => mappedDrafts[relation]?.title).join(', ') }}.
@@ -435,7 +479,7 @@ async function remap(): Promise<void> {
 				<p class="font-semibold text-highlighted">Applying will:</p>
 				<p v-for="entry in summary.resources" :key="entry.relation">
 					· <span class="font-mono">{{ entry.relation }}</span>:
-					{{ entry.tableView ? `add a page${entry.writable ? ' where rows can be edited' : ', read-only'}` : 'add it to stats, with no page' }},
+					{{ purposeText(entry) }},
 					with {{ entry.fields.length }} columns
 				</p>
 				<p v-if="summary.excluded?.length">
@@ -445,7 +489,7 @@ async function remap(): Promise<void> {
 					<p>· leave {{ open.length }} questions open for next time, applied meanwhile as:</p>
 					<p v-for="item in open" :key="item.id" class="pl-3">
 						<span class="font-mono">{{ item.column ? `${item.relation}.${item.column}` : item.relation ?? connection }}</span>:
-						{{ currentAnswer(draft, item) }}
+						{{ currentAnswer(draft, item, mappedTableViews) }}
 					</p>
 				</template>
 			</div>

@@ -1,17 +1,16 @@
-import fs from "node:fs";
 import path from "node:path";
 import type {
-  FileChange,
   OpResult,
   ProjectConfigResult,
-  ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
 import { Node, type ObjectLiteralExpression } from "ts-morph";
 import { CATALOG_INTERFACE, DATABASE_INTERFACE } from "./interface-ids";
+import { databasePriority, defaultDatabaseProvider } from "./database-pin";
+import { ownConnections } from "./own-connections";
 import { recordedConnection } from "./mapped-modules";
 import { loadsEnvFile } from "./project-env-loading";
 import { findConfigFile, propertyKey } from "./modules";
-import { invalidConfig, unsupported } from "./ops";
+import { invalidConfig } from "./ops";
 import { resolveProjectRoot } from "./project";
 import {
   type ConfigDraft,
@@ -20,7 +19,7 @@ import {
   moduleEntries,
   objectAt,
   openDraft,
-  overridesOf,
+  readableOverrides,
   propertyNamed,
   StepRefusal,
   stringOf,
@@ -28,24 +27,36 @@ import {
 import { configureProject } from "./project-config-ops";
 import {
   EnvRefusal,
-  hasProjectVariable,
-  projectEnvFile,
+  envFileText,
   projectVariable,
-  removeProjectVariable,
+  restoreProjectEnv,
   setProjectVariable,
 } from "./project-env";
-import { isScaffoldRefusal, localModuleRoot } from "./project-scaffold";
+import { isScaffoldRefusal } from "./project-scaffold";
 
 const URL_PATH = "config.url";
+const PASSWORD_PARAMETER = "password";
 
 /** What a connection wired into the configuration, by module id. */
 export interface ConnectionWiring {
   connection: string;
   driver: string;
   /** The local modules holding its tables: read through the driver, their record naming the connection. */
-  modules: { id: string; path: string }[];
+  modules: LocalModule[];
+  /**
+   * Local modules read through the driver whose record names no connection, as one made before
+   * the record was: shown as the connection's tables module when it has no other, never removed.
+   */
+  unrecorded: LocalModule[];
+  /**
+   * Whether the driver was added for this connection alone, and goes with it: it is not the
+   * project's own database, and no module or connection the removal leaves names it.
+   */
+  ownsDriver: boolean;
   /** The variable supplying the driver's `url`, when one does. */
   variable?: string;
+  /** Every variable supplying the driver's configuration, `variable` among them. */
+  variables: string[];
 }
 
 /** A connection's details as its URL holds them, the password left out. */
@@ -71,12 +82,19 @@ function localPath(entry: ObjectLiteralExpression): string | undefined {
   return stringOf(propertyNamed(source, "path")?.getInitializer());
 }
 
-function variableOf(draft: ConfigDraft, driver: string): string | undefined {
-  const target = `${MODULES}.${driver}.${URL_PATH}`;
-  const supplying = (objectAt(draft, [ENV_OVERRIDES])?.getProperties() ?? [])
-    .filter(Node.isPropertyAssignment)
-    .find((property) => stringOf(property.getInitializer()) === target);
-  return supplying && propertyKey(supplying.getNameNode());
+/** The variables `envOverrides` maps into the driver's configuration, by the path they supply. */
+function variablesOf(draft: ConfigDraft, driver: string): Map<string, string> {
+  const prefix = `${MODULES}.${driver}.`;
+  const supplying = new Map<string, string>();
+  for (const property of (
+    objectAt(draft, [ENV_OVERRIDES])?.getProperties() ?? []
+  ).filter(Node.isPropertyAssignment)) {
+    const target = stringOf(property.getInitializer());
+    if (target?.startsWith(prefix)) {
+      supplying.set(propertyKey(property.getNameNode()), target);
+    }
+  }
+  return supplying;
 }
 
 function openConfig(): ConfigDraft | undefined {
@@ -84,24 +102,20 @@ function openConfig(): ConfigDraft | undefined {
   return configPath ? openDraft(configPath) : undefined;
 }
 
-function wiringIn(
-  draft: ConfigDraft,
-  connection: string,
-): ConnectionWiring | undefined {
-  const entries = moduleEntries(draft);
-  const driver = entries
-    .flatMap(([, entry]) => overridesOf(entry))
-    .find(
-      (override) =>
-        override.interface === CATALOG_INTERFACE && override.id === connection,
-    )?.source;
-  if (!driver) {
-    return undefined;
-  }
+interface LocalModule {
+  id: string;
+  path: string;
+}
+
+/** The local modules that read `interface-database` through the driver, with the connection each records. */
+function driverModules(
+  entries: [string, ObjectLiteralExpression][],
+  driver: string,
+): (LocalModule & { recorded?: string })[] {
   const root = resolveProjectRoot();
-  const modules = entries
+  return entries
     .filter(([, entry]) =>
-      overridesOf(entry).some(
+      readableOverrides(entry).some(
         (override) =>
           override.interface === DATABASE_INTERFACE &&
           override.id === undefined &&
@@ -110,12 +124,106 @@ function wiringIn(
     )
     .flatMap(([id, entry]) => {
       const local = localPath(entry);
-      return local &&
-        recordedConnection(path.resolve(root, local)) === connection
-        ? [{ id, path: local }]
+      return local
+        ? [
+            {
+              id,
+              path: local,
+              recorded: recordedConnection(path.resolve(root, local)),
+            },
+          ]
         : [];
     });
-  return { connection, driver, modules, variable: variableOf(draft, driver) };
+}
+
+/** The providers of `interface-database` the running project has, or none outside it. */
+function databaseProviders(): string[] {
+  try {
+    return ownConnections(DATABASE_INTERFACE).flatMap((connection) =>
+      connection.provider ? [connection.provider] : [],
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Whether the driver is the connection's own: ranked below the project's own database, which a
+ * module that does not pin `interface-database` keeps, and named by nothing the removal leaves.
+ */
+function ownsDriver(
+  entries: [string, ObjectLiteralExpression][],
+  wiring: { connection: string; driver: string; removed: Set<string> },
+): boolean {
+  const { connection, driver, removed } = wiring;
+  const shared = entries
+    .filter(([id]) => !removed.has(id))
+    .some(([, entry]) =>
+      readableOverrides(entry).some(
+        (override) =>
+          override.source === driver &&
+          !(
+            override.interface === CATALOG_INTERFACE &&
+            override.id === connection
+          ),
+      ),
+    );
+  if (shared) {
+    return false;
+  }
+  const priorityOf = (id: string) =>
+    databasePriority(entries.find(([entryId]) => entryId === id)?.[1]);
+  const priority = priorityOf(driver);
+  if (priority === undefined) {
+    return false;
+  }
+  if (priority < 0) {
+    return true;
+  }
+  const providers = [...new Set(databaseProviders())];
+  return (
+    providers.includes(driver) &&
+    defaultDatabaseProvider(providers, priorityOf) !== driver
+  );
+}
+
+function wiringIn(
+  draft: ConfigDraft,
+  connection: string,
+): ConnectionWiring | undefined {
+  const entries = moduleEntries(draft);
+  const driver = entries
+    .flatMap(([, entry]) => readableOverrides(entry))
+    .find(
+      (override) =>
+        override.interface === CATALOG_INTERFACE && override.id === connection,
+    )?.source;
+  if (!driver) {
+    return undefined;
+  }
+  const reading = driverModules(entries, driver);
+  const modules = reading
+    .filter((module) => module.recorded === connection)
+    .map(({ id, path: local }) => ({ id, path: local }));
+  const unrecorded = reading
+    .filter((module) => module.recorded === undefined)
+    .map(({ id, path: local }) => ({ id, path: local }));
+  const variables = variablesOf(draft, driver);
+  return {
+    connection,
+    driver,
+    modules,
+    unrecorded,
+    ownsDriver: ownsDriver(entries, {
+      connection,
+      driver,
+      removed: new Set(modules.map((module) => module.id)),
+    }),
+    variable: [...variables].find(
+      ([, target]) => target === `${MODULES}.${driver}.${URL_PATH}`,
+    )?.[0],
+    variables: [...variables.keys()],
+  };
 }
 
 /** Whether `error` says why the configuration or a module folder cannot be read or changed. */
@@ -129,90 +237,6 @@ export function connectionWiring(
 ): ConnectionWiring | undefined {
   const draft = openConfig();
   return draft && wiringIn(draft, connection);
-}
-
-/** The steps that take a connection out of the configuration: its connections, its modules. */
-export function removalSteps(wiring: ConnectionWiring): ProjectConfigStep[] {
-  return [
-    {
-      op: "RemoveConnection",
-      interface: CATALOG_INTERFACE,
-      id: wiring.connection,
-    },
-    ...wiring.modules.map((module): ProjectConfigStep => ({
-      op: "RemoveModule",
-      id: module.id,
-    })),
-    { op: "RemoveModule", id: wiring.driver },
-  ];
-}
-
-function folderChanges(wiring: ConnectionWiring): FileChange[] {
-  return wiring.modules.map((module) => ({
-    path: localModuleRoot(module.path),
-    kind: "delete" as const,
-    diff: "",
-  }));
-}
-
-function envChange(variable: string | undefined): FileChange[] {
-  const file = projectEnvFile();
-  if (!variable || !file || !hasProjectVariable(variable)) {
-    return [];
-  }
-  return [{ path: file, kind: "modify", diff: `-${variable}=…` }];
-}
-
-export interface RemoveConnectionOpts {
-  dryRun?: boolean;
-}
-
-/**
- * Takes a connection out of the project: its catalog connections, its driver, its tables modules
- * and their folders, the variable supplying its URL in `envOverrides` and `.env`. Refused while
- * another module still reads through the driver. The value of the variable is never answered.
- */
-export function removeDatabaseConnection(
-  connection: string,
-  opts: RemoveConnectionOpts = {},
-): OpResult<ProjectConfigResult> {
-  let wiring: ConnectionWiring | undefined;
-  let folders: FileChange[];
-  try {
-    wiring = connectionWiring(connection);
-    folders = wiring ? folderChanges(wiring) : [];
-  } catch (error) {
-    if (isConnectionRefusal(error)) {
-      return invalidConfig<ProjectConfigResult>(error.message);
-    }
-    throw error;
-  }
-  if (!wiring) {
-    return unsupported<ProjectConfigResult>(
-      `no module of the configuration declares the connection "${connection}"`,
-    );
-  }
-  const env = envChange(wiring.variable);
-  const configured = configureProject(removalSteps(wiring), {
-    dryRun: opts.dryRun,
-  });
-  if (!configured.ok) {
-    return configured;
-  }
-  if (!opts.dryRun) {
-    if (wiring.variable) {
-      removeProjectVariable(wiring.variable);
-    }
-    for (const folder of folders) {
-      fs.rmSync(folder.path, { recursive: true, force: true });
-    }
-  }
-  const changes = [...configured.changes, ...env, ...folders];
-  return {
-    ok: true,
-    data: { files: changes.map((change) => change.path) },
-    changes,
-  };
 }
 
 type UrlRead =
@@ -271,6 +295,9 @@ export function connectionDetails(
     return invalidConfig<ConnectionDetails>(read.message);
   }
   const { url } = read;
+  const { [PASSWORD_PARAMETER]: _password, ...options } = Object.fromEntries(
+    url.searchParams,
+  );
   return {
     ok: true,
     data: {
@@ -279,19 +306,36 @@ export function connectionDetails(
       port: url.port,
       database: decoded(url.pathname.replace(/^\//, "")),
       user: decoded(url.username),
-      hasPassword: url.password !== "",
-      options: Object.fromEntries(url.searchParams),
+      hasPassword: savedPassword(url) !== undefined,
+      options,
     },
     changes: [],
   };
 }
 
-/** Whether both URLs reach the same server as the same user. */
+/** The password a URL carries, in its user part or as the `password` parameter the driver reads. */
+function savedPassword(url: URL): string | undefined {
+  return url.password || url.searchParams.get(PASSWORD_PARAMETER) || undefined;
+}
+
+/** Whether both URLs reach the same server as the same user, however each spells the user. */
 function sameServer(saved: URL, next: URL): boolean {
   return (
     saved.hostname === next.hostname &&
     saved.port === next.port &&
-    saved.username === next.username
+    decoded(saved.username) === decoded(next.username)
+  );
+}
+
+/** `next` with the saved password, where `saved` keeps it. */
+function keepPassword(saved: URL, next: URL): void {
+  if (saved.password) {
+    next.password = saved.password;
+    return;
+  }
+  next.searchParams.set(
+    PASSWORD_PARAMETER,
+    saved.searchParams.get(PASSWORD_PARAMETER) ?? "",
   );
 }
 
@@ -321,21 +365,37 @@ export function setConnectionUrl(
       `the connection reads ${read.url.protocol.replace(/:$/, "")} URLs`,
     );
   }
-  if (next.password === "" && next.username !== "" && read.url.password) {
+  if (
+    savedPassword(next) === undefined &&
+    next.username !== "" &&
+    savedPassword(read.url) !== undefined
+  ) {
     if (!sameServer(read.url, next)) {
       return invalidConfig<{ variable: string }>(
         "the password is kept only for the same host, port and user: enter the password for the new ones",
       );
     }
-    next.password = read.url.password;
+    keepPassword(read.url, next);
   }
-  const variable = read.wiring.variable ?? "";
+  return writeConnectionUrl(read.wiring, next.href);
+}
+
+/**
+ * Writes the URL into `.env` and, when the configuration does not load `.env` yet, the code that
+ * does. When that write fails, `.env` goes back to what it held.
+ */
+function writeConnectionUrl(
+  wiring: ConnectionWiring,
+  url: string,
+): OpResult<{ variable: string }> {
+  const variable = wiring.variable ?? "";
   const loading = loadsEnvAlready();
   if (!loading.ok) {
     return loading;
   }
+  const before = envFileText();
   try {
-    setProjectVariable(variable, next.href);
+    setProjectVariable(variable, url);
   } catch (error) {
     if (error instanceof EnvRefusal) {
       return invalidConfig<{ variable: string }>(error.message);
@@ -345,16 +405,24 @@ export function setConnectionUrl(
   if (loading.data) {
     return { ok: true, data: { variable }, changes: [] };
   }
-  const configured = configureProject([
-    {
-      op: "ConfigureModule",
-      id: read.wiring.driver,
-      entry: { env: { url: variable } },
-    },
-  ]);
-  return configured.ok
-    ? { ok: true, data: { variable }, changes: configured.changes }
-    : configured;
+  let configured: OpResult<ProjectConfigResult>;
+  try {
+    configured = configureProject([
+      {
+        op: "ConfigureModule",
+        id: wiring.driver,
+        entry: { env: { url: variable } },
+      },
+    ]);
+  } catch (error) {
+    restoreProjectEnv(before);
+    throw error;
+  }
+  if (!configured.ok) {
+    restoreProjectEnv(before);
+    return configured;
+  }
+  return { ok: true, data: { variable }, changes: configured.changes };
 }
 
 /**

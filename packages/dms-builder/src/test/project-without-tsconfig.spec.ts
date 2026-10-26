@@ -76,7 +76,7 @@ describe("a project that is its configuration alone", function () {
     fs.writeFileSync(path.join(root, "antelope.config.ts"), CONFIG);
     fs.writeFileSync(
       path.join(root, "package.json"),
-      '{ "name": "config-only" }\n',
+      '{ "name": "config-only", "devDependencies": { "typescript": "^5.9.3" } }\n',
     );
     ceiling = process.env.GIT_CEILING_DIRECTORIES;
     process.env.GIT_CEILING_DIRECTORIES = path.dirname(root);
@@ -107,7 +107,7 @@ describe("a project that is its configuration alone", function () {
     ]);
   });
 
-  it("scaffolds the module with the template's compiler options and its own build tooling", () => {
+  it("scaffolds the module with the template's compiler options and the compiler they are written for", () => {
     const module = "modules/builder-db-erp-tables";
     const { compilerOptions } = tsConfigFile(root, `${module}/tsconfig.json`);
     expect(compilerOptions).to.include({
@@ -116,9 +116,12 @@ describe("a project that is its configuration alone", function () {
       emitDecoratorMetadata: true,
       rootDir: "src",
     });
-    expect(
-      packageManifest(root, `${module}/package.json`).devDependencies,
-    ).to.have.keys("typescript", "rimraf", "@types/node");
+    const tooling = packageManifest(
+      root,
+      `${module}/package.json`,
+    ).devDependencies;
+    expect(tooling).to.have.keys("typescript", "rimraf", "@types/node");
+    expect(tooling?.typescript).to.not.equal("^5.9.3");
   });
 
   it("scaffolds the module with the interface packages the builder's code imports", () => {

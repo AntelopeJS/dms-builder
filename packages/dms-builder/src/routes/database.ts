@@ -30,9 +30,9 @@ import {
   connectionDetails,
   connectionWiring,
   isConnectionRefusal,
-  removeDatabaseConnection,
   setConnectionUrl,
 } from "../implementations/dms-builder/engine/database-connection";
+import { removeDatabaseConnection } from "../implementations/dms-builder/engine/database-connection-remove";
 import {
   configureProjectWithVariable,
   type ProjectVariable,
@@ -146,8 +146,15 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.databaseProject)
   async projectModules(
     @AuthTenantOwner() _user: User,
-  ): Promise<ProjectModules> {
-    return { modules: configuredModuleIds(), databasePin: dmsDatabasePin() };
+  ): Promise<ProjectModules | HTTPResult> {
+    try {
+      return { modules: configuredModuleIds(), databasePin: dmsDatabasePin() };
+    } catch (error) {
+      if (isConnectionRefusal(error)) {
+        return refused(error);
+      }
+      throw error;
+    }
   }
 
   @Post(ROUTES.databaseProject)

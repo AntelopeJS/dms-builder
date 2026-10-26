@@ -87,9 +87,11 @@ export function emptyFields(engine: DatabaseEngine): ConnectionFields {
 	}
 }
 
-/** The connection's id: the name in lower case, words joined by dashes. */
+/** The connection's id: the name in lower case without accents, words joined by dashes. */
 export function connectionId(name: string): string {
 	return name
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '')
 		.trim()
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
@@ -137,7 +139,7 @@ export function parseConnectionUrl(engine: DatabaseEngine, text: string): Connec
 	return {
 		host: decodeURIComponent(url.hostname),
 		port: url.port || ENGINES[engine].port,
-		database: decodeURIComponent(url.pathname.replace(/^\//, '')),
+		database: decodeURI(url.pathname.replace(/^\//, '')),
 		user: decodeURIComponent(url.username),
 		password: decodeURIComponent(url.password),
 		ssl: ssl.ssl,
@@ -162,15 +164,48 @@ function parameters(fields: ConnectionFields): string {
 	return query ? `?${query}` : ''
 }
 
+const SOCKET_DIRECTORY = /^\//
+const IPV6 = /^[0-9a-f.]*:[0-9a-f.]*:[0-9a-f:.]*$/i
+const BRACKETED_IPV6 = /^\[[0-9a-f:.]+\]$/i
+const HOST_NAME = /^[A-Za-z0-9._~-]+$/
+const PORT = /^\d{1,5}$/
+/** The characters a database name cannot hold: the driver reads the name with `decodeURI`, which keeps them encoded. */
+const UNWRITABLE_DATABASE = /[?#]/
+
+/** The host as the driver reads it: a socket directory encoded whole, an IPv6 address in brackets. */
+function hostText(host: string): string {
+	const trimmed = host.trim()
+	if (SOCKET_DIRECTORY.test(trimmed)) {
+		return encodeURIComponent(trimmed)
+	}
+	return IPV6.test(trimmed) ? `[${trimmed}]` : trimmed
+}
+
+/** What keeps the fields from making a URL the driver reads as they say, if anything. */
+export function fieldProblem(fields: ConnectionFields): string | undefined {
+	const host = fields.host.trim()
+	const written = [SOCKET_DIRECTORY, IPV6, BRACKETED_IPV6, HOST_NAME].some((pattern) => pattern.test(host))
+	if (host && !written) {
+		return 'the host is a name or an address only: no spaces, port or path'
+	}
+	if (fields.port.trim() && !PORT.test(fields.port.trim())) {
+		return 'the port is a number'
+	}
+	if (UNWRITABLE_DATABASE.test(fields.database)) {
+		return 'the database name cannot hold ? or #'
+	}
+	return undefined
+}
+
 /** The URL the fields describe, the value written into `.env`, with the engine's first scheme unless given one. */
 export function connectionUrl(
 	engine: DatabaseEngine,
 	fields: ConnectionFields,
 	scheme: string = ENGINES[engine].schemes[0],
 ): string {
-	const port = fields.port ? `:${fields.port}` : ''
-	const database = encodeURIComponent(fields.database)
-	return `${scheme}//${credentials(fields)}${fields.host}${port}/${database}${parameters(fields)}`
+	const port = fields.port.trim() ? `:${fields.port.trim()}` : ''
+	const database = encodeURI(fields.database)
+	return `${scheme}//${credentials(fields)}${hostText(fields.host)}${port}/${database}${parameters(fields)}`
 }
 
 /** What still keeps the form from showing its changes, if anything. */
@@ -211,16 +246,18 @@ export function keepsServer(saved: ConnectionFields, fields: ConnectionFields): 
 }
 
 /** The fields a connection's saved details fill, the password left empty and a port left out kept out. */
-export function detailsFields(engine: DatabaseEngine, details: ConnectionDetails): ConnectionFields {
-	const query = new URLSearchParams(details.options).toString()
-	const user = details.user ? `${encodeURIComponent(details.user)}@` : ''
-	const port = details.port ? `:${details.port}` : ''
-	const database = encodeURIComponent(details.database)
-	const fields = parseConnectionUrl(
-		engine,
-		`${details.scheme}://${user}${details.host}${port}/${database}${query ? `?${query}` : ''}`,
-	)
-	return { ...fields, port: details.port }
+export function detailsFields(details: ConnectionDetails): ConnectionFields {
+	const { [SSL_PARAMETER]: mode, ...others } = details.options
+	const ssl = sslFromMode(mode)
+	return {
+		host: details.host,
+		port: details.port,
+		database: details.database,
+		user: details.user,
+		password: '',
+		ssl: ssl.ssl,
+		options: { ...others, ...ssl.options },
+	}
 }
 
 /**
@@ -260,12 +297,36 @@ export function connectSteps(form: ConnectForm, project: ProjectModules): Projec
 }
 
 interface Refusal {
+	code?: string
 	detail?: string
+	ref?: string
 	issues?: { message: string }[]
+	diagnostics?: { file: string; line: number; message: string }[]
+	blockedBy?: string[]
 }
 
-/** What a refused configuration change says, in the module's own words. */
+function fileName(file: string): string {
+	return file.split(/[\\/]/).slice(-3).join('/')
+}
+
+/** What a refused change says, in the module's own words. */
 export function refusalText(error: unknown): string {
-	const refusal = error as Refusal
-	return refusal.issues?.map((issue) => issue.message).join('; ') ?? refusal.detail ?? JSON.stringify(error)
+	const refusal = (error ?? {}) as Refusal
+	if (refusal.issues) {
+		return refusal.issues.map((issue) => issue.message).join('; ')
+	}
+	if (refusal.diagnostics) {
+		const found = refusal.diagnostics.map((item) => `${fileName(item.file)}:${item.line} ${item.message}`)
+		return `The project does not typecheck: ${found.join('; ')}`
+	}
+	if (refusal.detail) {
+		return refusal.detail
+	}
+	if (refusal.code === 'not_found' && refusal.ref) {
+		return `${refusal.ref} was not found`
+	}
+	if (refusal.blockedBy) {
+		return `Still used by ${refusal.blockedBy.join(', ')}`
+	}
+	return JSON.stringify(error)
 }

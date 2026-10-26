@@ -6,6 +6,7 @@ import type {
   MapResourcesInput,
   MapResourcesResult,
   ModuleEntryInput,
+  CreateLocalModuleOpts,
   ProjectConfigOpts,
   ProjectConfigResult,
   ProjectConfigStep,
@@ -265,9 +266,13 @@ export async function CreateLocalModule(
   id: string,
   path: string,
   entry?: ModuleEntryInput,
-  opts?: ProjectConfigOpts,
+  opts: CreateLocalModuleOpts = {},
 ): Promise<OpResult<ProjectConfigResult>> {
-  return configureProject([{ op: "CreateLocalModule", id, path, entry }], opts);
+  const { connection, ...configOpts } = opts;
+  return configureProject(
+    [{ op: "CreateLocalModule", id, path, entry, connection }],
+    configOpts,
+  );
 }
 
 export async function CreateResource(
