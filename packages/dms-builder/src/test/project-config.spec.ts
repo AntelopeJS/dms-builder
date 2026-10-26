@@ -309,6 +309,17 @@ describe("project-config operations", function () {
       .to.include(own)
       .and.to.include('import { join as joinEnvPath } from "node:path";')
       .and.to.include('const projectEnvFile = joinEnvPath(__dirname, ".env");');
+    expectOk(
+      await ConfigureProject([
+        {
+          op: "ConfigureModule",
+          id: "mongodb",
+          entry: { env: { url: "MONGODB_URL" } },
+        },
+      ]),
+      "ConfigureModule",
+    );
+    expect(readConfig().match(/loadEnvFile\(/g)).to.have.length(1);
   });
 
   it("loads .env when the configuration only mentions dotenv in a comment", async () => {
@@ -355,9 +366,15 @@ describe("project-config operations", function () {
     expect(readConfig()).to.equal(PROJECT_CONFIG);
   });
 
-  it("writes the configuration while the project's code does not typecheck", async () => {
+  it("writes the configuration and a new module while the project's own code does not typecheck", async () => {
     app.write("broken.ts", 'export const count: number = "none";\n');
-    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
-    expect(readConfig()).to.include("postgres-erp");
+    expectOk(
+      await ConfigureProject([
+        CONNECT_STEPS[0],
+        { op: "CreateLocalModule", id: "reports", path: "modules/reports" },
+      ]),
+      "AddModule and CreateLocalModule",
+    );
+    expect(readConfig()).to.include("postgres-erp").and.to.include("reports");
   });
 });

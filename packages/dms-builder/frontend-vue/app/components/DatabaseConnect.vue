@@ -28,7 +28,7 @@ import type { FileChange } from '../runtime/types'
  * project restarts once afterwards.
  */
 
-const emit = defineEmits<{ cancel: []; connected: [connection: string] }>()
+const emit = defineEmits<{ cancel: []; written: [connection: string]; connected: [connection: string] }>()
 
 const api = useBuilderApi()
 
@@ -145,6 +145,7 @@ async function write(): Promise<void> {
 	}
 	form.fields.password = ''
 	written.value = true
+	emit('written', id.value)
 }
 </script>
 

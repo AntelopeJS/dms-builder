@@ -9,6 +9,8 @@ import {
 	draftFromProposal,
 	forgetMappingDraft,
 	includeResource,
+	type KeptDraft,
+	keptDraft,
 	keptMappedDrafts,
 	mappedTableViewsOf,
 	mergedDraft,
@@ -116,14 +118,28 @@ function failed(message: string): void {
 }
 
 /** The unsaved drafts, from the browser and the panel, without those `sent` holds as they were sent. */
-function draftsToKeep(sent: Record<string, string>): Record<string, ResourceDraft> {
-	const kept: Record<string, ResourceDraft> = {
+function unsavedDrafts(): Record<string, KeptDraft> {
+	return Object.fromEntries(
+		unsaved.value.map((relation) => [relation, keptDraft(mappedDrafts.value[relation]!, mappedRead.value[relation])]),
+	)
+}
+
+function draftsToKeep(sent: Record<string, string>): Record<string, KeptDraft> {
+	const kept: Record<string, KeptDraft> = {
 		...storedMappedDrafts(props.connection, props.module),
-		...Object.fromEntries(unsaved.value.map((relation) => [relation, mappedDrafts.value[relation]!])),
+		...unsavedDrafts(),
 	}
 	return Object.fromEntries(
-		Object.entries(kept).filter(([relation, draft]) => sent[relation] !== JSON.stringify(draft)),
+		Object.entries(kept).filter(([relation, change]) => sent[relation] !== JSON.stringify(change.draft)),
 	)
+}
+
+/** Drops a mapped relation's change not applied yet, back to what was read. */
+function discard(relation: string): void {
+	const read = mappedRead.value[relation]
+	if (read) {
+		mappedDrafts.value[relation] = JSON.parse(JSON.stringify(read)) as ResourceDraft
+	}
 }
 
 /**
@@ -187,11 +203,7 @@ watch(
 	mappedDrafts,
 	() => {
 		if (!Object.keys(mappedRead.value).length) return
-		storeMappedDrafts(
-			props.connection,
-			props.module,
-			Object.fromEntries(unsaved.value.map((relation) => [relation, mappedDrafts.value[relation]!])),
-		)
+		storeMappedDrafts(props.connection, props.module, unsavedDrafts())
 	},
 	{ deep: true },
 )
@@ -467,6 +479,14 @@ async function remap(): Promise<void> {
 						<span v-else-if="unsaved.length" class="text-xs text-warning">
 							Not saved yet: {{ unsaved.map((relation) => mappedDrafts[relation]?.title).join(', ') }}.
 						</span>
+						<UButton
+							v-if="selected && unsaved.includes(selected.relation) && !busy"
+							label="Discard changes"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							@click="discard(selected.relation)"
+						/>
 						<span v-else class="text-xs text-muted">No changes to apply.</span>
 					</div>
 				</template>

@@ -91,6 +91,27 @@ function declaredValue(file: SourceFile, name: string): Node | undefined {
     : undefined;
 }
 
+/** Whether a call by that name joins paths: `join` or `resolve`, or either imported from node:path under another name. */
+function joinsPath(file: SourceFile, name: string): boolean {
+  return (
+    PATH_JOINS.has(name) ||
+    file
+      .getImportDeclarations()
+      .filter((declaration) =>
+        JOIN.aliases.includes(declaration.getModuleSpecifierValue()),
+      )
+      .some((declaration) =>
+        declaration
+          .getNamedImports()
+          .some(
+            (specifier) =>
+              PATH_JOINS.has(specifier.getName()) &&
+              specifier.getAliasNode()?.getText() === name,
+          ),
+      )
+  );
+}
+
 /** Whether `node` names the `.env` beside the configuration, as written there or through a constant. */
 function namesProjectEnv(
   file: SourceFile,
@@ -109,7 +130,7 @@ function namesProjectEnv(
       namesProjectEnv(file, declaredValue(file, node.getText()), followed + 1)
     );
   }
-  if (!Node.isCallExpression(node) || !PATH_JOINS.has(calleeName(node))) {
+  if (!Node.isCallExpression(node) || !joinsPath(file, calleeName(node))) {
     return false;
   }
   const [directory, name, ...rest] = node.getArguments();

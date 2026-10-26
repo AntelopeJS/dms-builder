@@ -442,7 +442,7 @@ describe("references the database does not declare", () => {
     ]);
   });
 
-  it("offers no TableView whose key holds another kind of value than the column", () => {
+  it("proposes no reference whose key holds another kind of value than the column", () => {
     const uuids = Relation({
       relation: "erp.invoices",
       key: ["id"],
@@ -471,13 +471,12 @@ describe("references the database does not declare", () => {
         ],
       }),
     );
-    const item = proposal.open.find(
-      (entry) => entry.id === "reference:erp.invoices.order_ref",
+    expect(proposal.open.map((entry) => entry.id)).to.not.include(
+      "reference:erp.invoices.order_ref",
     );
-    expect(item?.options.map((option) => option.value)).to.deep.equal([
-      null,
-      "erp.orders",
-    ]);
+    expect(
+      field(resource(proposal, "erp.invoices"), "order_ref").relation,
+    ).to.equal(undefined);
   });
 
   it("ignores one found in part", () => {

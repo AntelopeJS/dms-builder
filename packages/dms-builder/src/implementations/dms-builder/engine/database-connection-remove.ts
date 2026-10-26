@@ -84,10 +84,39 @@ function setFoldersAside(folders: FileChange[]): SetAside[] {
   return moved;
 }
 
-function putFoldersBack(moved: SetAside[]): void {
-  for (const { folder, aside } of [...moved].reverse()) {
-    fs.renameSync(aside, folder);
+/** Runs every step, even after one throws, then throws the first error. */
+function eachOf(steps: (() => void)[]): void {
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      step();
+    } catch (error) {
+      errors.push(error);
+    }
   }
+  if (errors.length > 0) {
+    throw errors[0];
+  }
+}
+
+function putFoldersBack(moved: SetAside[]): void {
+  eachOf(
+    [...moved].reverse().map(
+      ({ folder, aside }) =>
+        () =>
+          fs.renameSync(aside, folder),
+    ),
+  );
+}
+
+/** Puts `.env`, `.env.example` and the folders back as they were, each on its own. */
+function undoRemoval(env: EnvRemoval[], moved: SetAside[]): void {
+  eachOf([
+    ...env.map(
+      (removal) => () => writeEnvFiles([removal], (entry) => entry.before),
+    ),
+    () => putFoldersBack(moved),
+  ]);
 }
 
 /** Deletes the folders set aside; one that cannot be deleted stays hidden, out of the configuration. */
@@ -175,13 +204,11 @@ function removeWritten(
     writeEnvFiles(env, (removal) => removal.after);
     configured = configureProject(steps);
   } catch (error) {
-    writeEnvFiles(env, (removal) => removal.before);
-    putFoldersBack(moved);
+    undoRemoval(env, moved);
     throw error;
   }
   if (!configured.ok) {
-    writeEnvFiles(env, (removal) => removal.before);
-    putFoldersBack(moved);
+    undoRemoval(env, moved);
     return configured;
   }
   deleteSetAside(moved);

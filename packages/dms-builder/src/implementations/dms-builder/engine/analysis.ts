@@ -175,8 +175,11 @@ function proposedResource(
   if (facts.rows !== null) {
     resource.rows = facts.rows;
   }
-  const profiledRows = facts.profile?.sample?.rows ?? facts.rows;
-  if (facts.profile && profiledRows !== null) {
+  const counted = facts.profile?.rows;
+  const profiledRows =
+    facts.profile?.sample?.rows ??
+    (counted?.status === "ok" ? counted.value.rows : undefined);
+  if (profiledRows !== undefined) {
     resource.profiledRows = profiledRows;
   }
   return { resource, open: [...verdict.open, ...fields.open] };

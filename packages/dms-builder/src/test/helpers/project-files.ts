@@ -29,3 +29,23 @@ export function packageManifest(
 export function tsConfigFile(root: string, relativePath: string): TsConfigFile {
   return JSON.parse(projectFile(root, relativePath));
 }
+
+/**
+ * Runs `check` while a fixture file holds what `edit` makes of it, and puts the file back after,
+ * whether `check` passes or not, so a failure does not leak into the tests that follow.
+ */
+export async function withFileEdited(
+  root: string,
+  relativePath: string,
+  edit: (text: string) => string,
+  check: () => void | Promise<void>,
+): Promise<void> {
+  const file = path.join(root, relativePath);
+  const before = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, edit(before));
+  try {
+    await check();
+  } finally {
+    fs.writeFileSync(file, before);
+  }
+}

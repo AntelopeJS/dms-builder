@@ -21,7 +21,7 @@ import {
   type Fixture,
 } from "./harness";
 import { builderRecord, moduleFolderExists } from "./helpers/module-manifest";
-import { projectFile } from "./helpers/project-files";
+import { projectFile, withFileEdited } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const CATALOG = "@antelopejs/interface-database-catalog";
@@ -208,6 +208,40 @@ describe("a database connection after it was made", function () {
     expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
   });
 
+  it("keeps a password for a user given as a parameter", () => {
+    expectOk(
+      setConnectionUrl(
+        "erp",
+        `postgres://db.example:5432/erp?user=reader&password=${PASSWORD}`,
+      ),
+      "setConnectionUrl",
+    );
+    expectOk(
+      setConnectionUrl(
+        "erp",
+        "postgres://db.example:5432/erp?user=reader&sslmode=require",
+      ),
+      "setConnectionUrl",
+    );
+    expect(projectVariable("BUILDER_DB_ERP_URL")).to.include(
+      `password=${PASSWORD}`,
+    );
+    expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
+  });
+
+  it("answers the database name the driver reads, decoded as it decodes it", () => {
+    expectOk(
+      setConnectionUrl(
+        "erp",
+        `postgres://reader:${PASSWORD}@db.example:5432/app%2Fprod`,
+      ),
+      "setConnectionUrl",
+    );
+    const read = connectionDetails(connectionWiring("erp")!);
+    expect(expectOk(read, "connectionDetails").database).to.equal("app%2Fprod");
+    expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
+  });
+
   it("keeps the password for the same user however the URL spells it", () => {
     expectOk(
       setConnectionUrl(
@@ -292,29 +326,53 @@ describe("a database connection after it was made", function () {
     expect(connectionWiring("erp")?.ownsDriver).to.equal(true);
   });
 
-  it("reads the wiring past a module written as a version", () => {
-    const config = projectFile(app.root, "antelope.config.ts");
-    fs.writeFileSync(
-      path.join(app.root, "antelope.config.ts"),
-      config.replace(/modules: \{/, 'modules: {\n    "legacy-api": "^1.5.0",'),
+  it("reads the wiring past a module written as a version", async () => {
+    await withFileEdited(
+      app.root,
+      "antelope.config.ts",
+      (config) =>
+        config.replace(
+          /modules: \{/,
+          'modules: {\n    "legacy-api": "^1.5.0",',
+        ),
+      () => {
+        expect(connectionWiring("erp")?.driver).to.equal("builder-db-erp");
+      },
     );
-    expect(connectionWiring("erp")?.driver).to.equal("builder-db-erp");
-    fs.writeFileSync(path.join(app.root, "antelope.config.ts"), config);
   });
 
-  it("reads the tables module's record from a package.json saved with a byte order mark", () => {
-    const manifest = path.join(
+  it("keeps a driver a module written with a spread may read through, and refuses to remove it", async () => {
+    await withFileEdited(
       app.root,
-      "modules",
-      "erp-tables",
-      "package.json",
+      "antelope.config.ts",
+      (config) =>
+        config.replace(
+          /modules: \{/,
+          `modules: {\n    reports: { ...REPORTS, importOverrides: [{ interface: "${DATABASE}", source: "builder-db-erp" }] },`,
+        ),
+      async () => {
+        expect(connectionWiring("erp")?.ownsDriver).to.equal(false);
+        const refused = await ConfigureProject([
+          { op: "RemoveModule", id: "builder-db-erp" },
+        ]);
+        expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+          /still a source in the importOverrides of .*reports/,
+        );
+      },
     );
-    const text = projectFile(app.root, "modules/erp-tables/package.json");
-    fs.writeFileSync(manifest, `\uFEFF${text}`);
-    expect(connectionWiring("erp")?.modules).to.deep.equal([
-      { id: "erp-tables", path: "modules/erp-tables" },
-    ]);
-    fs.writeFileSync(manifest, text);
+  });
+
+  it("reads the tables module's record from a package.json saved with a byte order mark", async () => {
+    await withFileEdited(
+      app.root,
+      "modules/erp-tables/package.json",
+      (text) => `\uFEFF${text}`,
+      () => {
+        expect(connectionWiring("erp")?.modules).to.deep.equal([
+          { id: "erp-tables", path: "modules/erp-tables" },
+        ]);
+      },
+    );
   });
 
   it("answers what a removal would change, without the URL, and changes nothing on a dry run", () => {
@@ -325,6 +383,10 @@ describe("a database connection after it was made", function () {
       ".env",
     ]);
     expect(JSON.stringify(planned)).to.not.include(PASSWORD);
+    const env = planned.ok
+      ? planned.changes.find((change) => path.basename(change.path) === ".env")
+      : undefined;
+    expect(env?.diff).to.match(/^@@ -\d+,1 \+\d+,0 @@\n-BUILDER_DB_ERP_URL=…$/);
     expect(connectionWiring("erp")?.driver).to.equal("builder-db-erp");
   });
 
@@ -337,7 +399,7 @@ describe("a database connection after it was made", function () {
       path.join(app.root, "antelope.config.ts"),
       config.replace(
         /(\{\s*interface: "@antelopejs\/interface-database-catalog")/,
-        '{ interface: "@antelopejs/interface-x", source: X_SOURCE }, // kept\n$1',
+        '{ interface: "@antelopejs/interface-x", source: "provider-x" }, // kept\n$1',
       ),
     );
     expect(projectFile(app.root, "antelope.config.ts")).to.include("// kept");
@@ -351,7 +413,7 @@ describe("a database connection after it was made", function () {
     expect(moduleFolderExists(app.root, "erp-tables")).to.equal(false);
     const after = projectFile(app.root, "antelope.config.ts");
     expect(after).to.include("// kept");
-    expect(after).to.include("source: X_SOURCE");
+    expect(after).to.include(`source: "provider-x" }, // kept`);
     expect(after).to.not.include("builder-db-erp");
     expect(projectFile(app.root, ".env.example")).to.equal("OTHER=1\n");
   });

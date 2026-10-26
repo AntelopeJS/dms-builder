@@ -9,13 +9,14 @@ import {
   ENV_OVERRIDES,
   IMPORT_OVERRIDES,
   MODULES,
+  mayNameSource,
   moduleEntries,
   objectAt,
-  overridesOf,
   propertyNamed,
   refuse,
   replace,
   stringOf,
+  writtenModules,
 } from "./project-config";
 
 const LINE_REST = /^[ \t]*/;
@@ -77,11 +78,8 @@ export function removeModule(draft: ConfigDraft, step: RemoveModuleStep): void {
   if (!objectAt(draft, [MODULES, step.id])) {
     refuse(`the project has no module "${step.id}"`);
   }
-  const users = moduleEntries(draft)
-    .filter(([id]) => id !== step.id)
-    .filter(([, entry]) =>
-      overridesOf(entry).some((override) => override.source === step.id),
-    )
+  const users = writtenModules(draft)
+    .filter(([id, entry]) => id !== step.id && mayNameSource(entry, step.id))
     .map(([id]) => `"${id}"`);
   if (users.length > 0) {
     refuse(

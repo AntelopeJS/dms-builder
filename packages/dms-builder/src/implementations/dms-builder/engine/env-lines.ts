@@ -20,8 +20,13 @@ function valueOf(raw: string): string {
   return raw.replace(TRAILING_COMMENT, "");
 }
 
+/** The name a `.env` line assigns, when it assigns one. */
+export function assignedName(line: string): string | undefined {
+  return ASSIGNMENT.exec(withoutReturn(line))?.[1];
+}
+
 function assigns(line: string, name: string): boolean {
-  return ASSIGNMENT.exec(withoutReturn(line))?.[1] === name;
+  return assignedName(line) === name;
 }
 
 /**

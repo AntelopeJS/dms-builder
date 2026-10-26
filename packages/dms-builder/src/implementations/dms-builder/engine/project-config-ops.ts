@@ -90,14 +90,23 @@ function envExampleWrite(draft: ConfigDraft): PlannedWrite | undefined {
   };
 }
 
-type ScaffoldEntries =
-  | { ok: true; changes: FileChange[] }
+type ScaffoldCheck =
+  | { ok: true; transaction?: Transaction }
   | { ok: false; result: OpResult<ProjectConfigResult> };
 
-/** Writes the scaffolds' entry files through a typechecked transaction; none, when there are none. */
-function writeScaffoldEntries(draft: ConfigDraft): ScaffoldEntries {
+function insideScaffold(draft: ConfigDraft, file: string): boolean {
+  return draft.scaffolds.some((scaffold) =>
+    file.startsWith(scaffold.root + path.sep),
+  );
+}
+
+/**
+ * Stages the scaffolds' entry files and typechecks them; none, when there are none. Only the new
+ * modules' own files are checked: an error elsewhere in the project is not this batch's to refuse.
+ */
+function checkScaffolds(draft: ConfigDraft): ScaffoldCheck {
   if (draft.scaffolds.length === 0) {
-    return { ok: true, changes: [] };
+    return { ok: true };
   }
   const project = getWritableProject();
   const transaction = new Transaction(project);
@@ -107,7 +116,9 @@ function writeScaffoldEntries(draft: ConfigDraft): ScaffoldEntries {
       true,
     );
   }
-  const errors = transaction.typecheckErrors();
+  const errors = transaction
+    .typecheckErrors()
+    .filter((error) => insideScaffold(draft, error.file));
   if (errors.length > 0) {
     transaction.rollback();
     return {
@@ -118,14 +129,18 @@ function writeScaffoldEntries(draft: ConfigDraft): ScaffoldEntries {
       },
     };
   }
-  return { ok: true, changes: transaction.flush() };
+  return { ok: true, transaction };
 }
 
 /**
- * Writes each file; when one cannot be written, puts back those written before it and removes the
- * scaffolded folders, so a retry finds the project as it was.
+ * Writes each file, then the scaffolds' entry files; when any of it fails, puts back the files
+ * written before and removes the scaffolded folders, so a retry finds the project as it was.
  */
-function writeAllOrNone(draft: ConfigDraft, writes: PlannedWrite[]): void {
+function writeAllOrNone(
+  draft: ConfigDraft,
+  writes: PlannedWrite[],
+  transaction: Transaction | undefined,
+): FileChange[] {
   const written: { path: string; before: string | undefined }[] = [];
   try {
     for (const write of writes) {
@@ -137,6 +152,7 @@ function writeAllOrNone(draft: ConfigDraft, writes: PlannedWrite[]): void {
       fs.writeFileSync(file, write.content);
       written.push({ path: file, before });
     }
+    return transaction?.flush() ?? [];
   } catch (error) {
     for (const { path: file, before } of written.reverse()) {
       if (before === undefined) {
@@ -153,20 +169,16 @@ function writeAllOrNone(draft: ConfigDraft, writes: PlannedWrite[]): void {
   }
 }
 
-/**
- * Writes the scaffolds' entry files, then everything else. Only a scaffold adds code to typecheck:
- * the configuration is not part of the project's program.
- */
+/** Writes the configuration and the other files, then the scaffolds' entry files once they typecheck. */
 function commitDraft(
   draft: ConfigDraft,
   writes: PlannedWrite[],
 ): OpResult<ProjectConfigResult> {
-  const scaffolded = writeScaffoldEntries(draft);
-  if (!scaffolded.ok) {
-    return scaffolded.result;
+  const checked = checkScaffolds(draft);
+  if (!checked.ok) {
+    return checked.result;
   }
-  const entries = scaffolded.changes;
-  writeAllOrNone(draft, writes);
+  const entries = writeAllOrNone(draft, writes, checked.transaction);
   resetWritableProject();
   invalidateSourceIndex();
   invalidateResourceIndex();

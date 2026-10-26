@@ -19,10 +19,12 @@ import {
   moduleEntries,
   objectAt,
   openDraft,
+  mayNameSource,
   readableOverrides,
   propertyNamed,
   StepRefusal,
   stringOf,
+  writtenModules,
 } from "./project-config";
 import { configureProject } from "./project-config-ops";
 import {
@@ -36,6 +38,7 @@ import { isScaffoldRefusal } from "./project-scaffold";
 
 const URL_PATH = "config.url";
 const PASSWORD_PARAMETER = "password";
+const USER_PARAMETER = "user";
 
 /** What a connection wired into the configuration, by module id. */
 export interface ConnectionWiring {
@@ -152,27 +155,27 @@ function databaseProviders(): string[] {
  * module that does not pin `interface-database` keeps, and named by nothing the removal leaves.
  */
 function ownsDriver(
-  entries: [string, ObjectLiteralExpression][],
+  draft: ConfigDraft,
   wiring: { connection: string; driver: string; removed: Set<string> },
 ): boolean {
   const { connection, driver, removed } = wiring;
-  const shared = entries
+  const modules = writtenModules(draft);
+  const shared = modules
     .filter(([id]) => !removed.has(id))
     .some(([, entry]) =>
-      readableOverrides(entry).some(
+      mayNameSource(
+        entry,
+        driver,
         (override) =>
-          override.source === driver &&
-          !(
-            override.interface === CATALOG_INTERFACE &&
-            override.id === connection
-          ),
+          override.interface === CATALOG_INTERFACE &&
+          override.id === connection,
       ),
     );
   if (shared) {
     return false;
   }
   const priorityOf = (id: string) =>
-    databasePriority(entries.find(([entryId]) => entryId === id)?.[1]);
+    databasePriority(modules.find(([entryId]) => entryId === id)?.[1]);
   const priority = priorityOf(driver);
   if (priority === undefined) {
     return false;
@@ -181,9 +184,11 @@ function ownsDriver(
     return true;
   }
   const providers = [...new Set(databaseProviders())];
+  const projectDefault = defaultDatabaseProvider(providers, priorityOf);
   return (
     providers.includes(driver) &&
-    defaultDatabaseProvider(providers, priorityOf) !== driver
+    projectDefault !== undefined &&
+    projectDefault !== driver
   );
 }
 
@@ -214,7 +219,7 @@ function wiringIn(
     driver,
     modules,
     unrecorded,
-    ownsDriver: ownsDriver(entries, {
+    ownsDriver: ownsDriver(draft, {
       connection,
       driver,
       removed: new Set(modules.map((module) => module.id)),
@@ -286,6 +291,15 @@ function decoded(text: string): string {
   }
 }
 
+/** A database name as the driver reads it from the URL's path, with `decodeURI`. */
+function decodedPath(text: string): string {
+  try {
+    return decodeURI(text);
+  } catch {
+    return text;
+  }
+}
+
 /** A connection's details from the URL in `.env`, the password left out. */
 export function connectionDetails(
   wiring: ConnectionWiring,
@@ -304,7 +318,7 @@ export function connectionDetails(
       scheme: url.protocol.replace(/:$/, ""),
       host: decoded(url.hostname),
       port: url.port,
-      database: decoded(url.pathname.replace(/^\//, "")),
+      database: decodedPath(url.pathname.replace(/^\//, "")),
       user: decoded(url.username),
       hasPassword: savedPassword(url) !== undefined,
       options,
@@ -313,30 +327,33 @@ export function connectionDetails(
   };
 }
 
-/** The password a URL carries, in its user part or as the `password` parameter the driver reads. */
+/** The password a URL carries, as the `password` parameter the driver reads first, or in its user part. */
 function savedPassword(url: URL): string | undefined {
-  return url.password || url.searchParams.get(PASSWORD_PARAMETER) || undefined;
+  return url.searchParams.get(PASSWORD_PARAMETER) || url.password || undefined;
 }
 
-/** Whether both URLs reach the same server as the same user, however each spells the user. */
+/** The user a URL logs in as: in its user part, or as the `user` parameter the driver reads. */
+function userOf(url: URL): string {
+  return decoded(url.username) || (url.searchParams.get(USER_PARAMETER) ?? "");
+}
+
+/** Whether both URLs reach the same server as the same user, however each spells them. */
 function sameServer(saved: URL, next: URL): boolean {
   return (
-    saved.hostname === next.hostname &&
+    decoded(saved.hostname) === decoded(next.hostname) &&
     saved.port === next.port &&
-    decoded(saved.username) === decoded(next.username)
+    userOf(saved) === userOf(next)
   );
 }
 
-/** `next` with the saved password, where `saved` keeps it. */
+/** `next` with the saved password, where the driver reads it in `saved`: the parameter first. */
 function keepPassword(saved: URL, next: URL): void {
-  if (saved.password) {
-    next.password = saved.password;
+  const parameter = saved.searchParams.get(PASSWORD_PARAMETER);
+  if (parameter) {
+    next.searchParams.set(PASSWORD_PARAMETER, parameter);
     return;
   }
-  next.searchParams.set(
-    PASSWORD_PARAMETER,
-    saved.searchParams.get(PASSWORD_PARAMETER) ?? "",
-  );
+  next.password = saved.password;
 }
 
 /**
@@ -367,7 +384,6 @@ export function setConnectionUrl(
   }
   if (
     savedPassword(next) === undefined &&
-    next.username !== "" &&
     savedPassword(read.url) !== undefined
   ) {
     if (!sameServer(read.url, next)) {

@@ -9,6 +9,7 @@ import type {
   ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
 import {
+  assignedName,
   envValue,
   VARIABLE_NAME,
   withEnvLine,
@@ -109,6 +110,20 @@ export interface EnvRemoval {
   after: string;
 }
 
+/** The unified hunks taking out the lines that assign `names`, each showing the name and never the value. */
+function removalHunks(text: string, names: Set<string>): string {
+  const hunks: string[] = [];
+  text.split("\n").forEach((line, index) => {
+    const name = assignedName(line);
+    if (name !== undefined && names.has(name)) {
+      hunks.push(
+        `@@ -${index + 1},1 +${index - hunks.length},0 @@\n-${name}=…`,
+      );
+    }
+  });
+  return hunks.join("\n");
+}
+
 /**
  * The lines assigning `names` taken out of the project's `.env` and `.env.example`, for each that
  * has one. A change shows the names taken out, never their values.
@@ -131,7 +146,7 @@ export function variableRemovals(names: string[]): EnvRemoval[] {
         return [];
       }
       const after = removed.reduce(withoutEnvLine, before);
-      const diff = removed.map((name) => `-${name}=…`).join("\n");
+      const diff = removalHunks(before, new Set(removed));
       return [{ change: { path: file, kind: "modify", diff }, before, after }];
     });
 }

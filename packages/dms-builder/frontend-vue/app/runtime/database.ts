@@ -469,13 +469,24 @@ export function remapInput(
 	}
 }
 
+/** A mapped relation's change not applied yet, with the relation as read when it was made. */
+export interface KeptDraft {
+	draft: ResourceDraft
+	read: string
+}
+
 interface StoredMapped {
-	drafts: Record<string, ResourceDraft>
+	drafts: Record<string, KeptDraft>
 	at: number
 }
 
 function mappedKey(connection: string, module: string): string {
 	return `${MAPPED_PREFIX}${connection}:${module}`
+}
+
+/** A change to keep: the draft, and the relation as read when it was made. */
+export function keptDraft(draft: ResourceDraft, read: ResourceDraft | undefined): KeptDraft {
+	return { draft: JSON.parse(JSON.stringify(draft)) as ResourceDraft, read: JSON.stringify(read) }
 }
 
 /**
@@ -485,7 +496,7 @@ function mappedKey(connection: string, module: string): string {
 export function storeMappedDrafts(
 	connection: string,
 	module: string,
-	drafts: Record<string, ResourceDraft>,
+	drafts: Record<string, KeptDraft>,
 	now = Date.now(),
 ): void {
 	try {
@@ -496,7 +507,7 @@ export function storeMappedDrafts(
 		const value: StoredMapped = { drafts, at: now }
 		storage()?.setItem(mappedKey(connection, module), JSON.stringify(value))
 	} catch {
-		// Storage refused: the drafts live in the panel until it closes.
+		return
 	}
 }
 
@@ -505,7 +516,7 @@ export function storedMappedDrafts(
 	connection: string,
 	module: string,
 	now = Date.now(),
-): Record<string, ResourceDraft> {
+): Record<string, KeptDraft> {
 	try {
 		const raw = storage()?.getItem(mappedKey(connection, module))
 		const value = raw ? (JSON.parse(raw) as StoredMapped) : undefined
@@ -518,16 +529,21 @@ export function storedMappedDrafts(
 	}
 }
 
-/** The drafts once the mapping is read again: what was read, with the kept changes of relations it still maps. */
+/**
+ * The drafts once the mapping is read again: what was read, with the kept changes of relations
+ * still read as they were when the change was made. A change made to a relation that changed since,
+ * remapped elsewhere or altered in the database, is dropped rather than written over it.
+ */
 export function keptMappedDrafts(
 	read: Record<string, ResourceDraft>,
-	kept: Record<string, ResourceDraft>,
+	kept: Record<string, KeptDraft>,
 ): Record<string, ResourceDraft> {
 	return Object.fromEntries(
-		Object.entries(read).map(([relation, draft]) => [
-			relation,
-			JSON.parse(JSON.stringify(kept[relation] ?? draft)) as ResourceDraft,
-		]),
+		Object.entries(read).map(([relation, draft]) => {
+			const change = kept[relation]
+			const current = change && change.read === JSON.stringify(draft) ? change.draft : draft
+			return [relation, JSON.parse(JSON.stringify(current)) as ResourceDraft]
+		}),
 	)
 }
 

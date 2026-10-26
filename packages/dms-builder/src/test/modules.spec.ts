@@ -15,7 +15,7 @@ import {
   type Fixture,
 } from "./harness";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
-import { projectFile } from "./helpers/project-files";
+import { withFileEdited } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const ERP = "erp";
@@ -113,12 +113,15 @@ describe("a project with more than one local module", function () {
     expect(JSON.stringify(result)).to.include("nope").and.to.include(ERP);
   });
 
-  it("lists the modules of a configuration that quotes its keys", () => {
-    const configPath = path.join(app.root, "antelope.config.ts");
-    const config = projectFile(app.root, "antelope.config.ts");
-    fs.writeFileSync(configPath, config.replace(/\bmodules:/, '"modules":'));
-    expect(configuredModuleIds()).to.include(ERP);
-    fs.writeFileSync(configPath, config);
+  it("lists the modules of a configuration that quotes its keys", async () => {
+    await withFileEdited(
+      app.root,
+      "antelope.config.ts",
+      (config) => config.replace(/\bmodules:/, '"modules":'),
+      () => {
+        expect(configuredModuleIds()).to.include(ERP);
+      },
+    );
   });
 
   it("writes into the project's own module when no module is named, as before", async () => {

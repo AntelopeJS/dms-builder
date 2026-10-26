@@ -49,10 +49,14 @@ async function load(): Promise<void> {
 	}
 }
 
-function connected(id: string): void {
-	connecting.value = false
+/** A connection written to the configuration: listed as pending from then on, however the form closes. */
+function wrote(id: string): void {
 	pending.value = [...pending.value.filter((entry) => entry !== id), id]
 	removed.value = removed.value.filter((entry) => entry !== id)
+}
+
+function connected(): void {
+	connecting.value = false
 	void load()
 }
 
@@ -129,7 +133,7 @@ function useModule(): void {
 
 function show(next: 'edit' | 'remove'): void {
 	if (view.value === next) {
-		view.value = 'mapping'
+		closeView()
 		return
 	}
 	if (mayLeave()) view.value = next
@@ -210,7 +214,7 @@ onMounted(load)
 					/>
 				</UFormField>
 				<p v-if="infoProblem" class="text-xs text-error">{{ infoProblem }}</p>
-				<div v-if="info" class="flex gap-2">
+				<div v-if="info && !removed.includes(selected)" class="flex gap-2">
 					<UButton
 						icon="i-ph-pencil-simple"
 						label="Edit connection"
@@ -235,6 +239,7 @@ onMounted(load)
 			<DmsBuilderDatabaseConnect
 				v-if="connecting || (connections && !connections.length && !pending.length)"
 				@cancel="connecting = false"
+				@written="wrote"
 				@connected="connected"
 			/>
 			<DmsBuilderDatabaseConnectionEdit

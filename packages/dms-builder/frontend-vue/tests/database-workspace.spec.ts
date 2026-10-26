@@ -385,6 +385,34 @@ describe('a relation the module maps already', () => {
 		expect(map.at(-1)?.body).toMatchObject({ resources: [{ relation: 'erp.customers', writable: true }] })
 	})
 
+	it('drops a kept change once the table it was made from changed elsewhere', async () => {
+		const root = await mappedPanel()
+		await makeEditable(root, 'erp.customers')
+		unmount?.()
+		const relabelled = { ...CUSTOMERS, label: proposed('code', 'L1') }
+		backend.answers['GET /api/builder/database/mapping'] = {
+			ok: true,
+			data: [{ ref: 'erp/erp/customers', resource: relabelled, included: ['code', 'name'] }],
+			changes: [],
+		}
+		const mounted = mount(DatabaseProposal, {
+			props: { connection: 'erp', module: 'erp-tables' },
+			components: COMPONENTS,
+		})
+		unmount = mounted.unmount
+		await settle()
+		expect(findAll(mounted.root, (node) => node.tag === 'UBadge' && textOf(node).trim() === 'unsaved')).toHaveLength(0)
+	})
+
+	it('discards a change not applied yet', async () => {
+		const root = await mappedPanel()
+		await makeEditable(root, 'erp.customers')
+		fire(button(root, 'Discard changes'), 'click')
+		await settle()
+		expect(findAll(root, (node) => node.tag === 'UBadge' && textOf(node).trim() === 'unsaved')).toHaveLength(0)
+		expect(button(root, 'Apply changes').props.disabled).toBe(true)
+	})
+
 	it('says next to Apply changes why it could not save, and keeps the change', async () => {
 		backend.answers['POST /api/builder/database/map'] = {
 			ok: false,

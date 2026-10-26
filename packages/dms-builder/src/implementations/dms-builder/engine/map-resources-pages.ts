@@ -1,5 +1,6 @@
 import path from "node:path";
 import type {
+  BuilderError,
   FileChange,
   MapResourcesInput,
   MappedResult,
@@ -16,6 +17,22 @@ import { joinSlug } from "./scan";
 import { findCategoryRecord, findPageRecord } from "./source-index";
 
 const TABLE_BLOCK = "table";
+
+/** A refusal in words, for a warning a person reads. */
+function errorText(error: BuilderError): string {
+  switch (error.code) {
+    case "invalid_config":
+      return error.issues.map((issue) => issue.message).join("; ");
+    case "typecheck_failed":
+      return `the page would not typecheck (${error.diagnostics.map((item) => item.message).join("; ")})`;
+    case "unsupported":
+      return error.detail;
+    case "not_found":
+      return `${error.ref} was not found`;
+    default:
+      return error.code.replace(/_/g, " ");
+  }
+}
 
 type TableConfig = {
   caption: string;
@@ -123,7 +140,7 @@ function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
       warnings: [
         {
           code: "page_not_written",
-          message: `${resource.relation}: the title stays as it was: ${JSON.stringify(renamed.error)}`,
+          message: `${resource.relation}: the title stays as it was: ${errorText(renamed.error)}`,
         },
       ],
     };

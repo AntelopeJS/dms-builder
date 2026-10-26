@@ -112,6 +112,20 @@ describe("the DMS module's database pin", () => {
     );
   });
 
+  it("refuses when the DMS's overrides are a constant, instead of writing over them", () => {
+    writeConfig(config(`${DMS_SOURCE}, importOverrides: DMS_OVERRIDES`));
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(/not written as a literal/);
+  });
+
+  it("refuses to rank a provider whose entry is spread from elsewhere", () => {
+    writeConfig(
+      config(DMS_SOURCE).replace(/mongodb: \{/, "mongodb: { ...MONGO,"),
+    );
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(
+      /does not say plainly which database/,
+    );
+  });
+
   it("needs no pin when the project has no database of its own", () => {
     writeConfig(config(DMS_SOURCE));
     expect(dmsDatabasePin(connections({ [DMS_INTERFACE]: ["dms"] }))).to.equal(

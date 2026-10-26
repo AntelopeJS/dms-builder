@@ -256,7 +256,13 @@ function referenceTarget(
   }
   const key = columnOf(target.description, target.description.key.columns[0]);
   const native = columnOf(description, field.column).native;
-  if (nativeKind(key.native) !== nativeKind(native)) {
+  const declared = description.references.some(
+    (reference) =>
+      reference.from.columns.length === 1 &&
+      reference.from.columns[0] === field.column &&
+      reference.to.relation === field.relation,
+  );
+  if (!declared && nativeKind(key.native) !== nativeKind(native)) {
     refuse(
       `${relationName(description)}.${field.column} holds ${native} and the key of ${field.relation} holds ${key.native}, so no value of one can find a row of the other`,
     );

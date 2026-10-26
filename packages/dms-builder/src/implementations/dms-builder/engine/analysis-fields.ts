@@ -124,6 +124,17 @@ function containmentOf(reference: ImpliedReference): number {
     : 0;
 }
 
+/**
+ * Whether the column holds the kind of value the target's key holds, so a value of one can find a
+ * row of the other. A declared foreign key needs no such check: the database enforces it.
+ */
+export function holdsKeyKind(
+  column: ColumnDescription,
+  target: ReferenceTarget,
+): boolean {
+  return target.keyKind === nativeKind(column.native);
+}
+
 /** Single-keyed TableViews whose key holds the kind of value the column holds, by name. */
 function otherTargets(
   column: ColumnDescription,
@@ -131,14 +142,13 @@ function otherTargets(
   except: string,
 ): string[] {
   const holds = new Set(column.accepts.map((entry) => entry.declared));
-  const kind = nativeKind(column.native);
   return [...context.targets]
     .filter(
       ([relation, target]) =>
         relation !== except &&
         target.tableView &&
         target.key.length === 1 &&
-        target.keyKind === kind &&
+        holdsKeyKind(column, target) &&
         target.keyAccepts.some((declared) => holds.has(declared)),
     )
     .map(([relation]) => relation)
@@ -191,7 +201,8 @@ function relationChoice(
     return { relation: declared };
   }
   const implied = impliedMatch(facts, column, context);
-  if (!implied) {
+  const target = implied && context.targets.get(implied.to.relation);
+  if (!implied || (target && !holdsKeyKind(description, target))) {
     return {};
   }
   const containment = containmentOf(implied);

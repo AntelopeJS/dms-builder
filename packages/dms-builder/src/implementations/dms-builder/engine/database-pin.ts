@@ -5,6 +5,7 @@ import { ownConnections } from "./own-connections";
 import { DATABASE_INTERFACE } from "./interface-ids";
 import {
   existingOverrides,
+  hides,
   MODULES,
   objectAt,
   openDraft,
@@ -13,6 +14,8 @@ import {
 
 const DMS_INTERFACE = "@antelopejs/interface-dms";
 const DEFAULT_PRIORITY = 0;
+const EXPORT_PRIORITY = "exportPriority";
+const IMPORT_OVERRIDES = "importOverrides";
 
 /**
  * The `interface-database` pin the DMS module needs once a module that uses it pins another
@@ -62,10 +65,14 @@ function moduleEntry(
  * A provider's `interface-database` priority as core would rank it, or nothing when the
  * configuration does not spell it as a plain number the builder can read.
  */
-export function databasePriority(
-  entry: ObjectLiteralExpression | undefined,
-): number | undefined {
-  const priorities = entry && propertyNamed(entry, "exportPriority");
+export function databasePriority(entry: Node | undefined): number | undefined {
+  if (entry === undefined || Node.isStringLiteral(entry)) {
+    return DEFAULT_PRIORITY;
+  }
+  if (!Node.isObjectLiteralExpression(entry) || hides(entry, EXPORT_PRIORITY)) {
+    return undefined;
+  }
+  const priorities = propertyNamed(entry, EXPORT_PRIORITY);
   if (priorities === undefined) {
     return DEFAULT_PRIORITY;
   }
@@ -114,8 +121,21 @@ export function defaultDatabaseProvider(
   return ranked[0]?.id;
 }
 
-function pinsDatabase(entry: ObjectLiteralExpression): boolean {
-  return existingOverrides(propertyNamed(entry, "importOverrides")).some(
+/** Whether the DMS pins `interface-database`; refused when its overrides are not written as a literal. */
+function pinsDatabase(dms: string, entry: ObjectLiteralExpression): boolean {
+  const overrides = propertyNamed(entry, IMPORT_OVERRIDES);
+  const literal =
+    !hides(entry, IMPORT_OVERRIDES) &&
+    (overrides === undefined ||
+      Node.isArrayLiteralExpression(overrides) ||
+      (Node.isObjectLiteralExpression(overrides) &&
+        overrides.getProperties().every(Node.isPropertyAssignment)));
+  if (!literal) {
+    throw new StepRefusal(
+      `the entry of the DMS module "${dms}" or its importOverrides are not written as a literal, so the builder cannot tell whether it pins ${DATABASE_INTERFACE}: pin it on "${dms}" first`,
+    );
+  }
+  return existingOverrides(overrides).some(
     (override) => override.interface === DATABASE_INTERFACE,
   );
 }
@@ -158,7 +178,7 @@ export function dmsDatabasePin(
   const dms = providerOf(lookup(DMS_INTERFACE));
   const modules = configModules();
   const entry = dms && modules && moduleEntry(modules, dms);
-  if (!dms || !modules || !entry || pinsDatabase(entry)) {
+  if (!dms || !modules || !entry || pinsDatabase(dms, entry)) {
     return undefined;
   }
   const providers = lookup(DATABASE_INTERFACE)
@@ -172,7 +192,7 @@ export function dmsDatabasePin(
   }
   const provider =
     defaultDatabaseProvider([...new Set(providers)], (id) =>
-      databasePriority(moduleEntry(modules, id)),
+      databasePriority(propertyNamed(modules, id)),
     ) ?? unreadable(dms);
   return { module: dms, provider };
 }
