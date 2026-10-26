@@ -2,15 +2,16 @@ import type {
   RemoveConnectionStep,
   RemoveModuleStep,
 } from "@antelopejs/interface-dms-builder";
-import { Node, type ObjectLiteralExpression } from "ts-morph";
+import { Node } from "ts-morph";
 import { propertyKey } from "./modules";
 import {
   type ConfigDraft,
   ENV_OVERRIDES,
-  existingOverrides,
   IMPORT_OVERRIDES,
   MODULES,
+  moduleEntries,
   objectAt,
+  overridesOf,
   overridesValue,
   propertyNamed,
   refuse,
@@ -59,30 +60,6 @@ export function removeProperty(
     start -= LEADING_COMMA.exec(text.slice(lineStart, start))?.[0].length ?? 0;
   }
   replace(draft, start, end, "");
-}
-
-function moduleEntries(
-  draft: ConfigDraft,
-): [string, ObjectLiteralExpression][] {
-  const entries: [string, ObjectLiteralExpression][] = [];
-  const modules = objectAt(draft, [MODULES]);
-  for (const property of modules?.getProperties() ?? []) {
-    if (!Node.isPropertyAssignment(property)) {
-      continue;
-    }
-    const id = propertyKey(property.getNameNode());
-    const entry = objectAt(draft, [MODULES, id]);
-    if (entry) {
-      entries.push([id, entry]);
-    }
-  }
-  return entries;
-}
-
-function overridesOf(entry: ObjectLiteralExpression) {
-  return existingOverrides(
-    propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
-  );
 }
 
 function variablesSupplying(draft: ConfigDraft, id: string): string[] {

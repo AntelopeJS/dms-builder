@@ -1,8 +1,7 @@
 import type { InterfaceConnection } from "@antelopejs/interface-core";
 import type * as Catalog from "@antelopejs/interface-database-catalog";
+import { CATALOG_INTERFACE } from "./interface-ids";
 import { ownConnections } from "./own-connections";
-
-const CATALOG_INTERFACE = "@antelopejs/interface-database-catalog";
 
 function catalogConnections(): InterfaceConnection[] {
   return ownConnections(CATALOG_INTERFACE);

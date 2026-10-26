@@ -160,9 +160,12 @@ function parameters(fields: ConnectionFields): string {
 	return query ? `?${query}` : ''
 }
 
-/** The URL the fields describe, the value written into `.env`. */
-export function connectionUrl(engine: DatabaseEngine, fields: ConnectionFields): string {
-	const scheme = ENGINES[engine].schemes[0]
+/** The URL the fields describe, the value written into `.env`, with the engine's first scheme unless given one. */
+export function connectionUrl(
+	engine: DatabaseEngine,
+	fields: ConnectionFields,
+	scheme: string = ENGINES[engine].schemes[0],
+): string {
 	const port = fields.port ? `:${fields.port}` : ''
 	const database = encodeURIComponent(fields.database)
 	return `${scheme}//${credentials(fields)}${fields.host}${port}/${database}${parameters(fields)}`
@@ -206,6 +209,11 @@ function tablesStep(form: ConnectForm, id: string, names: ManagedNames): Project
 }
 
 /** The fields a connection's saved details fill, the password left empty. */
+/** Whether the fields still reach the server and user the saved password belongs to. */
+export function keepsServer(saved: ConnectionFields, fields: ConnectionFields): boolean {
+	return saved.host === fields.host && saved.port === fields.port && saved.user === fields.user
+}
+
 export function detailsFields(engine: DatabaseEngine, details: ConnectionDetails): ConnectionFields {
 	const query = new URLSearchParams(details.options).toString()
 	const user = details.user ? `${encodeURIComponent(details.user)}@` : ''

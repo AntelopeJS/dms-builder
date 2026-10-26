@@ -6,7 +6,8 @@ import type {
   ProjectConfigResult,
   ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
-import { Node } from "ts-morph";
+import { Node, type ObjectLiteralExpression } from "ts-morph";
+import { CATALOG_INTERFACE, DATABASE_INTERFACE } from "./interface-ids";
 import { recordedConnection } from "./mapped-modules";
 import { findConfigFile, propertyKey } from "./modules";
 import { invalidConfig, unsupported } from "./ops";
@@ -14,11 +15,11 @@ import { resolveProjectRoot } from "./project";
 import {
   type ConfigDraft,
   ENV_OVERRIDES,
-  existingOverrides,
-  IMPORT_OVERRIDES,
   MODULES,
+  moduleEntries,
   objectAt,
   openDraft,
+  overridesOf,
   propertyNamed,
   StepRefusal,
   stringOf,
@@ -27,14 +28,13 @@ import { configureProject } from "./project-config-ops";
 import {
   EnvRefusal,
   hasProjectVariable,
+  projectEnvFile,
   projectVariable,
   removeProjectVariable,
   setProjectVariable,
 } from "./project-env";
-import { localModuleRoot } from "./project-scaffold";
+import { isScaffoldRefusal, localModuleRoot } from "./project-scaffold";
 
-const CATALOG_INTERFACE = "@antelopejs/interface-database-catalog";
-const DATABASE_INTERFACE = "@antelopejs/interface-database";
 const MODULES_DIRECTORY = "modules";
 const URL_PATH = "config.url";
 
@@ -67,25 +67,10 @@ export interface AdoptableModule {
   connection: string;
 }
 
-function moduleIds(draft: ConfigDraft): string[] {
-  return (objectAt(draft, [MODULES])?.getProperties() ?? [])
-    .filter(Node.isPropertyAssignment)
-    .map((property) => propertyKey(property.getNameNode()));
-}
-
-function overridesOf(draft: ConfigDraft, id: string) {
-  const entry = objectAt(draft, [MODULES, id]);
-  return entry
-    ? existingOverrides(
-        propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
-      )
-    : [];
-}
-
-function localPath(draft: ConfigDraft, id: string): string | undefined {
-  const source = objectAt(draft, [MODULES, id, "source"]);
+function localPath(entry: ObjectLiteralExpression): string | undefined {
+  const source = propertyNamed(entry, "source")?.getInitializer();
   if (
-    !source ||
+    !Node.isObjectLiteralExpression(source) ||
     stringOf(propertyNamed(source, "type")?.getInitializer()) !== "local"
   ) {
     return undefined;
@@ -95,11 +80,10 @@ function localPath(draft: ConfigDraft, id: string): string | undefined {
 
 function variableOf(draft: ConfigDraft, driver: string): string | undefined {
   const target = `${MODULES}.${driver}.${URL_PATH}`;
-  return (objectAt(draft, [ENV_OVERRIDES])?.getProperties() ?? [])
+  const supplying = (objectAt(draft, [ENV_OVERRIDES])?.getProperties() ?? [])
     .filter(Node.isPropertyAssignment)
-    .find((property) => stringOf(property.getInitializer()) === target)
-    ?.getName()
-    .replace(/^["']|["']$/g, "");
+    .find((property) => stringOf(property.getInitializer()) === target);
+  return supplying && propertyKey(supplying.getNameNode());
 }
 
 function openConfig(): ConfigDraft | undefined {
@@ -111,9 +95,9 @@ function wiringIn(
   draft: ConfigDraft,
   connection: string,
 ): ConnectionWiring | undefined {
-  const ids = moduleIds(draft);
-  const driver = ids
-    .flatMap((id) => overridesOf(draft, id))
+  const entries = moduleEntries(draft);
+  const driver = entries
+    .flatMap(([, entry]) => overridesOf(entry))
     .find(
       (override) =>
         override.interface === CATALOG_INTERFACE && override.id === connection,
@@ -121,17 +105,22 @@ function wiringIn(
   if (!driver) {
     return undefined;
   }
-  const modules = ids
-    .filter((id) =>
-      overridesOf(draft, id).some(
+  const modules = entries
+    .filter(([, entry]) =>
+      overridesOf(entry).some(
         (override) =>
           override.interface === DATABASE_INTERFACE &&
           override.id === undefined &&
           override.source === driver,
       ),
     )
-    .map((id) => ({ id, path: localPath(draft, id) }));
+    .map(([id, entry]) => ({ id, path: localPath(entry) }));
   return { connection, driver, modules, variable: variableOf(draft, driver) };
+}
+
+/** Whether `error` says why the configuration or a module folder cannot be read or changed. */
+export function isConnectionRefusal(error: unknown): error is Error {
+  return error instanceof StepRefusal || isScaffoldRefusal(error);
 }
 
 /** What the configuration wires for a connection, or nothing when no module declares it. */
@@ -173,17 +162,11 @@ function folderChanges(wiring: ConnectionWiring): FileChange[] {
 }
 
 function envChange(variable: string | undefined): FileChange[] {
-  if (!variable || !hasProjectVariable(variable)) {
+  const file = projectEnvFile();
+  if (!variable || !file || !hasProjectVariable(variable)) {
     return [];
   }
-  const configPath = findConfigFile() ?? "";
-  return [
-    {
-      path: path.join(path.dirname(configPath), ".env"),
-      kind: "modify",
-      diff: `-${variable}=…`,
-    },
-  ];
+  return [{ path: file, kind: "modify", diff: `-${variable}=…` }];
 }
 
 export interface RemoveConnectionOpts {
@@ -202,10 +185,12 @@ export function removeDatabaseConnection(
   opts: RemoveConnectionOpts = {},
 ): OpResult<ProjectConfigResult> {
   let wiring: ConnectionWiring | undefined;
+  let folders: FileChange[];
   try {
     wiring = connectionWiring(connection);
+    folders = wiring && opts.deleteFolders ? folderChanges(wiring) : [];
   } catch (error) {
-    if (error instanceof StepRefusal) {
+    if (isConnectionRefusal(error)) {
       return invalidConfig<ProjectConfigResult>(error.message);
     }
     throw error;
@@ -215,7 +200,6 @@ export function removeDatabaseConnection(
       `no module of the configuration declares the connection "${connection}"`,
     );
   }
-  const folders = opts.deleteFolders ? folderChanges(wiring) : [];
   const env = envChange(wiring.variable);
   const configured = configureProject(removalSteps(wiring), {
     dryRun: opts.dryRun,
@@ -243,8 +227,10 @@ type UrlRead =
   | { ok: true; wiring: ConnectionWiring; url: URL }
   | { ok: false; message: string };
 
-function connectionUrl(connection: string): UrlRead {
-  const wiring = connectionWiring(connection);
+function wiredUrl(
+  connection: string,
+  wiring: ConnectionWiring | undefined,
+): UrlRead {
   if (!wiring?.variable) {
     return {
       ok: false,
@@ -265,11 +251,22 @@ function connectionUrl(connection: string): UrlRead {
   }
 }
 
+function connectionUrl(connection: string): UrlRead {
+  try {
+    return wiredUrl(connection, connectionWiring(connection));
+  } catch (error) {
+    if (isConnectionRefusal(error)) {
+      return { ok: false, message: error.message };
+    }
+    throw error;
+  }
+}
+
 /** A connection's details from the URL in `.env`, the password left out. */
 export function connectionDetails(
-  connection: string,
+  wiring: ConnectionWiring,
 ): OpResult<ConnectionDetails> {
-  const read = connectionUrl(connection);
+  const read = wiredUrl(wiring.connection, wiring);
   if (!read.ok) {
     return invalidConfig<ConnectionDetails>(read.message);
   }
@@ -289,9 +286,21 @@ export function connectionDetails(
   };
 }
 
+/** Whether both URLs reach the same server as the same user; a port left out is the engine's default. */
+function sameServer(saved: URL, next: URL): boolean {
+  const samePort =
+    saved.port === next.port || saved.port === "" || next.port === "";
+  return (
+    saved.hostname === next.hostname &&
+    saved.username === next.username &&
+    samePort
+  );
+}
+
 /**
- * Writes a connection's new URL into `.env`. A URL with no password keeps the current one, so the
- * password never has to travel back to change something else. Takes effect on the next restart.
+ * Writes a connection's new URL into `.env`. A URL with no password keeps the current one while it
+ * reaches the same host, port and user, so the password never has to travel back to change something
+ * else, and never follows the connection to another server. Takes effect on the next restart.
  */
 export function setConnectionUrl(
   connection: string,
@@ -314,7 +323,12 @@ export function setConnectionUrl(
       `the connection reads ${read.url.protocol.replace(/:$/, "")} URLs`,
     );
   }
-  if (next.password === "" && next.username !== "") {
+  if (next.password === "" && next.username !== "" && read.url.password) {
+    if (!sameServer(read.url, next)) {
+      return invalidConfig<{ variable: string }>(
+        "the password is kept only for the same host, port and user: enter the password for the new ones",
+      );
+    }
     next.password = read.url.password;
   }
   const variable = read.wiring.variable ?? "";
@@ -333,8 +347,8 @@ function configuredPaths(draft: ConfigDraft | undefined): Set<string> {
   const root = resolveProjectRoot();
   return new Set(
     draft
-      ? moduleIds(draft).flatMap((id) => {
-          const local = localPath(draft, id);
+      ? moduleEntries(draft).flatMap(([, entry]) => {
+          const local = localPath(entry);
           return local ? [path.resolve(root, local)] : [];
         })
       : [],

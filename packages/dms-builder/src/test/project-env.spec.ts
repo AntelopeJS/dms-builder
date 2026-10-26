@@ -61,6 +61,22 @@ describe("a project variable written by the builder", function () {
     expect(fs.existsSync(envFile())).to.equal(false);
   });
 
+  it("refuses while git cannot say whether .env is ignored", () => {
+    const repository = path.join(app.root, ".git");
+    const aside = path.join(app.root, ".git-aside");
+    fs.renameSync(repository, aside);
+    fs.writeFileSync(repository, "not a gitdir\n");
+    try {
+      expect(refusal(() => setProjectVariable(VARIABLE, URL))).to.match(
+        /git could not say whether \.env is ignored/,
+      );
+    } finally {
+      fs.rmSync(repository);
+      fs.renameSync(aside, repository);
+    }
+    expect(fs.existsSync(envFile())).to.equal(false);
+  });
+
   it("refuses a variable envOverrides does not map", () => {
     fs.writeFileSync(path.join(app.root, ".gitignore"), ".env\n");
     expect(refusal(() => setProjectVariable("OTHER_URL", URL))).to.match(

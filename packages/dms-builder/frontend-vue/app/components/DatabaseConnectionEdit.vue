@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { connectionUrl, detailsFields, refusalText } from '../runtime/database-connect'
+import { connectionUrl, detailsFields, keepsServer, refusalText } from '../runtime/database-connect'
 import type { ConnectionInfo } from '../runtime/database-types'
 
 /**
  * *Edit connection*: the details the connection's URL holds, filled from `.env`
- * without the password. An empty password keeps the current one. The new URL
+ * without the password. An empty password keeps the current one while the host,
+ * port and user stay the same; another server needs its own. The new URL
  * goes into `.env`, and the project reconnects once it restarts.
  */
 
@@ -15,24 +16,34 @@ const emit = defineEmits<{ close: [] }>()
 
 const api = useBuilderApi()
 
-const fields = ref(props.info.details ? detailsFields('postgres', props.info.details) : null)
+const saved = props.info.details ? detailsFields('postgres', props.info.details) : null
+const fields = ref(saved ? { ...saved, options: { ...saved.options } } : null)
 const busy = ref(false)
 const problem = ref('')
-const saved = ref(false)
+const done = ref(false)
 const extraOptions = computed(() => Object.entries(fields.value?.options ?? {}))
+const keepsPassword = computed(
+	() => !!saved && !!fields.value && !!props.info.details?.hasPassword && keepsServer(saved, fields.value),
+)
+const needsPassword = computed(
+	() => !!fields.value && !!props.info.details?.hasPassword && !keepsPassword.value && !fields.value.password,
+)
 
 async function save(): Promise<void> {
 	if (!fields.value) return
 	busy.value = true
 	problem.value = ''
-	const result = await api.setConnectionUrl(props.connection, connectionUrl('postgres', fields.value))
+	const result = await api.setConnectionUrl(
+		props.connection,
+		connectionUrl('postgres', fields.value, `${props.info.details?.scheme ?? 'postgres'}:`),
+	)
 	fields.value.password = ''
 	busy.value = false
 	if (!result.ok) {
 		problem.value = refusalText(result.error)
 		return
 	}
-	saved.value = true
+	done.value = true
 }
 </script>
 
@@ -50,7 +61,7 @@ async function save(): Promise<void> {
 			The connection's URL could not be read from <span class="font-mono">.env</span>.
 		</p>
 
-		<template v-else-if="!saved">
+		<template v-else-if="!done">
 			<section class="flex flex-col gap-3 rounded-md border border-default p-3">
 				<div class="grid grid-cols-[1fr_8rem] gap-3">
 					<UFormField label="Host">
@@ -67,12 +78,15 @@ async function save(): Promise<void> {
 					<UFormField label="User">
 						<UInput v-model="fields.user" autocomplete="off" class="w-full font-mono" />
 					</UFormField>
-					<UFormField label="Password" :help="info.details?.hasPassword ? 'Leave empty to keep it.' : undefined">
+					<UFormField
+						label="Password"
+						:help="keepsPassword ? 'Leave empty to keep it.' : needsPassword ? 'Another server or user: enter its password.' : undefined"
+					>
 						<UInput
 							v-model="fields.password"
 							type="password"
 							autocomplete="new-password"
-							:placeholder="info.details?.hasPassword ? 'Unchanged' : ''"
+							:placeholder="keepsPassword ? 'Unchanged' : ''"
 							class="w-full font-mono"
 						/>
 					</UFormField>
@@ -90,7 +104,7 @@ async function save(): Promise<void> {
 			<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
 
 			<div class="flex items-center gap-2">
-				<UButton :label="busy ? 'Saving…' : 'Save'" :disabled="busy || !fields.host || !fields.database" @click="save" />
+				<UButton :label="busy ? 'Saving…' : 'Save'" :disabled="busy || !fields.host || !fields.database || needsPassword" @click="save" />
 				<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('close')" />
 			</div>
 		</template>

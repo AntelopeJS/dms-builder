@@ -23,6 +23,12 @@ const pending = ref<string | null>(null)
 const removed = ref<string[]>([])
 /** What the open connection wired, read from the configuration. */
 const info = ref<ConnectionInfo | null>(null)
+const infoProblem = ref('')
+
+function connectionProblem(error: unknown): string {
+	const message = (error as { data?: { message?: string } }).data?.message
+	return message ? `Edit and Remove are unavailable: ${message}` : ''
+}
 /** What the section beside the list shows for the open connection. */
 const view = ref<'mapping' | 'edit' | 'remove'>('mapping')
 
@@ -58,7 +64,11 @@ async function open(id: string): Promise<void> {
 	view.value = 'mapping'
 	info.value = null
 	module.value = defaultNames(id, 'postgres').tablesModule
-	const read = await api.databaseConnection(id).catch(() => null)
+	infoProblem.value = ''
+	const read = await api.databaseConnection(id).catch((error: unknown) => {
+		infoProblem.value = connectionProblem(error)
+		return null
+	})
 	if (selected.value !== id) return
 	info.value = read
 	module.value = read?.wiring.modules[0]?.id ?? module.value
@@ -134,6 +144,7 @@ onMounted(load)
 				<UFormField label="Module for its tables" size="xs">
 					<UInput v-model="module" size="xs" class="w-full font-mono" />
 				</UFormField>
+				<p v-if="infoProblem" class="text-xs text-error">{{ infoProblem }}</p>
 				<div v-if="info" class="flex gap-2">
 					<UButton
 						icon="i-ph-pencil-simple"

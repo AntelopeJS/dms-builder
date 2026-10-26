@@ -425,3 +425,29 @@ export function createLocalModule(
   draft.scaffolds.push(scaffold);
   addModule(draft, step.id, { ...step.entry, source: scaffold.source });
 }
+
+/** Each module entry of the configuration written as an object literal, by id. */
+export function moduleEntries(
+  draft: ConfigDraft,
+): [string, ObjectLiteralExpression][] {
+  const entries: [string, ObjectLiteralExpression][] = [];
+  const modules = objectAt(draft, [MODULES]);
+  for (const property of modules?.getProperties() ?? []) {
+    if (!Node.isPropertyAssignment(property)) {
+      continue;
+    }
+    const id = propertyKey(property.getNameNode());
+    const entry = objectAt(draft, [MODULES, id]);
+    if (entry) {
+      entries.push([id, entry]);
+    }
+  }
+  return entries;
+}
+
+/** The `importOverrides` a module entry declares. */
+export function overridesOf(entry: ObjectLiteralExpression) {
+  return existingOverrides(
+    propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
+  );
+}

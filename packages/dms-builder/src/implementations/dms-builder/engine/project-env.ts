@@ -42,17 +42,39 @@ function overriddenVariables(configPath: string): Set<string> {
   );
 }
 
+const GIT_IGNORED = 0;
 const GIT_NOT_IGNORED = 1;
+const GIT_DIRECTORY = ".git";
+
+function insideRepository(directory: string): boolean {
+  let current = path.resolve(directory);
+  while (!fs.existsSync(path.join(current, GIT_DIRECTORY))) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return false;
+    }
+    current = parent;
+  }
+  return true;
+}
 
 /**
- * Whether git would commit `file`: false once git ignores it, and false outside a repository,
- * where nothing commits it.
+ * Why the builder cannot write `file`, when git might commit it: nothing outside a repository, and
+ * inside one only a file git answers it ignores. A git that fails or is missing refuses too.
  */
-function isCommittable(directory: string, file: string): boolean {
+function commitRisk(directory: string, file: string): string | undefined {
+  if (!insideRepository(directory)) {
+    return undefined;
+  }
   const checked = spawnSync("git", ["check-ignore", "-q", file], {
     cwd: directory,
   });
-  return checked.status === GIT_NOT_IGNORED;
+  if (checked.status === GIT_IGNORED) {
+    return undefined;
+  }
+  return checked.status === GIT_NOT_IGNORED
+    ? `${file} is not ignored by git, so the builder does not write to it`
+    : `git could not say whether ${file} is ignored, so the builder does not write to it`;
 }
 
 function withVariable(before: string, name: string, value: string): string {
@@ -65,7 +87,8 @@ function withVariable(before: string, name: string, value: string): string {
   return `${before}${separator}${line}\n`;
 }
 
-function envFile(): string | undefined {
+/** Where the project's `.env` sits: beside its configuration. */
+export function projectEnvFile(): string | undefined {
   const configPath = findConfigFile();
   return configPath && path.join(path.dirname(configPath), ENV_FILE);
 }
@@ -79,7 +102,7 @@ function variablePattern(name: string): RegExp {
  * reads from it, never the value itself.
  */
 export function projectVariable(name: string): string | undefined {
-  const file = envFile();
+  const file = projectEnvFile();
   if (!VARIABLE_NAME.test(name) || !file || !fs.existsSync(file)) {
     return undefined;
   }
@@ -94,7 +117,7 @@ export function hasProjectVariable(name: string): boolean {
 
 /** Removes a variable's line from the project's `.env`, when it has one. */
 export function removeProjectVariable(name: string): void {
-  const file = envFile();
+  const file = projectEnvFile();
   if (!VARIABLE_NAME.test(name) || !file || !fs.existsSync(file)) {
     return;
   }
@@ -128,10 +151,9 @@ export function setProjectVariable(
     refuse(`the value of ${name} is empty, or holds a quote or a line break`);
   }
   const directory = path.dirname(configPath);
-  if (isCommittable(directory, ENV_FILE)) {
-    refuse(
-      `${ENV_FILE} is not ignored by git, so the builder does not write to it`,
-    );
+  const risk = commitRisk(directory, ENV_FILE);
+  if (risk) {
+    refuse(risk);
   }
   const file = path.join(directory, ENV_FILE);
   const before = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";

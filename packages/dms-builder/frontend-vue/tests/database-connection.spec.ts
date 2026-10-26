@@ -137,6 +137,31 @@ describe('editing a connection', () => {
 	})
 })
 
+describe('editing a connection saved as postgresql://', () => {
+	it('keeps its scheme, and asks for the password once the host changes', async () => {
+		const details = { ...INFO.details!, scheme: 'postgresql' }
+		const mounted = mount(DatabaseConnectionEdit, {
+			props: { connection: 'erp', info: { ...INFO, details } },
+			components: COMPONENTS,
+		})
+		unmount = mounted.unmount
+		await settle()
+		const host = findAll(mounted.root, (node) => node.tag === 'UInput')[0]!
+		fire(host, 'update:modelValue', 'db2.example')
+		await settle()
+		expect(button(mounted.root, 'Save').props.disabled).toBe(true)
+		fire(host, 'update:modelValue', 'db.example')
+		await settle()
+		fire(button(mounted.root, 'Save'), 'click')
+		await settle()
+		const saved = backend.calls.find((call) => call.path === '/api/builder/database/connection/url')
+		expect(saved?.body).toEqual({
+			connection: 'erp',
+			url: 'postgresql://reader@db.example:5432/erp?sslmode=require',
+		})
+	})
+})
+
 describe('connecting a database when a module was kept', () => {
 	it('offers the kept module for the tables', async () => {
 		backend.answers['GET /api/builder/database/project'] = { modules: [] }

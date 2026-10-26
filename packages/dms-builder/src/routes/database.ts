@@ -30,6 +30,7 @@ import {
   adoptableModules,
   connectionDetails,
   connectionWiring,
+  isConnectionRefusal,
   removeDatabaseConnection,
   setConnectionUrl,
 } from "../implementations/dms-builder/engine/database-connection";
@@ -164,15 +165,22 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     @AuthTenantOwner() _user: User,
     @Parameter("connection", "query") connection: string,
   ) {
-    const wiring = connectionWiring(connection);
-    if (!wiring) {
-      return new HTTPResult(HTTP_NOT_FOUND, {
-        code: "not_found",
-        ref: connection,
-      });
+    try {
+      const wiring = connectionWiring(connection);
+      if (!wiring) {
+        return new HTTPResult(HTTP_NOT_FOUND, {
+          code: "not_found",
+          ref: connection,
+        });
+      }
+      const details = connectionDetails(wiring);
+      return { wiring, details: details.ok ? details.data : undefined };
+    } catch (error) {
+      if (isConnectionRefusal(error)) {
+        return refused(error);
+      }
+      throw error;
     }
-    const details = connectionDetails(connection);
-    return { wiring, details: details.ok ? details.data : undefined };
   }
 
   @Post(ROUTES.databaseConnectionRemove)
@@ -196,7 +204,14 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
 
   @Get(ROUTES.databaseAdoptable)
   async adoptable(@AuthTenantOwner() _user: User) {
-    return adoptableModules();
+    try {
+      return adoptableModules();
+    } catch (error) {
+      if (isConnectionRefusal(error)) {
+        return refused(error);
+      }
+      throw error;
+    }
   }
 
   @Post(ROUTES.databaseSample)

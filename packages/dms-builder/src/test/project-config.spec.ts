@@ -273,4 +273,24 @@ describe("project-config operations", function () {
       "MONGODB_URL=\nERP_DATABASE_URL=\n",
     );
   });
+
+  it("loads .env beside a namespace import of node:path, which it leaves as it is", async () => {
+    const namespace = 'import * as path from "node:path";\n';
+    fs.writeFileSync(configPath(), namespace + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig())
+      .to.include(namespace)
+      .and.to.include('import { join } from "node:path";')
+      .and.to.include('const projectEnvFile = join(__dirname, ".env");');
+  });
+
+  it("loads .env under another name when the configuration has a join of its own", async () => {
+    const own = 'import { join } from "pathe";\n';
+    fs.writeFileSync(configPath(), own + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig())
+      .to.include(own)
+      .and.to.include('import { join as joinEnvPath } from "node:path";')
+      .and.to.include('const projectEnvFile = joinEnvPath(__dirname, ".env");');
+  });
 });

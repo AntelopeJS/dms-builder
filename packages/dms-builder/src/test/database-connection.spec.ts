@@ -106,13 +106,14 @@ describe("a database connection after it was made", function () {
   after(destroyFixture);
 
   it("answers what the connection wired, and its details without the password", () => {
-    expect(connectionWiring("erp")).to.deep.equal({
+    const wiring = connectionWiring("erp");
+    expect(wiring).to.deep.equal({
       connection: "erp",
       driver: "builder-db-erp",
       modules: [{ id: "erp-tables", path: "modules/erp-tables" }],
       variable: "BUILDER_DB_ERP_URL",
     });
-    const details = connectionDetails("erp");
+    const details = connectionDetails(wiring!);
     expect(expectOk(details, "connectionDetails")).to.deep.equal({
       scheme: "postgres",
       host: "db.example",
@@ -125,13 +126,69 @@ describe("a database connection after it was made", function () {
     expect(JSON.stringify(details)).to.not.include(PASSWORD);
   });
 
-  it("keeps the password when new details leave it out", () => {
+  it("keeps the password when new details leave it out on the same server", () => {
     expectOk(
-      setConnectionUrl("erp", "postgres://reader@db2.example:5433/erp"),
+      setConnectionUrl(
+        "erp",
+        "postgres://reader@db.example:5432/erp?sslmode=verify-full",
+      ),
       "setConnectionUrl",
     );
     expect(projectVariable("BUILDER_DB_ERP_URL")).to.equal(
-      `postgres://reader:${PASSWORD}@db2.example:5433/erp`,
+      `postgres://reader:${PASSWORD}@db.example:5432/erp?sslmode=verify-full`,
+    );
+  });
+
+  it("does not send the kept password to another host", () => {
+    const moved = setConnectionUrl(
+      "erp",
+      "postgres://reader@db2.example:5432/erp",
+    );
+    expect(moved.ok ? "" : JSON.stringify(moved.error)).to.match(
+      /kept only for the same host, port and user/,
+    );
+    expect(projectVariable("BUILDER_DB_ERP_URL")).to.include(
+      "@db.example:5432/",
+    );
+  });
+
+  it("refuses a URL of another engine", () => {
+    const other = setConnectionUrl(
+      "erp",
+      "mysql://reader:pw@db.example:5432/erp",
+    );
+    expect(other.ok ? "" : JSON.stringify(other.error)).to.match(
+      /reads postgres URLs/,
+    );
+    expect(projectVariable("BUILDER_DB_ERP_URL")).to.match(/^postgres:/);
+  });
+
+  it("refuses to delete a folder outside the project, instead of failing", async () => {
+    expectOk(
+      await ConfigureProject([
+        {
+          op: "AddModule",
+          id: "root-tables",
+          entry: {
+            source: { type: "local", path: "." },
+            importOverrides: [
+              { interface: DATABASE, source: "builder-db-erp" },
+            ],
+          },
+        },
+      ]),
+      "AddModule root-tables",
+    );
+    const refused = removeDatabaseConnection("erp", {
+      deleteFolders: true,
+      dryRun: true,
+    });
+    expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+      /leaves the project/,
+    );
+    expectOk(
+      await ConfigureProject([{ op: "RemoveModule", id: "root-tables" }]),
+      "RemoveModule root-tables",
     );
   });
 

@@ -1,17 +1,17 @@
-import fs from "node:fs";
 import type { InterfaceConnection } from "@antelopejs/interface-core";
-import {
-  Node,
-  type ObjectLiteralExpression,
-  Project,
-  SyntaxKind,
-} from "ts-morph";
-import { configObject, findConfigFile, propertyNamed } from "./modules";
+import { Node, type ObjectLiteralExpression, SyntaxKind } from "ts-morph";
+import { findConfigFile, propertyNamed } from "./modules";
 import { ownConnections } from "./own-connections";
-import { existingOverrides } from "./project-config";
+import { DATABASE_INTERFACE } from "./interface-ids";
+import {
+  existingOverrides,
+  MODULES,
+  objectAt,
+  openDraft,
+  StepRefusal,
+} from "./project-config";
 
 const DMS_INTERFACE = "@antelopejs/interface-dms";
-const DATABASE_INTERFACE = "@antelopejs/interface-database";
 const DEFAULT_PRIORITY = 0;
 
 /**
@@ -85,13 +85,14 @@ function configModules(): ObjectLiteralExpression | undefined {
   if (!configPath) {
     return undefined;
   }
-  const file = new Project({ useInMemoryFileSystem: true }).createSourceFile(
-    configPath,
-    fs.readFileSync(configPath, "utf8"),
-  );
-  const root = configObject(file);
-  const modules = root && propertyNamed(root, "modules");
-  return Node.isObjectLiteralExpression(modules) ? modules : undefined;
+  try {
+    return objectAt(openDraft(configPath), [MODULES]);
+  } catch (error) {
+    if (error instanceof StepRefusal) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 /**
