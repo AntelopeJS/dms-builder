@@ -205,6 +205,7 @@ function scaffoldEntryChanges(draft: ConfigDraft): FileChange[] {
 export function configureProject(
   steps: ProjectConfigStep[],
   opts: ProjectConfigOpts = {},
+  sourceInterfaces?: ReadonlySet<string>,
 ): OpResult<ProjectConfigResult> {
   const configPath = findConfigFile();
   if (!configPath) {
@@ -215,6 +216,7 @@ export function configureProject(
   let draft: ConfigDraft;
   try {
     draft = openDraft(configPath);
+    draft.sourceInterfaces = sourceInterfaces;
     for (const step of steps) {
       applyStep(draft, step);
     }

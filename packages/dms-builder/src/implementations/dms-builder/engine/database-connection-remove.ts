@@ -20,6 +20,7 @@ import {
   variableRemovals,
   writeEnvFiles,
 } from "./project-env";
+import { DATABASE_SOURCE_INTERFACES } from "./project-config-readers";
 import { localModuleRoot } from "./project-scaffold";
 
 /** The steps that take a connection out of the configuration: its connections, its modules. */
@@ -175,7 +176,11 @@ export function removeDatabaseConnection(
     );
   }
   const steps = removalSteps(wiring);
-  const checked = configureProject(steps, { dryRun: true });
+  const checked = configureProject(
+    steps,
+    { dryRun: true },
+    DATABASE_SOURCE_INTERFACES,
+  );
   if (!checked.ok) {
     return checked;
   }
@@ -219,7 +224,7 @@ function removeWritten(
   let configured: OpResult<ProjectConfigResult>;
   try {
     writeEnvFiles(env, (removal) => removal.after);
-    configured = configureProject(steps);
+    configured = configureProject(steps, {}, DATABASE_SOURCE_INTERFACES);
   } catch (error) {
     undoRemoval(
       env,

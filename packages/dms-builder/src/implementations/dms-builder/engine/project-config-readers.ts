@@ -1,6 +1,7 @@
 import type { ImportOverrideInput } from "@antelopejs/interface-dms-builder";
-import { Node, type ObjectLiteralExpression } from "ts-morph";
+import { Node } from "ts-morph";
 import { CATALOG_INTERFACE, DATABASE_INTERFACE } from "./interface-ids";
+import { hides } from "./literal-overrides";
 import { propertyKey } from "./modules";
 import {
   type ConfigDraft,
@@ -11,47 +12,6 @@ import {
   propertyNamed,
   stringOf,
 } from "./project-config";
-
-/** Whether an object literal may hold `key` where the builder cannot read it: in a spread, or as a shorthand. */
-export function hides(owner: ObjectLiteralExpression, key: string): boolean {
-  return owner
-    .getProperties()
-    .some(
-      (property) =>
-        Node.isSpreadAssignment(property) ||
-        (Node.isShorthandPropertyAssignment(property) &&
-          property.getName() === key),
-    );
-}
-
-function literalOverride(element: Node): boolean {
-  return (
-    Node.isObjectLiteralExpression(element) &&
-    element
-      .getProperties()
-      .every(
-        (property) =>
-          Node.isPropertyAssignment(property) &&
-          stringOf(property.getInitializer()) !== undefined,
-      )
-  );
-}
-
-/**
- * Whether `importOverrides` is written with literals only, so rewriting it from what the builder
- * reads keeps all of it: absent, or an array or object of string values.
- */
-export function overridesWrittenAsLiterals(
-  overrides: Node | undefined,
-): boolean {
-  if (overrides === undefined) {
-    return true;
-  }
-  if (Node.isArrayLiteralExpression(overrides)) {
-    return overrides.getElements().every(literalOverride);
-  }
-  return literalOverride(overrides);
-}
 
 /** Every module of the configuration, by id, with its entry as written, whatever its form. */
 export function writtenModules(
@@ -72,25 +32,39 @@ export function writtenModules(
 }
 
 /**
- * The interfaces through which a module the builder removes, a database driver or a tables
- * module, can be a source: an override of another interface whose source is not a literal is not
- * one of its readers.
+ * The interfaces through which a database driver or a tables module can be a source, the modules
+ * a connection's removal takes: an override of another interface whose source is not a literal is
+ * not one of their readers.
  */
-const REMOVABLE_SOURCE_INTERFACES = new Set([
+export const DATABASE_SOURCE_INTERFACES: ReadonlySet<string> = new Set([
   DATABASE_INTERFACE,
   CATALOG_INTERFACE,
 ]);
 
-function unreadSourceMayName(interfaceId: string | undefined): boolean {
+/**
+ * Whether an override whose source cannot be read may name the module: always, unless the module
+ * is a source only `through` some interfaces and the override's interface is read and another.
+ */
+function unreadSourceMayName(
+  interfaceId: string | undefined,
+  through: ReadonlySet<string> | undefined,
+): boolean {
   return (
-    interfaceId === undefined || REMOVABLE_SOURCE_INTERFACES.has(interfaceId)
+    through === undefined ||
+    interfaceId === undefined ||
+    through.has(interfaceId)
   );
+}
+
+interface SourceScope {
+  ignored: (override: ImportOverrideInput) => boolean;
+  through?: ReadonlySet<string>;
 }
 
 function overridesMayName(
   overrides: Node,
   source: string,
-  ignored: (override: ImportOverrideInput) => boolean,
+  { ignored, through }: SourceScope,
 ): boolean {
   if (Node.isObjectLiteralExpression(overrides)) {
     return overrides.getProperties().some((property) => {
@@ -99,7 +73,12 @@ function overridesMayName(
       }
       const named = stringOf(property.getInitializer());
       return named === undefined
-        ? unreadSourceMayName(propertyKey(property.getNameNode()))
+        ? unreadSourceMayName(
+            Node.isComputedPropertyName(property.getNameNode())
+              ? undefined
+              : propertyKey(property.getNameNode()),
+            through,
+          )
         : named === source;
     });
   }
@@ -116,7 +95,7 @@ function overridesMayName(
     const override = overrideOf(element);
     const written = propertyNamed(element, "source") !== undefined;
     if (written && override.source === undefined) {
-      return unreadSourceMayName(override.interface || undefined);
+      return unreadSourceMayName(override.interface || undefined, through);
     }
     return override.source === source && !ignored(override);
   });
@@ -125,12 +104,13 @@ function overridesMayName(
 /**
  * Whether a module entry names `source` in its `importOverrides`, or may: an entry or an override
  * written other than as a plain literal counts, since the builder cannot tell what it names. A
- * module written as a version names none. `ignored` leaves out overrides that do not count.
+ * module written as a version names none. `ignored` leaves out overrides that do not count;
+ * `through` names the only interfaces the module can be a source through, when they are known.
  */
 export function mayNameSource(
   entry: Node | undefined,
   source: string,
-  ignored: (override: ImportOverrideInput) => boolean = () => false,
+  scope: Partial<SourceScope> = {},
 ): boolean {
   if (entry === undefined || stringOf(entry) !== undefined) {
     return false;
@@ -143,6 +123,10 @@ export function mayNameSource(
   }
   const overrides = propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer();
   return (
-    overrides !== undefined && overridesMayName(overrides, source, ignored)
+    overrides !== undefined &&
+    overridesMayName(overrides, source, {
+      ignored: scope.ignored ?? (() => false),
+      through: scope.through,
+    })
   );
 }

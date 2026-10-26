@@ -351,6 +351,35 @@ describe("project-config operations", function () {
       .and.to.include("process.loadEnvFile(projectEnvFile2);");
   });
 
+  it("refuses to add an override where writing the others again would lose one, and writes nothing", async () => {
+    for (const overrides of [
+      '[{ interface: "@antelopejs/interface-x", source: X_SOURCE }]',
+      '{ [AUTH]: "auth-x" }',
+      "SHARED_OVERRIDES",
+    ]) {
+      const config = PROJECT_CONFIG.replace(
+        /mongodb: \{/,
+        `mongodb: {\n      importOverrides: ${overrides},`,
+      );
+      fs.writeFileSync(configPath(), config);
+      const refused = await ConfigureProject([
+        {
+          op: "ConfigureModule",
+          id: "mongodb",
+          entry: {
+            importOverrides: [
+              { interface: "@antelopejs/interface-y", source: "y" },
+            ],
+          },
+        },
+      ]);
+      expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+        /not written with literals only/,
+      );
+      expect(readConfig()).to.equal(config);
+    }
+  });
+
   it("refuses a variable that is not a name, and writes nothing", async () => {
     fs.writeFileSync(path.join(app.root, ".env.example"), "MONGODB_URL=\n");
     const refused = await ConfigureProject([

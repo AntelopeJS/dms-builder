@@ -352,6 +352,27 @@ describe("a database connection after it was made", function () {
     );
   });
 
+  it("refuses a plain RemoveModule while any override's source is a constant", async () => {
+    await withFileEdited(
+      app.root,
+      "antelope.config.ts",
+      (config) =>
+        config.replace(
+          /modules: \{/,
+          'modules: {\n    other: { importOverrides: [{ interface: "@antelopejs/interface-foo", source: X_SOURCE }] },',
+        ),
+      async () => {
+        expect(connectionWiring("erp")?.ownsDriver).to.equal(true);
+        const refused = await ConfigureProject([
+          { op: "RemoveModule", id: "builder-db-erp" },
+        ]);
+        expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+          /still a source in the importOverrides of .*other/,
+        );
+      },
+    );
+  });
+
   it("keeps a driver a module written as a shorthand may read through", async () => {
     await withFileEdited(
       app.root,
@@ -421,7 +442,7 @@ describe("a database connection after it was made", function () {
       path.join(app.root, "antelope.config.ts"),
       config.replace(
         /(\{\s*interface: "@antelopejs\/interface-database-catalog")/,
-        '{ interface: "@antelopejs/interface-x", source: X_SOURCE }, // kept\n$1',
+        '{ interface: "@antelopejs/interface-x", source: X_SOURCE }, // kept\n{ interface: "@antelopejs/interface-y", source: "provider-y" },\n$1',
       ),
     );
     expect(projectFile(app.root, "antelope.config.ts")).to.include("// kept");
@@ -436,6 +457,9 @@ describe("a database connection after it was made", function () {
     const after = projectFile(app.root, "antelope.config.ts");
     expect(after).to.include("// kept");
     expect(after).to.include("source: X_SOURCE }, // kept");
+    expect(after).to.include(
+      '{ interface: "@antelopejs/interface-y", source: "provider-y" }',
+    );
     expect(after).to.not.include("builder-db-erp");
     expect(projectFile(app.root, ".env.example")).to.equal("OTHER=1\n");
   });

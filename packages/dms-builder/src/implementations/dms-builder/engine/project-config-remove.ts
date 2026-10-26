@@ -78,7 +78,11 @@ export function removeModule(draft: ConfigDraft, step: RemoveModuleStep): void {
     refuse(`the project has no module "${step.id}"`);
   }
   const users = writtenModules(draft)
-    .filter(([id, entry]) => id !== step.id && mayNameSource(entry, step.id))
+    .filter(
+      ([id, entry]) =>
+        id !== step.id &&
+        mayNameSource(entry, step.id, { through: draft.sourceInterfaces }),
+    )
     .map(([id]) => `"${id}"`);
   if (users.length > 0) {
     refuse(

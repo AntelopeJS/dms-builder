@@ -24,7 +24,11 @@ import {
   StepRefusal,
   stringOf,
 } from "./project-config";
-import { mayNameSource, writtenModules } from "./project-config-readers";
+import {
+  DATABASE_SOURCE_INTERFACES,
+  mayNameSource,
+  writtenModules,
+} from "./project-config-readers";
 import { configureProject } from "./project-config-ops";
 import {
   EnvRefusal,
@@ -162,13 +166,12 @@ function ownsDriver(
   const shared = modules
     .filter(([id]) => !removed.has(id) && id !== driver)
     .some(([, entry]) =>
-      mayNameSource(
-        entry,
-        driver,
-        (override) =>
+      mayNameSource(entry, driver, {
+        ignored: (override) =>
           override.interface === CATALOG_INTERFACE &&
           override.id === connection,
-      ),
+        through: DATABASE_SOURCE_INTERFACES,
+      }),
     );
   if (shared) {
     return false;

@@ -124,6 +124,15 @@ describe("the DMS module's database pin", () => {
     expect(() => dmsDatabasePin(PROJECT)).to.throw(/not written with literals/);
   });
 
+  it("refuses nothing when the DMS pins the database already, beside an override it cannot read", () => {
+    writeConfig(
+      config(
+        `${DMS_SOURCE}, importOverrides: [{ interface: "${DATABASE_INTERFACE}", source: "mongodb" }, { interface: "@antelopejs/interface-x", source: X_SOURCE }]`,
+      ),
+    );
+    expect(dmsDatabasePin(PROJECT)).to.equal(undefined);
+  });
+
   it("needs no pin, and refuses nothing, when the DMS provides the database itself", () => {
     writeConfig(config(`...DMS_DEFAULTS, ${DMS_SOURCE}`));
     expect(

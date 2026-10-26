@@ -1,16 +1,18 @@
 import type { InterfaceConnection } from "@antelopejs/interface-core";
+import type { ImportOverrideInput } from "@antelopejs/interface-dms-builder";
 import { Node, type ObjectLiteralExpression, SyntaxKind } from "ts-morph";
 import { findConfigFile, propertyNamed } from "./modules";
 import { ownConnections } from "./own-connections";
 import { DATABASE_INTERFACE } from "./interface-ids";
 import {
   existingOverrides,
+  overrideOf,
   MODULES,
   objectAt,
   openDraft,
   StepRefusal,
 } from "./project-config";
-import { hides, overridesWrittenAsLiterals } from "./project-config-readers";
+import { hides, overridesWrittenAsLiterals } from "./literal-overrides";
 
 const DMS_INTERFACE = "@antelopejs/interface-dms";
 const DEFAULT_PRIORITY = 0;
@@ -114,13 +116,21 @@ export function defaultDatabaseProvider(
 }
 
 /**
- * Whether the DMS pins `interface-database`. Refused when its entry or overrides are not written
- * with literals, since the builder can neither tell nor rewrite them without losing a part.
+ * Whether the DMS pins `interface-database`, by an override written as literals. When it does not,
+ * a pin has to be written there, which is refused when its entry or overrides are not written with
+ * literals only: the builder can neither tell they hold no pin nor write them again whole.
  */
 function pinsDatabase(dms: string, entry: Node): boolean {
   const overrides = Node.isObjectLiteralExpression(entry)
     ? propertyNamed(entry, IMPORT_OVERRIDES)
     : undefined;
+  if (
+    readableOverrides(overrides).some(
+      (override) => override.interface === DATABASE_INTERFACE,
+    )
+  ) {
+    return true;
+  }
   if (
     !Node.isObjectLiteralExpression(entry) ||
     hides(entry, IMPORT_OVERRIDES) ||
@@ -130,9 +140,22 @@ function pinsDatabase(dms: string, entry: Node): boolean {
       `the entry of the DMS module "${dms}" or its importOverrides are not written with literals, so the builder cannot tell whether it pins ${DATABASE_INTERFACE}, nor add the pin without losing a part: pin it on "${dms}" first`,
     );
   }
-  return existingOverrides(overrides).some(
-    (override) => override.interface === DATABASE_INTERFACE,
-  );
+  return false;
+}
+
+/** The overrides written as literal entries, those of an array or an object of strings; none otherwise. */
+function readableOverrides(overrides: Node | undefined): ImportOverrideInput[] {
+  if (Node.isArrayLiteralExpression(overrides)) {
+    return overrides
+      .getElements()
+      .filter((element) => overridesWrittenAsLiterals(element))
+      .map((element) => overrideOf(element));
+  }
+  return Node.isObjectLiteralExpression(overrides)
+    ? existingOverrides(overrides).filter(
+        (override) => override.source !== undefined,
+      )
+    : [];
 }
 
 /** Whether an environment of the configuration changes a module's `exportPriority`. */

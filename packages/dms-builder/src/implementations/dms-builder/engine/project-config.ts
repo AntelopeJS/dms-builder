@@ -13,6 +13,7 @@ import {
   type SourceFile,
 } from "ts-morph";
 import { VARIABLE_NAME } from "./env-lines";
+import { hides, overridesWrittenAsLiterals } from "./literal-overrides";
 import { configObject, propertyKey } from "./modules";
 import { indentationText, resolveProjectRoot } from "./project";
 import { keyText, literalText } from "./project-config-text";
@@ -35,6 +36,11 @@ export interface ConfigDraft {
   variables: string[];
   /** Files other than the configuration a step rewrites, with their content before. */
   edits: FileEdit[];
+  /**
+   * The only interfaces a module this batch removes can be a source through, when the caller
+   * knows them: an override of another interface whose source is not a literal does not hold it.
+   */
+  sourceInterfaces?: ReadonlySet<string>;
 }
 
 /** A file a step rewrites whole. */
@@ -381,9 +387,13 @@ function mergeOverrides(
   const entry =
     objectAt(draft, [MODULES, id]) ??
     refuse(`the project has no module "${id}"`);
-  const current = existingOverrides(
-    propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
-  );
+  const written = propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer();
+  if (hides(entry, IMPORT_OVERRIDES) || !overridesWrittenAsLiterals(written)) {
+    refuse(
+      `the importOverrides of module "${id}" are not written with literals only, and writing them again would lose a part: add ${added.map(describeBinding).join(", ")} there by hand`,
+    );
+  }
+  const current = existingOverrides(written);
   const merged = mergedOverrides(id, current, added);
   setProperty(draft, [MODULES, id], IMPORT_OVERRIDES, overridesValue(merged));
 }
