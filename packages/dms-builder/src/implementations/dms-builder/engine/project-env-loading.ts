@@ -50,7 +50,7 @@ function usesName(file: SourceFile, name: string): boolean {
 }
 
 /** Whether the configuration loads a `.env` itself: a `loadEnvFile` call, or dotenv imported or required. */
-function loadsEnvFile(file: SourceFile): boolean {
+export function loadsEnvFile(file: SourceFile): boolean {
   const imported = file
     .getImportDeclarations()
     .some((declaration) => DOTENV.test(declaration.getModuleSpecifierValue()));

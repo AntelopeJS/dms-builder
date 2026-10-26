@@ -46,22 +46,11 @@ export interface ConfigureModuleStep {
  * Scaffolds a local module at `path` (relative to the project root) and adds its entry: a
  * `package.json` carrying the project's interface dependencies, a `tsconfig.json` with the
  * project's compiler options, and an `src/index.ts`. The entry watches and rebuilds it as the
- * project's own module is.
+ * project's own module is. With `connection`, its `dmsBuilder.database` record names that
+ * connection: the module holds that connection's tables, and goes with it when it is removed.
  */
 export interface CreateLocalModuleStep {
   op: "CreateLocalModule";
-  id: string;
-  path: string;
-  entry?: ModuleEntryInput;
-}
-
-/**
- * Adds the entry of a local module whose folder exists at `path`, as `CreateLocalModule` would
- * have, writing no file of it. With `connection`, the folder's `dmsBuilder.database` record names
- * that connection, so the tables it mapped read as that connection's.
- */
-export interface AdoptLocalModuleStep {
-  op: "AdoptLocalModule";
   id: string;
   path: string;
   entry?: ModuleEntryInput;
@@ -88,7 +77,6 @@ export type ProjectConfigStep =
   | AddModuleStep
   | ConfigureModuleStep
   | CreateLocalModuleStep
-  | AdoptLocalModuleStep
   | RemoveModuleStep
   | RemoveConnectionStep;
 

@@ -9,6 +9,7 @@ import type {
 import { Node, type ObjectLiteralExpression } from "ts-morph";
 import { CATALOG_INTERFACE, DATABASE_INTERFACE } from "./interface-ids";
 import { recordedConnection } from "./mapped-modules";
+import { loadsEnvFile } from "./project-env-loading";
 import { findConfigFile, propertyKey } from "./modules";
 import { invalidConfig, unsupported } from "./ops";
 import { resolveProjectRoot } from "./project";
@@ -35,15 +36,14 @@ import {
 } from "./project-env";
 import { isScaffoldRefusal, localModuleRoot } from "./project-scaffold";
 
-const MODULES_DIRECTORY = "modules";
 const URL_PATH = "config.url";
 
 /** What a connection wired into the configuration, by module id. */
 export interface ConnectionWiring {
   connection: string;
   driver: string;
-  /** The modules whose tables are read through the driver, with their folder when local. */
-  modules: { id: string; path?: string }[];
+  /** The local modules holding its tables: read through the driver, their record naming the connection. */
+  modules: { id: string; path: string }[];
   /** The variable supplying the driver's `url`, when one does. */
   variable?: string;
 }
@@ -58,13 +58,6 @@ export interface ConnectionDetails {
   hasPassword: boolean;
   /** The URL parameters, `sslmode` among them. */
   options: Record<string, string>;
-}
-
-/** A module folder the builder mapped tables into, that no module of the configuration uses. */
-export interface AdoptableModule {
-  path: string;
-  name: string;
-  connection: string;
 }
 
 function localPath(entry: ObjectLiteralExpression): string | undefined {
@@ -105,6 +98,7 @@ function wiringIn(
   if (!driver) {
     return undefined;
   }
+  const root = resolveProjectRoot();
   const modules = entries
     .filter(([, entry]) =>
       overridesOf(entry).some(
@@ -114,7 +108,13 @@ function wiringIn(
           override.source === driver,
       ),
     )
-    .map(([id, entry]) => ({ id, path: localPath(entry) }));
+    .flatMap(([id, entry]) => {
+      const local = localPath(entry);
+      return local &&
+        recordedConnection(path.resolve(root, local)) === connection
+        ? [{ id, path: local }]
+        : [];
+    });
   return { connection, driver, modules, variable: variableOf(draft, driver) };
 }
 
@@ -148,17 +148,11 @@ export function removalSteps(wiring: ConnectionWiring): ProjectConfigStep[] {
 }
 
 function folderChanges(wiring: ConnectionWiring): FileChange[] {
-  return wiring.modules.flatMap((module) =>
-    module.path
-      ? [
-          {
-            path: localModuleRoot(module.path),
-            kind: "delete" as const,
-            diff: "",
-          },
-        ]
-      : [],
-  );
+  return wiring.modules.map((module) => ({
+    path: localModuleRoot(module.path),
+    kind: "delete" as const,
+    diff: "",
+  }));
 }
 
 function envChange(variable: string | undefined): FileChange[] {
@@ -170,15 +164,13 @@ function envChange(variable: string | undefined): FileChange[] {
 }
 
 export interface RemoveConnectionOpts {
-  /** Also delete the folders of its modules; by default they stay, for a later connection. */
-  deleteFolders?: boolean;
   dryRun?: boolean;
 }
 
 /**
- * Takes a connection out of the project: its catalog connections, its driver, the modules reading
- * through it, the variable supplying its URL in `envOverrides` and `.env`. The modules' folders
- * stay unless `deleteFolders` says otherwise. The value of the variable is never answered.
+ * Takes a connection out of the project: its catalog connections, its driver, its tables modules
+ * and their folders, the variable supplying its URL in `envOverrides` and `.env`. Refused while
+ * another module still reads through the driver. The value of the variable is never answered.
  */
 export function removeDatabaseConnection(
   connection: string,
@@ -188,7 +180,7 @@ export function removeDatabaseConnection(
   let folders: FileChange[];
   try {
     wiring = connectionWiring(connection);
-    folders = wiring && opts.deleteFolders ? folderChanges(wiring) : [];
+    folders = wiring ? folderChanges(wiring) : [];
   } catch (error) {
     if (isConnectionRefusal(error)) {
       return invalidConfig<ProjectConfigResult>(error.message);
@@ -338,6 +330,10 @@ export function setConnectionUrl(
     next.password = read.url.password;
   }
   const variable = read.wiring.variable ?? "";
+  const loading = loadsEnvAlready();
+  if (!loading.ok) {
+    return loading;
+  }
   try {
     setProjectVariable(variable, next.href);
   } catch (error) {
@@ -346,44 +342,34 @@ export function setConnectionUrl(
     }
     throw error;
   }
-  return { ok: true, data: { variable }, changes: [] };
-}
-
-function configuredPaths(draft: ConfigDraft | undefined): Set<string> {
-  const root = resolveProjectRoot();
-  return new Set(
-    draft
-      ? moduleEntries(draft).flatMap(([, entry]) => {
-          const local = localPath(entry);
-          return local ? [path.resolve(root, local)] : [];
-        })
-      : [],
-  );
-}
-
-/** The folders under `modules/` the builder mapped tables into, that no module entry uses. */
-export function adoptableModules(): AdoptableModule[] {
-  const root = resolveProjectRoot();
-  const directory = path.join(root, MODULES_DIRECTORY);
-  if (!fs.existsSync(directory)) {
-    return [];
+  if (loading.data) {
+    return { ok: true, data: { variable }, changes: [] };
   }
-  const used = configuredPaths(openConfig());
-  return fs
-    .readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(directory, entry.name))
-    .filter((folder) => !used.has(folder))
-    .flatMap((folder) => {
-      const connection = recordedConnection(folder);
-      return connection
-        ? [
-            {
-              path: path.relative(root, folder),
-              name: path.basename(folder),
-              connection,
-            },
-          ]
-        : [];
-    });
+  const configured = configureProject([
+    {
+      op: "ConfigureModule",
+      id: read.wiring.driver,
+      entry: { env: { url: variable } },
+    },
+  ]);
+  return configured.ok
+    ? { ok: true, data: { variable }, changes: configured.changes }
+    : configured;
+}
+
+/**
+ * Whether the configuration loads `.env` already. One that does not, from a project connected
+ * before the builder wrote that code, gets it with the new URL, which would otherwise never reach
+ * it; one that does is not written, so the project is not restarted.
+ */
+function loadsEnvAlready(): OpResult<boolean> {
+  try {
+    const draft = openConfig();
+    return { ok: true, data: !draft || loadsEnvFile(draft.file), changes: [] };
+  } catch (error) {
+    if (isConnectionRefusal(error)) {
+      return invalidConfig<boolean>(error.message);
+    }
+    throw error;
+  }
 }

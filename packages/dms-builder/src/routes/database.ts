@@ -27,7 +27,6 @@ import {
 } from "../implementations/dms-builder/engine/database-pin";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
 import {
-  adoptableModules,
   connectionDetails,
   connectionWiring,
   isConnectionRefusal,
@@ -44,7 +43,6 @@ const HTTP_REFUSED = 422;
 
 interface RemoveConnectionBody {
   connection: string;
-  deleteFolders?: boolean;
   dryRun?: boolean;
 }
 
@@ -189,7 +187,6 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     @JSONBody() body: RemoveConnectionBody,
   ) {
     return removeDatabaseConnection(body.connection, {
-      deleteFolders: body.deleteFolders,
       dryRun: body.dryRun,
     });
   }
@@ -200,18 +197,6 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     @JSONBody() body: ConnectionUrlBody,
   ) {
     return setConnectionUrl(body.connection, body.url);
-  }
-
-  @Get(ROUTES.databaseAdoptable)
-  async adoptable(@AuthTenantOwner() _user: User) {
-    try {
-      return adoptableModules();
-    } catch (error) {
-      if (isConnectionRefusal(error)) {
-        return refused(error);
-      }
-      throw error;
-    }
   }
 
   @Post(ROUTES.databaseSample)

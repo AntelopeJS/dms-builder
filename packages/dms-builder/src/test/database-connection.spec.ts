@@ -5,7 +5,6 @@ import { expect } from "chai";
 import type { ProjectConfigStep } from "@antelopejs/interface-dms-builder";
 import { ConfigureProject } from "../implementations/dms-builder";
 import {
-  adoptableModules,
   connectionDetails,
   connectionWiring,
   removeDatabaseConnection,
@@ -21,11 +20,8 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
-import {
-  builderRecord,
-  moduleFolderExists,
-  setBuilderRecord,
-} from "./helpers/module-manifest";
+import { builderRecord, moduleFolderExists } from "./helpers/module-manifest";
+import { projectFile } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const CATALOG = "@antelopejs/interface-database-catalog";
@@ -81,7 +77,7 @@ function connect(connection: string, tables: ProjectConfigStep): void {
   );
 }
 
-/** A connection taken out of the project, its folder kept for another to adopt, and its details edited. */
+/** A connection whose details are edited, then taken out of the project with its tables module. */
 describe("a database connection after it was made", function () {
   this.timeout(OP_TIMEOUT);
 
@@ -94,12 +90,7 @@ describe("a database connection after it was made", function () {
       id: "erp-tables",
       path: "modules/erp-tables",
       entry: tablesEntry("erp"),
-    });
-    setBuilderRecord(app.root, "erp-tables", {
-      database: {
-        connection: "erp",
-        excludedTables: { "erp.schema_migrations": "a migration tool's table" },
-      },
+      connection: "erp",
     });
   });
 
@@ -139,6 +130,23 @@ describe("a database connection after it was made", function () {
     );
   });
 
+  it("writes no configuration when it loads .env already, and the loading code when it does not", () => {
+    const unchanged = setConnectionUrl("erp", URL);
+    expect(expectOk(unchanged, "setConnectionUrl").variable).to.equal(
+      "BUILDER_DB_ERP_URL",
+    );
+    expect(unchanged.ok && unchanged.changes).to.deep.equal([]);
+    const config = projectFile(app.root, "antelope.config.ts");
+    fs.writeFileSync(
+      path.join(app.root, "antelope.config.ts"),
+      config.replace(/const projectEnvFile[\s\S]*?\n}\n/, ""),
+    );
+    expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
+    expect(projectFile(app.root, "antelope.config.ts")).to.include(
+      "process.loadEnvFile(projectEnvFile);",
+    );
+  });
+
   it("does not send the kept password to another host", () => {
     const moved = setConnectionUrl(
       "erp",
@@ -170,12 +178,12 @@ describe("a database connection after it was made", function () {
     expect(projectVariable("BUILDER_DB_ERP_URL")).to.match(/^postgres:/);
   });
 
-  it("refuses to delete a folder outside the project, instead of failing", async () => {
+  it("refuses while a module of the project's own reads through the driver, and deletes nothing", async () => {
     expectOk(
       await ConfigureProject([
         {
           op: "AddModule",
-          id: "root-tables",
+          id: "reports",
           entry: {
             source: { type: "local", path: "." },
             importOverrides: [
@@ -184,18 +192,19 @@ describe("a database connection after it was made", function () {
           },
         },
       ]),
-      "AddModule root-tables",
+      "AddModule reports",
     );
-    const refused = removeDatabaseConnection("erp", {
-      deleteFolders: true,
-      dryRun: true,
-    });
+    expect(connectionWiring("erp")?.modules).to.deep.equal([
+      { id: "erp-tables", path: "modules/erp-tables" },
+    ]);
+    const refused = removeDatabaseConnection("erp");
     expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
-      /leaves the project/,
+      /still a source in the importOverrides of .*reports/,
     );
+    expect(moduleFolderExists(app.root, "erp-tables")).to.equal(true);
     expectOk(
-      await ConfigureProject([{ op: "RemoveModule", id: "root-tables" }]),
-      "RemoveModule root-tables",
+      await ConfigureProject([{ op: "RemoveModule", id: "reports" }]),
+      "RemoveModule reports",
     );
   });
 
@@ -219,36 +228,13 @@ describe("a database connection after it was made", function () {
     expect(connectionWiring("erp")?.driver).to.equal("builder-db-erp");
   });
 
-  it("removes the connection and keeps its folder, which a new connection under another name adopts", () => {
+  it("removes the connection with its tables module and folder", () => {
+    expect(builderRecord(app.root, "erp-tables").database).to.deep.equal({
+      connection: "erp",
+    });
     expectOk(removeDatabaseConnection("erp"), "removeDatabaseConnection");
     expect(connectionWiring("erp")).to.equal(undefined);
     expect(projectVariable("BUILDER_DB_ERP_URL")).to.equal(undefined);
-    expect(adoptableModules()).to.deep.equal([
-      { path: "modules/erp-tables", name: "erp-tables", connection: "erp" },
-    ]);
-    connect("crm", {
-      op: "AdoptLocalModule",
-      id: "crm-tables",
-      path: "modules/erp-tables",
-      entry: tablesEntry("crm"),
-      connection: "crm",
-    });
-    expect(connectionWiring("crm")?.modules).to.deep.equal([
-      { id: "crm-tables", path: "modules/erp-tables" },
-    ]);
-    expect(builderRecord(app.root, "erp-tables").database).to.deep.equal({
-      connection: "crm",
-      excludedTables: { "erp.schema_migrations": "a migration tool's table" },
-    });
-    expect(adoptableModules()).to.deep.equal([]);
-  });
-
-  it("deletes the folder too when asked", () => {
-    expectOk(
-      removeDatabaseConnection("crm", { deleteFolders: true }),
-      "removeDatabaseConnection with its folders",
-    );
-    expect(connectionWiring("crm")).to.equal(undefined);
     expect(moduleFolderExists(app.root, "erp-tables")).to.equal(false);
   });
 });

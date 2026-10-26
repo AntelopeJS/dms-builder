@@ -97,22 +97,6 @@ export function recordedConnection(root: string): string | undefined {
 }
 
 /**
- * A module folder's `package.json` text with its record naming `connection`, its excluded tables
- * kept; `undefined` when the folder has no `package.json`.
- */
-export function manifestNamingConnection(
-  root: string,
-  connection: string,
-): string | undefined {
-  if (!fs.existsSync(manifestPath(root))) {
-    return undefined;
-  }
-  const manifest = readManifest(root);
-  const current = databaseRecord(manifest);
-  return manifestText(recorded(manifest, { ...current, connection }));
-}
-
-/**
  * Marks a module as one whose tables mirror a database the project does not own, so the
  * operations that would create, alter or empty a table refuse there, and records which relations
  * were decided against.

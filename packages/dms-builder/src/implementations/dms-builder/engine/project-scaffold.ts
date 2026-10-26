@@ -62,8 +62,15 @@ function picked(
   );
 }
 
-/** The module's manifest: the project's interface dependencies and build tooling, at its ranges. */
-function manifestText(id: string, project: PackageManifest): string {
+/**
+ * The module's manifest: the project's interface dependencies and build tooling, at its ranges,
+ * and the record of the connection whose tables it holds, when it holds one's.
+ */
+function manifestText(
+  id: string,
+  project: PackageManifest,
+  connection: string | undefined,
+): string {
   const all = { ...project.devDependencies, ...project.dependencies };
   const manifest = {
     name: id,
@@ -81,6 +88,7 @@ function manifestText(id: string, project: PackageManifest): string {
     },
     packageManager: project.packageManager,
     antelopeJs: { baseUrl: "dist" },
+    dmsBuilder: connection ? { database: { connection } } : undefined,
   };
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
@@ -104,6 +112,7 @@ function tsconfigText(project: TsConfig): string {
 export function scaffoldLocalModule(
   id: string,
   relativePath: string,
+  connection?: string,
 ): Scaffold {
   const projectRoot = resolveProjectRoot();
   const root = localModuleRoot(relativePath);
@@ -123,7 +132,7 @@ export function scaffoldLocalModule(
     entryFile: path.join(root, "src", "index.ts"),
     entryText: ENTRY_TEXT,
     files: new Map([
-      [path.join(root, "package.json"), manifestText(id, project)],
+      [path.join(root, "package.json"), manifestText(id, project, connection)],
       [path.join(root, "tsconfig.json"), tsconfigText(tsconfig)],
     ]),
     source: localSource(root),

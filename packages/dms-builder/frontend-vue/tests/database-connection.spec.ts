@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import DatabaseConnect from '../app/components/DatabaseConnect.vue'
 import DatabaseConnectionEdit from '../app/components/DatabaseConnectionEdit.vue'
 import DatabaseConnectionRemove from '../app/components/DatabaseConnectionRemove.vue'
 import type { ConnectionInfo } from '../app/runtime/database-types'
@@ -95,7 +94,7 @@ afterEach(() => {
 })
 
 describe('removing a connection', () => {
-	it('shows its changes first, keeps the module folder unless asked, then removes', async () => {
+	it('shows its changes first, the module folder among them, then removes', async () => {
 		const mounted = mount(DatabaseConnectionRemove, {
 			props: { connection: 'erp', info: INFO },
 			components: COMPONENTS,
@@ -103,18 +102,13 @@ describe('removing a connection', () => {
 		unmount = mounted.unmount
 		await settle()
 		const removals = () => backend.calls.filter((call) => call.path === REMOVE).map((call) => call.body)
-		expect(removals()).toEqual([{ connection: 'erp', deleteFolders: false, dryRun: true }])
-
-		fire(only(mounted.root, 'UCheckbox'), 'update:modelValue', true)
-		await settle()
-		expect(removals().at(-1)).toEqual({ connection: 'erp', deleteFolders: true, dryRun: true })
-		fire(only(mounted.root, 'UCheckbox'), 'update:modelValue', false)
-		await settle()
+		expect(removals()).toEqual([{ connection: 'erp', dryRun: true }])
+		expect(textOf(mounted.root)).toContain('delete modules/builder-db-erp-tables')
 
 		fire(button(mounted.root, 'Remove erp'), 'click')
 		await settle()
-		expect(removals().at(-1)).toEqual({ connection: 'erp', deleteFolders: false, dryRun: false })
-		expect(textOf(mounted.root)).toContain('modules/builder-db-erp-tables is kept')
+		expect(removals().at(-1)).toEqual({ connection: 'erp', dryRun: false })
+		expect(textOf(mounted.root)).toContain('Removed. Restart the project.')
 	})
 })
 
@@ -159,25 +153,5 @@ describe('editing a connection saved as postgresql://', () => {
 			connection: 'erp',
 			url: 'postgresql://reader@db.example:5432/erp?sslmode=require',
 		})
-	})
-})
-
-describe('connecting a database when a module was kept', () => {
-	it('offers the kept module for the tables', async () => {
-		backend.answers['GET /api/builder/database/project'] = { modules: [] }
-		backend.answers['GET /api/builder/database/adoptable'] = [
-			{ path: 'modules/old-tables', name: 'old-tables', connection: 'legacy' },
-		]
-		const mounted = mount(DatabaseConnect, { components: COMPONENTS })
-		unmount = mounted.unmount
-		await settle()
-		const select = findAll(
-			mounted.root,
-			(node) => node.tag === 'USelect' && JSON.stringify(node.props.items).includes('old-tables'),
-		)[0]
-		expect(select?.props.items).toEqual([
-			{ label: 'A new module', value: 'new' },
-			{ label: 'modules/old-tables, kept from legacy', value: 'modules/old-tables' },
-		])
 	})
 })

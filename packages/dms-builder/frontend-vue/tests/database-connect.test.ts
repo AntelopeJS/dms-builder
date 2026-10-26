@@ -91,14 +91,13 @@ describe('the wiring of a database', () => {
 	})
 })
 
-describe('a module kept from a removed connection', () => {
-	it('is added as it is, under its folder name, and told the new connection', () => {
-		const adopt = { path: 'modules/old-tables', name: 'old-tables', connection: 'legacy' }
-		const steps = connectSteps(form({ adopt, overrides: { tablesModule: 'old-tables' } }), { modules: [] })
+describe('the tables module of a new connection', () => {
+	it('is created under its own folder, its record naming the connection', () => {
+		const steps = connectSteps(form(), { modules: [] })
 		expect(steps[1]).toEqual({
-			op: 'AdoptLocalModule',
-			id: 'old-tables',
-			path: 'modules/old-tables',
+			op: 'CreateLocalModule',
+			id: 'builder-db-erp-tables',
+			path: 'modules/builder-db-erp-tables',
 			entry: { importOverrides: [{ interface: '@antelopejs/interface-database', source: 'builder-db-erp' }] },
 			connection: 'erp',
 		})

@@ -421,7 +421,7 @@ export function createLocalModule(
   draft: ConfigDraft,
   step: CreateLocalModuleStep,
 ): void {
-  const scaffold = scaffoldLocalModule(step.id, step.path);
+  const scaffold = scaffoldLocalModule(step.id, step.path, step.connection);
   draft.scaffolds.push(scaffold);
   addModule(draft, step.id, { ...step.entry, source: scaffold.source });
 }

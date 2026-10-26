@@ -100,7 +100,7 @@ function counts(column: string): string {
 	const rows = props.proposed?.rows
 	const parts: string[] = []
 	if (keyColumns.value.has(column)) parts.push('the key')
-	if (profile?.nulls !== undefined && rows) {
+	if (profile?.nulls !== undefined && rows !== undefined && rows > 0 && profile.nulls <= rows) {
 		parts.push(`${Math.round(((rows - profile.nulls) / rows) * PERCENT)}% filled`)
 	}
 	if (profile?.distinct !== undefined) parts.push(`${profile.distinct} values`)

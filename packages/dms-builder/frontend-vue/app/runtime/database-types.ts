@@ -186,8 +186,7 @@ export interface ModuleEntryInput {
 export type ProjectConfigStep =
 	| { op: 'AddModule'; id: string; entry: ModuleEntryInput }
 	| { op: 'ConfigureModule'; id: string; entry: ModuleEntryInput }
-	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput }
-	| { op: 'AdoptLocalModule'; id: string; path: string; entry?: ModuleEntryInput; connection?: string }
+	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput; connection?: string }
 
 /**
  * The `interface-database` pin the DMS module needs so the tables module's own pin to the new
@@ -218,7 +217,7 @@ export interface ProjectConfigResult {
 export interface ConnectionWiring {
 	connection: string
 	driver: string
-	modules: { id: string; path?: string }[]
+	modules: { id: string; path: string }[]
 	variable?: string
 }
 
@@ -238,9 +237,3 @@ export interface ConnectionInfo {
 	details?: ConnectionDetails
 }
 
-/** A module folder the builder mapped tables into, that no module of the configuration uses. */
-export interface AdoptableModule {
-	path: string
-	name: string
-	connection: string
-}

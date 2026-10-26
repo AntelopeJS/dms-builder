@@ -7,6 +7,7 @@ import type {
   ProjectConfigResult,
   ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
+import { envValue, withEnvLine, withoutEnvLine } from "./env-lines";
 import { configObject, findConfigFile, propertyNamed } from "./modules";
 import { invalidConfig } from "./ops";
 import { configureProject } from "./project-config-ops";
@@ -77,24 +78,10 @@ function commitRisk(directory: string, file: string): string | undefined {
     : `git could not say whether ${file} is ignored, so the builder does not write to it`;
 }
 
-function withVariable(before: string, name: string, value: string): string {
-  const line = `${name}="${value}"`;
-  const pattern = new RegExp(`^${name}=.*$`, "m");
-  if (pattern.test(before)) {
-    return before.replace(pattern, () => line);
-  }
-  const separator = before === "" || before.endsWith("\n") ? "" : "\n";
-  return `${before}${separator}${line}\n`;
-}
-
 /** Where the project's `.env` sits: beside its configuration. */
 export function projectEnvFile(): string | undefined {
   const configPath = findConfigFile();
   return configPath && path.join(path.dirname(configPath), ENV_FILE);
-}
-
-function variablePattern(name: string): RegExp {
-  return new RegExp(`^${name}=(.*)$`, "m");
 }
 
 /**
@@ -106,8 +93,7 @@ export function projectVariable(name: string): string | undefined {
   if (!VARIABLE_NAME.test(name) || !file || !fs.existsSync(file)) {
     return undefined;
   }
-  const raw = variablePattern(name).exec(fs.readFileSync(file, "utf8"))?.[1];
-  return raw?.trim().replace(/^"(.*)"$/, "$1");
+  return envValue(fs.readFileSync(file, "utf8"), name);
 }
 
 /** Whether the project's `.env` sets the variable. */
@@ -122,7 +108,7 @@ export function removeProjectVariable(name: string): void {
     return;
   }
   const before = fs.readFileSync(file, "utf8");
-  const after = before.replace(new RegExp(`^${name}=.*(\n|$)`, "m"), "");
+  const after = withoutEnvLine(before, name);
   if (after !== before) {
     fs.writeFileSync(file, after, { mode: 0o600 });
   }
@@ -157,7 +143,9 @@ export function setProjectVariable(
   }
   const file = path.join(directory, ENV_FILE);
   const before = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
-  fs.writeFileSync(file, withVariable(before, name, value), { mode: 0o600 });
+  fs.writeFileSync(file, withEnvLine(before, name, `${name}="${value}"`), {
+    mode: 0o600,
+  });
   return file;
 }
 
@@ -175,11 +163,19 @@ function stepVariables(steps: ProjectConfigStep[]): Set<string> {
   );
 }
 
+function restoreEnvFile(file: string, before: string | undefined): void {
+  if (before === undefined) {
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  fs.writeFileSync(file, before, { mode: 0o600 });
+}
+
 /**
  * Writes a batch and the development value of a variable it maps: `.env` first, after a dry run
  * accepted the batch, so the configuration never names a variable whose value failed to be
  * written. When `.env` is refused, nothing else is written either, and when the batch fails after
- * it, `.env` goes back to what it held.
+ * it, `.env` goes back to what it held, or goes when there was none.
  */
 export function configureProjectWithVariable(
   steps: ProjectConfigStep[],
@@ -189,7 +185,9 @@ export function configureProjectWithVariable(
   if (!checked.ok) {
     return checked;
   }
-  const previous = projectVariable(variable.name);
+  const file = projectEnvFile();
+  const before =
+    file && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : undefined;
   const mapped = stepVariables(steps);
   try {
     setProjectVariable(variable.name, variable.value, mapped);
@@ -200,12 +198,8 @@ export function configureProjectWithVariable(
     throw error;
   }
   const configured = configureProject(steps);
-  if (!configured.ok) {
-    if (previous === undefined) {
-      removeProjectVariable(variable.name);
-    } else {
-      setProjectVariable(variable.name, previous, mapped);
-    }
+  if (!configured.ok && file) {
+    restoreEnvFile(file, before);
   }
   return configured;
 }

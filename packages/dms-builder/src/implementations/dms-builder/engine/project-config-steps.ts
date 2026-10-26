@@ -1,10 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
-import type {
-  AdoptLocalModuleStep,
-  ProjectConfigStep,
-} from "@antelopejs/interface-dms-builder";
-import { manifestNamingConnection } from "./mapped-modules";
+import type { ProjectConfigStep } from "@antelopejs/interface-dms-builder";
 import {
   addModule,
   type ConfigDraft,
@@ -13,29 +7,6 @@ import {
   writeEntry,
 } from "./project-config";
 import { removeConnection, removeModule } from "./project-config-remove";
-import { localModuleRoot, localSource, refuseFolder } from "./project-scaffold";
-
-const MANIFEST = "package.json";
-
-function adoptLocalModule(
-  draft: ConfigDraft,
-  step: AdoptLocalModuleStep,
-): void {
-  const root = localModuleRoot(step.path);
-  const manifest = path.join(root, MANIFEST);
-  if (!fs.existsSync(manifest)) {
-    refuseFolder(`module path "${step.path}" has no ${MANIFEST}`);
-  }
-  addModule(draft, step.id, { ...step.entry, source: localSource(root) });
-  if (!step.connection) {
-    return;
-  }
-  const content = manifestNamingConnection(root, step.connection);
-  const before = fs.readFileSync(manifest, "utf8");
-  if (content !== undefined && content !== before) {
-    draft.edits.push({ path: manifest, before, content });
-  }
-}
 
 type StepHandlers = {
   [Op in ProjectConfigStep["op"]]: (
@@ -48,7 +19,6 @@ const STEPS: StepHandlers = {
   AddModule: (draft, step) => addModule(draft, step.id, step.entry),
   ConfigureModule: (draft, step) => writeEntry(draft, step.id, step.entry),
   CreateLocalModule: createLocalModule,
-  AdoptLocalModule: adoptLocalModule,
   RemoveModule: removeModule,
   RemoveConnection: removeConnection,
 };

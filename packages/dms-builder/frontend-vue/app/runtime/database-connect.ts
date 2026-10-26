@@ -4,7 +4,6 @@
  * the modules and the variable the builder manages are named after it.
  */
 import type {
-	AdoptableModule,
 	ConnectionDetails,
 	ModuleEntryInput,
 	ProjectConfigStep,
@@ -74,8 +73,6 @@ export interface ConnectForm {
 	fields: ConnectionFields
 	/** The managed names the integrator changed; the others follow the name. */
 	overrides: Partial<ManagedNames>
-	/** A module folder kept from a removed connection, used for the tables instead of a new one. */
-	adopt?: AdoptableModule
 }
 
 export function emptyFields(engine: DatabaseEngine): ConnectionFields {
@@ -198,18 +195,13 @@ function catalogConnection(id: string, driverModule: string): ModuleEntryInput {
 	}
 }
 
-function tablesStep(form: ConnectForm, id: string, names: ManagedNames): ProjectConfigStep {
-	const entry: ModuleEntryInput = {
-		importOverrides: [{ interface: DATABASE_INTERFACE, source: names.driverModule }],
-	}
-	if (form.adopt) {
-		return { op: 'AdoptLocalModule', id: names.tablesModule, path: form.adopt.path, entry, connection: id }
-	}
+function tablesStep(id: string, names: ManagedNames): ProjectConfigStep {
 	return {
 		op: 'CreateLocalModule',
 		id: names.tablesModule,
 		path: `${MODULES_DIRECTORY}/${names.tablesModule}`,
-		entry,
+		entry: { importOverrides: [{ interface: DATABASE_INTERFACE, source: names.driverModule }] },
+		connection: id,
 	}
 }
 
@@ -250,7 +242,7 @@ export function connectSteps(form: ConnectForm, project: ProjectModules): Projec
 				exportPriority: { [DATABASE_INTERFACE]: DRIVER_EXPORT_PRIORITY },
 			},
 		},
-		tablesStep(form, id, names),
+		tablesStep(id, names),
 		{ op: 'ConfigureModule', id: DMS_BUILDER, entry: catalogConnection(id, names.driverModule) },
 	]
 	if (project.modules.includes(DMS_AI)) {
