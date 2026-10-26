@@ -11,10 +11,10 @@ const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
 export const BUILDER_CODE_INTERFACES: Readonly<Record<string, string>> = {
   "@antelopejs/interface-api": ">=0.0.15 <1.0.0",
   "@antelopejs/interface-core": ">=0.2.4 <1.0.0",
-  "@antelopejs/interface-data-api": ">=0.2.2 <1.0.0",
-  "@antelopejs/interface-database": ">=0.1.10 <1.0.0",
-  "@antelopejs/interface-database-decorators": ">=0.1.9 <1.0.0",
-  "@antelopejs/interface-dms": ">=0.8.0 <1.0.0",
+  "@antelopejs/interface-data-api": ">=0.4.0 <1.0.0",
+  "@antelopejs/interface-database": ">=0.1.11 <1.0.0",
+  "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
+  "@antelopejs/interface-dms": ">=0.9.0 <1.0.0",
 };
 /** The build tooling a module needs, at these ranges when the project does not declare its own. */
 const DEFAULT_TOOLING: Readonly<Record<string, string>> = {
