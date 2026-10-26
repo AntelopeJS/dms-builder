@@ -166,6 +166,18 @@ describe('a connection URL', () => {
 		expect(connectionUrl('postgres', parseConnectionUrl('postgres', pasted))).toBe(pasted)
 	})
 
+	it('keeps an sslmode the SSL switch does not stand for, until the switch is turned on', () => {
+		const fields = parseConnectionUrl('postgres', 'postgres://u:p@h/db?sslmode=no-verify')
+		expect(fields.ssl).toBe(false)
+		expect(connectionUrl('postgres', fields)).toBe('postgres://u:p@h:5432/db?sslmode=no-verify')
+		expect(connectionUrl('postgres', { ...fields, ssl: true })).toBe('postgres://u:p@h:5432/db?sslmode=require')
+	})
+
+	it('leaves out a port the saved details left out', () => {
+		const details = { scheme: 'postgres', host: 'h', port: '', database: 'db', user: 'u', hasPassword: true, options: {} }
+		expect(connectionUrl('postgres', detailsFields('postgres', details))).toBe('postgres://u@h/db')
+	})
+
 	it('builds one from the fields, with sslmode when SSL is on', () => {
 		expect(connectionUrl('postgres', { ...form().fields, ssl: true })).toBe(
 			'postgres://reader:s3cret@db.example:5432/erp?sslmode=require',

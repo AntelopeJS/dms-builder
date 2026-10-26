@@ -1,7 +1,8 @@
-import { type SourceFile, SyntaxKind } from "ts-morph";
+import { Node, type SourceFile, SyntaxKind } from "ts-morph";
 import type { ConfigDraft } from "./project-config";
 
-const LOADS_ENV_FILE = /\bloadEnvFile\b|\bdotenv\b/;
+const LOAD_ENV_FILE = "loadEnvFile";
+const DOTENV = /^dotenv(\/|$)/;
 const ENV_FILE_CONSTANT = "projectEnvFile";
 const ESM_CONFIG = /\.mts$/;
 
@@ -46,6 +47,29 @@ function usesName(file: SourceFile, name: string): boolean {
   return file
     .getDescendantsOfKind(SyntaxKind.Identifier)
     .some((identifier) => identifier.getText() === name);
+}
+
+/** Whether the configuration loads a `.env` itself: a `loadEnvFile` call, or dotenv imported or required. */
+function loadsEnvFile(file: SourceFile): boolean {
+  const imported = file
+    .getImportDeclarations()
+    .some((declaration) => DOTENV.test(declaration.getModuleSpecifierValue()));
+  return (
+    imported ||
+    file.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+      const callee = call.getExpression();
+      const name = Node.isPropertyAccessExpression(callee)
+        ? callee.getName()
+        : callee.getText();
+      const argument = call.getArguments()[0];
+      return (
+        name === LOAD_ENV_FILE ||
+        (name === "require" &&
+          Node.isStringLiteral(argument) &&
+          DOTENV.test(argument.getLiteralValue()))
+      );
+    })
+  );
 }
 
 interface ImportedName {
@@ -93,10 +117,7 @@ function loadingText(draft: ConfigDraft, exists: string, join: string): string {
  * never reach the configuration in development.
  */
 export function ensureEnvFileLoaded(draft: ConfigDraft): void {
-  if (
-    draft.variables.length === 0 ||
-    LOADS_ENV_FILE.test(draft.file.getFullText())
-  ) {
+  if (draft.variables.length === 0 || loadsEnvFile(draft.file)) {
     return;
   }
   const exists = ensureNamedImport(draft.file, EXISTS, 0);

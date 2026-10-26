@@ -178,7 +178,8 @@ function stepVariables(steps: ProjectConfigStep[]): Set<string> {
 /**
  * Writes a batch and the development value of a variable it maps: `.env` first, after a dry run
  * accepted the batch, so the configuration never names a variable whose value failed to be
- * written. When `.env` is refused, nothing else is written either.
+ * written. When `.env` is refused, nothing else is written either, and when the batch fails after
+ * it, `.env` goes back to what it held.
  */
 export function configureProjectWithVariable(
   steps: ProjectConfigStep[],
@@ -188,13 +189,23 @@ export function configureProjectWithVariable(
   if (!checked.ok) {
     return checked;
   }
+  const previous = projectVariable(variable.name);
+  const mapped = stepVariables(steps);
   try {
-    setProjectVariable(variable.name, variable.value, stepVariables(steps));
+    setProjectVariable(variable.name, variable.value, mapped);
   } catch (error) {
     if (error instanceof EnvRefusal) {
       return invalidConfig<ProjectConfigResult>(error.message);
     }
     throw error;
   }
-  return configureProject(steps);
+  const configured = configureProject(steps);
+  if (!configured.ok) {
+    if (previous === undefined) {
+      removeProjectVariable(variable.name);
+    } else {
+      setProjectVariable(variable.name, previous, mapped);
+    }
+  }
+  return configured;
 }

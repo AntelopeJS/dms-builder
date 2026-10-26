@@ -278,6 +278,16 @@ describe("mapping again a database already mapped", function () {
     expect(moduleFile("sales/contacts/data-api.ts")).to.include(
       `keyMapping: { label: "${other}", value: "_id" }`,
     );
+    const again = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [{ ...asMapped(accounts!), label: other }],
+    });
+    expectOk(again, "MapResources with the same label");
+    const touched = again.ok ? again.changes.map((change) => change.path) : [];
+    expect(touched.filter((file) => file.includes("contacts"))).to.deep.equal(
+      [],
+    );
   });
 
   it("records relations decided against, and forgets one once it is mapped", async () => {

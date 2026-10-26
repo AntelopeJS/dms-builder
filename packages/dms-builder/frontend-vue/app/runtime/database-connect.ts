@@ -25,7 +25,7 @@ const DMS_BUILDER = 'dms-builder'
 const DMS_AI = 'dms-ai'
 const SSL_PARAMETER = 'sslmode'
 const SSL_DEFAULT_MODE = 'require'
-/** The `sslmode` values that encrypt; a pasted strict one is kept as it is. */
+/** The `sslmode` values the SSL switch stands for; a strict one, or any other, is kept as it is. */
 const SSL_MODES = new Set(['require', 'verify-ca', 'verify-full'])
 const STRICT_SSL_MODES = new Set(['verify-ca', 'verify-full'])
 
@@ -119,8 +119,11 @@ export function isConnectionUrl(engine: DatabaseEngine, text: string): boolean {
 }
 
 function sslFromMode(mode: string | undefined): Pick<ConnectionFields, 'ssl' | 'options'> {
-	if (mode === undefined || !SSL_MODES.has(mode)) {
+	if (mode === undefined) {
 		return { ssl: false, options: {} }
+	}
+	if (!SSL_MODES.has(mode)) {
+		return { ssl: false, options: { [SSL_PARAMETER]: mode } }
 	}
 	return { ssl: true, options: STRICT_SSL_MODES.has(mode) ? { [SSL_PARAMETER]: mode } : {} }
 }
@@ -155,7 +158,9 @@ function credentials(fields: ConnectionFields): string {
 
 function parameters(fields: ConnectionFields): string {
 	const { [SSL_PARAMETER]: mode, ...others } = fields.options
-	const all = fields.ssl ? { ...others, [SSL_PARAMETER]: mode ?? SSL_DEFAULT_MODE } : others
+	const kept = mode !== undefined && SSL_MODES.has(mode) === fields.ssl ? mode : undefined
+	const sslMode = fields.ssl ? (kept ?? SSL_DEFAULT_MODE) : kept
+	const all = sslMode === undefined ? others : { ...others, [SSL_PARAMETER]: sslMode }
 	const query = new URLSearchParams(all).toString()
 	return query ? `?${query}` : ''
 }
@@ -208,21 +213,22 @@ function tablesStep(form: ConnectForm, id: string, names: ManagedNames): Project
 	}
 }
 
-/** The fields a connection's saved details fill, the password left empty. */
 /** Whether the fields still reach the server and user the saved password belongs to. */
 export function keepsServer(saved: ConnectionFields, fields: ConnectionFields): boolean {
 	return saved.host === fields.host && saved.port === fields.port && saved.user === fields.user
 }
 
+/** The fields a connection's saved details fill, the password left empty and a port left out kept out. */
 export function detailsFields(engine: DatabaseEngine, details: ConnectionDetails): ConnectionFields {
 	const query = new URLSearchParams(details.options).toString()
 	const user = details.user ? `${encodeURIComponent(details.user)}@` : ''
 	const port = details.port ? `:${details.port}` : ''
 	const database = encodeURIComponent(details.database)
-	return parseConnectionUrl(
+	const fields = parseConnectionUrl(
 		engine,
 		`${details.scheme}://${user}${details.host}${port}/${database}${query ? `?${query}` : ''}`,
 	)
+	return { ...fields, port: details.port }
 }
 
 /**

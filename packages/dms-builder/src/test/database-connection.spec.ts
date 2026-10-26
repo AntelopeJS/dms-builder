@@ -152,6 +152,13 @@ describe("a database connection after it was made", function () {
     );
   });
 
+  it("does not send the kept password to another port", () => {
+    const moved = setConnectionUrl("erp", "postgres://reader@db.example/erp");
+    expect(moved.ok ? "" : JSON.stringify(moved.error)).to.match(
+      /kept only for the same host, port and user/,
+    );
+  });
+
   it("refuses a URL of another engine", () => {
     const other = setConnectionUrl(
       "erp",

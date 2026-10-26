@@ -2,6 +2,7 @@ import {
   Node,
   type ObjectLiteralExpression,
   type Project,
+  type PropertyAssignment,
   type SourceFile,
   SyntaxKind,
 } from "ts-morph";
@@ -21,13 +22,21 @@ function relationConfigs(file: SourceFile): ObjectLiteralExpression[] {
   });
 }
 
-/** Sets the label of the relation columns in `file` that point at `apiName`. */
-function relabelColumns(
+function labelText(property: PropertyAssignment): string | undefined {
+  const value = property.getInitializer();
+  return Node.isStringLiteral(value) ||
+    Node.isNoSubstitutionTemplateLiteral(value)
+    ? value.getLiteralValue()
+    : value?.getText();
+}
+
+/** The labels of the relation columns in `file` pointing at `apiName` that do not read `label` yet. */
+function staleLabels(
   file: SourceFile,
   apiName: string,
   label: string,
-): void {
-  for (const config of relationConfigs(file)) {
+): PropertyAssignment[] {
+  return relationConfigs(file).flatMap((config) => {
     const controller = config.getProperty("dataApiController");
     const keyMapping = config.getProperty("keyMapping");
     if (
@@ -35,19 +44,16 @@ function relabelColumns(
       controller.getInitializer()?.getText() !== apiName ||
       !Node.isPropertyAssignment(keyMapping)
     ) {
-      continue;
+      return [];
     }
     const mapping = keyMapping.getInitializer();
     const current = Node.isObjectLiteralExpression(mapping)
       ? mapping.getProperty("label")
       : undefined;
-    if (
-      Node.isPropertyAssignment(current) &&
-      current.getInitializer()?.getText() !== JSON.stringify(label)
-    ) {
-      current.setInitializer(JSON.stringify(label));
-    }
-  }
+    return Node.isPropertyAssignment(current) && labelText(current) !== label
+      ? [current]
+      : [];
+  });
 }
 
 /**
@@ -70,9 +76,17 @@ export function relabelPointingColumns(
     if (!file) {
       continue;
     }
+    const stale = labelled.flatMap((resource) =>
+      staleLabels(file, resource.names.apiName, resource.label!).map(
+        (property) => ({ property, label: resource.label! }),
+      ),
+    );
+    if (stale.length === 0) {
+      continue;
+    }
     transaction.track(file);
-    for (const resource of labelled) {
-      relabelColumns(file, resource.names.apiName, resource.label!);
+    for (const { property, label } of stale) {
+      property.setInitializer(JSON.stringify(label));
     }
   }
 }

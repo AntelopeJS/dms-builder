@@ -64,6 +64,10 @@ async function open(id: string): Promise<void> {
 	view.value = 'mapping'
 	info.value = null
 	module.value = defaultNames(id, 'postgres').tablesModule
+	await readInfo(id)
+}
+
+async function readInfo(id: string): Promise<void> {
 	infoProblem.value = ''
 	const read = await api.databaseConnection(id).catch((error: unknown) => {
 		infoProblem.value = connectionProblem(error)
@@ -178,6 +182,7 @@ onMounted(load)
 				:connection="selected"
 				:info="info"
 				@close="view = 'mapping'"
+				@saved="readInfo(selected)"
 			/>
 			<DmsBuilderDatabaseConnectionRemove
 				v-else-if="selected && info && view === 'remove'"

@@ -293,4 +293,10 @@ describe("project-config operations", function () {
       .and.to.include('import { join as joinEnvPath } from "node:path";')
       .and.to.include('const projectEnvFile = joinEnvPath(__dirname, ".env");');
   });
+
+  it("loads .env when the configuration only mentions dotenv in a comment", async () => {
+    fs.writeFileSync(configPath(), `// TODO: dotenv\n${PROJECT_CONFIG}`);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.include("process.loadEnvFile(projectEnvFile);");
+  });
 });

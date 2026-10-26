@@ -12,7 +12,7 @@ import type { ConnectionInfo } from '../runtime/database-types'
  */
 
 const props = defineProps<{ connection: string; info: ConnectionInfo }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; saved: [] }>()
 
 const api = useBuilderApi()
 
@@ -44,6 +44,7 @@ async function save(): Promise<void> {
 		return
 	}
 	done.value = true
+	emit('saved')
 }
 </script>
 
@@ -68,7 +69,7 @@ async function save(): Promise<void> {
 						<UInput v-model="fields.host" class="w-full font-mono" />
 					</UFormField>
 					<UFormField label="Port">
-						<UInput v-model="fields.port" inputmode="numeric" class="w-full font-mono" />
+						<UInput v-model="fields.port" inputmode="numeric" placeholder="default" class="w-full font-mono" />
 					</UFormField>
 				</div>
 				<div class="grid grid-cols-3 gap-3">

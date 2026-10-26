@@ -262,6 +262,14 @@ function connectionUrl(connection: string): UrlRead {
   }
 }
 
+function decoded(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
 /** A connection's details from the URL in `.env`, the password left out. */
 export function connectionDetails(
   wiring: ConnectionWiring,
@@ -275,10 +283,10 @@ export function connectionDetails(
     ok: true,
     data: {
       scheme: url.protocol.replace(/:$/, ""),
-      host: decodeURIComponent(url.hostname),
+      host: decoded(url.hostname),
       port: url.port,
-      database: decodeURIComponent(url.pathname.replace(/^\//, "")),
-      user: decodeURIComponent(url.username),
+      database: decoded(url.pathname.replace(/^\//, "")),
+      user: decoded(url.username),
       hasPassword: url.password !== "",
       options: Object.fromEntries(url.searchParams),
     },
@@ -286,14 +294,12 @@ export function connectionDetails(
   };
 }
 
-/** Whether both URLs reach the same server as the same user; a port left out is the engine's default. */
+/** Whether both URLs reach the same server as the same user. */
 function sameServer(saved: URL, next: URL): boolean {
-  const samePort =
-    saved.port === next.port || saved.port === "" || next.port === "";
   return (
     saved.hostname === next.hostname &&
-    saved.username === next.username &&
-    samePort
+    saved.port === next.port &&
+    saved.username === next.username
   );
 }
 
