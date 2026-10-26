@@ -7,7 +7,7 @@ import { getModuleConfig } from "../../../config";
  * The compiler options of the DMS project template, for a project that has no `tsconfig.json`: a
  * module the builder scaffolds there compiles with them, and the builder typechecks with them.
  */
-export const DEFAULT_COMPILER_OPTIONS: Readonly<Record<string, unknown>> = {
+export const DEFAULT_COMPILER_OPTIONS = {
   moduleResolution: "bundler",
   target: "esnext",
   module: "commonjs",
@@ -21,7 +21,7 @@ export const DEFAULT_COMPILER_OPTIONS: Readonly<Record<string, unknown>> = {
   declaration: true,
   sourceMap: true,
   useDefineForClassFields: true,
-};
+} satisfies Record<string, string | boolean | string[]>;
 
 /**
  * ts-morph's TypeScript predates `moduleResolution: "bundler"` with `module: "commonjs"`, which

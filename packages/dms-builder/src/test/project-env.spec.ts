@@ -14,6 +14,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { projectFile } from "./helpers/project-files";
 
 const OP_TIMEOUT = 60_000;
 const VARIABLE = "ERP_DATABASE_URL";
@@ -71,7 +72,7 @@ describe("a project variable written by the builder", function () {
     fs.writeFileSync(envFile(), "KEEP=1\n");
     setProjectVariable(VARIABLE, URL);
     setProjectVariable(VARIABLE, `${URL}?sslmode=require`);
-    expect(fs.readFileSync(envFile(), "utf8")).to.equal(
+    expect(projectFile(app.root, ".env")).to.equal(
       `KEEP=1\n${VARIABLE}="${URL}?sslmode=require"\n`,
     );
   });
@@ -79,7 +80,7 @@ describe("a project variable written by the builder", function () {
   it("writes a value holding $ patterns as it is, when it replaces a line", () => {
     const value = "postgres://u:pa$$w$&rd$'@h/db";
     setProjectVariable(VARIABLE, value);
-    expect(fs.readFileSync(envFile(), "utf8")).to.equal(
+    expect(projectFile(app.root, ".env")).to.equal(
       `KEEP=1\n${VARIABLE}="${value}"\n`,
     );
   });
@@ -104,7 +105,7 @@ describe("a batch sent with its variable's value", function () {
   ];
 
   function configText(): string {
-    return fs.readFileSync(path.join(app.root, "antelope.config.ts"), "utf8");
+    return projectFile(app.root, "antelope.config.ts");
   }
 
   beforeEach(() => {
@@ -131,9 +132,7 @@ describe("a batch sent with its variable's value", function () {
       configureProjectWithVariable(steps, { name: VARIABLE, value: URL }),
       "ConfigureProject with its variable",
     );
-    expect(fs.readFileSync(envFile(), "utf8")).to.equal(
-      `${VARIABLE}="${URL}"\n`,
-    );
+    expect(projectFile(app.root, ".env")).to.equal(`${VARIABLE}="${URL}"\n`);
     expect(configText())
       .to.include(`${VARIABLE}: "modules.erp-tables.config.url"`)
       .and.to.include("process.loadEnvFile(projectEnvFile);");

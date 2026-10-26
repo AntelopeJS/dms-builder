@@ -11,6 +11,11 @@ import { invalidateResourceIndex } from "../implementations/dms-builder/engine/r
 import { invalidateSourceIndex } from "../implementations/dms-builder/engine/source-index";
 import { resetWritableProject } from "../implementations/dms-builder/engine/writable";
 import { expectOk } from "./harness";
+import {
+  packageManifest,
+  projectFile,
+  tsConfigFile,
+} from "./helpers/project-files";
 
 const OP_TIMEOUT = 60_000;
 const VARIABLE = "BUILDER_DB_ERP_URL";
@@ -58,12 +63,6 @@ const CONNECT = [
 let root: string;
 let ceiling: string | undefined;
 
-function readJson(
-  relativePath: string,
-): Record<string, Record<string, unknown>> {
-  return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
-}
-
 /**
  * A project can be its configuration alone: no `tsconfig.json`, no sources of its own, no git
  * repository. The builder still wires a database into it, scaffolds a module that builds, and
@@ -110,29 +109,31 @@ describe("a project that is its configuration alone", function () {
 
   it("scaffolds the module with the template's compiler options and its own build tooling", () => {
     const module = "modules/builder-db-erp-tables";
-    const { compilerOptions } = readJson(`${module}/tsconfig.json`);
+    const { compilerOptions } = tsConfigFile(root, `${module}/tsconfig.json`);
     expect(compilerOptions).to.include({
       module: "commonjs",
       experimentalDecorators: true,
       emitDecoratorMetadata: true,
       rootDir: "src",
     });
-    expect(readJson(`${module}/package.json`).devDependencies).to.have.keys(
-      "typescript",
-      "rimraf",
-      "@types/node",
-    );
+    expect(
+      packageManifest(root, `${module}/package.json`).devDependencies,
+    ).to.have.keys("typescript", "rimraf", "@types/node");
   });
 
   it("scaffolds the module with the interface packages the builder's code imports", () => {
-    const manifest = readJson("modules/builder-db-erp-tables/package.json");
+    const manifest = packageManifest(
+      root,
+      "modules/builder-db-erp-tables/package.json",
+    );
     expect(manifest.dependencies).to.deep.equal(BUILDER_CODE_INTERFACES);
   });
 
   it("asks for those packages at the ranges the builder itself depends on", () => {
-    const own = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"),
-    ) as Record<string, Record<string, string>>;
+    const own = packageManifest(
+      path.join(__dirname, "..", ".."),
+      "package.json",
+    );
     const ranges = { ...own.devDependencies, ...own.dependencies };
     for (const [name, range] of Object.entries(BUILDER_CODE_INTERFACES)) {
       expect(ranges[name], name).to.equal(range);
@@ -141,8 +142,6 @@ describe("a project that is its configuration alone", function () {
 
   it("writes the variable into .env, which no repository can commit", () => {
     setProjectVariable(VARIABLE, URL);
-    expect(fs.readFileSync(path.join(root, ".env"), "utf8")).to.equal(
-      `${VARIABLE}="${URL}"\n`,
-    );
+    expect(projectFile(root, ".env")).to.equal(`${VARIABLE}="${URL}"\n`);
   });
 });

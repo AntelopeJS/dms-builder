@@ -8,20 +8,20 @@ const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
  * module it scaffolds depends on them, so what it later writes there resolves and builds once the
  * restart that follows has installed them. The project's own range wins for one it declares.
  */
-export const BUILDER_CODE_INTERFACES: Readonly<Record<string, string>> = {
+export const BUILDER_CODE_INTERFACES = {
   "@antelopejs/interface-api": ">=0.0.15 <1.0.0",
   "@antelopejs/interface-core": ">=0.2.4 <1.0.0",
   "@antelopejs/interface-data-api": ">=0.4.0 <1.0.0",
   "@antelopejs/interface-database": ">=0.1.11 <1.0.0",
   "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
   "@antelopejs/interface-dms": ">=0.9.0 <1.0.0",
-};
+} satisfies Record<string, string>;
 /** The build tooling a module needs, at these ranges when the project does not declare its own. */
-const DEFAULT_TOOLING: Readonly<Record<string, string>> = {
+const DEFAULT_TOOLING = {
   typescript: "^6.0.3",
   rimraf: "^6.1.3",
   "@types/node": "^24.0.0",
-};
+} satisfies Record<string, string>;
 const ENTRY_TEXT =
   "export function construct(): void {}\n\nexport async function start(): Promise<void> {}\n";
 

@@ -1,14 +1,14 @@
 {
   "rules": {
     "antelopejs/no-comments": 436,
-    "antelopejs/no-fs-read-in-tests": 15,
+    "antelopejs/no-fs-read-in-tests": 12,
     "anti-slop/no-known-value-widening": 54,
     "anti-slop/no-runtime-typeof": 61,
     "anti-slop/no-shape-in-symbol-names": 81,
     "anti-slop/no-unknown-parameters": 57,
-    "anti-slop/no-unknown-returns": 35,
+    "anti-slop/no-unknown-returns": 34,
     "anti-slop/no-unsafe-dictionary-type": 142,
-    "anti-slop/require-safety-comment-for-type-assertion": 110,
+    "anti-slop/require-safety-comment-for-type-assertion": 109,
     "jest/valid-title": 1
   },
   "oversizeFiles": {
