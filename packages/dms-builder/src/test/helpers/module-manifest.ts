@@ -28,7 +28,14 @@ export function setBuilderRecord(
   record: BuilderRecord,
 ): void {
   const file = manifestFile(root, module);
-  const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+  const manifest = fs.existsSync(file)
+    ? JSON.parse(fs.readFileSync(file, "utf8"))
+    : { name: module };
   manifest.dmsBuilder = record;
   fs.writeFileSync(file, JSON.stringify(manifest));
+}
+
+/** Whether a fixture module's folder exists. */
+export function moduleFolderExists(root: string, module: string): boolean {
+  return fs.existsSync(path.join(root, "modules", module));
 }

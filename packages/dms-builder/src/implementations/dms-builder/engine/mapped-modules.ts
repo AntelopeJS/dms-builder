@@ -62,8 +62,10 @@ function databaseRecord(manifest: MappedManifest): DatabaseRecord {
   };
 }
 
-function writeDatabaseRecord(root: string, record: DatabaseRecord): void {
-  const manifest = readManifest(root);
+function recorded(
+  manifest: MappedManifest,
+  record: DatabaseRecord,
+): MappedManifest {
   const {
     mapped: _mapped,
     excluded: _excluded,
@@ -73,15 +75,41 @@ function writeDatabaseRecord(root: string, record: DatabaseRecord): void {
   if (record.excludedTables && Object.keys(record.excludedTables).length > 0) {
     database.excludedTables = record.excludedTables;
   }
-  const next = { ...builder, database };
-  if (JSON.stringify(next) === JSON.stringify(manifest.dmsBuilder)) {
+  return { ...manifest, dmsBuilder: { ...builder, database } };
+}
+
+function manifestText(manifest: MappedManifest): string {
+  return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+function writeDatabaseRecord(root: string, record: DatabaseRecord): void {
+  const manifest = readManifest(root);
+  const next = recorded(manifest, record);
+  if (JSON.stringify(next) === JSON.stringify(manifest)) {
     return;
   }
-  manifest.dmsBuilder = next;
-  fs.writeFileSync(
-    manifestPath(root),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  );
+  fs.writeFileSync(manifestPath(root), manifestText(next));
+}
+
+/** The connection a module folder's record names, when the builder mapped tables into it. */
+export function recordedConnection(root: string): string | undefined {
+  return databaseRecord(readManifest(root)).connection;
+}
+
+/**
+ * A module folder's `package.json` text with its record naming `connection`, its excluded tables
+ * kept; `undefined` when the folder has no `package.json`.
+ */
+export function manifestNamingConnection(
+  root: string,
+  connection: string,
+): string | undefined {
+  if (!fs.existsSync(manifestPath(root))) {
+    return undefined;
+  }
+  const manifest = readManifest(root);
+  const current = databaseRecord(manifest);
+  return manifestText(recorded(manifest, { ...current, connection }));
 }
 
 /**
@@ -104,7 +132,7 @@ export function markMapped(module: string, update: MappedRecordUpdate): void {
 /** The connection the module holding a file mirrors, when that module is a mapped one. */
 export function mappedConnectionOfFile(filepath: string): string | undefined {
   const root = moduleOfFile(filepath)?.root;
-  return root ? databaseRecord(readManifest(root)).connection : undefined;
+  return root ? recordedConnection(root) : undefined;
 }
 
 /** The relations recorded as decided against in a module, with why. */

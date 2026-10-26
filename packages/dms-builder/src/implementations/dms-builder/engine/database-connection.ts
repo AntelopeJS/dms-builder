@@ -1,0 +1,369 @@
+import fs from "node:fs";
+import path from "node:path";
+import type {
+  FileChange,
+  OpResult,
+  ProjectConfigResult,
+  ProjectConfigStep,
+} from "@antelopejs/interface-dms-builder";
+import { Node } from "ts-morph";
+import { recordedConnection } from "./mapped-modules";
+import { findConfigFile, propertyKey } from "./modules";
+import { invalidConfig, unsupported } from "./ops";
+import { resolveProjectRoot } from "./project";
+import {
+  type ConfigDraft,
+  ENV_OVERRIDES,
+  existingOverrides,
+  IMPORT_OVERRIDES,
+  MODULES,
+  objectAt,
+  openDraft,
+  propertyNamed,
+  StepRefusal,
+  stringOf,
+} from "./project-config";
+import { configureProject } from "./project-config-ops";
+import {
+  EnvRefusal,
+  hasProjectVariable,
+  projectVariable,
+  removeProjectVariable,
+  setProjectVariable,
+} from "./project-env";
+import { localModuleRoot } from "./project-scaffold";
+
+const CATALOG_INTERFACE = "@antelopejs/interface-database-catalog";
+const DATABASE_INTERFACE = "@antelopejs/interface-database";
+const MODULES_DIRECTORY = "modules";
+const URL_PATH = "config.url";
+
+/** What a connection wired into the configuration, by module id. */
+export interface ConnectionWiring {
+  connection: string;
+  driver: string;
+  /** The modules whose tables are read through the driver, with their folder when local. */
+  modules: { id: string; path?: string }[];
+  /** The variable supplying the driver's `url`, when one does. */
+  variable?: string;
+}
+
+/** A connection's details as its URL holds them, the password left out. */
+export interface ConnectionDetails {
+  scheme: string;
+  host: string;
+  port: string;
+  database: string;
+  user: string;
+  hasPassword: boolean;
+  /** The URL parameters, `sslmode` among them. */
+  options: Record<string, string>;
+}
+
+/** A module folder the builder mapped tables into, that no module of the configuration uses. */
+export interface AdoptableModule {
+  path: string;
+  name: string;
+  connection: string;
+}
+
+function moduleIds(draft: ConfigDraft): string[] {
+  return (objectAt(draft, [MODULES])?.getProperties() ?? [])
+    .filter(Node.isPropertyAssignment)
+    .map((property) => propertyKey(property.getNameNode()));
+}
+
+function overridesOf(draft: ConfigDraft, id: string) {
+  const entry = objectAt(draft, [MODULES, id]);
+  return entry
+    ? existingOverrides(
+        propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
+      )
+    : [];
+}
+
+function localPath(draft: ConfigDraft, id: string): string | undefined {
+  const source = objectAt(draft, [MODULES, id, "source"]);
+  if (
+    !source ||
+    stringOf(propertyNamed(source, "type")?.getInitializer()) !== "local"
+  ) {
+    return undefined;
+  }
+  return stringOf(propertyNamed(source, "path")?.getInitializer());
+}
+
+function variableOf(draft: ConfigDraft, driver: string): string | undefined {
+  const target = `${MODULES}.${driver}.${URL_PATH}`;
+  return (objectAt(draft, [ENV_OVERRIDES])?.getProperties() ?? [])
+    .filter(Node.isPropertyAssignment)
+    .find((property) => stringOf(property.getInitializer()) === target)
+    ?.getName()
+    .replace(/^["']|["']$/g, "");
+}
+
+function openConfig(): ConfigDraft | undefined {
+  const configPath = findConfigFile();
+  return configPath ? openDraft(configPath) : undefined;
+}
+
+function wiringIn(
+  draft: ConfigDraft,
+  connection: string,
+): ConnectionWiring | undefined {
+  const ids = moduleIds(draft);
+  const driver = ids
+    .flatMap((id) => overridesOf(draft, id))
+    .find(
+      (override) =>
+        override.interface === CATALOG_INTERFACE && override.id === connection,
+    )?.source;
+  if (!driver) {
+    return undefined;
+  }
+  const modules = ids
+    .filter((id) =>
+      overridesOf(draft, id).some(
+        (override) =>
+          override.interface === DATABASE_INTERFACE &&
+          override.id === undefined &&
+          override.source === driver,
+      ),
+    )
+    .map((id) => ({ id, path: localPath(draft, id) }));
+  return { connection, driver, modules, variable: variableOf(draft, driver) };
+}
+
+/** What the configuration wires for a connection, or nothing when no module declares it. */
+export function connectionWiring(
+  connection: string,
+): ConnectionWiring | undefined {
+  const draft = openConfig();
+  return draft && wiringIn(draft, connection);
+}
+
+/** The steps that take a connection out of the configuration: its connections, its modules. */
+export function removalSteps(wiring: ConnectionWiring): ProjectConfigStep[] {
+  return [
+    {
+      op: "RemoveConnection",
+      interface: CATALOG_INTERFACE,
+      id: wiring.connection,
+    },
+    ...wiring.modules.map((module): ProjectConfigStep => ({
+      op: "RemoveModule",
+      id: module.id,
+    })),
+    { op: "RemoveModule", id: wiring.driver },
+  ];
+}
+
+function folderChanges(wiring: ConnectionWiring): FileChange[] {
+  return wiring.modules.flatMap((module) =>
+    module.path
+      ? [
+          {
+            path: localModuleRoot(module.path),
+            kind: "delete" as const,
+            diff: "",
+          },
+        ]
+      : [],
+  );
+}
+
+function envChange(variable: string | undefined): FileChange[] {
+  if (!variable || !hasProjectVariable(variable)) {
+    return [];
+  }
+  const configPath = findConfigFile() ?? "";
+  return [
+    {
+      path: path.join(path.dirname(configPath), ".env"),
+      kind: "modify",
+      diff: `-${variable}=…`,
+    },
+  ];
+}
+
+export interface RemoveConnectionOpts {
+  /** Also delete the folders of its modules; by default they stay, for a later connection. */
+  deleteFolders?: boolean;
+  dryRun?: boolean;
+}
+
+/**
+ * Takes a connection out of the project: its catalog connections, its driver, the modules reading
+ * through it, the variable supplying its URL in `envOverrides` and `.env`. The modules' folders
+ * stay unless `deleteFolders` says otherwise. The value of the variable is never answered.
+ */
+export function removeDatabaseConnection(
+  connection: string,
+  opts: RemoveConnectionOpts = {},
+): OpResult<ProjectConfigResult> {
+  let wiring: ConnectionWiring | undefined;
+  try {
+    wiring = connectionWiring(connection);
+  } catch (error) {
+    if (error instanceof StepRefusal) {
+      return invalidConfig<ProjectConfigResult>(error.message);
+    }
+    throw error;
+  }
+  if (!wiring) {
+    return unsupported<ProjectConfigResult>(
+      `no module of the configuration declares the connection "${connection}"`,
+    );
+  }
+  const folders = opts.deleteFolders ? folderChanges(wiring) : [];
+  const env = envChange(wiring.variable);
+  const configured = configureProject(removalSteps(wiring), {
+    dryRun: opts.dryRun,
+  });
+  if (!configured.ok) {
+    return configured;
+  }
+  if (!opts.dryRun) {
+    if (wiring.variable) {
+      removeProjectVariable(wiring.variable);
+    }
+    for (const folder of folders) {
+      fs.rmSync(folder.path, { recursive: true, force: true });
+    }
+  }
+  const changes = [...configured.changes, ...env, ...folders];
+  return {
+    ok: true,
+    data: { files: changes.map((change) => change.path) },
+    changes,
+  };
+}
+
+type UrlRead =
+  | { ok: true; wiring: ConnectionWiring; url: URL }
+  | { ok: false; message: string };
+
+function connectionUrl(connection: string): UrlRead {
+  const wiring = connectionWiring(connection);
+  if (!wiring?.variable) {
+    return {
+      ok: false,
+      message: `the connection "${connection}" has no variable supplying its URL`,
+    };
+  }
+  const value = projectVariable(wiring.variable);
+  if (value === undefined) {
+    return {
+      ok: false,
+      message: `${wiring.variable} is not set in the project's .env`,
+    };
+  }
+  try {
+    return { ok: true, wiring, url: new URL(value) };
+  } catch {
+    return { ok: false, message: `${wiring.variable} does not hold a URL` };
+  }
+}
+
+/** A connection's details from the URL in `.env`, the password left out. */
+export function connectionDetails(
+  connection: string,
+): OpResult<ConnectionDetails> {
+  const read = connectionUrl(connection);
+  if (!read.ok) {
+    return invalidConfig<ConnectionDetails>(read.message);
+  }
+  const { url } = read;
+  return {
+    ok: true,
+    data: {
+      scheme: url.protocol.replace(/:$/, ""),
+      host: decodeURIComponent(url.hostname),
+      port: url.port,
+      database: decodeURIComponent(url.pathname.replace(/^\//, "")),
+      user: decodeURIComponent(url.username),
+      hasPassword: url.password !== "",
+      options: Object.fromEntries(url.searchParams),
+    },
+    changes: [],
+  };
+}
+
+/**
+ * Writes a connection's new URL into `.env`. A URL with no password keeps the current one, so the
+ * password never has to travel back to change something else. Takes effect on the next restart.
+ */
+export function setConnectionUrl(
+  connection: string,
+  value: string,
+): OpResult<{ variable: string }> {
+  const read = connectionUrl(connection);
+  if (!read.ok) {
+    return invalidConfig<{ variable: string }>(read.message);
+  }
+  let next: URL;
+  try {
+    next = new URL(value);
+  } catch {
+    return invalidConfig<{ variable: string }>(
+      "the new details do not make a URL",
+    );
+  }
+  if (next.protocol !== read.url.protocol) {
+    return invalidConfig<{ variable: string }>(
+      `the connection reads ${read.url.protocol.replace(/:$/, "")} URLs`,
+    );
+  }
+  if (next.password === "" && next.username !== "") {
+    next.password = read.url.password;
+  }
+  const variable = read.wiring.variable ?? "";
+  try {
+    setProjectVariable(variable, next.href);
+  } catch (error) {
+    if (error instanceof EnvRefusal) {
+      return invalidConfig<{ variable: string }>(error.message);
+    }
+    throw error;
+  }
+  return { ok: true, data: { variable }, changes: [] };
+}
+
+function configuredPaths(draft: ConfigDraft | undefined): Set<string> {
+  const root = resolveProjectRoot();
+  return new Set(
+    draft
+      ? moduleIds(draft).flatMap((id) => {
+          const local = localPath(draft, id);
+          return local ? [path.resolve(root, local)] : [];
+        })
+      : [],
+  );
+}
+
+/** The folders under `modules/` the builder mapped tables into, that no module entry uses. */
+export function adoptableModules(): AdoptableModule[] {
+  const root = resolveProjectRoot();
+  const directory = path.join(root, MODULES_DIRECTORY);
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+  const used = configuredPaths(openConfig());
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(directory, entry.name))
+    .filter((folder) => !used.has(folder))
+    .flatMap((folder) => {
+      const connection = recordedConnection(folder);
+      return connection
+        ? [
+            {
+              path: path.relative(root, folder),
+              name: path.basename(folder),
+              connection,
+            },
+          ]
+        : [];
+    });
+}

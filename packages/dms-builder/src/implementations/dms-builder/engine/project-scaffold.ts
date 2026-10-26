@@ -106,12 +106,7 @@ export function scaffoldLocalModule(
   relativePath: string,
 ): Scaffold {
   const projectRoot = resolveProjectRoot();
-  const root = path.resolve(projectRoot, relativePath);
-  if (!root.startsWith(projectRoot + path.sep)) {
-    throw new ScaffoldRefusal(
-      `module path "${relativePath}" leaves the project`,
-    );
-  }
+  const root = localModuleRoot(relativePath);
   if (fs.existsSync(root)) {
     throw new ScaffoldRefusal(`module path "${relativePath}" already exists`);
   }
@@ -131,14 +126,45 @@ export function scaffoldLocalModule(
       [path.join(root, "package.json"), manifestText(id, project)],
       [path.join(root, "tsconfig.json"), tsconfigText(tsconfig)],
     ]),
-    source: {
-      type: "local",
-      path: path.relative(projectRoot, root),
-      watchDir: ["src"],
-      installCommand: ["pnpm install", "pnpm run build"],
-      reloadCommand: ["pnpm exec tsc"],
-    },
+    source: localSource(root),
   };
+}
+
+/** The folder of a local module at `relativePath` under the project; refused when it leaves it. */
+export function localModuleRoot(relativePath: string): string {
+  const projectRoot = resolveProjectRoot();
+  const root = path.resolve(projectRoot, relativePath);
+  if (!root.startsWith(projectRoot + path.sep)) {
+    throw new ScaffoldRefusal(
+      `module path "${relativePath}" leaves the project`,
+    );
+  }
+  return root;
+}
+
+/** A local module's `source` in `antelope.config.ts`. */
+export type LocalSource = {
+  type: "local";
+  path: string;
+  watchDir: string[];
+  installCommand: string[];
+  reloadCommand: string[];
+};
+
+/** The source of a local module's entry: watched and rebuilt on change, as the project's own is. */
+export function localSource(root: string): LocalSource {
+  return {
+    type: "local",
+    path: path.relative(resolveProjectRoot(), root),
+    watchDir: ["src"],
+    installCommand: ["pnpm install", "pnpm run build"],
+    reloadCommand: ["pnpm exec tsc"],
+  };
+}
+
+/** Refuses a step on a local module folder, with the reason the caller is told. */
+export function refuseFolder(message: string): never {
+  throw new ScaffoldRefusal(message);
 }
 
 export function isScaffoldRefusal(error: unknown): error is ScaffoldRefusal {

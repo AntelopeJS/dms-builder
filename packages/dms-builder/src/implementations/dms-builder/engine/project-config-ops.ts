@@ -9,12 +9,8 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { findConfigFile } from "./modules";
 import { invalidConfig, unsupported } from "./ops";
-import {
-  applyStep,
-  type ConfigDraft,
-  openDraft,
-  StepRefusal,
-} from "./project-config";
+import { type ConfigDraft, openDraft, StepRefusal } from "./project-config";
+import { applyStep } from "./project-config-steps";
 import { ensureEnvFileLoaded } from "./project-env-loading";
 import { isScaffoldRefusal } from "./project-scaffold";
 import { invalidateResourceIndex } from "./resource-index";
@@ -52,6 +48,16 @@ function plannedWrites(draft: ConfigDraft): PlannedWrite[] {
       content: after,
     },
   ];
+  for (const edit of draft.edits) {
+    writes.push({
+      change: {
+        path: edit.path,
+        kind: "modify",
+        diff: diffText(edit.before, edit.content),
+      },
+      content: edit.content,
+    });
+  }
   for (const scaffold of draft.scaffolds) {
     for (const [file, content] of scaffold.files) {
       writes.push({

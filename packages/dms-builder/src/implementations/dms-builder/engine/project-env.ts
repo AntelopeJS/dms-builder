@@ -65,10 +65,50 @@ function withVariable(before: string, name: string, value: string): string {
   return `${before}${separator}${line}\n`;
 }
 
+function envFile(): string | undefined {
+  const configPath = findConfigFile();
+  return configPath && path.join(path.dirname(configPath), ENV_FILE);
+}
+
+function variablePattern(name: string): RegExp {
+  return new RegExp(`^${name}=(.*)$`, "m");
+}
+
+/**
+ * A variable's value in the project's `.env`, for the builder's own use: a caller answers what it
+ * reads from it, never the value itself.
+ */
+export function projectVariable(name: string): string | undefined {
+  const file = envFile();
+  if (!VARIABLE_NAME.test(name) || !file || !fs.existsSync(file)) {
+    return undefined;
+  }
+  const raw = variablePattern(name).exec(fs.readFileSync(file, "utf8"))?.[1];
+  return raw?.trim().replace(/^"(.*)"$/, "$1");
+}
+
+/** Whether the project's `.env` sets the variable. */
+export function hasProjectVariable(name: string): boolean {
+  return projectVariable(name) !== undefined;
+}
+
+/** Removes a variable's line from the project's `.env`, when it has one. */
+export function removeProjectVariable(name: string): void {
+  const file = envFile();
+  if (!VARIABLE_NAME.test(name) || !file || !fs.existsSync(file)) {
+    return;
+  }
+  const before = fs.readFileSync(file, "utf8");
+  const after = before.replace(new RegExp(`^${name}=.*(\n|$)`, "m"), "");
+  if (after !== before) {
+    fs.writeFileSync(file, after, { mode: 0o600 });
+  }
+}
+
 /**
  * Sets a variable `envOverrides` maps in the project's `.env`, for development. It refuses when the
  * project is in a git repository that does not ignore `.env`, so a value written here never
- * reaches a commit. The value is never read back or answered. `mapped` names the variables
+ * reaches a commit. The value is never answered. `mapped` names the variables
  * `envOverrides` will map, for a batch about to be written; by default, those it maps now.
  */
 export function setProjectVariable(
@@ -106,7 +146,11 @@ export interface ProjectVariable {
 }
 
 function stepVariables(steps: ProjectConfigStep[]): Set<string> {
-  return new Set(steps.flatMap((step) => Object.values(step.entry?.env ?? {})));
+  return new Set(
+    steps.flatMap((step) =>
+      "entry" in step ? Object.values(step.entry?.env ?? {}) : [],
+    ),
+  );
 }
 
 /**

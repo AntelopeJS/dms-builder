@@ -27,12 +27,31 @@ import {
 } from "../implementations/dms-builder/engine/database-pin";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
 import {
+  adoptableModules,
+  connectionDetails,
+  connectionWiring,
+  removeDatabaseConnection,
+  setConnectionUrl,
+} from "../implementations/dms-builder/engine/database-connection";
+import {
   configureProjectWithVariable,
   type ProjectVariable,
 } from "../implementations/dms-builder/engine/project-env";
 
 const HTTP_NOT_FOUND = 404;
 const HTTP_REFUSED = 422;
+
+interface RemoveConnectionBody {
+  connection: string;
+  deleteFolders?: boolean;
+  dryRun?: boolean;
+}
+
+interface ConnectionUrlBody {
+  connection: string;
+  /** The new URL; with no password, the current one is kept. */
+  url: string;
+}
 
 interface SampleBody extends SampleRequest {
   connection: string;
@@ -138,6 +157,46 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
       return engine.ConfigureProject(body.steps, body.opts);
     }
     return configureProjectWithVariable(body.steps, body.variable);
+  }
+
+  @Get(ROUTES.databaseConnection)
+  async connection(
+    @AuthTenantOwner() _user: User,
+    @Parameter("connection", "query") connection: string,
+  ) {
+    const wiring = connectionWiring(connection);
+    if (!wiring) {
+      return new HTTPResult(HTTP_NOT_FOUND, {
+        code: "not_found",
+        ref: connection,
+      });
+    }
+    const details = connectionDetails(connection);
+    return { wiring, details: details.ok ? details.data : undefined };
+  }
+
+  @Post(ROUTES.databaseConnectionRemove)
+  async removeConnection(
+    @AuthTenantOwner() _user: User,
+    @JSONBody() body: RemoveConnectionBody,
+  ) {
+    return removeDatabaseConnection(body.connection, {
+      deleteFolders: body.deleteFolders,
+      dryRun: body.dryRun,
+    });
+  }
+
+  @Post(ROUTES.databaseConnectionUrl)
+  async connectionUrl(
+    @AuthTenantOwner() _user: User,
+    @JSONBody() body: ConnectionUrlBody,
+  ) {
+    return setConnectionUrl(body.connection, body.url);
+  }
+
+  @Get(ROUTES.databaseAdoptable)
+  async adoptable(@AuthTenantOwner() _user: User) {
+    return adoptableModules();
   }
 
   @Post(ROUTES.databaseSample)

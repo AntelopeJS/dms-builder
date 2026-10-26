@@ -55,10 +55,42 @@ export interface CreateLocalModuleStep {
   entry?: ModuleEntryInput;
 }
 
+/**
+ * Adds the entry of a local module whose folder exists at `path`, as `CreateLocalModule` would
+ * have, writing no file of it. With `connection`, the folder's `dmsBuilder.database` record names
+ * that connection, so the tables it mapped read as that connection's.
+ */
+export interface AdoptLocalModuleStep {
+  op: "AdoptLocalModule";
+  id: string;
+  path: string;
+  entry?: ModuleEntryInput;
+  connection?: string;
+}
+
+/**
+ * Removes a module entry and the `envOverrides` entries that supply its config. Its files stay.
+ * Refused while another module's `importOverrides` names it as a source.
+ */
+export interface RemoveModuleStep {
+  op: "RemoveModule";
+  id: string;
+}
+
+/** Removes the named connection `id` to `interface` from every module's `importOverrides`. */
+export interface RemoveConnectionStep {
+  op: "RemoveConnection";
+  interface: string;
+  id: string;
+}
+
 export type ProjectConfigStep =
   | AddModuleStep
   | ConfigureModuleStep
-  | CreateLocalModuleStep;
+  | CreateLocalModuleStep
+  | AdoptLocalModuleStep
+  | RemoveModuleStep
+  | RemoveConnectionStep;
 
 /** Options for a project-config operation. */
 export interface ProjectConfigOpts {

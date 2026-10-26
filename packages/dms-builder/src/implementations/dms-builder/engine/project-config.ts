@@ -1,11 +1,8 @@
 import fs from "node:fs";
 import type {
-  AddModuleStep,
-  ConfigureModuleStep,
   CreateLocalModuleStep,
   ImportOverrideInput,
   ModuleEntryInput,
-  ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
 import {
   type ArrayLiteralExpression,
@@ -20,9 +17,9 @@ import { indentationText, resolveProjectRoot } from "./project";
 import { keyText, literalText } from "./project-config-text";
 import { type Scaffold, scaffoldLocalModule } from "./project-scaffold";
 
-const ENV_OVERRIDES = "envOverrides";
-const MODULES = "modules";
-const IMPORT_OVERRIDES = "importOverrides";
+export const ENV_OVERRIDES = "envOverrides";
+export const MODULES = "modules";
+export const IMPORT_OVERRIDES = "importOverrides";
 
 /**
  * The configuration being edited, in memory until every step has been accepted. Edits are text
@@ -35,16 +32,25 @@ export interface ConfigDraft {
   unit: string;
   scaffolds: Scaffold[];
   variables: string[];
+  /** Files other than the configuration a step rewrites, with their content before. */
+  edits: FileEdit[];
+}
+
+/** A file a step rewrites whole. */
+export interface FileEdit {
+  path: string;
+  before: string;
+  content: string;
 }
 
 /** A step the configuration cannot take, with the reason the caller is told. */
 export class StepRefusal extends Error {}
 
-function refuse(message: string): never {
+export function refuse(message: string): never {
   throw new StepRefusal(message);
 }
 
-function propertyNamed(
+export function propertyNamed(
   owner: ObjectLiteralExpression,
   name: string,
 ): PropertyAssignment | undefined {
@@ -72,7 +78,7 @@ function rootObject(draft: ConfigDraft): ObjectLiteralExpression {
 }
 
 /** The object literal at `path` from the configuration's root, or nothing when a key is absent. */
-function objectAt(
+export function objectAt(
   draft: ConfigDraft,
   path: string[],
 ): ObjectLiteralExpression | undefined {
@@ -119,6 +125,7 @@ export function openDraft(configPath: string): ConfigDraft {
     unit: configIndent(before) ?? indentationText(resolveProjectRoot()),
     scaffolds: [],
     variables: [],
+    edits: [],
   };
   if (!configObject(file)) {
     refuse("the configuration is not an exported defineConfig({ … }) literal");
@@ -135,7 +142,7 @@ function lineIndent(draft: ConfigDraft, node: Node): string {
   return /^[\t ]*/.exec(text.slice(lineStart))?.[0] ?? "";
 }
 
-function replace(
+export function replace(
   draft: ConfigDraft,
   start: number,
   end: number,
@@ -203,7 +210,7 @@ function addProperty(
 }
 
 /** Sets `key` on the object at `path`, replacing its value when present. */
-function setProperty(
+export function setProperty(
   draft: ConfigDraft,
   path: string[],
   key: string,
@@ -228,7 +235,7 @@ function ensureObject(draft: ConfigDraft, path: string[]): void {
   }
 }
 
-function stringOf(node: Node | undefined): string | undefined {
+export function stringOf(node: Node | undefined): string | undefined {
   return Node.isStringLiteral(node) ||
     Node.isNoSubstitutionTemplateLiteral(node)
     ? node.getLiteralValue()
@@ -338,7 +345,9 @@ function mergedOverrides(
 }
 
 /** The pins-only spelling when nothing needs more, the array spelling otherwise. */
-function overridesValue(entries: ImportOverrideInput[]): unknown {
+export function overridesValue(
+  entries: ImportOverrideInput[],
+): Record<string, string | undefined> | ImportOverrideInput[] {
   if (
     entries.every(
       (entry) => entry.id === undefined && entry.source !== undefined,
@@ -373,7 +382,7 @@ function mergeOverrides(
   setProperty(draft, [MODULES, id], IMPORT_OVERRIDES, overridesValue(merged));
 }
 
-function writeEntry(
+export function writeEntry(
   draft: ConfigDraft,
   id: string,
   entry: ModuleEntryInput,
@@ -390,7 +399,7 @@ function writeEntry(
   bindVariables(draft, id, entry.env);
 }
 
-function addModule(
+export function addModule(
   draft: ConfigDraft,
   id: string,
   entry: ModuleEntryInput,
@@ -408,37 +417,11 @@ function addModule(
   writeEntry(draft, id, entry);
 }
 
-function createLocalModule(
+export function createLocalModule(
   draft: ConfigDraft,
   step: CreateLocalModuleStep,
 ): void {
   const scaffold = scaffoldLocalModule(step.id, step.path);
   draft.scaffolds.push(scaffold);
   addModule(draft, step.id, { ...step.entry, source: scaffold.source });
-}
-
-type StepHandlers = {
-  [Op in ProjectConfigStep["op"]]: (
-    draft: ConfigDraft,
-    step: Extract<ProjectConfigStep, { op: Op }>,
-  ) => void;
-};
-
-const STEPS: StepHandlers = {
-  AddModule: (draft, step: AddModuleStep) =>
-    addModule(draft, step.id, step.entry),
-  ConfigureModule: (draft, step: ConfigureModuleStep) =>
-    writeEntry(draft, step.id, step.entry),
-  CreateLocalModule: createLocalModule,
-};
-
-type AnyStepHandler = (draft: ConfigDraft, step: ProjectConfigStep) => void;
-
-/** Applies one step to the draft, or throws a {@link StepRefusal} saying why it cannot. */
-export function applyStep(draft: ConfigDraft, step: ProjectConfigStep): void {
-  const handler = STEPS[step.op] as AnyStepHandler | undefined;
-  if (!handler) {
-    refuse(`unknown step "${String(step.op)}"`);
-  }
-  handler(draft, step);
 }

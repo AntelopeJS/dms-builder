@@ -34,6 +34,10 @@ export const ROUTES = {
   databaseMapping: "/database/mapping",
   databaseProject: "/database/project",
   databaseSample: "/database/sample",
+  databaseConnection: "/database/connection",
+  databaseConnectionRemove: "/database/connection/remove",
+  databaseConnectionUrl: "/database/connection/url",
+  databaseAdoptable: "/database/adoptable",
 } as const;
 
 /**
