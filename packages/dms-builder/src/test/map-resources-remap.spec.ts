@@ -18,6 +18,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { builderRecord, setBuilderRecord } from "./helpers/module-manifest";
 import {
   DESCRIPTIONS,
   FAKE_CATALOG,
@@ -280,13 +281,7 @@ describe("mapping again a database already mapped", function () {
   });
 
   it("records relations decided against, and forgets one once it is mapped", async () => {
-    const manifest = () =>
-      JSON.parse(
-        fs.readFileSync(
-          path.join(app.root, "modules", MODULE, "package.json"),
-          "utf8",
-        ),
-      ).dmsBuilder;
+    const manifest = () => builderRecord(app.root, MODULE);
     const excluded = await MapResources({
       module: MODULE,
       connection: "erp",
@@ -297,7 +292,7 @@ describe("mapping again a database already mapped", function () {
       ],
     });
     expectOk(excluded, "MapResources exclusions");
-    expect(manifest().excluded).to.deep.equal({
+    expect(manifest().database?.excludedTables).to.deep.equal({
       "sales.audit": "a log",
       "sales.products": "not needed",
     });
@@ -316,8 +311,29 @@ describe("mapping again a database already mapped", function () {
     });
     expectOk(mapped, "MapResources of an excluded relation");
     expect(manifest()).to.deep.equal({
+      database: {
+        connection: "erp",
+        excludedTables: { "sales.audit": "a log" },
+      },
+    });
+  });
+
+  it("reads the record dms-builder 0.6 wrote, and saves it under the new names", async () => {
+    setBuilderRecord(app.root, MODULE, {
       mapped: "erp",
       excluded: { "sales.audit": "a log" },
+    });
+    const saved = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [],
+    });
+    expectOk(saved, "MapResources over a 0.6 record");
+    expect(builderRecord(app.root, MODULE)).to.deep.equal({
+      database: {
+        connection: "erp",
+        excludedTables: { "sales.audit": "a log" },
+      },
     });
   });
 
