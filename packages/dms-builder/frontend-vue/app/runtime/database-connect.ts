@@ -3,7 +3,13 @@
  * turns into. The integrator names the connection and gives its connection details;
  * the modules and the variable the builder manages are named after it.
  */
-import type { ModuleEntryInput, ProjectConfigStep, ProjectModules } from './database-types'
+import type {
+	AdoptableModule,
+	ConnectionDetails,
+	ModuleEntryInput,
+	ProjectConfigStep,
+	ProjectModules,
+} from './database-types'
 
 const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
 const DATABASE_INTERFACE = '@antelopejs/interface-database'
@@ -68,6 +74,8 @@ export interface ConnectForm {
 	fields: ConnectionFields
 	/** The managed names the integrator changed; the others follow the name. */
 	overrides: Partial<ManagedNames>
+	/** A module folder kept from a removed connection, used for the tables instead of a new one. */
+	adopt?: AdoptableModule
 }
 
 export function emptyFields(engine: DatabaseEngine): ConnectionFields {
@@ -182,6 +190,33 @@ function catalogConnection(id: string, driverModule: string): ModuleEntryInput {
 	}
 }
 
+function tablesStep(form: ConnectForm, id: string, names: ManagedNames): ProjectConfigStep {
+	const entry: ModuleEntryInput = {
+		importOverrides: [{ interface: DATABASE_INTERFACE, source: names.driverModule }],
+	}
+	if (form.adopt) {
+		return { op: 'AdoptLocalModule', id: names.tablesModule, path: form.adopt.path, entry, connection: id }
+	}
+	return {
+		op: 'CreateLocalModule',
+		id: names.tablesModule,
+		path: `${MODULES_DIRECTORY}/${names.tablesModule}`,
+		entry,
+	}
+}
+
+/** The fields a connection's saved details fill, the password left empty. */
+export function detailsFields(engine: DatabaseEngine, details: ConnectionDetails): ConnectionFields {
+	const query = new URLSearchParams(details.options).toString()
+	const user = details.user ? `${encodeURIComponent(details.user)}@` : ''
+	const port = details.port ? `:${details.port}` : ''
+	const database = encodeURIComponent(details.database)
+	return parseConnectionUrl(
+		engine,
+		`${details.scheme}://${user}${details.host}${port}/${database}${query ? `?${query}` : ''}`,
+	)
+}
+
 /**
  * The `ConfigureProject` batch that wires the database into the project: its driver, the module
  * for its tables, a catalog connection for the builder and, when the project has it, dms-ai, and
@@ -201,14 +236,7 @@ export function connectSteps(form: ConnectForm, project: ProjectModules): Projec
 				exportPriority: { [DATABASE_INTERFACE]: DRIVER_EXPORT_PRIORITY },
 			},
 		},
-		{
-			op: 'CreateLocalModule',
-			id: names.tablesModule,
-			path: `${MODULES_DIRECTORY}/${names.tablesModule}`,
-			entry: {
-				importOverrides: [{ interface: DATABASE_INTERFACE, source: names.driverModule }],
-			},
-		},
+		tablesStep(form, id, names),
 		{ op: 'ConfigureModule', id: DMS_BUILDER, entry: catalogConnection(id, names.driverModule) },
 	]
 	if (project.modules.includes(DMS_AI)) {
@@ -223,4 +251,15 @@ export function connectSteps(form: ConnectForm, project: ProjectModules): Projec
 		})
 	}
 	return steps
+}
+
+interface Refusal {
+	detail?: string
+	issues?: { message: string }[]
+}
+
+/** What a refused configuration change says, in the module's own words. */
+export function refusalText(error: unknown): string {
+	const refusal = error as Refusal
+	return refusal.issues?.map((issue) => issue.message).join('; ') ?? refusal.detail ?? JSON.stringify(error)
 }

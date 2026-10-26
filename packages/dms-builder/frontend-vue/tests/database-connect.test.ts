@@ -4,6 +4,7 @@ import {
 	connectSteps,
 	connectionUrl,
 	defaultNames,
+	detailsFields,
 	emptyFields,
 	isConnectionUrl,
 	missingField,
@@ -87,6 +88,46 @@ describe('the wiring of a database', () => {
 		expect(missingField(form())).toBeUndefined()
 		expect(missingField(form({ name: ' - ' }))).toBe('a name')
 		expect(missingField(form({ fields: { ...form().fields, user: '' } }))).toBe('a user')
+	})
+})
+
+describe('a module kept from a removed connection', () => {
+	it('is added as it is, under its folder name, and told the new connection', () => {
+		const adopt = { path: 'modules/old-tables', name: 'old-tables', connection: 'legacy' }
+		const steps = connectSteps(form({ adopt, overrides: { tablesModule: 'old-tables' } }), { modules: [] })
+		expect(steps[1]).toEqual({
+			op: 'AdoptLocalModule',
+			id: 'old-tables',
+			path: 'modules/old-tables',
+			entry: { importOverrides: [{ interface: '@antelopejs/interface-database', source: 'builder-db-erp' }] },
+			connection: 'erp',
+		})
+	})
+})
+
+describe('the details of a connection made before', () => {
+	it('fill the fields, SSL from its mode, the password left empty', () => {
+		const fields = detailsFields('postgres', {
+			scheme: 'postgres',
+			host: 'db.example',
+			port: '5433',
+			database: 'erp main',
+			user: 'read@er',
+			hasPassword: true,
+			options: { sslmode: 'require', application_name: 'dms' },
+		})
+		expect(fields).toEqual({
+			host: 'db.example',
+			port: '5433',
+			database: 'erp main',
+			user: 'read@er',
+			password: '',
+			ssl: true,
+			options: { application_name: 'dms' },
+		})
+		expect(connectionUrl('postgres', fields)).toBe(
+			'postgres://read%40er@db.example:5433/erp%20main?application_name=dms&sslmode=require',
+		)
 	})
 })
 

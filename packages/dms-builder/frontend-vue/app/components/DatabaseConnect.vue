@@ -15,8 +15,9 @@ import {
 	managedNames,
 	missingField,
 	parseConnectionUrl,
+	refusalText,
 } from '../runtime/database-connect'
-import type { ProjectModules } from '../runtime/database-types'
+import type { AdoptableModule, ProjectModules } from '../runtime/database-types'
 import type { FileChange } from '../runtime/types'
 
 /**
@@ -31,6 +32,7 @@ const emit = defineEmits<{ cancel: []; connected: [connection: string] }>()
 const api = useBuilderApi()
 
 const ENGINE_ITEMS = Object.entries(ENGINES).map(([value, spec]) => ({ label: spec.label, value }))
+const NEW_MODULE = 'new'
 
 const form = reactive<ConnectForm>({
 	name: '',
@@ -45,6 +47,7 @@ const preview = ref<FileChange[] | null>(null)
 const busy = ref(false)
 const problem = ref('')
 const written = ref(false)
+const adoptable = ref<AdoptableModule[]>([])
 
 onMounted(async () => {
 	try {
@@ -52,7 +55,21 @@ onMounted(async () => {
 	} catch (error) {
 		problem.value = `The project's modules could not be read: ${error instanceof Error ? error.message : String(error)}`
 	}
+	adoptable.value = await api.adoptableModules().catch(() => [])
 })
+
+const tablesItems = computed(() => [
+	{ label: 'A new module', value: NEW_MODULE },
+	...adoptable.value.map((module) => ({
+		label: `${module.path}, kept from ${module.connection}`,
+		value: module.path,
+	})),
+])
+
+function setAdopt(path: string): void {
+	form.adopt = adoptable.value.find((module) => module.path === path)
+	setName('tablesModule', form.adopt?.name ?? defaults.value.tablesModule)
+}
 
 watch(form, () => {
 	preview.value = null
@@ -103,23 +120,13 @@ function pasteIntoHost(event: ClipboardEvent): void {
 	applyUrl(text)
 }
 
-interface Refusal {
-	detail?: string
-	issues?: { message: string }[]
-}
-
-function refusal(result: { ok: false; error: unknown }): string {
-	const error = result.error as Refusal
-	return error.issues?.map((issue) => issue.message).join('; ') ?? error.detail ?? JSON.stringify(error)
-}
-
 async function showDiff(): Promise<void> {
 	busy.value = true
 	problem.value = ''
 	const result = await api.configureProject(connectSteps(form, project.value), true)
 	busy.value = false
 	if (!result.ok) {
-		problem.value = refusal(result)
+		problem.value = refusalText(result.error)
 		preview.value = null
 		return
 	}
@@ -134,7 +141,7 @@ async function write(): Promise<void> {
 	form.fields.password = ''
 	busy.value = false
 	if (!result.ok) {
-		problem.value = refusal(result)
+		problem.value = refusalText(result.error)
 		return
 	}
 	written.value = true
@@ -167,6 +174,23 @@ async function write(): Promise<void> {
 					/>
 				</UFormField>
 			</div>
+
+			<UFormField
+				v-if="adoptable.length"
+				label="Module for its tables"
+				:help="
+					form.adopt
+						? `Uses ${form.adopt.path} again: the tables it mapped stay, and the analysis proposes only the others.`
+						: 'Creates a module for the tables. A module kept when a connection was removed can be used again instead.'
+				"
+			>
+				<USelect
+					:model-value="form.adopt?.path ?? NEW_MODULE"
+					:items="tablesItems"
+					class="w-full"
+					@update:model-value="setAdopt(String($event))"
+				/>
+			</UFormField>
 
 			<section class="flex flex-col gap-3 rounded-md border border-default p-3">
 				<p class="text-sm font-semibold text-highlighted">Connection</p>
@@ -244,6 +268,7 @@ async function write(): Promise<void> {
 						<UInput
 							:model-value="names.tablesModule"
 							class="w-full font-mono"
+							:disabled="!!form.adopt"
 							@update:model-value="setName('tablesModule', String($event))"
 						/>
 					</UFormField>

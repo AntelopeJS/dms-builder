@@ -1,6 +1,8 @@
 import { API_PREFIX, PAGE_LAYOUT_PATH } from './constants'
 import type {
+	AdoptableModule,
 	AnalysisState,
+	ConnectionInfo,
 	DatabaseConnection,
 	MappedRelation,
 	MapResourcesInput,
@@ -190,6 +192,17 @@ export function useBuilderApi() {
 		 */
 		configureProject: (steps: ProjectConfigStep[], dryRun: boolean, variable?: ProjectVariable) =>
 			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun }, variable }),
+		/** What the connection wired into the configuration, and its details without the password. */
+		databaseConnection: (connection: string) =>
+			get<ConnectionInfo>('/database/connection', { connection }),
+		/** Takes the connection out of the project; its modules' folders stay unless `deleteFolders`. */
+		removeConnection: (connection: string, opts: { deleteFolders: boolean; dryRun: boolean }) =>
+			post<ProjectConfigResult>('/database/connection/remove', { connection, ...opts }),
+		/** Writes the connection's new URL into `.env`; one with no password keeps the current one. */
+		setConnectionUrl: (connection: string, url: string) =>
+			post<{ variable: string }>('/database/connection/url', { connection, url }),
+		/** Module folders with mapped tables that no module of the configuration uses. */
+		adoptableModules: () => get<AdoptableModule[]>('/database/adoptable'),
 		/** A few rows for the integrator to look at, held in the panel and nowhere else. */
 		sampleRows: (connection: string, relation: string, limit: number) =>
 			$authFetch<RowSample>(`${API_PREFIX}/database/sample`, {

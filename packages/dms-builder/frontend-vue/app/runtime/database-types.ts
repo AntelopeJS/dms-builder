@@ -187,6 +187,7 @@ export type ProjectConfigStep =
 	| { op: 'AddModule'; id: string; entry: ModuleEntryInput }
 	| { op: 'ConfigureModule'; id: string; entry: ModuleEntryInput }
 	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput }
+	| { op: 'AdoptLocalModule'; id: string; path: string; entry?: ModuleEntryInput; connection?: string }
 
 /**
  * The `interface-database` pin the DMS module needs so the tables module's own pin to the new
@@ -211,4 +212,35 @@ export interface ProjectVariable {
 
 export interface ProjectConfigResult {
 	files: string[]
+}
+
+/** What a connection wired into the configuration, by module id. */
+export interface ConnectionWiring {
+	connection: string
+	driver: string
+	modules: { id: string; path?: string }[]
+	variable?: string
+}
+
+/** A connection's details as its URL holds them, the password left out. */
+export interface ConnectionDetails {
+	scheme: string
+	host: string
+	port: string
+	database: string
+	user: string
+	hasPassword: boolean
+	options: Record<string, string>
+}
+
+export interface ConnectionInfo {
+	wiring: ConnectionWiring
+	details?: ConnectionDetails
+}
+
+/** A module folder the builder mapped tables into, that no module of the configuration uses. */
+export interface AdoptableModule {
+	path: string
+	name: string
+	connection: string
 }
