@@ -77,9 +77,9 @@ function setFoldersAside(folders: FileChange[]): SetAside[] {
       moved.push({ folder, aside });
     }
   } catch (error) {
-    putFoldersBack(moved);
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new StepRefusal(`could not move a module folder aside: ${reason}`);
+    const reason = `could not move a module folder aside: ${error instanceof Error ? error.message : String(error)}`;
+    undoRemoval([], moved, reason);
+    throw new StepRefusal(reason);
   }
   return moved;
 }
@@ -109,8 +109,25 @@ function putFoldersBack(moved: SetAside[]): void {
   );
 }
 
-/** Puts `.env`, `.env.example` and the folders back as they were, each on its own. */
-function undoRemoval(env: EnvRemoval[], moved: SetAside[]): void {
+/**
+ * Puts `.env`, `.env.example` and the folders back as they were, each on its own. When one cannot
+ * be, the error says so after `cause`, why the removal stopped, so neither hides the other.
+ */
+function undoRemoval(
+  env: EnvRemoval[],
+  moved: SetAside[],
+  cause: string,
+): void {
+  try {
+    putEverythingBack(env, moved);
+  } catch (error) {
+    throw new Error(
+      `${cause}; putting the project back failed too: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function putEverythingBack(env: EnvRemoval[], moved: SetAside[]): void {
   eachOf([
     ...env.map(
       (removal) => () => writeEnvFiles([removal], (entry) => entry.before),
@@ -204,11 +221,15 @@ function removeWritten(
     writeEnvFiles(env, (removal) => removal.after);
     configured = configureProject(steps);
   } catch (error) {
-    undoRemoval(env, moved);
+    undoRemoval(
+      env,
+      moved,
+      error instanceof Error ? error.message : String(error),
+    );
     throw error;
   }
   if (!configured.ok) {
-    undoRemoval(env, moved);
+    undoRemoval(env, moved, JSON.stringify(configured.error));
     return configured;
   }
   deleteSetAside(moved);

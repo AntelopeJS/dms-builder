@@ -19,13 +19,12 @@ import {
   moduleEntries,
   objectAt,
   openDraft,
-  mayNameSource,
   readableOverrides,
   propertyNamed,
   StepRefusal,
   stringOf,
-  writtenModules,
 } from "./project-config";
+import { mayNameSource, writtenModules } from "./project-config-readers";
 import { configureProject } from "./project-config-ops";
 import {
   EnvRefusal,
@@ -161,7 +160,7 @@ function ownsDriver(
   const { connection, driver, removed } = wiring;
   const modules = writtenModules(draft);
   const shared = modules
-    .filter(([id]) => !removed.has(id))
+    .filter(([id]) => !removed.has(id) && id !== driver)
     .some(([, entry]) =>
       mayNameSource(
         entry,
@@ -332,9 +331,9 @@ function savedPassword(url: URL): string | undefined {
   return url.searchParams.get(PASSWORD_PARAMETER) || url.password || undefined;
 }
 
-/** The user a URL logs in as: in its user part, or as the `user` parameter the driver reads. */
+/** The user a URL logs in as: the `user` parameter, which the driver reads first, or its user part. */
 function userOf(url: URL): string {
-  return decoded(url.username) || (url.searchParams.get(USER_PARAMETER) ?? "");
+  return url.searchParams.get(USER_PARAMETER) || decoded(url.username);
 }
 
 /** Whether both URLs reach the same server as the same user, however each spells them. */
@@ -384,6 +383,7 @@ export function setConnectionUrl(
   }
   if (
     savedPassword(next) === undefined &&
+    userOf(next) !== "" &&
     savedPassword(read.url) !== undefined
   ) {
     if (!sameServer(read.url, next)) {

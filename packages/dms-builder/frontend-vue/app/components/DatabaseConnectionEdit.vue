@@ -27,7 +27,12 @@ const keepsPassword = computed(
 )
 const invalid = computed(() => (fields.value ? fieldProblem(fields.value) : undefined))
 const needsPassword = computed(
-	() => !!fields.value && !!props.info.details?.hasPassword && !keepsPassword.value && !fields.value.password,
+	() =>
+		!!fields.value &&
+		!!fields.value.user.trim() &&
+		!!props.info.details?.hasPassword &&
+		!keepsPassword.value &&
+		!fields.value.password,
 )
 
 async function save(): Promise<void> {

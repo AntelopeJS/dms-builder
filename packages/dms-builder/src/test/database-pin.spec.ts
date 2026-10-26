@@ -107,14 +107,33 @@ describe("the DMS module's database pin", () => {
 
   it("refuses when the DMS's overrides cannot be read, instead of guessing it pins none", () => {
     writeConfig(config(`${DMS_SOURCE}, importOverrides: [authPin]`));
-    expect(() => dmsDatabasePin(PROJECT)).to.throw(
-      /not a plain object literal/,
-    );
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(/not written with literals/);
   });
 
   it("refuses when the DMS's overrides are a constant, instead of writing over them", () => {
     writeConfig(config(`${DMS_SOURCE}, importOverrides: DMS_OVERRIDES`));
-    expect(() => dmsDatabasePin(PROJECT)).to.throw(/not written as a literal/);
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(/not written with literals/);
+  });
+
+  it("refuses when a constant sits inside the DMS's overrides, instead of dropping it", () => {
+    writeConfig(
+      config(
+        `${DMS_SOURCE}, importOverrides: [{ interface: "@antelopejs/interface-x", source: X_SOURCE }]`,
+      ),
+    );
+    expect(() => dmsDatabasePin(PROJECT)).to.throw(/not written with literals/);
+  });
+
+  it("needs no pin, and refuses nothing, when the DMS provides the database itself", () => {
+    writeConfig(config(`...DMS_DEFAULTS, ${DMS_SOURCE}`));
+    expect(
+      dmsDatabasePin(
+        connections({
+          [DMS_INTERFACE]: ["dms"],
+          [DATABASE_INTERFACE]: ["dms"],
+        }),
+      ),
+    ).to.equal(undefined);
   });
 
   it("refuses to rank a provider whose entry is spread from elsewhere", () => {

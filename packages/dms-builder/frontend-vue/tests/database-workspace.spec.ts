@@ -404,6 +404,15 @@ describe('a relation the module maps already', () => {
 		expect(findAll(mounted.root, (node) => node.tag === 'UBadge' && textOf(node).trim() === 'unsaved')).toHaveLength(0)
 	})
 
+	it('says a change elsewhere is not saved, and nothing else, on an unchanged table', async () => {
+		const root = await mappedPanel()
+		await makeEditable(root, 'erp.customers')
+		fire(button(root, 'erp.orders'), 'click')
+		await settle()
+		expect(textOf(root)).toContain('Not saved yet: Customers.')
+		expect(textOf(root)).not.toContain('No changes to apply.')
+	})
+
 	it('discards a change not applied yet', async () => {
 		const root = await mappedPanel()
 		await makeEditable(root, 'erp.customers')

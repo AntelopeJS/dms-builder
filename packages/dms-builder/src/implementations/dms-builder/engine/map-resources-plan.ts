@@ -260,7 +260,9 @@ function referenceTarget(
     (reference) =>
       reference.from.columns.length === 1 &&
       reference.from.columns[0] === field.column &&
-      reference.to.relation === field.relation,
+      reference.to.relation === field.relation &&
+      reference.to.columns.length === 1 &&
+      reference.to.columns[0] === key.name,
   );
   if (!declared && nativeKind(key.native) !== nativeKind(native)) {
     refuse(

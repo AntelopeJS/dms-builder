@@ -159,7 +159,12 @@ async function loadMapped(sent: Record<string, string> = {}): Promise<void> {
 	mappedRead.value = Object.fromEntries(
 		result.data.map((entry) => [entry.resource.relation, draftFromMapped(entry)]),
 	)
-	mappedDrafts.value = keptMappedDrafts(mappedRead.value, kept)
+	const editedWhileSent = Object.fromEntries(
+		Object.entries(kept)
+			.filter(([relation]) => relation in sent && relation in mappedRead.value)
+			.map(([relation, change]) => [relation, keptDraft(change.draft, mappedRead.value[relation])]),
+	)
+	mappedDrafts.value = keptMappedDrafts(mappedRead.value, { ...kept, ...editedWhileSent })
 }
 
 async function poll(id: string): Promise<void> {
@@ -479,6 +484,7 @@ async function remap(): Promise<void> {
 						<span v-else-if="unsaved.length" class="text-xs text-warning">
 							Not saved yet: {{ unsaved.map((relation) => mappedDrafts[relation]?.title).join(', ') }}.
 						</span>
+						<span v-else class="text-xs text-muted">No changes to apply.</span>
 						<UButton
 							v-if="selected && unsaved.includes(selected.relation) && !busy"
 							label="Discard changes"
@@ -487,7 +493,6 @@ async function remap(): Promise<void> {
 							variant="ghost"
 							@click="discard(selected.relation)"
 						/>
-						<span v-else class="text-xs text-muted">No changes to apply.</span>
 					</div>
 				</template>
 				<p v-else class="text-xs text-muted">Pick a table to see its columns, or apply the suggestion as it stands.</p>

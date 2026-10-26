@@ -306,7 +306,7 @@ export function existingOverrides(
     : [];
 }
 
-function overrideOf(element: Node): ImportOverrideInput {
+export function overrideOf(element: Node): ImportOverrideInput {
   const entry = plainObject(element, IMPORT_OVERRIDES);
   return {
     interface:
@@ -482,86 +482,4 @@ export function readableOverrides(
         !element.getProperties().some(Node.isSpreadAssignment),
     )
     .map(overrideOf);
-}
-
-/** Whether an object literal may hold `key` where the builder cannot read it: in a spread, or as a shorthand. */
-export function hides(owner: ObjectLiteralExpression, key: string): boolean {
-  return owner
-    .getProperties()
-    .some(
-      (property) =>
-        Node.isSpreadAssignment(property) ||
-        (Node.isShorthandPropertyAssignment(property) &&
-          property.getName() === key),
-    );
-}
-
-/** Every module of the configuration, by id, with its entry as written, whatever its form. */
-export function writtenModules(
-  draft: ConfigDraft,
-): [string, Node | undefined][] {
-  return (objectAt(draft, [MODULES])?.getProperties() ?? [])
-    .filter(Node.isPropertyAssignment)
-    .map((property) => [
-      propertyKey(property.getNameNode()),
-      property.getInitializer(),
-    ]);
-}
-
-function overridesMayName(
-  overrides: Node,
-  source: string,
-  ignored: (override: ImportOverrideInput) => boolean,
-): boolean {
-  if (Node.isObjectLiteralExpression(overrides)) {
-    return overrides.getProperties().some((property) => {
-      if (!Node.isPropertyAssignment(property)) {
-        return true;
-      }
-      const named = stringOf(property.getInitializer());
-      return named === undefined || named === source;
-    });
-  }
-  if (!Node.isArrayLiteralExpression(overrides)) {
-    return true;
-  }
-  return overrides.getElements().some((element) => {
-    if (
-      !Node.isObjectLiteralExpression(element) ||
-      !element.getProperties().every(Node.isPropertyAssignment)
-    ) {
-      return true;
-    }
-    const override = overrideOf(element);
-    const written = propertyNamed(element, "source") !== undefined;
-    if (written && override.source === undefined) {
-      return true;
-    }
-    return override.source === source && !ignored(override);
-  });
-}
-
-/**
- * Whether a module entry names `source` in its `importOverrides`, or may: an entry or an override
- * written other than as a plain literal counts, since the builder cannot tell what it names. A
- * module written as a version names none. `ignored` leaves out overrides that do not count.
- */
-export function mayNameSource(
-  entry: Node | undefined,
-  source: string,
-  ignored: (override: ImportOverrideInput) => boolean = () => false,
-): boolean {
-  if (entry === undefined || stringOf(entry) !== undefined) {
-    return false;
-  }
-  if (
-    !Node.isObjectLiteralExpression(entry) ||
-    hides(entry, IMPORT_OVERRIDES)
-  ) {
-    return true;
-  }
-  const overrides = propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer();
-  return (
-    overrides !== undefined && overridesMayName(overrides, source, ignored)
-  );
 }

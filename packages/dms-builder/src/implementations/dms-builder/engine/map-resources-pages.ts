@@ -29,6 +29,12 @@ function errorText(error: BuilderError): string {
       return error.detail;
     case "not_found":
       return `${error.ref} was not found`;
+    case "duplicate_name":
+      return `the name ${error.name} is taken in its ${error.scope}`;
+    case "stale":
+      return `${error.ref} changed on disk since it was read`;
+    case "referential_integrity":
+      return `still used by ${error.blockedBy.join(", ")}`;
     default:
       return error.code.replace(/_/g, " ");
   }

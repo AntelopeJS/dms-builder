@@ -229,6 +229,17 @@ describe("a database connection after it was made", function () {
     expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
   });
 
+  it("lets the user be cleared, and then keeps no password", () => {
+    expectOk(
+      setConnectionUrl("erp", "postgres://db.example:5432/erp"),
+      "setConnectionUrl",
+    );
+    expect(projectVariable("BUILDER_DB_ERP_URL")).to.equal(
+      "postgres://db.example:5432/erp",
+    );
+    expectOk(setConnectionUrl("erp", URL), "setConnectionUrl");
+  });
+
   it("answers the database name the driver reads, decoded as it decodes it", () => {
     expectOk(
       setConnectionUrl(
@@ -341,6 +352,17 @@ describe("a database connection after it was made", function () {
     );
   });
 
+  it("keeps a driver a module written as a shorthand may read through", async () => {
+    await withFileEdited(
+      app.root,
+      "antelope.config.ts",
+      (config) => config.replace(/modules: \{/, "modules: {\n    reports,"),
+      () => {
+        expect(connectionWiring("erp")?.ownsDriver).to.equal(false);
+      },
+    );
+  });
+
   it("keeps a driver a module written with a spread may read through, and refuses to remove it", async () => {
     await withFileEdited(
       app.root,
@@ -399,7 +421,7 @@ describe("a database connection after it was made", function () {
       path.join(app.root, "antelope.config.ts"),
       config.replace(
         /(\{\s*interface: "@antelopejs\/interface-database-catalog")/,
-        '{ interface: "@antelopejs/interface-x", source: "provider-x" }, // kept\n$1',
+        '{ interface: "@antelopejs/interface-x", source: X_SOURCE }, // kept\n$1',
       ),
     );
     expect(projectFile(app.root, "antelope.config.ts")).to.include("// kept");
@@ -413,7 +435,7 @@ describe("a database connection after it was made", function () {
     expect(moduleFolderExists(app.root, "erp-tables")).to.equal(false);
     const after = projectFile(app.root, "antelope.config.ts");
     expect(after).to.include("// kept");
-    expect(after).to.include(`source: "provider-x" }, // kept`);
+    expect(after).to.include("source: X_SOURCE }, // kept");
     expect(after).to.not.include("builder-db-erp");
     expect(projectFile(app.root, ".env.example")).to.equal("OTHER=1\n");
   });

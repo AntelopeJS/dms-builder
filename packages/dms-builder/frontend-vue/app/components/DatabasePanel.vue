@@ -49,8 +49,12 @@ async function load(): Promise<void> {
 	}
 }
 
-/** A connection written to the configuration: listed as pending from then on, however the form closes. */
+/**
+ * A connection written to the configuration: listed as pending from then on, however the form
+ * closes. The form stays open on its notice until Done, even the one shown for a first connection.
+ */
 function wrote(id: string): void {
+	connecting.value = true
 	pending.value = [...pending.value.filter((entry) => entry !== id), id]
 	removed.value = removed.value.filter((entry) => entry !== id)
 }
