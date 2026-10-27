@@ -61,7 +61,7 @@ export interface ProposedExclusion {
 	rule: string
 }
 
-export type OpenItemKind = 'schemas' | 'purpose' | 'label' | 'reference'
+export type OpenItemKind = 'schemas' | 'purpose' | 'label' | 'reference' | 'field-type'
 
 export interface OpenItemOption {
 	value: unknown
@@ -77,6 +77,7 @@ export interface OpenItem {
 	options: OpenItemOption[]
 	proposed: unknown
 	resource?: ProposedResource
+	open?: OpenItem[]
 }
 
 export interface MappingProposal {
@@ -180,6 +181,7 @@ export interface ModuleEntryInput {
 	env?: Record<string, string>
 	importOverrides?: { interface: string; source: string; id?: string }[]
 	exportPriority?: Record<string, number>
+	disabledExports?: string[]
 }
 
 export type ProjectConfigStep =

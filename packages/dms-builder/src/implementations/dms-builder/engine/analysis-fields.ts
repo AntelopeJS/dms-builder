@@ -1,3 +1,4 @@
+import { MixedTypeDeclarations } from "./mixed-types";
 import type {
   ColumnDescription,
   ColumnProfile,
@@ -25,6 +26,7 @@ const LISTABLE_TEXT_LENGTH = 80;
 const OPEN_CONTAINMENT = 0.95;
 const FULL_CONTAINMENT = 1;
 const PERCENT = 100;
+const ID_COLUMN = "_id";
 
 const LISTED_TYPES: readonly string[] = ["boolean", "date", "number"];
 const FILTERED_TYPES: readonly string[] = ["boolean", "date"];
@@ -99,6 +101,29 @@ function containmentOf(reference: ImpliedReference): number {
   return reference.match.status === "ok"
     ? reference.match.value.containment
     : 0;
+}
+
+/** Asks which declaration reads a column of several native types; unanswered, it stays left out. */
+function fieldTypeItem(
+  facts: RelationFacts,
+  column: ColumnDescription,
+  declarations: string[],
+): OpenItem {
+  return {
+    id: `field-type:${facts.relation}.${column.name}`,
+    kind: "field-type",
+    relation: facts.relation,
+    column: column.name,
+    question: `${facts.relation}.${column.name} holds ${column.native}, and no type covers enough of it to choose: which declaration reads it?`,
+    options: [
+      ...declarations.map((declared) => ({
+        value: declared,
+        title: `Declare it ${declared}`,
+      })),
+      { value: null, title: "Leave it out" },
+    ],
+    proposed: null,
+  };
 }
 
 function referenceItem(
@@ -266,6 +291,20 @@ function proposedField(
   return field;
 }
 
+/**
+ * A column no field-type question is asked about: the `_id` of a relation without a key, which is
+ * never declared, and a column named like a secret, which F2 leaves out whatever its values.
+ */
+function isNeverAsked(
+  facts: RelationFacts,
+  column: ColumnDescription,
+): boolean {
+  return (
+    (column.name === ID_COLUMN && facts.description.key === null) ||
+    isSecretColumn(column.name)
+  );
+}
+
 /** Every column of a relation, proposed as a field or left out with its rule (F1 to F5). */
 export function proposeFields(
   facts: RelationFacts,
@@ -276,6 +315,12 @@ export function proposeFields(
     const leftOut = leftOutReason(column);
     if (leftOut) {
       proposed.leftOut.push(leftOut);
+      const declarations = isNeverAsked(facts, column)
+        ? []
+        : MixedTypeDeclarations(column);
+      if (declarations.length > 0) {
+        proposed.open.push(fieldTypeItem(facts, column, declarations));
+      }
       continue;
     }
     const choice = relationChoice(facts, column.name, context);

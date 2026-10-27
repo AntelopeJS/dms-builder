@@ -173,7 +173,10 @@ function proposedResource(
   };
 }
 
-/** A purpose question carries the relation as it would be mapped, should the answer be to map it. */
+/**
+ * A purpose question carries the relation as it would be mapped, and the questions that mapping
+ * leaves open, should the answer be to map it.
+ */
 function withResource(
   input: AnalysisInput,
   facts: RelationFacts,
@@ -191,10 +194,10 @@ function withResource(
     },
     open: [],
   };
-  return {
-    ...item,
-    resource: proposedResource(input, facts, verdict, targets).resource,
-  };
+  const proposed = proposedResource(input, facts, verdict, targets);
+  return proposed.open.length > 0
+    ? { ...item, resource: proposed.resource, open: proposed.open }
+    : { ...item, resource: proposed.resource };
 }
 
 function unmappedExclusions(summaries: RelationSummary[]): ProposedExclusion[] {

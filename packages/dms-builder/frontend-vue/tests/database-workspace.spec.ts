@@ -222,4 +222,35 @@ describe('connecting a database', () => {
 		await nextTick()
 		expect(button(mounted.root, 'Write them').props.disabled).toBe(true)
 	})
+
+	it('writes a MongoDB database name into .env beside its URL, both by the variables named', async () => {
+		backend.answers['POST /api/builder/database/project'] = { ok: true, data: { files: [] }, changes: [] }
+		backend.answers['PUT /api/builder/database/variable'] = { ok: true }
+		const mounted = mount(DatabaseConnect, { components: COMPONENTS })
+		unmount = mounted.unmount
+		await nextTick()
+		const select = findAll(mounted.root, (node) => node.tag === 'USelect')[0]
+		;(select.props['onUpdate:modelValue'] as (value: string) => void)('mongodb')
+		await nextTick()
+		const inputs = () => findAll(mounted.root, (node) => node.tag === 'UInput')
+		const typeInto = async (placeholder: string, value: string) => {
+			const input = inputs().find((node) => node.props.placeholder === placeholder)!
+			;(input.props['onUpdate:modelValue'] as (value: string) => void)(value)
+			await nextTick()
+		}
+		await typeInto('^1.6.0', '^1.6.0')
+		await typeInto('erp', 'erp_staging')
+		await typeInto('mongodb://reader:…@host:27017/?authSource=erp', 'mongodb://reader:pw@db:27017/?authSource=erp')
+		fire(button(mounted.root, 'Show the changes'), 'click')
+		await settle()
+		fire(button(mounted.root, 'Write them'), 'click')
+		await settle()
+		const written = backend.calls
+			.filter((call) => call.method === 'PUT' && call.path === '/api/builder/database/variable')
+			.map((call) => [call.body?.name, call.body?.value])
+		expect(written).toEqual([
+			['ERP_DATABASE_URL', 'mongodb://reader:pw@db:27017/?authSource=erp'],
+			['ERP_DATABASE_NAME', 'erp_staging'],
+		])
+	})
 })

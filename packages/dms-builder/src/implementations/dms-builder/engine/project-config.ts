@@ -23,6 +23,7 @@ import { type Scaffold, scaffoldLocalModule } from "./project-scaffold";
 const ENV_OVERRIDES = "envOverrides";
 const MODULES = "modules";
 const IMPORT_OVERRIDES = "importOverrides";
+const DISABLED_EXPORTS = "disabledExports";
 
 /**
  * The configuration being edited, in memory until every step has been accepted. Edits are text
@@ -373,6 +374,37 @@ function mergeOverrides(
   setProperty(draft, [MODULES, id], IMPORT_OVERRIDES, overridesValue(merged));
 }
 
+function existingStrings(initializer: Node, id: string): string[] {
+  const elements = Node.isArrayLiteralExpression(initializer)
+    ? initializer.getElements().map(stringOf)
+    : [undefined];
+  return elements.map(
+    (element) =>
+      element ??
+      refuse(
+        `"${DISABLED_EXPORTS}" of module "${id}" is not a list of plain strings: edit it by hand`,
+      ),
+  );
+}
+
+function mergeDisabledExports(
+  draft: ConfigDraft,
+  id: string,
+  added: string[],
+): void {
+  if (added.length === 0) {
+    return;
+  }
+  const entry =
+    objectAt(draft, [MODULES, id]) ??
+    refuse(`the project has no module "${id}"`);
+  const current = propertyNamed(entry, DISABLED_EXPORTS)?.getInitializer();
+  const existing = current ? existingStrings(current, id) : [];
+  setProperty(draft, [MODULES, id], DISABLED_EXPORTS, [
+    ...new Set([...existing, ...added]),
+  ]);
+}
+
 function writeEntry(
   draft: ConfigDraft,
   id: string,
@@ -387,6 +419,7 @@ function writeEntry(
   mergeValues(draft, [MODULES, id, "config"], entry.config);
   mergeOverrides(draft, id, entry.importOverrides ?? []);
   mergeValues(draft, [MODULES, id, "exportPriority"], entry.exportPriority);
+  mergeDisabledExports(draft, id, entry.disabledExports ?? []);
   bindVariables(draft, id, entry.env);
 }
 

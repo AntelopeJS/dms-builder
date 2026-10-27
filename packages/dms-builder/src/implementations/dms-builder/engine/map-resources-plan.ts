@@ -15,8 +15,10 @@ import type {
 import { pascalCase } from "./emit";
 import type { ResourceNames } from "./resource-emit";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
+import { MixedTypeDeclarations } from "./mixed-types";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+const ID_COLUMN = "_id";
 const READ_ROUTES: ResourceRoute[] = ["list", "get", "select", "export"];
 
 /** The DataType a TableView column shows for each declaration; others stay off the TableView. */
@@ -139,7 +141,9 @@ function declaredFor(
   column: ColumnDescription,
   wanted: string | undefined,
 ): string {
-  const accepted = column.accepts.map((entry) => entry.declared);
+  const accepted = column.accepts.length
+    ? column.accepts.map((entry) => entry.declared)
+    : MixedTypeDeclarations(column);
   if (accepted.length === 0) {
     refuse(
       `column ${description.schema}.${description.name}.${column.name} is ${column.native}, which no field type reads`,
@@ -187,17 +191,22 @@ interface ChosenField {
 
 /**
  * The fields to declare: the ones chosen, then each key column left out. Such a key is on the
- * controller only when a writable TableView has to set it.
+ * controller only when a writable TableView has to set it. A column named `_id`, the key of a
+ * document source, is the alias every keyed table declares already, so it is never declared again;
+ * nor is a key column no field type reads, such as a RethinkDB compound key, which `_id` serves.
  */
 function chosenFields(
   resource: MappedResource,
   description: RelationDescription,
 ): ChosenField[] {
-  const chosen = resource.fields.map((field) => ({
-    field,
-    onController: true,
-  }));
-  for (const column of description.key?.columns ?? []) {
+  const chosen = resource.fields
+    .filter((field) => field.column !== ID_COLUMN)
+    .map((field) => ({ field, onController: true }));
+  const keyColumns = (description.key?.columns ?? []).filter(
+    (name) =>
+      name !== ID_COLUMN && columnOf(description, name).accepts.length > 0,
+  );
+  for (const column of keyColumns) {
     if (!resource.fields.some((field) => field.column === column)) {
       const settable =
         resource.writable &&

@@ -80,7 +80,7 @@ onMounted(load)
 					</span>
 				</span>
 			</UButton>
-			<UFormField v-if="selected && !connecting" label="Module for its tables" size="xs">
+			<UFormField v-if="selected && !connecting" label="Module it maps into" size="xs">
 				<UInput v-model="module" size="xs" class="w-full font-mono" />
 			</UFormField>
 		</aside>

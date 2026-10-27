@@ -19,7 +19,6 @@ import type {
 
 const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
 const DATABASE_INTERFACE = '@antelopejs/interface-database'
-const POSTGRES_PACKAGE = '@antelopejs/postgres'
 const STATEMENT_TIMEOUT_MS = 30000
 const DRAFT_PREFIX = 'dms-builder:database:'
 /** How long a mapping draft nobody came back to is kept. */
@@ -124,6 +123,29 @@ const PURPOSE_ANSWERS: Record<string, (resource: ResourceDraft, draft: MappingDr
 	},
 }
 
+/**
+ * A column of several native types, declared as the answer says or left out: it was left out of
+ * the proposal, so a declaration adds it as a plain field nobody lists, filters or sorts yet.
+ */
+function answerFieldType(resource: ResourceDraft, item: OpenItem, value: unknown): void {
+	const column = item.column ?? ''
+	resource.fields = resource.fields.filter((field) => field.column !== column)
+	if (typeof value !== 'string') {
+		return
+	}
+	resource.fields.push({
+		column,
+		include: true,
+		declared: value,
+		label: column,
+		listable: false,
+		filterable: false,
+		sortable: false,
+		searchable: false,
+		relation: null,
+	})
+}
+
 /** Answers an open item in the draft: the relation, label or reference it asks about follows. */
 export function answerItem(draft: MappingDraft, item: OpenItem, value: unknown): void {
 	draft.answers[item.id] = value
@@ -135,6 +157,8 @@ export function answerItem(draft: MappingDraft, item: OpenItem, value: unknown):
 		PURPOSE_ANSWERS[String(value)]?.(resource, draft)
 	} else if (item.kind === 'label') {
 		resource.label = typeof value === 'string' ? value : null
+	} else if (item.kind === 'field-type') {
+		answerFieldType(resource, item, value)
 	} else if (item.kind === 'reference') {
 		const field = resource.fields.find((candidate) => candidate.column === item.column)
 		if (field) {
@@ -247,18 +271,78 @@ export function settledInput(
 	}
 }
 
-/** The open items the draft has not answered yet. */
+/**
+ * The open items the draft has not answered yet: a purpose item's own questions count once the
+ * answer maps its relation.
+ */
 export function unanswered(proposal: MappingProposal, draft: MappingDraft): OpenItem[] {
-	return proposal.open.filter((item) => !(item.id in draft.answers))
+	const asked = proposal.open.flatMap((item) =>
+		item.kind === 'purpose' && resourceIn(draft, item.relation)?.include ? [item, ...(item.open ?? [])] : [item],
+	)
+	return asked.filter((item) => !(item.id in draft.answers))
+}
+
+/** The engines an external database can be served by. */
+export type DatabaseEngine = 'postgres' | 'mongodb' | 'rethinkdb'
+
+/** What wiring one engine's provider takes, beside the names the form asks for. */
+export interface EngineWiring {
+	title: string
+	package: string
+	providerModule: string
+	urlExample: string
+	/** A version range of the provider package that serves an external database. */
+	versionExample: string
+	/** The account to connect with, in the engine's own words. */
+	accountAdvice: string
+	/** The raw-client interface the provider implements, which core must never offer from it. */
+	rawInterface?: string
+	/** Whether the database is a config value of its own, rather than part of the URL. */
+	separateDatabase: boolean
+}
+
+export const ENGINES: Record<DatabaseEngine, EngineWiring> = {
+	postgres: {
+		title: 'PostgreSQL',
+		package: '@antelopejs/postgres',
+		providerModule: 'postgres-erp',
+		urlExample: 'postgres://reader:…@host:5432/erp',
+		versionExample: '^0.2.2',
+		accountAdvice: 'A role with SELECT on the schemas to map, and writes only where pages edit.',
+		separateDatabase: false,
+	},
+	mongodb: {
+		title: 'MongoDB',
+		package: '@antelopejs/mongodb',
+		providerModule: 'mongodb-erp',
+		urlExample: 'mongodb://reader:…@host:27017/?authSource=erp',
+		versionExample: '^1.6.0',
+		accountAdvice: 'A user with the built-in read role, and writes only on the collections pages edit.',
+		rawInterface: '@antelopejs/interface-mongodb',
+		separateDatabase: true,
+	},
+	rethinkdb: {
+		title: 'RethinkDB',
+		package: '@antelopejs/rethinkdb',
+		providerModule: 'rethinkdb-erp',
+		urlExample: 'rethinkdb://reader:…@host:28015/erp',
+		versionExample: '^1.6.0',
+		accountAdvice: 'A user with read permission on the database, and write only on the tables pages edit.',
+		rawInterface: '@antelopejs/interface-rethinkdb',
+		separateDatabase: false,
+	},
 }
 
 /** What the *Connect a database* form asks for. */
 export interface ConnectForm {
+	engine: DatabaseEngine
 	connection: string
 	providerModule: string
 	generatedModule: string
 	variable: string
-	postgresVersion: string
+	/** MongoDB only: the variable holding the database name. */
+	databaseVariable: string
+	version: string
 	/** Whether the DMS modules are pinned to their database already, so mongodb needs no priority. */
 	dmsPinned: boolean
 	/** Whether the project has dms-ai, which then gets its own connection. */
@@ -273,18 +357,26 @@ function catalogConnection(form: ConnectForm): ModuleEntryInput {
 	}
 }
 
+/** The provider's entry: its package, external mode, and its secrets by variable name only. */
+function providerEntry(form: ConnectForm): ModuleEntryInput {
+	const wiring = ENGINES[form.engine]
+	const entry: ModuleEntryInput = {
+		source: { type: 'package', package: wiring.package, version: form.version },
+		config: { mode: 'external', statementTimeoutMs: STATEMENT_TIMEOUT_MS },
+		env: wiring.separateDatabase
+			? { url: form.variable, database: form.databaseVariable }
+			: { url: form.variable },
+	}
+	if (wiring.rawInterface) {
+		entry.disabledExports = [wiring.rawInterface]
+	}
+	return entry
+}
+
 /** The `ConfigureProject` batch that wires the database into the project, as design §1 lists it. */
 export function connectSteps(form: ConnectForm): ProjectConfigStep[] {
 	const steps: ProjectConfigStep[] = [
-		{
-			op: 'AddModule',
-			id: form.providerModule,
-			entry: {
-				source: { type: 'package', package: POSTGRES_PACKAGE, version: form.postgresVersion },
-				config: { mode: 'external', statementTimeoutMs: STATEMENT_TIMEOUT_MS },
-				env: { url: form.variable },
-			},
-		},
+		{ op: 'AddModule', id: form.providerModule, entry: providerEntry(form) },
 		{
 			op: 'CreateLocalModule',
 			id: form.generatedModule,
@@ -421,7 +513,9 @@ function mergedResource(
  * A kept draft laid over a fresh proposal, field by field: the integrator's
  * choices where the relation and column still exist and the type is still
  * accepted, the proposal's for everything else, new columns included. Answers
- * and exclusions are kept only for what the proposal still asks or lists.
+ * and exclusions are kept only for what the proposal still asks or lists, a
+ * purpose item's own questions included; a field-type answer still declares its
+ * column.
  */
 export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | undefined): MappingDraft {
 	const fresh = draftFromProposal(proposal)
@@ -429,8 +523,9 @@ export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | unde
 		return fresh
 	}
 	const relations = new Set(fresh.resources.map((resource) => resource.relation))
-	const asked = new Set(proposal.open.map((item) => item.id))
-	return {
+	const items = proposal.open.flatMap((item) => [item, ...(item.open ?? [])])
+	const asked = new Set(items.map((item) => item.id))
+	const merged: MappingDraft = {
 		...fresh,
 		resources: fresh.resources.map((resource) =>
 			mergedResource(proposal, resource, resourceIn(kept, resource.relation)),
@@ -439,6 +534,24 @@ export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | unde
 		excluded: Object.fromEntries(
 			Object.entries(kept.excluded).filter(([relation]) => relations.has(relation)),
 		),
+	}
+	for (const item of items.filter((entry) => entry.kind === 'field-type' && entry.id in merged.answers)) {
+		replayFieldType(merged, kept, item)
+	}
+	return merged
+}
+
+/** A kept field-type answer laid over the merged draft, with the integrator's choices for that field. */
+function replayFieldType(merged: MappingDraft, kept: MappingDraft, item: OpenItem): void {
+	const resource = resourceIn(merged, item.relation)
+	if (!resource) {
+		return
+	}
+	answerFieldType(resource, item, merged.answers[item.id])
+	const keptField = resourceIn(kept, item.relation)?.fields.find((field) => field.column === item.column)
+	const index = resource.fields.findIndex((field) => field.column === item.column)
+	if (keptField && index >= 0) {
+		resource.fields[index] = { ...keptField, declared: resource.fields[index].declared }
 	}
 }
 
@@ -481,7 +594,7 @@ export const RULE_SENTENCES: Record<string, string> = {
 	R2: 'No key: it can feed stats pages, not a TableView.',
 	R3: 'It has no rows.',
 	R4: "A framework's or a migration tool's table.",
-	R5: 'Keyed by its two foreign keys: a link table, for stats only.',
+	R5: 'Keyed by its two references: a link table, for stats only.',
 	R6: 'Keyed, with rows and a column that names a row: a TableView.',
 	R7: 'Referenced by others but nothing names a row: a TableView labelled by its key.',
 	R8: 'Keyed, with a time axis and nothing that names a row: events or a log, for stats only.',
@@ -491,8 +604,8 @@ export const RULE_SENTENCES: Record<string, string> = {
 	F1: 'No field type reads this column.',
 	F2: 'Named like a secret.',
 	F3: 'The first declaration the column accepts.',
-	F4: 'A declared foreign key onto a TableView.',
-	F5: "Every value is found in the target's key, though no foreign key declares it.",
+	F4: 'A reference the database declares, onto a TableView.',
+	F5: "Every value is found in the target's key, though the database declares no reference.",
 	FL: 'From what the profile says the column is.',
 	W1: 'Read-only until you choose otherwise.',
 	mapped: 'What the module maps now.',
