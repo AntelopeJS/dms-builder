@@ -49,11 +49,6 @@ describe("a grouped query plan", () => {
       group: { field: "createdAt", bucket: "month" },
     });
 
-    // `group` takes a field name, not an expression, so the period becomes a
-    // field of its own first — and the measured field rides along, since the
-    // projection replaces the row.
-    // Two members and a bucket expression do not fit one line, so they break
-    // out the way the project's formatter would break them.
     expect(text).to.contain(
       '.map((row) => ({\n      bucket: row.key("createdAt").year().mul(100)' +
         '.add(row.key("createdAt").month()),\n      value: row.key("amount"),' +
@@ -102,7 +97,6 @@ describe("a grouped query plan", () => {
     expect(at("day"), "20260114").to.contain(
       '.mul(100).add(row.key("createdAt").day())',
     );
-    // A quarter is (month - 1) / 3 floored, plus one, since months are 1-based.
     expect(at("quarter"), "20261").to.contain(
       '.year().mul(10).add(row.key("createdAt").month().sub(1).div(3).floor().add(1))',
     );

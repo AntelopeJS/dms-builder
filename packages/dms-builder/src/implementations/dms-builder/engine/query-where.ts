@@ -1,9 +1,7 @@
-// The `where` clause: what every template accepts to narrow its rows, how it is
-// validated, and how it describes itself to a caller.
-//
-// Its own module because both the scalar templates and the series template need
-// it, and importing one template file from another would tie their load order
-// together for no reason.
+/**
+ * The `where` clause: what every template accepts to narrow its rows, how it is
+ * validated, and how it describes itself to a caller.
+ */
 
 import type {
   OptionSchema,

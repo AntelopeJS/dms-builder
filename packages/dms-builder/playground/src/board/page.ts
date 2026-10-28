@@ -76,7 +76,9 @@ export class PageShopBoard extends PageController("board", {
     title: "form",
     description: "la desc",
     submitLabel: "finir",
-    // Posts a new entry: the DMS no longer guesses a create from POST.
+    /**
+     * Posts a new entry: the DMS no longer guesses a create from POST.
+     */
     kind: "create",
     submitUrl: "/test",
     submitUrlMethod: "POST",

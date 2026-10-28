@@ -19,8 +19,10 @@ import {
 } from "@antelopejs/interface-dms/base/table-view";
 import { Order, OrderModel } from "./database";
 
-// The route is what names the resource: `/api/order` makes it `order`, the ref
-// the source editor lists and the reference journey configures a chart from.
+/**
+ * The route is what names the resource: `/api/order` makes it `order`, the ref
+ * the source editor lists and the reference journey configures a chart from.
+ */
 @RegisterDataController()
 export class orderDataAPI extends DataController(
   Order,
@@ -36,7 +38,9 @@ export class orderDataAPI extends DataController(
   @Access(AccessMode.ReadOnly)
   declare _id: string;
 
-  // A numeric field is what the editor offers as a measure for sum and average.
+  /**
+   * A numeric field is what the editor offers as a measure for sum and average.
+   */
   @Listable()
   @Sortable()
   @Column({
@@ -56,8 +60,10 @@ export class orderDataAPI extends DataController(
   @Access(AccessMode.ReadWrite)
   declare status: string;
 
-  // A date field is what the editor offers as a period bucket, and what a
-  // page-wide period binds its `from`/`to` to.
+  /**
+   * A date field is what the editor offers as a period bucket, and what a
+   * page-wide period binds its `from`/`to` to.
+   */
   @Listable()
   @Sortable()
   @Column({

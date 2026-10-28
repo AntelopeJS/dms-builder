@@ -1,10 +1,7 @@
-// The `series` template: one measure per group, which is what a chart, a top N
-// and any other multi-point block reads.
-//
-// Kept beside the scalar templates rather than inside them because its parameter
-// surface is where most of a data source's configuration lands — grouping,
-// ordering and the period bucket — and because its chain is the one the reader
-// has yet to learn.
+/**
+ * The `series` template: one measure per group, which is what a chart, a top N
+ * and any other multi-point block reads.
+ */
 
 import type {
   OptionSchema,
@@ -65,11 +62,13 @@ function groupOf(params: SeriesParams): PlanGroup {
   };
 }
 
+/**
+ * The order a series is read in. With none requested it is the group ascending:
+ * a grouped result comes back in the database's order, which for MongoDB is
+ * unordered, and a timeline wants its points in sequence.
+ */
 function orderOf(params: SeriesParams): PlanOrder | undefined {
   if (params.orderBy === undefined && params.direction === undefined) {
-    // A grouped result comes back in whatever order the database produced —
-    // MongoDB does not order groups — so an unordered series would draw its
-    // points scrambled. Ordering by the group ascending is what a timeline wants.
     return { by: "group", direction: "asc" };
   }
   return {
@@ -109,7 +108,12 @@ function checkMeasure(
       ];
 }
 
-/** The grouping half: a field, and the period a date field is bucketed into. */
+/**
+ * The grouping half: a field, and the period a date field is bucketed into.
+ *
+ * Without a bucket the group must be a string or a number, since a point's group
+ * reaches the response as `number | string`.
+ */
 function checkGroup(
   params: SeriesParams,
   fields: ResourceFieldStructure[],
@@ -119,9 +123,6 @@ function checkGroup(
     return [resolved];
   }
   if (params.bucket === undefined) {
-    // A point's group reaches the response as `number | string`, which is what a
-    // chart plots and a list labels. Grouping on anything else emits code that
-    // fails to typecheck, and a diagnostic is not something a caller can act on.
     return resolved.ts === "string" || resolved.ts === "number"
       ? []
       : [

@@ -19,8 +19,10 @@ import { resetWritableProject } from "../implementations/dms-builder/engine/writ
  */
 const FIXTURE_ROOT = path.join(__dirname, "..", "..", ".test-app");
 
-// Resolved the way the playground resolves: the DMS interfaces publish their
-// subpaths through `exports` alone, which `moduleResolution: "node"` never reads.
+/**
+ * Resolved the way the playground resolves: the DMS interfaces publish their
+ * subpaths through `exports` alone, which `moduleResolution: "node"` never reads.
+ */
 const TSCONFIG = {
   compilerOptions: {
     target: "ES2022",

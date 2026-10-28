@@ -1,3 +1,8 @@
+/**
+ * The builder interface implementation. Every operation reaches the template
+ * registry (compiling a query, or recognizing one already written), so the
+ * built-in query templates are registered as this module loads.
+ */
 import type {
   AddBlockInput,
   AnalyseDatabaseInput,
@@ -90,8 +95,6 @@ import {
   listPageSummaries,
 } from "./engine/source-index";
 
-// Every operation below reaches the template registry — compiling a query, or
-// recognizing one already written — so it is filled as this module loads.
 registerBuiltinQueryTemplates();
 
 export async function ListPages(): Promise<PageSummary[]> {

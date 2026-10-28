@@ -28,8 +28,10 @@ const PAGE = "/shop/board";
 let app: Fixture;
 let loadedFile: string;
 
-// The app's compiled DataAPI, as the core would have loaded it: a listed column
-// its table views show.
+/**
+ * The app's compiled DataAPI, as the core would have loaded it: a listed column
+ * its table views show.
+ */
 class ticketDataAPI extends Controller("/api/ticket") {
   @Listable()
   @Column({
@@ -106,9 +108,6 @@ describe("previewing a block over a table", () => {
 
   it("shows a table view's rows through its list route, leaving its class as it found it", async function () {
     this.timeout(60_000);
-    // Its factory writes options, guards and a gate flag onto the class every
-    // page mounting that table shares: the preview reads the same rows through
-    // a read-only table over the route instead.
     const { degraded, component } = await previewOf({
       type: "TableView",
       controller: "ticket",
@@ -147,8 +146,6 @@ describe("previewing a block over a table", () => {
 
   it("waits on the running page for a relation to a table it has not loaded", async function () {
     this.timeout(60_000);
-    // Created a moment ago, say: the app has not reloaded under it yet, so
-    // there is no class to hand the field.
     const { degraded, component } = await previewOf({
       type: "Form",
       config: { fields: [relationTo({ $ref: { resource: "invoice" } })] },

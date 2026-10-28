@@ -1,7 +1,4 @@
-// The category lifecycle: source, creation, opening the declaration, and
-// configuration.
-//
-// Split out of ops-blocks.ts to stay under the size the linter allows.
+/** The category lifecycle: source, creation, opening the declaration, and configuration. */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -200,6 +197,11 @@ export function configureCategory(
   return commit(transaction, undefined);
 }
 
+/**
+ * Delete a category that no page or child category uses. A file left holding
+ * only imports is removed along with its barrel import, which would otherwise
+ * collide with a later `CreateCategory` of the same name.
+ */
 export function deleteCategory(ref: string): OpResult {
   const category = findCategoryRecord(ref);
   if (!category) {
@@ -231,8 +233,6 @@ export function deleteCategory(ref: string): OpResult {
   const transaction = new Transaction(project);
   transaction.track(opened.sourceFile);
   statement.remove();
-  // Left behind, the empty file and its barrel import would collide with a
-  // later CreateCategory of the same name.
   if (holdsOnlyImports(opened.sourceFile)) {
     for (const importer of findImporters(
       project,

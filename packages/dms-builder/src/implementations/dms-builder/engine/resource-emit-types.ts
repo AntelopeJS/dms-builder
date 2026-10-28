@@ -1,7 +1,4 @@
-// The mapping from DMS data types to column types, and the resource code that
-// follows from it.
-//
-// Split out of resource-emit.ts to stay under the size the linter allows.
+/** The mapping from DMS data types to column types, and the resource code that follows from it. */
 
 import type {
   DataTypeValue,
@@ -258,6 +255,16 @@ function propertyName(name: string): string {
   return IDENTIFIER.test(name) ? name : JSON.stringify(name);
 }
 
+/**
+ * The Table class declaration for one field.
+ *
+ * Decorators read off the existing column are written back before `@Field`,
+ * where they were: a `@Localized()` dropped here changes how the column is
+ * stored and empties it at runtime. A declaration read off the table wins over
+ * the DataType mapping, because the builder only maps a few DataTypes and
+ * narrowing an existing column to `string` would change the schema behind the
+ * author's back.
+ */
 export function tableFieldText(field: FieldSpec): {
   text: string;
   symbols: string[];
@@ -269,12 +276,7 @@ export function tableFieldText(field: FieldSpec): {
     decorators.push("@Index()");
     symbols.push("Index");
   }
-  // Written back before `@Field`, where they were: a `@Localized()` dropped
-  // here changes how the column is stored and empties it at runtime.
   decorators.push(...(field.dbField?.decorators ?? []));
-  // A declaration read off the table wins over the mapping: the builder only
-  // maps a few DataTypes, and narrowing an existing column to `string` would
-  // change the schema behind the author's back.
   const db = field.dbField
     ? { ...field.dbField, fallback: false }
     : dbTypeFor(field.dataType);
@@ -290,6 +292,16 @@ export function tableFieldText(field: FieldSpec): {
   };
 }
 
+/**
+ * The Data API class declaration for one field.
+ *
+ * `@Exported` sits between `@Listable` and `@Column`, where the DMS's own
+ * resources put it: emitting it further down reorders the stack of every field
+ * it rewrites. The TypeScript type is the one the table carries; deriving it
+ * from the DataType mapping would narrow a hand-written column to the `string`
+ * fallback here while the table keeps its real type, so the two classes would
+ * declare different types for one column.
+ */
 export function dataApiFieldText(
   field: FieldSpec,
   ctx: EmitContext,
@@ -309,8 +321,6 @@ export function dataApiFieldText(
     decorators.push("@Listable()");
     symbols.push("Listable");
   }
-  // Between @Listable and @Column, where the DMS's own resources put it:
-  // emitting it further down reorders the stack of every field it rewrites.
   if (field.exported) {
     decorators.push("@Exported()");
     symbols.push("Exported");
@@ -350,10 +360,6 @@ export function dataApiFieldText(
   const mode = field.access === "read" ? "ReadOnly" : "ReadWrite";
   decorators.push(`@Access(AccessMode.${mode})`);
   symbols.push("Access", "AccessMode");
-  // The same declaration the table carries. Deriving it from the DataType
-  // mapping instead would narrow a hand-written column to the `string`
-  // fallback here while the table keeps its real type — the two classes would
-  // then declare different types for one column.
   const ts = field.dbField?.ts ?? dbTypeFor(field.dataType).ts;
   return {
     text: fieldDeclaration(decorators, `${field.name}: ${ts}`),

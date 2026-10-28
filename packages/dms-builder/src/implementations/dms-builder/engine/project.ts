@@ -125,7 +125,6 @@ function sectionCoversTypeScript(glob: string): boolean {
     if (trimmed === "*" || trimmed === "**") {
       return true;
     }
-    // Expand a single brace group — `*.{ts,tsx}` and friends.
     const braces = /^(.*)\{([^}]*)}(.*)$/.exec(trimmed);
     const candidates = braces
       ? braces[2]
@@ -168,7 +167,10 @@ function findUpwards(rootDir: string, names: string[]): string | undefined {
 /**
  * What the project's formatter is configured to do. It outranks every other
  * signal: whatever the sources look like today, the formatter is what they
- * will look like after the next `pnpm format`.
+ * will look like after the next `pnpm format`. Biome names the settings
+ * `indentStyle`/`indentWidth`, prettier `useTabs`/`tabWidth`. Comments are
+ * stripped so a `.jsonc` parses; a config the builder cannot read is simply no
+ * signal, not a failure.
  */
 function formatterIndentation(rootDir: string): IndentationText | undefined {
   const config = findUpwards(rootDir, [
@@ -182,8 +184,6 @@ function formatterIndentation(rootDir: string): IndentationText | undefined {
   }
   let parsed: Record<string, unknown>;
   try {
-    // Strip comments so a `.jsonc` parses; a config the builder cannot read
-    // is simply no signal, not a failure.
     const text = fs
       .readFileSync(config, "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -193,7 +193,6 @@ function formatterIndentation(rootDir: string): IndentationText | undefined {
     return undefined;
   }
   const formatter = (parsed.formatter ?? parsed) as Record<string, unknown>;
-  // biome names them `indentStyle`/`indentWidth`, prettier `useTabs`/`tabWidth`.
   const style =
     formatter.indentStyle ?? (formatter.useTabs ? "tab" : undefined);
   if (style === "tab" || parsed.useTabs === true) {

@@ -130,13 +130,12 @@ const SUM_AMOUNT = { kind: "aggregate", op: "sum", field: "amount" } as const;
 /**
  * Running a plan and writing it are the same calculation twice, and a preview
  * that disagreed with the code it previews would be worse than no preview. Each
- * case asserts the two renderings agree.
+ * case asserts the two renderings agree, compared on the calculation rather than
+ * on the layout: where the emitter breaks its chain across lines is its own
+ * business, and pinning it would make every formatting change look like a
+ * divergence between the two backends.
  */
 describe("running a plan", () => {
-  // Compared on the calculation rather than on the layout: where the emitter
-  // breaks its chain across lines is its own business, and pinning it here would
-  // make every formatting change look like a divergence between the two
-  // backends, which is the one thing these cases exist to catch.
   const renderings = (plan: QueryPlan) => ({
     executed: canonicalBody(ran(plan), []),
     written: canonicalBody(emitPlan(plan, FIELDS).body, []),
@@ -252,8 +251,6 @@ describe("running a plan", () => {
     });
 
     it("coerces a number the way the route's `Number(x)` does", () => {
-      // A route hands the model `Number(cap)`; a preview reading the same query
-      // string must not compare the string "100" where the route compares 100.
       const text = ran(bound, { from: "2026-01-01T00:00:00.000Z", cap: "100" });
       expect(text).to.contain('row.key("amount").lt(100)');
       expect(text).to.not.contain('lt("100")');
@@ -270,7 +267,6 @@ describe("running a plan", () => {
         ],
         measure: COUNT,
       };
-      // The string "false" is truthy; passing it through would invert the filter.
       expect(ran(flagged, { archived: "false" })).to.contain(
         'row.key("archived").eq(false)',
       );
@@ -280,10 +276,6 @@ describe("running a plan", () => {
     });
 
     it("refuses before building anything, not inside a predicate", () => {
-      // Running anyway would quietly compare against undefined and answer a
-      // number the caller would have no reason to doubt. Raised while resolving
-      // the filters, so it reaches the caller even against an adapter that
-      // evaluates predicates lazily at execution time.
       const table = stream("this.table");
       let built = false;
       const watched = {

@@ -11,6 +11,11 @@ import { frontendModule } from "./frontend-module";
 
 export type { BuilderApiConfig, DmsBuilderConfig } from "./config";
 
+/**
+ * Install the implementation and, when the builder is enabled, mount the API:
+ * the routes controller registers its routes as it is decorated, so importing
+ * it is what mounts them.
+ */
 export async function construct(config?: DmsBuilderConfig): Promise<void> {
   setModuleConfig(config);
   void ImplementInterface(
@@ -18,8 +23,6 @@ export async function construct(config?: DmsBuilderConfig): Promise<void> {
     await import("./implementations/dms-builder"),
   );
   if (await isBuilderEnabled()) {
-    // The controller registers its routes as it is decorated, so importing it
-    // is what mounts the API.
     await import("./routes");
   }
 }

@@ -32,9 +32,6 @@ describe("a chain's identity", () => {
   });
 
   it("ignores a chain broken onto its hops", () => {
-    // What the project's formatter does to generated code, trailing comma
-    // included. Reading that back as a different chain would make the builder
-    // refuse to edit its own output.
     expect(
       canonicalBody(
         '{\n  return this.table\n    .map((row) => ({\n      bucket: row.key("a"),\n    }))\n    .count();\n}',
@@ -61,7 +58,6 @@ describe("a chain's identity", () => {
   });
 
   it("tells two bound values apart by where they are used", () => {
-    // Both take one parameter, so a count of parameters would call them equal.
     const left = canonicalBody(
       '{ return this.table.filter((row) => row.key("a").lt(cap)).count(); }',
       ["cap"],
@@ -74,8 +70,6 @@ describe("a chain's identity", () => {
   });
 
   it("leaves a method call alone when a parameter is named like one", () => {
-    // A field named `min` is legal, so its derived parameter is too; rewriting
-    // every occurrence would turn `.min("x")` into a call to nothing.
     const text = canonicalBody(
       '{ return this.table.filter((row) => row.key("min").ge(min)).min("x"); }',
       ["min"],

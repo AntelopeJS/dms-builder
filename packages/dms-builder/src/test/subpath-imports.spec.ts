@@ -16,9 +16,11 @@ import {
 const OP_TIMEOUT = 60_000;
 const PAGE_FILE = "cockpit/page.ts";
 
-// A page written the way the DMS documentation writes one: every factory from
-// its own subpath rather than from the `base` barrel, plus a component made by
-// a local helper the catalog has no factory for.
+/**
+ * A page written the way the DMS documentation writes one: every factory from
+ * its own subpath rather than from the `base` barrel, plus a component made by
+ * a local helper the catalog has no factory for.
+ */
 const PAGE_SOURCE = `import { Grid, GridRow } from "@antelopejs/interface-dms/base/grid";
 import { KpiCard } from "@antelopejs/interface-dms/base/kpi-card";
 import { DefaultLayout } from "@antelopejs/interface-dms/base/layouts";

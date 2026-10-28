@@ -63,7 +63,10 @@ function isLocallyDeclared(callee: Node): boolean {
 /**
  * A DataType instantiation inside a config value — a Form field's `type`. Read
  * back as a `$dataType` sentinel so the value stays editable and re-emittable
- * rather than falling through to an opaque expression.
+ * rather than falling through to an opaque expression. The emitter writes a
+ * DataType back as `new X(config)` and nothing else, so a call with a second
+ * argument is not read: it falls through to an opaque expression, which keeps
+ * the argument that would otherwise be dropped on the next write.
  */
 function dataTypeCall(node: Node): LiteralResult | undefined {
   if (!Node.isNewExpression(node)) {
@@ -80,9 +83,6 @@ function dataTypeCall(node: Node): LiteralResult | undefined {
     return undefined;
   }
   const args = node.getArguments();
-  // The emitter writes a DataType back as `new X(config)` and nothing else, so
-  // a second argument would be dropped on the next write. Falling through to
-  // an opaque expression keeps it.
   if (args.length > 1) {
     return undefined;
   }

@@ -196,6 +196,13 @@ function resolveResourcePlacement(
   };
 }
 
+/**
+ * Create a resource: its database file, Data API file and index. The routes are
+ * validated with `findIndex` rather than `find`: an `undefined` element is
+ * itself an invalid route, and `find` cannot tell that from "every route is
+ * valid", so `routes: [undefined]` would pass and emit a resource that
+ * registers no endpoints at all.
+ */
 export function createResource(
   input: CreateResourceInput,
 ): OpResult<{ ref: ResourceRef; files: ResourceFiles }> {
@@ -227,10 +234,6 @@ export function createResource(
         "routes must list at least one route, or be omitted for all routes",
       );
     }
-    // findIndex, not find: an `undefined` element is itself an invalid route,
-    // and `find` cannot tell that from "every route is valid" -- so
-    // `routes: [undefined]` passed validation and emitted a resource that
-    // registers no endpoints at all.
     const invalidIndex = input.routes.findIndex(
       (route) => !isResourceRoute(route),
     );

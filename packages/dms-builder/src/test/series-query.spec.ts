@@ -114,8 +114,6 @@ describe("a series query", () => {
 
   it("answers points rather than a number", async () => {
     const page = app.read(PAGE_FILE);
-    // Nullable on purpose: a group with nothing in it to measure is answered as
-    // such, and a route promising a number there would be lying.
     expect(page).to.contain(
       "): Promise<{ series: { x: number | string; y: number | null }[] }> {",
     );
@@ -165,8 +163,6 @@ describe("a series query", () => {
     expect(series?.output).to.equal("series");
     expect(series?.params).to.deep.equal({
       ...MONTHLY_REVENUE.params,
-      // The ordering every series carries comes back explicitly: a caller
-      // editing these params and sending them again must get the same chain.
       orderBy: "group",
       direction: "asc",
     });
@@ -215,8 +211,6 @@ describe("a series query", () => {
     expectOk(await RemoveQuery(`${PAGE}@topStatuses`), "RemoveQuery");
 
     expect(app.read(PAGE_FILE)).to.not.contain("topStatuses");
-    // The model method goes with it: the engine deletes a method it recognizes
-    // as one of its own, and recognition is reading the chain back.
     expect(app.read(MODEL_FILE)).to.not.contain("topStatuses");
   });
 
@@ -260,7 +254,6 @@ describe("a series query", () => {
 
     it("a date field grouped by its exact value rather than a period", async function () {
       this.timeout(OP_TIMEOUT);
-      // Without a bucket the group is a Date, which is not what a point carries.
       expect(await rejected("rawDate", { groupBy: "createdAt" })).to.include(
         "/groupBy",
       );

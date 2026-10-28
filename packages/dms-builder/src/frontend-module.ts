@@ -43,10 +43,12 @@ export function frontendModule(
     renderer: { name: "vue", version: "3" },
     configKey: FRONTEND_MODULE_CONFIG_KEY,
     priority: FRONTEND_MODULE_PRIORITY,
-    // Belt and braces: the module is only registered at all when the builder
-    // is enabled, but a frontend can be built once and served later, so the
-    // registration says so out loud and the module checks it before
-    // registering its plugin.
+    /**
+     * Belt and braces: the module is only registered at all when the builder
+     * is enabled, but a frontend can be built once and served later, so the
+     * registration says so out loud and the module checks it before
+     * registering its plugin.
+     */
     options: { [FRONTEND_MODULE_ENABLED_OPTION]: true },
   };
 }

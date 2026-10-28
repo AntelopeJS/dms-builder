@@ -1,8 +1,10 @@
-// Les templates que le moteur fournit : ce que chacun accepte en paramètres, ce
-// qu'il calcule, et comment il se relit depuis le code émis.
-//
-// Le texte de la chaîne, lui, est rendu par query-plan.ts : un template décrit un
-// plan, il n'écrit pas de code.
+/**
+ * The templates the engine provides: what each accepts as parameters, what it
+ * computes, and how it is read back from emitted code.
+ *
+ * The text of the chain is rendered by query-plan.ts: a template describes a
+ * plan, it does not write code.
+ */
 
 import { stringLiteralValue } from "./literals";
 import { seriesTemplate } from "./query-template-series";

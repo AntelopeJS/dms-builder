@@ -156,16 +156,12 @@ describe("queries in a page draft", () => {
 
   it("leaves the queries alone when the draft says nothing about them", async function () {
     this.timeout(OP_TIMEOUT);
-    // The distinction that matters for every caller written before queries
-    // joined the draft: saying nothing is not saying none.
     expectOk(await SetPageBlocks(PAGE, { blocks: [KPI] }), "SetPageBlocks");
     expect(await queryNames()).to.deep.equal(["revenue"]);
   });
 
   it("keeps a dropped query a block on the page still reads", async function () {
     this.timeout(OP_TIMEOUT);
-    // The KPI's fetchUrl still points at it. A draft that forgot to list it is a
-    // draft that would break the block, so the recoverable side is to keep it.
     const result = await SetPageBlocks(PAGE, { blocks: [KPI], queries: [] });
 
     expect(result.ok).to.equal(true);
@@ -190,7 +186,6 @@ describe("queries in a page draft", () => {
 
   it("renames a query in one save, freeing the endpoint it had", async function () {
     this.timeout(OP_TIMEOUT);
-    // Writing before removing would collide with the route being replaced.
     expectOk(
       await SetPageBlocks(PAGE, {
         blocks: [KPI],
@@ -235,8 +230,6 @@ describe("queries in a page draft", () => {
     });
 
     expect(result.ok).to.equal(false);
-    // The point of one transaction: the blocks were already rewritten in memory
-    // when the query failed, and none of it reached the file.
     expect(app.read(PAGE_FILE)).to.equal(before);
     expect(app.read(PAGE_FILE)).to.not.contain("second");
   });
@@ -252,8 +245,6 @@ describe("queries in a page draft", () => {
 
     it("is adopted back when the edit stays in the grammar", async function () {
       this.timeout(OP_TIMEOUT);
-      // Adding a filter is something the builder can read, so the query is still
-      // one of its own: the draft is authoritative and the edit is overwritten.
       app.write(
         MODEL_FILE,
         app
@@ -304,8 +295,6 @@ describe("queries in a page draft", () => {
 
   it("names a block's own data after the block, as the editor does", async function () {
     this.timeout(OP_TIMEOUT);
-    // The block is a static field of the page, its route a method: the one
-    // name is both, and neither stands in the other's way.
     const card = {
       name: "ordersCard",
       type: "KpiCard",

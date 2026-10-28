@@ -52,8 +52,6 @@ describe("the column a DataType is stored in", () => {
   });
 
   it("stores a status as the checkbox it is", () => {
-    // Declared outside `DefaultDataTypes`, so the catalog does not offer it yet;
-    // a table that already holds one still reads back as what it validates.
     expect(mappedDbType({ $dataType: "status" })).to.deep.equal({
       field: "boolean",
       ts: "boolean",

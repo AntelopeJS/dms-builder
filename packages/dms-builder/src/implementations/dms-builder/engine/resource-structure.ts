@@ -122,8 +122,6 @@ function tolerantValue(node: Node): unknown {
     const result: Record<string, unknown> = {};
     for (const property of node.getProperties()) {
       if (!Node.isPropertyAssignment(property)) {
-        // A spread changes the object's shape; rewriting it is not something
-        // the builder can promise, so the field stays opaque.
         throw new OpaqueFieldError("non-literal object member");
       }
       const initializer = property.getInitializer();
@@ -152,8 +150,6 @@ function reverseDataType(node: Node | undefined): DataTypeValue {
     );
   }
   const args = node.getArguments();
-  // Same reason as in `dataTypeCall`: the emitter writes back a single config
-  // argument, so a second one would be lost. The field stays opaque instead.
   if (args.length > 1) {
     throw new OpaqueFieldError("@Column type takes more than one argument");
   }
@@ -211,15 +207,22 @@ function readColumnExtras(
       if (!(error instanceof OpaqueFieldError)) {
         throw error;
       }
-      // An expression rather than data — a constant, an enum member, an
-      // arithmetic. It is carried verbatim and written back as it stands, so
-      // the field stays editable for everything the builder does model.
       extras[key] = { $expr: initializer.getText() };
     }
   }
   return Object.keys(extras).length > 0 ? extras : undefined;
 }
 
+/**
+ * Read one Data API field into the aspects the builder models.
+ *
+ * `@Listable`, `@Select` and `@Exported` are three separate scopes of the same
+ * mechanism and are read independently, so a rewrite never adds a scope its
+ * author did not write. A decorator or argument the builder does not model
+ * (such as `@Exported(fields)`, a spread, or a second `@Column` argument) makes
+ * the field opaque rather than losing it on the next write. An expression that
+ * is not data is carried verbatim as `$expr`.
+ */
 export function readDataApiFieldAspects(
   prop: PropertyDeclaration,
   indexedNames: Set<string>,
@@ -244,15 +247,9 @@ export function readDataApiFieldAspects(
     }
     const dataType = reverseDataType(getObjectProperty(columnArg, "type"));
     const columnExtras = readColumnExtras(columnArg);
-    // `@Listable`, `@Select` and `@Exported` are three separate scopes of the
-    // same mechanism; conflating them made a rewrite add a scope its author
-    // never wrote.
     const listable = prop.getDecorator("Listable") !== undefined;
     const selectable = prop.getDecorator("Select") !== undefined;
     const exported = prop.getDecorator("Exported");
-    // `@Exported(fields)` narrows what the export carries; the builder only
-    // models the bare marker, so an argument keeps the field opaque rather
-    // than losing it on the next write.
     if (exported && exported.getArguments().length > 0) {
       throw new OpaqueFieldError("@Exported carries arguments");
     }
@@ -294,14 +291,16 @@ export function readDataApiFieldAspects(
 }
 
 /**
+ * The two decorators the builder writes itself; every other decorator on a
+ * table property is its author's and travels through a rewrite untouched.
+ */
+const TABLE_DECORATORS = new Set(["Field", "Index"]);
+
+/**
  * How each column is declared on the Table — the `@Field(...)` argument and the
  * TypeScript type, verbatim. Carried through a rewrite so a column the builder
  * did not create keeps the type its author chose.
  */
-// The two the builder writes itself; every other decorator on a table property
-// is its author's and travels through a rewrite untouched.
-const TABLE_DECORATORS = new Set(["Field", "Index"]);
-
 export function tableFieldDeclarations(
   tableClass: ClassDeclaration,
 ): Map<

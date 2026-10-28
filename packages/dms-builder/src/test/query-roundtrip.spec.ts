@@ -114,10 +114,6 @@ describe("the query engine", () => {
     it("guards the route with the page's own permission", async () => {
       const page = app.read(PAGE_FILE);
 
-      // On this route alone, as a parameter decorator: a generated route would
-      // otherwise answer anyone who reaches the server, while the layout it
-      // feeds is gated — and a class-level guard would change every other route
-      // the page owns.
       expect(page).to.contain(
         "@AuthUserWithPermission(OrdersPage) _user: User,",
       );
@@ -177,12 +173,6 @@ describe("the query engine", () => {
         "AddQuery",
       );
 
-      // Sharing is name-driven: the candidate method names come from the query's
-      // own name (`totalOrders`, `totalOrders2`, …), so two differently-named
-      // queries never land on one method however identical their chains. Pinned
-      // because the chain is about to be rebuilt from a plan, and reuse must not
-      // widen silently — a query that started sharing another's method would
-      // change what that other query returns on its next edit.
       const model = app.read(MODEL_FILE);
       const occurrences = model.split("return this.table.count();").length - 1;
       expect(
