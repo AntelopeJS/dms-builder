@@ -3,6 +3,7 @@ import {
   impliedReferenceChecks,
   proposeMapping,
 } from "../implementations/dms-builder/engine/analysis";
+import { nativeKind } from "../implementations/dms-builder/engine/native-kind";
 import { Column, Input, Profiled, Relation } from "./analysis-catalog";
 
 const MIXED = "objectId 60% | string 40%";
@@ -159,5 +160,18 @@ describe("the references a document source's names give away", () => {
         },
       ],
     );
+  });
+});
+
+describe("the kind of value a document source's column holds", () => {
+  it("compares a sampled column by its dominant type, an ObjectId or a uuid with text", () => {
+    const key = nativeKind("objectId 100%");
+    expect(nativeKind("objectId 98% | string 2%")).to.equal(key);
+    expect(nativeKind("string 100%")).to.equal(key);
+    expect(nativeKind("STRING 100%")).to.equal(key);
+    expect(nativeKind("NUMBER 100%")).to.equal(
+      nativeKind("int 60% | long 40%"),
+    );
+    expect(nativeKind("NUMBER 100%")).to.not.equal(key);
   });
 });
