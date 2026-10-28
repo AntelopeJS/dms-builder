@@ -34,7 +34,7 @@ import {
 } from "../implementations/dms-builder/engine/database-connection";
 import { removeDatabaseConnection } from "../implementations/dms-builder/engine/database-connection-remove";
 import {
-  configureProjectWithVariable,
+  configureProjectWithVariables,
   type ProjectVariable,
 } from "../implementations/dms-builder/engine/project-env";
 
@@ -59,8 +59,8 @@ interface SampleBody extends SampleRequest {
 interface ProjectBody {
   steps: ProjectConfigStep[];
   opts?: ProjectConfigOpts;
-  /** A variable's development value, written into `.env` before the configuration. */
-  variable?: ProjectVariable;
+  /** Variables' development values, written into `.env` before the configuration. */
+  variables?: ProjectVariable[];
 }
 
 /** The modules the project's configuration lists, by id, and the pin connecting a database needs. */
@@ -159,10 +159,10 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
 
   @Post(ROUTES.databaseProject)
   async project(@AuthTenantOwner() _user: User, @JSONBody() body: ProjectBody) {
-    if (!body.variable || body.opts?.dryRun) {
+    if (!body.variables?.length || body.opts?.dryRun) {
       return engine.ConfigureProject(body.steps, body.opts);
     }
-    return configureProjectWithVariable(body.steps, body.variable);
+    return configureProjectWithVariables(body.steps, body.variables);
   }
 
   @Get(ROUTES.databaseConnection)

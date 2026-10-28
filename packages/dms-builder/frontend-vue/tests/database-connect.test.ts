@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
 	type ConnectForm,
 	connectSteps,
+	connectVariables,
 	connectionUrl,
 	defaultNames,
 	connectionId,
 	detailsFields,
 	emptyFields,
+	engineOfScheme,
 	fieldProblem,
 	isConnectionUrl,
 	missingField,
@@ -29,6 +31,7 @@ describe('the names the builder manages for a connection', () => {
 			driverModule: 'builder-db-client-erp',
 			tablesModule: 'builder-db-client-erp-tables',
 			variable: 'BUILDER_DB_CLIENT_ERP_URL',
+			databaseVariable: 'BUILDER_DB_CLIENT_ERP_DATABASE',
 			version: '>=0.2.1 <1.0.0',
 		})
 	})
@@ -94,6 +97,68 @@ describe('the wiring of a database', () => {
 		expect(missingField(form())).toBeUndefined()
 		expect(missingField(form({ name: ' - ' }))).toBe('a name')
 		expect(missingField(form({ fields: { ...form().fields, user: '' } }))).toBe('a user')
+	})
+})
+
+describe('the wiring of a document database', () => {
+	const mongodb = (overrides: Partial<ConnectForm> = {}) =>
+		form({
+			engine: 'mongodb',
+			fields: { ...emptyFields('mongodb'), host: 'db.example', database: 'erp', user: 'reader', password: 's3cret' },
+			...overrides,
+		})
+
+	it('wires postgres with its URL only, and disables no export', () => {
+		const [driver] = connectSteps(form(), { modules: [] })
+		expect(driver.entry).not.toHaveProperty('disabledExports')
+		expect(connectVariables(form()).map((variable) => variable.name)).toEqual(['BUILDER_DB_ERP_URL'])
+	})
+
+	it('wires mongodb with its URL and database variables, and never offers its raw client', () => {
+		const [driver] = connectSteps(mongodb(), { modules: [] })
+		expect(driver.entry).toMatchObject({
+			source: { package: '@antelopejs/mongodb', version: '>=1.6.0 <2.0.0' },
+			config: { mode: 'external' },
+			env: { url: 'BUILDER_DB_ERP_URL', database: 'BUILDER_DB_ERP_DATABASE' },
+			disabledExports: ['@antelopejs/interface-mongodb'],
+		})
+		expect(connectVariables(mongodb())).toEqual([
+			{ name: 'BUILDER_DB_ERP_URL', value: 'mongodb://reader:s3cret@db.example:27017/erp' },
+			{ name: 'BUILDER_DB_ERP_DATABASE', value: 'erp' },
+		])
+	})
+
+	it('waits for a database variable only where the driver reads one', () => {
+		expect(missingField(mongodb({ overrides: { databaseVariable: ' ' } }))).toBe('a database variable')
+		expect(missingField(form({ overrides: { databaseVariable: ' ' } }))).toBeUndefined()
+	})
+
+	it('wires rethinkdb with the database in its URL, and never offers its raw client', () => {
+		const rethinkdb = form({
+			engine: 'rethinkdb',
+			fields: { ...emptyFields('rethinkdb'), host: 'db.example', database: 'erp', user: 'reader', password: 's3cret' },
+		})
+		const [driver] = connectSteps(rethinkdb, { modules: [] })
+		expect(driver.entry).toMatchObject({
+			source: { package: '@antelopejs/rethinkdb' },
+			env: { url: 'BUILDER_DB_ERP_URL' },
+			disabledExports: ['@antelopejs/interface-rethinkdb'],
+		})
+		expect(connectVariables(rethinkdb)).toEqual([
+			{ name: 'BUILDER_DB_ERP_URL', value: 'rethinkdb://reader:s3cret@db.example:28015/erp' },
+		])
+	})
+
+	it('reads a URL of each engine, and knows the engine by its scheme', () => {
+		expect(parseConnectionUrl('mongodb', 'mongodb://reader:pw@db.example/erp?authSource=admin')).toMatchObject({
+			port: '27017',
+			database: 'erp',
+			options: { authSource: 'admin' },
+		})
+		expect(() => parseConnectionUrl('mongodb', 'postgres://db.example/erp')).toThrow(/not a MongoDB URL/)
+		expect(engineOfScheme('rethinkdb')).toBe('rethinkdb')
+		expect(engineOfScheme('postgresql:')).toBe('postgres')
+		expect(engineOfScheme('mysql')).toBeUndefined()
 	})
 })
 

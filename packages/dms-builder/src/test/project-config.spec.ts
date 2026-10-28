@@ -183,6 +183,43 @@ describe("project-config operations", function () {
     expect(config).to.not.include("url:");
   });
 
+  it("adds the interfaces a provider must never export, once each", async () => {
+    const disabled = ["@antelopejs/interface-mongodb"];
+    expectOk(
+      await AddModule("mongodb-erp", {
+        source: {
+          type: "package",
+          package: "@antelopejs/mongodb",
+          version: "^1.6.0",
+        },
+        disabledExports: disabled,
+      }),
+      "AddModule",
+    );
+    expectOk(
+      await ConfigureModule("mongodb-erp", { disabledExports: disabled }),
+      "ConfigureModule",
+    );
+    const config = readConfig();
+    expect(config.split('"@antelopejs/interface-mongodb"')).to.have.length(2);
+    expect(config).to.match(
+      /disabledExports: \[\s*"@antelopejs\/interface-mongodb",?\s*\]/,
+    );
+  });
+
+  it("refuses to add to interfaces it cannot read as plain strings, and leaves them unchanged", async () => {
+    const spread = PROJECT_CONFIG.replace(
+      'version: "1.4.2" },',
+      'version: "1.4.2" },\n      disabledExports: [...SHARED],',
+    );
+    fs.writeFileSync(configPath(), spread);
+    const result = await ConfigureModule("mongodb", {
+      disabledExports: ["@antelopejs/interface-mongodb"],
+    });
+    expect(result.ok).to.equal(false);
+    expect(readConfig()).to.equal(spread);
+  });
+
   it("refuses a pin that contradicts the module's own, naming both providers", async () => {
     expectOk(
       await ConfigureModule("dms", {

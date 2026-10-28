@@ -486,4 +486,33 @@ describe('connecting a database', () => {
 		await nextTick()
 		expect(button(mounted.root, 'Write them').props.disabled).toBe(true)
 	})
+
+	it('writes a MongoDB database name into .env beside its URL, both by the variables named', async () => {
+		backend.answers['GET /api/builder/database/project'] = { modules: [] }
+		backend.answers['POST /api/builder/database/project'] = { ok: true, data: { files: [] }, changes: [] }
+		const mounted = mount(DatabaseConnect, { components: COMPONENTS })
+		unmount = mounted.unmount
+		await settle()
+		const select = findAll(mounted.root, (node) => node.tag === 'USelect')[0]
+		fire(select!, 'update:modelValue', 'mongodb' as never)
+		await settle()
+		const [name, , host, , database, user, password] = inputs(mounted.root)
+		for (const [input, value] of [[name, 'erp'], [host, 'db'], [database, 'erp_staging'], [user, 'reader'], [password, 'pw']] as const) {
+			fire(input!, 'update:modelValue', value as never)
+		}
+		await settle()
+		fire(button(mounted.root, 'Show the changes'), 'click')
+		await settle()
+		fire(button(mounted.root, 'Write them'), 'click')
+		await settle()
+		const written = backend.calls.filter(
+			(call) => call.method === 'POST' && call.path === '/api/builder/database/project' && call.body?.variables,
+		)
+		expect(written.map((call) => call.body?.variables)).toEqual([
+			[
+				{ name: 'BUILDER_DB_ERP_URL', value: 'mongodb://reader:pw@db:27017/erp_staging' },
+				{ name: 'BUILDER_DB_ERP_DATABASE', value: 'erp_staging' },
+			],
+		])
+	})
 })

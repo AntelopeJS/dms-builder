@@ -5,7 +5,7 @@ import { expect } from "chai";
 import { ConfigureProject } from "../implementations/dms-builder";
 import type { ProjectConfigStep } from "@antelopejs/interface-dms-builder";
 import {
-  configureProjectWithVariable,
+  configureProjectWithVariables,
   setProjectVariable,
 } from "../implementations/dms-builder/engine/project-env";
 import {
@@ -133,10 +133,12 @@ describe("a batch sent with its variable's value", function () {
 
   it("writes nothing when .env is refused", () => {
     const before = configText();
-    const result = configureProjectWithVariable(steps, {
-      name: VARIABLE,
-      value: URL,
-    });
+    const result = configureProjectWithVariables(steps, [
+      {
+        name: VARIABLE,
+        value: URL,
+      },
+    ]);
     expect(JSON.stringify(result)).to.match(/not ignored by git/);
     expect(configText()).to.equal(before);
     expect(fs.existsSync(envFile())).to.equal(false);
@@ -145,7 +147,7 @@ describe("a batch sent with its variable's value", function () {
   it("writes .env, then the configuration that maps it and loads it", () => {
     fs.writeFileSync(path.join(app.root, ".gitignore"), ".env\n");
     expectOk(
-      configureProjectWithVariable(steps, { name: VARIABLE, value: URL }),
+      configureProjectWithVariables(steps, [{ name: VARIABLE, value: URL }]),
       "ConfigureProject with its variable",
     );
     expect(projectFile(app.root, ".env")).to.equal(`${VARIABLE}="${URL}"\n`);
@@ -154,12 +156,46 @@ describe("a batch sent with its variable's value", function () {
       .and.to.include("process.loadEnvFile(projectEnvFile);");
   });
 
+  it("writes every variable the batch maps, or none when one is refused", () => {
+    fs.writeFileSync(path.join(app.root, ".gitignore"), ".env\n");
+    const before = configText();
+    const refused = configureProjectWithVariables(steps, [
+      { name: VARIABLE, value: URL },
+      { name: "OTHER_DATABASE", value: "erp" },
+    ]);
+    expect(JSON.stringify(refused)).to.match(
+      /not in the configuration's envOverrides/,
+    );
+    expect(configText()).to.equal(before);
+    expect(fs.existsSync(envFile())).to.equal(false);
+    const both: ProjectConfigStep[] = [
+      {
+        op: "ConfigureModule",
+        id: "erp-tables",
+        entry: {
+          config: { mode: "external" },
+          env: { url: VARIABLE, database: "ERP_DATABASE" },
+        },
+      },
+    ];
+    expectOk(
+      configureProjectWithVariables(both, [
+        { name: VARIABLE, value: URL },
+        { name: "ERP_DATABASE", value: "erp" },
+      ]),
+      "ConfigureProject with its two variables",
+    );
+    expect(projectFile(app.root, ".env")).to.equal(
+      `${VARIABLE}="${URL}"\nERP_DATABASE="erp"\n`,
+    );
+  });
+
   it("leaves a configuration that loads .env already as it is, apart from the batch", () => {
     const configPath = path.join(app.root, "antelope.config.ts");
     fs.writeFileSync(configPath, `import "dotenv/config";\n${configText()}`);
     fs.writeFileSync(path.join(app.root, ".gitignore"), ".env\n");
     expectOk(
-      configureProjectWithVariable(steps, { name: VARIABLE, value: URL }),
+      configureProjectWithVariables(steps, [{ name: VARIABLE, value: URL }]),
       "ConfigureProject with its variable",
     );
     expect(configText()).to.not.include("loadEnvFile");

@@ -186,11 +186,11 @@ export function useBuilderApi() {
 		/** The ids of the modules the project's configuration lists. */
 		projectModules: () => get<ProjectModules>('/database/project'),
 		/**
-		 * Applies the steps, or answers their diff on a dry run. A variable's value goes into the
-		 * project's `.env` before the configuration is written; the answer never carries it back.
+		 * Applies the steps, or answers their diff on a dry run. The variables' values go into the
+		 * project's `.env` before the configuration is written; the answer never carries them back.
 		 */
-		configureProject: (steps: ProjectConfigStep[], dryRun: boolean, variable?: ProjectVariable) =>
-			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun }, variable }),
+		configureProject: (steps: ProjectConfigStep[], dryRun: boolean, variables?: ProjectVariable[]) =>
+			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun }, variables }),
 		/** What the connection wired into the configuration, and its details without the password. */
 		databaseConnection: (connection: string) =>
 			get<ConnectionInfo>('/database/connection', { connection }),

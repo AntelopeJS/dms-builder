@@ -7,8 +7,8 @@ import {
 	ENGINES,
 	type ManagedNames,
 	connectSteps,
+	connectVariables,
 	connectionId,
-	connectionUrl,
 	defaultNames,
 	emptyFields,
 	fieldProblem,
@@ -76,6 +76,7 @@ const missing = computed(() => missingField(form))
 const invalid = computed(() => fieldProblem(form.fields))
 const blocked = computed(() => !!missing.value || !!invalid.value || !project.value || busy.value)
 const extraOptions = computed(() => Object.entries(form.fields.options))
+const spec = computed(() => ENGINES[form.engine])
 
 function setName(key: keyof ManagedNames, value: string): void {
 	if (value === defaults.value[key]) {
@@ -136,8 +137,7 @@ async function write(): Promise<void> {
 	if (!project.value) return
 	busy.value = true
 	problem.value = ''
-	const variable = { name: names.value.variable, value: connectionUrl(form.engine, form.fields) }
-	const result = await api.configureProject(connectSteps(form, project.value), false, variable)
+	const result = await api.configureProject(connectSteps(form, project.value), false, connectVariables(form))
 	busy.value = false
 	if (!result.ok) {
 		problem.value = refusalText(result.error)
@@ -183,7 +183,7 @@ async function write(): Promise<void> {
 						v-model="pasted"
 						type="password"
 						autocomplete="off"
-						:placeholder="`Paste a ${ENGINES[form.engine].schemes[0]}// URL to fill the fields`"
+						:placeholder="`Paste a ${spec.schemes[0]}// URL to fill the fields`"
 						class="flex-1 font-mono"
 						@keydown.enter="pasteUrl"
 					/>
@@ -214,7 +214,7 @@ async function write(): Promise<void> {
 						/>
 					</UFormField>
 				</div>
-				<div class="flex items-center gap-3">
+				<div v-if="spec.sslMode" class="flex items-center gap-3">
 					<USwitch v-model="form.fields.ssl" aria-label="Connect over SSL" />
 					<span class="text-sm text-default">Connect over SSL</span>
 				</div>
@@ -222,9 +222,12 @@ async function write(): Promise<void> {
 					Other options, kept from the pasted URL:
 					<span class="font-mono">{{ extraOptions.map(([key, value]) => `${key}=${value}`).join(', ') }}</span>
 				</p>
+				<p class="text-xs text-muted">{{ spec.accountAdvice }}</p>
 				<p class="text-xs text-muted">
 					Written into the project's <span class="font-mono">.env</span> as
-					<span class="font-mono">{{ names.variable }}</span>, never into the configuration.
+					<span class="font-mono">{{ names.variable }}</span><template v-if="spec.separateDatabase">,
+						the database as <span class="font-mono">{{ names.databaseVariable }}</span></template>,
+					never into the configuration.
 				</p>
 			</section>
 
@@ -234,14 +237,14 @@ async function write(): Promise<void> {
 				:summary="`${names.driverModule}, ${names.tablesModule}, ${names.variable}`"
 			>
 				<div class="grid grid-cols-2 gap-3">
-					<UFormField label="Driver module" :help="`The ${ENGINES[form.engine].package} instance that connects to this database.`">
+					<UFormField label="Driver module" :help="`The ${spec.package} instance that connects to this database.`">
 						<UInput
 							:model-value="names.driverModule"
 							class="w-full font-mono"
 							@update:model-value="setName('driverModule', String($event))"
 						/>
 					</UFormField>
-					<UFormField label="Package version" :help="`The range of ${ENGINES[form.engine].package} to install.`">
+					<UFormField label="Package version" :help="`The range of ${spec.package} to install.`">
 						<UInput
 							:model-value="names.version"
 							class="w-full font-mono"
@@ -260,6 +263,17 @@ async function write(): Promise<void> {
 							:model-value="names.variable"
 							class="w-full font-mono"
 							@update:model-value="setName('variable', String($event))"
+						/>
+					</UFormField>
+					<UFormField
+						v-if="spec.separateDatabase"
+						label="Database variable"
+						help="Holds the database name in each environment."
+					>
+						<UInput
+							:model-value="names.databaseVariable"
+							class="w-full font-mono"
+							@update:model-value="setName('databaseVariable', String($event))"
 						/>
 					</UFormField>
 				</div>
@@ -290,7 +304,8 @@ async function write(): Promise<void> {
 			<p><b class="font-semibold text-highlighted">Written. Restart the project.</b></p>
 			<p>
 				The connection exists once the project restarts. Every deployed environment sets
-				<span class="font-mono">{{ names.variable }}</span> where it keeps its secrets, never in git.
+				<span class="font-mono">{{ names.variable }}</span><template v-if="spec.separateDatabase">
+					and <span class="font-mono">{{ names.databaseVariable }}</span></template> where it keeps its secrets, never in git.
 			</p>
 			<div>
 				<UButton label="Done" size="sm" @click="emit('connected', id)" />

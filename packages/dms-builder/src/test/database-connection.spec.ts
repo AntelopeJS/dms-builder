@@ -11,7 +11,7 @@ import {
 } from "../implementations/dms-builder/engine/database-connection";
 import { removeDatabaseConnection } from "../implementations/dms-builder/engine/database-connection-remove";
 import {
-  configureProjectWithVariable,
+  configureProjectWithVariables,
   projectVariable,
 } from "../implementations/dms-builder/engine/project-env";
 import {
@@ -70,10 +70,12 @@ function tablesEntry(connection: string) {
 
 function connect(connection: string, tables: ProjectConfigStep): void {
   expectOk(
-    configureProjectWithVariable(connectSteps(connection, tables), {
-      name: `BUILDER_DB_${connection.toUpperCase()}_URL`,
-      value: URL,
-    }),
+    configureProjectWithVariables(connectSteps(connection, tables), [
+      {
+        name: `BUILDER_DB_${connection.toUpperCase()}_URL`,
+        value: URL,
+      },
+    ]),
     `connecting ${connection}`,
   );
 }

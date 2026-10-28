@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { connectionUrl, detailsFields, fieldProblem, keepsServer, refusalText } from '../runtime/database-connect'
+import {
+	ENGINES,
+	connectionUrl,
+	detailsFields,
+	engineOfScheme,
+	fieldProblem,
+	keepsServer,
+	refusalText,
+} from '../runtime/database-connect'
 import type { ConnectionInfo } from '../runtime/database-types'
 
 /**
@@ -21,6 +29,8 @@ const fields = ref(saved ? { ...saved, options: { ...saved.options } } : null)
 const busy = ref(false)
 const problem = ref('')
 const done = ref(false)
+const scheme = `${props.info.details?.scheme ?? 'postgres'}:`
+const engine = engineOfScheme(scheme) ?? 'postgres'
 const extraOptions = computed(() => Object.entries(fields.value?.options ?? {}))
 const keepsPassword = computed(
 	() => !!saved && !!fields.value && !!props.info.details?.hasPassword && keepsServer(saved, fields.value),
@@ -41,7 +51,7 @@ async function save(): Promise<void> {
 	problem.value = ''
 	const result = await api.setConnectionUrl(
 		props.connection,
-		connectionUrl('postgres', fields.value, `${props.info.details?.scheme ?? 'postgres'}:`),
+		connectionUrl(engine, fields.value, scheme),
 	)
 	busy.value = false
 	if (!result.ok) {
@@ -79,8 +89,15 @@ async function save(): Promise<void> {
 					</UFormField>
 				</div>
 				<div class="grid grid-cols-3 gap-3">
-					<UFormField label="Database">
-						<UInput v-model="fields.database" class="w-full font-mono" />
+					<UFormField
+						label="Database"
+						:help="ENGINES[engine].separateDatabase ? 'Read from its own variable in .env.' : undefined"
+					>
+						<UInput
+							v-model="fields.database"
+							:disabled="ENGINES[engine].separateDatabase"
+							class="w-full font-mono"
+						/>
 					</UFormField>
 					<UFormField label="User">
 						<UInput v-model="fields.user" autocomplete="off" class="w-full font-mono" />
@@ -98,7 +115,7 @@ async function save(): Promise<void> {
 						/>
 					</UFormField>
 				</div>
-				<div class="flex items-center gap-3">
+				<div v-if="ENGINES[engine].sslMode" class="flex items-center gap-3">
 					<USwitch v-model="fields.ssl" aria-label="Connect over SSL" />
 					<span class="text-sm text-default">Connect over SSL</span>
 				</div>

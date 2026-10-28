@@ -104,8 +104,17 @@ export interface ProposedExclusion {
   rule: string;
 }
 
-/** The kinds of question the rules leave open. */
-export type OpenItemKind = "schemas" | "purpose" | "label" | "reference";
+/**
+ * The kinds of question the rules leave open. A `field-type` item asks which declaration reads a
+ * column whose values have several native types, none covering enough of them: unanswered, the
+ * column is left out.
+ */
+export type OpenItemKind =
+  | "schemas"
+  | "purpose"
+  | "label"
+  | "reference"
+  | "field-type";
 
 /** One answer an open item offers. */
 export interface OpenItemOption {
@@ -126,6 +135,11 @@ export interface OpenItem {
   proposed: unknown;
   /** For a `purpose` item, the relation as it would be mapped should the answer be to map it. */
   resource?: ProposedResource;
+  /**
+   * For a `purpose` item, the questions its `resource` leaves open, to answer should the answer be
+   * to map it. Absent when it leaves none.
+   */
+  open?: OpenItem[];
 }
 
 /** The connected database, as the analysis's connection sees it. */

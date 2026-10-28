@@ -159,6 +159,102 @@ describe('a mapping draft', () => {
 	})
 })
 
+describe('a column of several native types', () => {
+	const item = {
+		id: 'field-type:erp.customers.score',
+		kind: 'field-type' as const,
+		relation: 'erp.customers',
+		column: 'score',
+		question: 'erp.customers.score holds int 60% | string 40%: which declaration reads it?',
+		options: [
+			{ value: 'number', title: 'Declare it number' },
+			{ value: 'string', title: 'Declare it string' },
+			{ value: null, title: 'Leave it out' },
+		],
+		proposed: null,
+	}
+
+	it('is left out until its field-type item is answered, then declared as answered', () => {
+		const draft = draftFromProposal(PROPOSAL)
+		const columns = () =>
+			settledInput(PROPOSAL, draft).resources[0].fields.map((entry) => [entry.column, entry.declared])
+		expect(columns()).not.toContainEqual(['score', 'number'])
+		answerItem(draft, item, 'number')
+		expect(columns()).toContainEqual(['score', 'number'])
+		answerItem(draft, item, null)
+		expect(columns().map(([column]) => column)).not.toContain('score')
+	})
+})
+
+describe('a relation whose purpose is asked', () => {
+	const fieldType = {
+		id: 'field-type:legacy.t_cst.x1',
+		kind: 'field-type' as const,
+		relation: 'legacy.t_cst',
+		column: 'x1',
+		question: 'legacy.t_cst.x1 holds int 50% | string 50%: which declaration reads it?',
+		options: [
+			{ value: 'number', title: 'Declare it number' },
+			{ value: null, title: 'Leave it out' },
+		],
+		proposed: null,
+	}
+	const proposal: MappingProposal = {
+		...PROPOSAL,
+		open: [{ ...PROPOSAL.open[0], open: [fieldType] }],
+	}
+
+	it('asks its own questions only once the answer maps it, and declares the field as answered', () => {
+		const draft = draftFromProposal(proposal)
+		const ids = () => unanswered(proposal, draft).map((item) => item.id)
+		expect(ids()).toEqual(['purpose:legacy.t_cst'])
+		answerItem(draft, proposal.open[0], 'tableView')
+		expect(ids()).toEqual([fieldType.id])
+		answerItem(draft, fieldType, 'number')
+		expect(ids()).toEqual([])
+		const legacy = settledInput(proposal, draft).resources.find((entry) => entry.relation === 'legacy.t_cst')
+		expect(legacy?.fields.map((entry) => [entry.column, entry.declared])).toContainEqual(['x1', 'number'])
+		answerItem(draft, proposal.open[0], 'excluded')
+		expect(ids()).toEqual([])
+	})
+})
+
+describe('a field-type answer over a fresh proposal', () => {
+	const score = {
+		id: 'field-type:erp.customers.score',
+		kind: 'field-type' as const,
+		relation: 'erp.customers',
+		column: 'score',
+		question: 'erp.customers.score holds int 60% | string 40%: which declaration reads it?',
+		options: [
+			{ value: 'number', title: 'Declare it number' },
+			{ value: null, title: 'Leave it out' },
+		],
+		proposed: null,
+	}
+	const nested = { ...score, id: 'field-type:legacy.t_cst.x1', relation: 'legacy.t_cst', column: 'x1' }
+	const proposal: MappingProposal = {
+		...PROPOSAL,
+		open: [{ ...PROPOSAL.open[0], open: [nested] }, PROPOSAL.open[1], score],
+	}
+	const declared = (draft: ReturnType<typeof draftFromProposal>, relation: string) =>
+		settledInput(proposal, draft)
+			.resources.find((entry) => entry.relation === relation)
+			?.fields.map((entry) => [entry.column, entry.declared, entry.listable])
+
+	it('still declares the column, with the choices made for it, and asks nothing again', () => {
+		const draft = draftFromProposal(proposal)
+		answerItem(draft, score, 'number')
+		draft.resources[0].fields.find((entry) => entry.column === 'score')!.listable = true
+		answerItem(draft, proposal.open[0], 'tableView')
+		answerItem(draft, nested, 'number')
+		const merged = mergedDraft(proposal, draft)
+		expect(declared(merged, 'erp.customers')).toContainEqual(['score', 'number', true])
+		expect(declared(merged, 'legacy.t_cst')).toContainEqual(['x1', 'number', false])
+		expect(unanswered(proposal, merged).map((item) => item.id)).toEqual(['label:erp.orders'])
+	})
+})
+
 describe('a mapping draft kept in the browser', () => {
 	let stored: Map<string, string>
 

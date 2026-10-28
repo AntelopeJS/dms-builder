@@ -8,6 +8,7 @@ import type {
 	ModuleEntryInput,
 	ProjectConfigStep,
 	ProjectModules,
+	ProjectVariable,
 } from './database-types'
 
 const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
@@ -28,7 +29,7 @@ const SSL_DEFAULT_MODE = 'require'
 const SSL_MODES = new Set(['require', 'verify-ca', 'verify-full'])
 const STRICT_SSL_MODES = new Set(['verify-ca', 'verify-full'])
 
-export type DatabaseEngine = 'postgres'
+export type DatabaseEngine = 'postgres' | 'mongodb' | 'rethinkdb'
 
 /** How to reach a database, field by field. `options` holds the URL parameters no field covers. */
 export interface ConnectionFields {
@@ -47,6 +48,14 @@ interface EngineSpec {
 	version: string
 	port: string
 	schemes: string[]
+	/** The account to connect with, in the engine's own words. */
+	accountAdvice: string
+	/** Whether the URL's `sslmode` parameter is what the SSL switch stands for. */
+	sslMode: boolean
+	/** The raw-client interface the driver implements, which core must never offer from it. */
+	rawInterface?: string
+	/** Whether the driver reads the database from a variable of its own, beside the URL. */
+	separateDatabase: boolean
 }
 
 export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
@@ -56,7 +65,38 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		version: '>=0.2.1 <1.0.0',
 		port: '5432',
 		schemes: ['postgres:', 'postgresql:'],
+		accountAdvice: 'A role with SELECT on the schemas to map, and writes only where pages edit.',
+		sslMode: true,
+		separateDatabase: false,
 	},
+	mongodb: {
+		label: 'MongoDB',
+		package: '@antelopejs/mongodb',
+		version: '>=1.6.0 <2.0.0',
+		port: '27017',
+		schemes: ['mongodb:'],
+		accountAdvice: 'A user with the built-in read role, and writes only on the collections pages edit.',
+		sslMode: false,
+		rawInterface: '@antelopejs/interface-mongodb',
+		separateDatabase: true,
+	},
+	rethinkdb: {
+		label: 'RethinkDB',
+		package: '@antelopejs/rethinkdb',
+		version: '>=1.6.0 <2.0.0',
+		port: '28015',
+		schemes: ['rethinkdb:'],
+		accountAdvice: 'A user with read permission on the database, and write only on the tables pages edit.',
+		sslMode: false,
+		rawInterface: '@antelopejs/interface-rethinkdb',
+		separateDatabase: false,
+	},
+}
+
+/** The engine whose URLs have this scheme, as `postgres` or `postgres:`. */
+export function engineOfScheme(scheme: string): DatabaseEngine | undefined {
+	const protocol = scheme.endsWith(':') ? scheme : `${scheme}:`
+	return (Object.keys(ENGINES) as DatabaseEngine[]).find((engine) => ENGINES[engine].schemes.includes(protocol))
 }
 
 /** The names the builder manages for a connection, under *Advanced settings*. */
@@ -64,6 +104,8 @@ export interface ManagedNames {
 	driverModule: string
 	tablesModule: string
 	variable: string
+	/** Holds the database name, for an engine that reads it beside the URL. */
+	databaseVariable: string
 	version: string
 }
 
@@ -104,6 +146,7 @@ export function defaultNames(name: string, engine: DatabaseEngine): ManagedNames
 		driverModule: `${MANAGED_PREFIX}-${id}`,
 		tablesModule: `${MANAGED_PREFIX}-${id}-tables`,
 		variable: `${MANAGED_PREFIX}-${id}-url`.toUpperCase().replace(/-/g, '_'),
+		databaseVariable: `${MANAGED_PREFIX}-${id}-database`.toUpperCase().replace(/-/g, '_'),
 		version: ENGINES[engine].version,
 	}
 }
@@ -219,6 +262,7 @@ export function missingField(form: ConnectForm): string | undefined {
 		['a driver module', names.driverModule],
 		['a tables module', names.tablesModule],
 		['a variable', names.variable],
+		...(ENGINES[form.engine].separateDatabase ? [['a database variable', names.databaseVariable] as [string, string]] : []),
 		['a package version', names.version],
 	]
 	return required.find(([, value]) => value.trim() === '')?.[0]
@@ -238,6 +282,32 @@ function tablesStep(id: string, names: ManagedNames): ProjectConfigStep {
 		entry: { importOverrides: [{ interface: DATABASE_INTERFACE, source: names.driverModule }] },
 		connection: id,
 	}
+}
+
+/** The driver's entry: its package in external mode, its secrets by variable name only. */
+function driverEntry(engine: DatabaseEngine, names: ManagedNames): ModuleEntryInput {
+	const spec = ENGINES[engine]
+	const entry: ModuleEntryInput = {
+		source: { type: 'package', package: spec.package, version: names.version },
+		config: { mode: 'external', statementTimeoutMs: STATEMENT_TIMEOUT_MS },
+		env: spec.separateDatabase
+			? { url: names.variable, database: names.databaseVariable }
+			: { url: names.variable },
+		exportPriority: { [DATABASE_INTERFACE]: DRIVER_EXPORT_PRIORITY },
+	}
+	if (spec.rawInterface) {
+		entry.disabledExports = [spec.rawInterface]
+	}
+	return entry
+}
+
+/** The development values the batch writes into `.env`: the URL and, when the driver reads it apart, the database. */
+export function connectVariables(form: ConnectForm): ProjectVariable[] {
+	const names = managedNames(form)
+	const url = { name: names.variable, value: connectionUrl(form.engine, form.fields) }
+	return ENGINES[form.engine].separateDatabase
+		? [url, { name: names.databaseVariable, value: form.fields.database }]
+		: [url]
 }
 
 /** Whether the fields still reach the server and user the saved password belongs to. */
@@ -269,16 +339,7 @@ export function connectSteps(form: ConnectForm, project: ProjectModules): Projec
 	const id = connectionId(form.name)
 	const names = managedNames(form)
 	const steps: ProjectConfigStep[] = [
-		{
-			op: 'AddModule',
-			id: names.driverModule,
-			entry: {
-				source: { type: 'package', package: ENGINES[form.engine].package, version: names.version },
-				config: { mode: 'external', statementTimeoutMs: STATEMENT_TIMEOUT_MS },
-				env: { url: names.variable },
-				exportPriority: { [DATABASE_INTERFACE]: DRIVER_EXPORT_PRIORITY },
-			},
-		},
+		{ op: 'AddModule', id: names.driverModule, entry: driverEntry(form.engine, names) },
 		tablesStep(id, names),
 		{ op: 'ConfigureModule', id: DMS_BUILDER, entry: catalogConnection(id, names.driverModule) },
 	]

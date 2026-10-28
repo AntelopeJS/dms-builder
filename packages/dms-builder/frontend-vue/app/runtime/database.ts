@@ -14,6 +14,7 @@ import type {
 	ProposedField,
 	ProposedResource,
 } from './database-types'
+import { answerFieldType } from './field-type-answer'
 
 const DRAFT_PREFIX = 'dms-builder:database:'
 const MAPPED_PREFIX = 'dms-builder:database-mapped:'
@@ -130,6 +131,8 @@ export function answerItem(draft: MappingDraft, item: OpenItem, value: unknown):
 		PURPOSE_ANSWERS[String(value)]?.(resource, draft)
 	} else if (item.kind === 'label') {
 		resource.label = typeof value === 'string' ? value : null
+	} else if (item.kind === 'field-type') {
+		answerFieldType(resource, item, value)
 	} else if (item.kind === 'reference') {
 		const field = resource.fields.find((candidate) => candidate.column === item.column)
 		if (field) {
@@ -276,6 +279,9 @@ export function currentAnswer(
 	if (!field?.include) {
 		return 'column left out'
 	}
+	if (item.kind === 'field-type') {
+		return `declared ${field.declared}`
+	}
 	const relation = relationKept(draft, field.relation, mappedTableViews)
 	return relation ? `a reference to ${relation}` : 'a plain column'
 }
@@ -306,9 +312,15 @@ export function pointingAt(
 	return [...fromDraft, ...fromMapped]
 }
 
-/** The open items the draft has not answered yet. */
+/**
+ * The open items the draft has not answered yet: a purpose item's own questions count once the
+ * answer maps its relation.
+ */
 export function unanswered(proposal: MappingProposal, draft: MappingDraft): OpenItem[] {
-	return proposal.open.filter((item) => !(item.id in draft.answers))
+	const asked = proposal.open.flatMap((item) =>
+		item.kind === 'purpose' && resourceIn(draft, item.relation)?.include ? [item, ...(item.open ?? [])] : [item],
+	)
+	return asked.filter((item) => !(item.id in draft.answers))
 }
 
 interface StoredMapping {
@@ -424,7 +436,9 @@ function mergedResource(
  * A kept draft laid over a fresh proposal, field by field: the integrator's
  * choices where the relation and column still exist and the type is still
  * accepted, the proposal's for everything else, new columns included. Answers
- * and exclusions are kept only for what the proposal still asks or lists.
+ * and exclusions are kept only for what the proposal still asks or lists, a
+ * purpose item's own questions included; a field-type answer still declares its
+ * column.
  */
 export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | undefined): MappingDraft {
 	const fresh = draftFromProposal(proposal)
@@ -432,8 +446,9 @@ export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | unde
 		return fresh
 	}
 	const relations = new Set(fresh.resources.map((resource) => resource.relation))
-	const asked = new Set(proposal.open.map((item) => item.id))
-	return {
+	const items = proposal.open.flatMap((item) => [item, ...(item.open ?? [])])
+	const asked = new Set(items.map((item) => item.id))
+	const merged: MappingDraft = {
 		...fresh,
 		resources: fresh.resources.map((resource) =>
 			mergedResource(proposal, resource, resourceIn(kept, resource.relation)),
@@ -442,6 +457,24 @@ export function mergedDraft(proposal: MappingProposal, kept: MappingDraft | unde
 		excluded: Object.fromEntries(
 			Object.entries(kept.excluded).filter(([relation]) => relations.has(relation)),
 		),
+	}
+	for (const item of items.filter((entry) => entry.kind === 'field-type' && entry.id in merged.answers)) {
+		replayFieldType(merged, kept, item)
+	}
+	return merged
+}
+
+/** A kept field-type answer laid over the merged draft, with the integrator's choices for that field. */
+function replayFieldType(merged: MappingDraft, kept: MappingDraft, item: OpenItem): void {
+	const resource = resourceIn(merged, item.relation)
+	if (!resource) {
+		return
+	}
+	answerFieldType(resource, item, merged.answers[item.id])
+	const keptField = resourceIn(kept, item.relation)?.fields.find((field) => field.column === item.column)
+	const index = resource.fields.findIndex((field) => field.column === item.column)
+	if (keptField && index >= 0) {
+		resource.fields[index] = { ...keptField, declared: resource.fields[index].declared }
 	}
 }
 

@@ -26,6 +26,11 @@ export interface ModuleEntryInput {
   importOverrides?: ImportOverrideInput[];
   /** Merged into the module's own. */
   exportPriority?: Record<string, number>;
+  /**
+   * Interfaces the module implements that core must never offer from it, such as the raw-client
+   * interface of a database module serving an external database. Added to the module's own.
+   */
+  disabledExports?: string[];
 }
 
 /** Adds a module entry. Refused when the id exists. */

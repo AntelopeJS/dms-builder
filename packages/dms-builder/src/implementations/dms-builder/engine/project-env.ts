@@ -234,14 +234,14 @@ export function restoreProjectEnv(before: string | undefined): void {
 }
 
 /**
- * Writes a batch and the development value of a variable it maps: `.env` first, after a dry run
+ * Writes a batch and the development values of variables it maps: `.env` first, after a dry run
  * accepted the batch, so the configuration never names a variable whose value failed to be
- * written. When `.env` is refused, nothing else is written either, and when the batch fails after
+ * written. When `.env` refuses one, nothing else is written either, and when the batch fails after
  * it, or throws, `.env` goes back to what it held, or goes when there was none.
  */
-export function configureProjectWithVariable(
+export function configureProjectWithVariables(
   steps: ProjectConfigStep[],
-  variable: ProjectVariable,
+  variables: ProjectVariable[],
 ): OpResult<ProjectConfigResult> {
   const checked = configureProject(steps, { dryRun: true });
   if (!checked.ok) {
@@ -250,8 +250,11 @@ export function configureProjectWithVariable(
   const before = envFileText();
   const mapped = stepVariables(steps);
   try {
-    setProjectVariable(variable.name, variable.value, mapped);
+    for (const variable of variables) {
+      setProjectVariable(variable.name, variable.value, mapped);
+    }
   } catch (error) {
+    restoreProjectEnv(before);
     if (error instanceof EnvRefusal) {
       return invalidConfig<ProjectConfigResult>(error.message);
     }

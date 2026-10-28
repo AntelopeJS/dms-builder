@@ -36,6 +36,9 @@ const PREFERRED_LABELS: readonly string[] = [
 /** `<target>_id`, `<target>_ref`, `<target>_code` and `<target>id`, for F5. */
 const IMPLIED_REFERENCE = /^(.+?)(?:_id|_ref|_code|id)$/;
 
+/** A camelCase boundary, as a document field spells `orderRef`: read as `order_ref`. */
+const CAMEL_BOUNDARY = /([a-z0-9])([A-Z])/g;
+
 /** A comment's first sentence titles a page or a column when it is at most this long (L2). */
 const TITLE_LENGTH = 40;
 const SENTENCE_END = /[.\n]/;
@@ -69,9 +72,13 @@ export function preferredLabel(candidates: string[]): LabelChoice | undefined {
   return { column: candidates[0], tied: candidates.length > 1 };
 }
 
-/** The relation names a column named like a reference may point at: `customer_id` → customers. */
+/**
+ * The relation names a column named like a reference may point at: `customer_id` → customers,
+ * and the camelCase spellings of document databases alike, `orderRef` → orders.
+ */
 export function impliedTargetNames(column: string): string[] {
-  const match = IMPLIED_REFERENCE.exec(column.toLowerCase());
+  const snake = column.replace(CAMEL_BOUNDARY, "$1_$2").toLowerCase();
+  const match = IMPLIED_REFERENCE.exec(snake);
   if (!match || match[1].length === 0) {
     return [];
   }
