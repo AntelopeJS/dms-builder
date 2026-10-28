@@ -10,7 +10,10 @@ const IMPORT_LINE_LIMIT = 80;
 
 /**
  * An import statement written the way the project's formatter would write it:
- * on one line while it fits, one name per line once it does not.
+ * on one line while it fits, one name per line once it does not. A single name
+ * is never broken out, however long the line: there is nothing to gain, and
+ * formatters leave it alone, so breaking it would be a change the next `format`
+ * undoes.
  */
 export function importStatement(
   names: string[],
@@ -21,9 +24,6 @@ export function importStatement(
   const keyword = typeOnly ? "import type" : "import";
   const from = `from ${JSON.stringify(specifier)};`;
   const inline = `${keyword} { ${names.join(", ")} } ${from}`;
-  // A single name is never broken out, however long the line: there is nothing
-  // to gain by it, and formatters leave it alone — so breaking it would be a
-  // change the next `format` undoes.
   if (names.length < 2 || inline.length <= IMPORT_LINE_LIMIT) {
     return inline;
   }
@@ -76,15 +76,17 @@ function importedNames(sourceFile: SourceFile): Set<string> {
   return names;
 }
 
+/**
+ * Add a named import unless the root name is already bound in the file, even
+ * from another specifier: a second binding raises a spurious "Duplicate
+ * identifier" that buries the real diagnostic when the op is otherwise invalid.
+ */
 export function ensureNamedImport(
   sourceFile: SourceFile,
   name: string,
   moduleSpecifier: string,
 ): void {
   const rootName = name.split(".")[0];
-  // Already bound in this file — possibly from another specifier. Adding a
-  // second binding raises a spurious "Duplicate identifier" that buries the
-  // real diagnostic when the op is otherwise invalid.
   if (importedNames(sourceFile).has(rootName)) {
     return;
   }

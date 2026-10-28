@@ -35,9 +35,6 @@ describe("extending an import", () => {
   });
 
   it("lays a grown declaration out again instead of splicing into it", () => {
-    // ts-morph adds the name to the line its neighbour sits on, which on a
-    // declaration already broken across lines leaves the rest of the list and
-    // the `from` clause hanging off the last name.
     const file = fileWith(
       `import {\n  ChartArea,\n  ChartCard,\n  PeriodSelector,\n} from "${MODULE}";\n`,
     );
@@ -53,8 +50,6 @@ describe("extending an import", () => {
   });
 
   it("places a name past the first among several", () => {
-    // The position is the name's place among the named imports; counting the
-    // specifier's child index counts the commas too, and overruns the list.
     const file = fileWith(
       `import { ChartArea, ChartCard } from "${MODULE}";\n`,
     );

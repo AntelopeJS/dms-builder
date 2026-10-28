@@ -1,10 +1,12 @@
-// Running a plan instead of writing it.
-//
-// The second backend over `QueryPlan`: the same calculation built as real calls
-// on a table handle rather than as source text, so a draft's data can be shown
-// before anything reaches disk. It mirrors the emitter branch for branch on
-// purpose — the two are checked against each other by transcribing this one back
-// into the text the other produces.
+/**
+ * Running a plan instead of writing it.
+ *
+ * The second backend over `QueryPlan`: the same calculation built as real calls
+ * on a table handle rather than as source text, so a draft's data can be shown
+ * before anything reaches disk. It mirrors the emitter branch for branch on
+ * purpose: the two are checked against each other by transcribing this one back
+ * into the text the other produces.
+ */
 
 import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
 import type {
@@ -106,9 +108,6 @@ function resolveFilters(
     const resolved = checkField(fields, filter.field, "");
     const ts = "ts" in resolved ? resolved.ts : "string";
     if (!isParamBinding(filter.value)) {
-      // A baked literal follows the emitter's own rule: it writes `new Date(x)`
-      // for a date field and the literal as-is for everything else, the value
-      // having already been checked against the field's type.
       return {
         field: filter.field,
         op: filter.op,

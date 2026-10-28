@@ -144,7 +144,6 @@ describe("the page draft", () => {
             {
               name: "signup",
               type: "Form",
-              // What the panel adds a field as: a label, and no key or type yet.
               config: { fields: [email, { label: "Field 2" }] },
             },
           ],
@@ -236,8 +235,6 @@ describe("the page draft", () => {
         'permission: { id: "shop.board" }',
       );
 
-      // Cleared in the editor: JSON carries no `undefined`, so it says null —
-      // which the declared draft has no word for, and the wire does.
       const cleared = JSON.parse(
         '{"order":null,"permission":null}',
       ) as PageDraft["page"];
@@ -307,11 +304,6 @@ describe("the page draft", () => {
 
     it("reads the page as the disk has it, not as it was last scanned", async function () {
       this.timeout(OP_TIMEOUT);
-      // An editor, a formatter, a `git checkout`: the file moves under the
-      // builder with no write of its own to say so. A read that answered from
-      // the last scan would hand back a version no write could ever match —
-      // every save refused as `stale`, and the reload offered as the way out
-      // serving the same stale version again.
       app.write(PAGE_FILE, `${app.read(PAGE_FILE)}\n// edited by hand\n`);
 
       const current = await structure();

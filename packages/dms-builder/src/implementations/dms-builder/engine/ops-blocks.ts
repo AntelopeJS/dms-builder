@@ -1,7 +1,7 @@
-// Deleting and reconfiguring blocks, then the page lifecycle: creation and
-// configuration. Deletion is in page-delete.ts.
-//
-// Split out of ops.ts to stay under the size the linter allows.
+/**
+ * Deleting and reconfiguring blocks, then the page lifecycle: creation and
+ * configuration. Deletion is in page-delete.ts.
+ */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -195,6 +195,12 @@ export function moveBlock(
   return commit(transaction, undefined, warnings);
 }
 
+/**
+ * The source of a new page file. It always names a layout: a page with no
+ * layout renders bare, since the DMS has no default to fall back on, so it
+ * comes up without the dashboard's sidebar, header or content container.
+ * Every hand-written page passes one; a generated one must too.
+ */
 function buildPageSource(
   input: CreatePageInput,
   category: CategoryRecord,
@@ -224,9 +230,6 @@ function buildPageSource(
   if (input.permission !== undefined) {
     options.push(`permission: ${valueToText(input.permission)}`);
   }
-  // A page with no layout renders bare: the DMS has no default to fall back
-  // on, so it comes up without the dashboard's sidebar, header or content
-  // container. Every hand-written page passes one; a generated one must too.
   const indent = indentationText(resolveProjectRoot());
   const imports = [
     importStatement(

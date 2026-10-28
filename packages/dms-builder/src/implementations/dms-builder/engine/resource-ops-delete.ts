@@ -1,6 +1,4 @@
-// Deleting a resource, and cleaning up the directories it leaves empty.
-//
-// Split out of resource-ops.ts to stay under the size the linter allows.
+/** Deleting a resource, and cleaning up the directories it leaves empty. */
 
 import { mappedConnectionOfFile } from "./mapped-modules";
 import fs from "node:fs";
@@ -345,8 +343,6 @@ function locateField(fieldPath: string, opts: MutationOpts | undefined) {
       error: { code: "opaque_target" as const, path: fieldPath },
     };
   }
-  // `dataType` is returned separately: the narrowing from the test above does
-  // not cross the function boundary.
   return {
     parsed,
     opened,
@@ -357,6 +353,12 @@ function locateField(fieldPath: string, opts: MutationOpts | undefined) {
   };
 }
 
+/**
+ * The field as it will be written: each aspect from the patch, else the one
+ * currently declared. The column keeps how it is declared unless the DataType
+ * itself changes, and options the builder has no aspect for are carried over
+ * untouched, so a patch is never what drops a field's `defaultValue`.
+ */
 function mergeFieldAspects(
   located: Extract<ReturnType<typeof locateField>, { opened: unknown }>,
   patch: Partial<FieldAspects>,
@@ -378,14 +380,17 @@ function mergeFieldAspects(
     exported: patch.exported ?? current.exported,
     archiveField: patch.archiveField ?? current.archiveField,
     mandatory: patch.mandatory ?? current.mandatory,
-    // The column keeps how it is declared unless the DataType itself changes.
     dbField: patch.dataType ? undefined : current.dbField,
-    // Options the builder has no aspect for are carried over untouched: a
-    // patch must never be what drops a field's defaultValue.
     columnExtras: patch.columnExtras ?? current.columnExtras,
   };
 }
 
+/**
+ * Change aspects of one field on both its classes. The table is rewritten only
+ * when the patch touches the column's type or index: the table declares nothing
+ * else, and reformatting a file the change does not affect is noise in the
+ * author's diff.
+ */
 export function configureField(
   fieldPath: string,
   patch: Partial<FieldAspects>,
@@ -417,9 +422,6 @@ export function configureField(
     }
     throw error;
   }
-  // The table declares the column's type, its index and nothing else. A patch
-  // that touches none of those has no business rewriting it — reformatting a
-  // file the change does not affect is noise in the author's diff.
   const touchesTable =
     patch.dataType !== undefined || patch.indexed !== undefined;
   const transaction = new Transaction(opened.project);

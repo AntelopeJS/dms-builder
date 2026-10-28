@@ -545,6 +545,13 @@ export function buildQueryStructures(
   return findQueryRoutes(pageClass).map((route) => buildQueryStructure(route));
 }
 
+/**
+ * Read one query route back into a structure.
+ *
+ * The route's own response is read from the route, so a query whose calculation
+ * no longer parses still reports what it answers with, and it wins over the
+ * template's output.
+ */
 export function buildQueryStructure(route: QueryRoute): QueryStructure {
   const params = routeParams(route.method);
   const base: QueryStructure = {
@@ -564,8 +571,6 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     return { ...base, opaque: true, opaqueReason: "unparseable_route" };
   }
   base.modelMethod = call.modelMethod;
-  // From the route's own response, so a query whose calculation no longer parses
-  // still tells a caller what it answers with.
   base.output = call.output;
   const method = findModelMethod(resource.ref, call.modelMethod);
   const parsed = method ? parseModelMethod(method) : undefined;
@@ -577,20 +582,19 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     return { ...base, opaque: true, opaqueReason: "unparseable_chain" };
   }
   if (call.response) {
-    // The arrangement lives on the route rather than in the chain, so it reads
-    // back beside the parameters instead of among them.
     base.response = call.response as QueryStructure["response"];
   }
   if (call.compare) {
-    // Read back, or the next save would write the route without it.
     base.compare = true;
   }
   return {
     ...base,
     template: parsed.template,
     params: resolved,
-    // The route's own response wins: a body edited to answer something else is
-    // what a caller will actually receive, whatever its chain still parses as.
+    /**
+     * The route's own response wins: a body edited to answer something else is
+     * what a caller will actually receive, whatever its chain still parses as.
+     */
     output: call.output ?? getQueryTemplate(parsed.template)?.descriptor.output,
   };
 }

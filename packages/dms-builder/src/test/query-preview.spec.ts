@@ -138,8 +138,6 @@ describe("previewing a query", () => {
         result.data.response,
         "the same arrangement read-back reports",
       ).to.equal("card");
-      // The card's own headline, taken by the helper the route calls — not the
-      // points a chart would have been handed.
       expect(result.data.body.value).to.equal(180);
       expect(result.data.body.series).to.not.deep.equal(rows);
     }
@@ -206,7 +204,6 @@ describe("previewing a query", () => {
     expect(result.ok).to.equal(true);
     if (result.ok) {
       expect(result.data.body.series).to.have.length(500);
-      // A chart that silently lost its tail is worse than one that reports it.
       expect(result.data.truncated).to.equal(true);
     }
   });
@@ -254,9 +251,7 @@ describe("previewing a query", () => {
   });
 
   it("reads the instance the saved route's model would", () => {
-    // A per-tenant table is read where the request's tenant keeps its rows.
     expect(previewInstance("dms-tenant", "acme")).to.equal("acme");
-    // Any other has one shared instance: reading it at the tenant's reads none.
     expect(previewInstance("dms-builder-playground", "default")).to.equal(
       undefined,
     );

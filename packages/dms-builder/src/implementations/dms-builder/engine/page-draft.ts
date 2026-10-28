@@ -195,19 +195,21 @@ function blockStatics(cls: ClassDeclaration): PropertyDeclaration[] {
     });
 }
 
+/**
+ * The declaration each block static was written as, with every comment above
+ * it carried verbatim and in order.
+ *
+ * `getStructure()` reports a doc block in `docs` and ignores a plain line or
+ * block comment, which is trivia, so re-inserting from the structure alone
+ * leaves the plain comment behind to drift to the bottom of the class. All the
+ * comments are taken as `leadingTrivia` and `docs` is cleared: that keeps them
+ * together and writes each exactly once, whereas carrying a doc block in both
+ * places writes it twice, and again on every later save.
+ */
 function collectStatics(cls: ClassDeclaration): OriginalStatics {
   const statics: OriginalStatics = new Map();
   for (const prop of blockStatics(cls)) {
     const structure = prop.getStructure();
-    // Every comment above the block, verbatim and in order.
-    //
-    // `getStructure()` reports a doc block in `docs` and ignores a plain `//`
-    // or `/* */` one, which is trivia — so re-inserting the property from the
-    // structure alone leaves the plain comment behind, to drift to the bottom
-    // of the class. Taking all of them as trivia and clearing `docs` keeps
-    // them together, in the order the author wrote them, and writes each
-    // exactly once: carrying a doc block in both places writes it twice, and
-    // again on every later save.
     const leading = prop
       .getLeadingCommentRanges()
       .map((range) => range.getText())
@@ -291,8 +293,6 @@ function draftText(
       .map((child) => {
         const childPath = `${path}/${child.name}`;
         const value = draftText(child, childPath, originals, ctx);
-        // The `.child()` options as the one object they were read as, `slot`
-        // and all, so a constant naming the slot goes back like any other.
         const meta = withConstants(
           { slot: child.slot, ...child.meta },
           originals.constants.get(childPath)?.meta,
@@ -330,6 +330,10 @@ function blockImports(
  * The class is found again rather than passed in: rewriting the blocks removes
  * text from the file, and ts-morph forgets every node in it when that happens.
  * A node captured before the rewrite throws the moment it is read.
+ *
+ * A `category` patch is refused: moving a page rewrites its file's location
+ * and its registration, so it belongs to `ConfigurePage`, not to a draft save
+ * that may still be discarded.
  */
 function applyPageMeta(
   sourceFile: SourceFile,
@@ -343,9 +347,6 @@ function applyPageMeta(
   }
   const { category, ...scalar } = patch;
   if (category !== undefined) {
-    // Deliberately not part of a draft save. Moving a page rewrites its file's
-    // location and its registration; there is no half-applied state to hold
-    // alongside a block tree the caller may still discard.
     return unsupported<{ version: string }>(
       "a page's category is moved with ConfigurePage, not as part of a block draft",
     );
@@ -360,6 +361,22 @@ function applyPageMeta(
   return undefined;
 }
 
+/**
+ * Replace the page's block statics with the draft's, in place of the first one.
+ *
+ * A property's leading plain comment is trivia, not part of the node, so each
+ * block's comments and the block itself are removed as one span; otherwise the
+ * comment drifts to the bottom of the class while its copy is re-inserted above
+ * the block. Every span is measured before anything is removed and they are
+ * removed last first, and nothing reads a node in between, because removing
+ * text makes ts-morph forget the whole tree (the class is found again by name).
+ *
+ * A block already on the page keeps how it was declared (doc comment,
+ * modifiers, type annotation); only the value is the draft's. Preserved blocks
+ * keep their original line breaks: only freshly written initializers are
+ * reindented, and source-backed ones are restored through raw text ranges after
+ * all printing, since structure printers indent multiline strings.
+ */
 function rewriteStatics(
   cls: ClassDeclaration,
   draft: PageDraft,
@@ -376,14 +393,6 @@ function rewriteStatics(
     ? cls.getMembers().indexOf(anchor)
     : cls.getMembers().length;
   const className = cls.getName();
-  // A property's leading `//` comment is trivia, not part of the node, so
-  // `remove()` leaves it behind and it drifts to the bottom of the class while
-  // its copy is re-inserted above the block. Take each block's comments and
-  // the block itself out as one span.
-  //
-  // Every span is measured before anything is removed, and they are removed
-  // last first, so no removal invalidates a span still to come. Nothing reads
-  // a node in between: removing text forgets the whole tree.
   const sourceFile = cls.getSourceFile();
   const spans = blockStatics(cls).map((prop) => {
     const comments = prop.getLeadingCommentRanges();
@@ -393,7 +402,6 @@ function rewriteStatics(
   for (const [start, end] of [...spans].reverse()) {
     sourceFile.removeText(start, end);
   }
-  // The class node was forgotten by the text removal; find it again.
   const target =
     (className ? sourceFile.getClass(className) : undefined) ??
     sourceFile.getClasses()[0];
@@ -403,15 +411,11 @@ function rewriteStatics(
   const inserted = target.insertProperties(
     position,
     texts.map((entry) => ({
-      // A block already on the page keeps how it was declared — its doc
-      // comment, its modifiers, its type annotation; only the value is ours.
       ...(statics.get(entry.name) ?? { isStatic: true }),
       name: entry.name,
       initializer: entry.initializer,
     })),
   );
-  // Preserved blocks keep their original line breaks; reindent only what was
-  // just written rather than reformatting the whole file.
   const hasSource = (block: BlockDraft, path: string): boolean =>
     !!block.preserve ||
     !!originals.nodes.get(path)?.lockedOptions ||
@@ -422,8 +426,6 @@ function rewriteStatics(
     if (!hasSource(draft.blocks[index], draft.blocks[index].name))
       property.formatText();
   }
-  // Structure printers indent multiline strings. Restore source-backed
-  // initializers through raw ranges after all printing/formatting is done.
   const exact = inserted.flatMap((property, index) => {
     if (!hasSource(draft.blocks[index], draft.blocks[index].name)) return [];
     const initializer = property.getInitializerOrThrow();
@@ -462,6 +464,21 @@ function emitFailure(
   return undefined;
 }
 
+/**
+ * Replace a page's blocks (and optionally its own options and queries) with a
+ * draft, in one transaction: one typecheck and one write.
+ *
+ * Only imports the file referenced before the rewrite are pruned afterwards; an
+ * import that was already unused is the author's business and removing it
+ * would put an unrequested change in the diff of a save. Page options are
+ * patched before the imports are flushed, inside the same error guard as the
+ * blocks, because a page option can carry a value that needs an import and
+ * serializing it fails the same way a block's config does. Queries go in
+ * before the commit, so a block and the data it reads are one write; an absent
+ * `queries` leaves them alone, an empty one says the page serves none. The
+ * returned version is read after every edit, so the next conditional write
+ * does not fail as stale against itself.
+ */
 export function setPageBlocks(
   ref: string,
   draft: PageDraft,
@@ -483,10 +500,6 @@ export function setPageBlocks(
     cls,
     buildPageBlocks({ ...context.page, classNode: cls }),
   );
-  // What the file used before the rewrite. Pruning is then limited to these:
-  // an import that was already unused is the author's business, not this
-  // call's, and removing it would put a change they never asked for in the
-  // diff of a save.
   const referencedNames = referencedImportNames(context.sourceFile);
   const issues = validateDraft(draft, originals.texts, originals.nodes);
   if (issues.length > 0) {
@@ -500,9 +513,6 @@ export function setPageBlocks(
   try {
     rewriteStatics(cls, draft, originals, ctx);
     if (draft.page) {
-      // Patched before the imports are flushed: a page option can carry a
-      // value that needs one, and inside the same guard, because
-      // serializing it fails the same way a block's config does.
       const patched = applyPageMeta(
         context.sourceFile,
         context.page.id,
@@ -556,13 +566,8 @@ export function setPageBlocks(
   for (const importRef of imports) {
     applyImportRef(context.sourceFile, importRef);
   }
-  // The queries go in before the commit, so a block and the data it reads are
-  // one write and one typecheck. An absent `queries` leaves them alone; an empty
-  // one says the page serves none.
   let warnings: OpWarning[] = [];
   if (draft.queries) {
-    // Re-resolved rather than reused: rewriting the statics replaces nodes, and
-    // the class captured before that is a node ts-morph has forgotten.
     const written = findPageClass(context.sourceFile, context.page.id);
     if (!written) {
       transaction.rollback();
@@ -585,8 +590,6 @@ export function setPageBlocks(
     warnings = synced;
   }
   pruneUnusedImports(context.sourceFile, referencedNames);
-  // Read after every edit: the version has to describe the file the caller
-  // will hold, or the next conditional write fails as stale against itself.
   return commit(
     transaction,
     { version: contentVersion(context.sourceFile.getFullText()) },

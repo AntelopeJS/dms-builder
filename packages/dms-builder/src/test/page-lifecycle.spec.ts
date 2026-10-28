@@ -22,10 +22,12 @@ import {
 const OP_TIMEOUT = 60_000;
 const MODEL_FILE = "order/database.ts";
 
-// A page written by hand the way the playground's board is: its category is
-// declared beside it, and a page created in that category imports it from
-// here. The constants are the page's own, save the icon the category reads.
 const BOARD_FILE = "board/page.ts";
+/**
+ * A page written by hand the way the playground's board is: its category is
+ * declared beside it, and a page created in that category imports it from
+ * here. The constants are the page's own, save the icon the category reads.
+ */
 const BOARD_SOURCE = `import { Placeholder } from "@antelopejs/interface-dms/base";
 import { DefaultLayout } from "@antelopejs/interface-dms/base/layouts";
 import {
@@ -71,8 +73,6 @@ describe("the page lifecycle", () => {
   before(async function () {
     this.timeout(120_000);
     app = createFixture();
-    // Written before any operation opens the project, as the files of an app
-    // the builder is started on are.
     fs.mkdirSync(path.join(app.root, "src", "board"));
     app.write(BOARD_FILE, BOARD_SOURCE);
     app.write("index.ts", 'import "./board/page";\n\nexport {};\n');

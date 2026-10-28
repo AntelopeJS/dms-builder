@@ -51,9 +51,10 @@ export interface QueryParamBinding {
 /**
  * A filter value: either a plain scalar baked into the chain, or a
  * {@link QueryParamBinding}. `$expr` is refused — a query's values are data.
+ *
+ * The alias is deliberate: it documents that a parameter value is data, never an
+ * expression, which `QueryParamBinding` relies on.
  */
-// Deliberate: the alias documents that a query's parameter value is
-// data, never an expression, which is what QueryParamBinding relies on.
 // oxlint-disable-next-line anti-slop/no-unknown-type-aliases
 export type QueryParamValue = unknown;
 

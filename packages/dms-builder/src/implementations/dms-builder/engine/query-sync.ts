@@ -1,8 +1,10 @@
-// Reconciling a page's queries against a draft, inside the caller's transaction.
-//
-// A block and the data it reads are one edit, so they are one write: the draft
-// carries both, and this brings the file's queries in line with it without
-// committing anything of its own. What the caller commits, it commits whole.
+/**
+ * Reconciling a page's queries against a draft, inside the caller's transaction.
+ *
+ * A block and the data it reads are one edit, so they are one write: the draft
+ * carries both, and this brings the file's queries in line with it without
+ * committing anything of its own. What the caller commits, it commits whole.
+ */
 
 import type {
   AddQueryInput,
@@ -161,7 +163,12 @@ function writeQuery(
   return spec.chain.warnings ?? [];
 }
 
-/** Remove a query the draft no longer carries, with the method it called. */
+/**
+ * Remove a query the draft no longer carries, with the method it called.
+ *
+ * A query a block still reads is kept with a warning instead: a draft that
+ * forgot to list a source would otherwise break that block.
+ */
 function removeQuery(
   context: SyncContext,
   current: QueryStructure,
@@ -170,8 +177,6 @@ function removeQuery(
     return [opaqueWarning(current.name, "removed")];
   }
   if (isRead(context, current)) {
-    // A draft that forgot to list a source a block still reads is a draft that
-    // would break that block. Keeping it is the recoverable side of the mistake.
     return [
       {
         code: "query_kept",
@@ -209,6 +214,9 @@ function duplicateNames(drafts: AddQueryInput[]): string | undefined {
  *
  * Nothing is committed here. The caller holds the transaction, so the blocks and
  * the data they read land in one write and one typecheck, or not at all.
+ *
+ * Removals run before writes: a draft that renames a query frees its name and
+ * its endpoint, and writing first would collide with what it replaces.
  */
 export function syncQueries(
   context: SyncContext,
@@ -223,9 +231,6 @@ export function syncQueries(
   const current = existingByName(context.pageClass);
   const warnings: OpWarning[] = [];
 
-  // Removals come first: a draft that renames a query frees its name and its
-  // endpoint, and writing before removing would collide with what it is
-  // replacing and fail the whole save.
   const kept = new Set(drafts.map((draft) => draft.name));
   for (const [name, structure] of current) {
     if (!kept.has(name)) {

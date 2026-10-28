@@ -1,11 +1,12 @@
-// The calculation a query performs, separated from how it is written and how it
-// is run.
-//
-// A template turns its parameters into a `QueryPlan`; the plan is then the single
-// description three consumers share — the emitter below, the reader that
-// recognizes an emitted chain, and (next) the executor that runs a draft's
-// calculation for a preview without writing a file. Two implementations of the
-// same semantics drift at the first fix; one plan with several backends cannot.
+/**
+ * The calculation a query performs, separated from how it is written and how it
+ * is run.
+ *
+ * A template turns its parameters into a `QueryPlan`; the plan is then the single
+ * description three consumers share: the emitter below, the reader that
+ * recognizes an emitted chain, and the executor that runs a draft's calculation
+ * for a preview without writing a file.
+ */
 
 import type {
   FilterOp,
@@ -251,7 +252,6 @@ function bucketExpression(group: PlanGroup, row: string): string {
     return year;
   }
   if (group.bucket === "quarter") {
-    // Months are 1-based, so the quarter is (month - 1) / 3 floored, plus one.
     return `${year}.mul(10).add(${part("month")}.sub(1).div(3).floor().add(1))`;
   }
   const month = `${year}.mul(100).add(${part("month")})`;
