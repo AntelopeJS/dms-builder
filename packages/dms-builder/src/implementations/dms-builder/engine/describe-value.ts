@@ -13,8 +13,6 @@ export function describeValue(value: unknown): string {
   try {
     const json = JSON.stringify(value);
     if (json !== undefined) return json;
-  } catch {
-    // A cycle or a BigInt.
-  }
+  } catch {}
   return String(value);
 }
