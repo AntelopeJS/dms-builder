@@ -137,59 +137,87 @@ describe("running a plan", () => {
   // breaks its chain across lines is its own business, and pinning it here would
   // make every formatting change look like a divergence between the two
   // backends, which is the one thing these cases exist to catch.
-  const agrees = (label: string, plan: QueryPlan) => {
-    it(label, () => {
-      expect(canonicalBody(ran(plan), [])).to.equal(
-        canonicalBody(emitPlan(plan, FIELDS).body, []),
-      );
+  const renderings = (plan: QueryPlan) => ({
+    executed: canonicalBody(ran(plan), []),
+    written: canonicalBody(emitPlan(plan, FIELDS).body, []),
+  });
+
+  it("counts every row", () => {
+    const { executed, written } = renderings({ filters: [], measure: COUNT });
+    expect(executed).to.equal(written);
+  });
+
+  it("aggregates a field", () => {
+    const { executed, written } = renderings({
+      filters: [],
+      measure: SUM_AMOUNT,
     });
-  };
-
-  agrees("counts every row", { filters: [], measure: COUNT });
-
-  agrees("aggregates a field", { filters: [], measure: SUM_AMOUNT });
-
-  agrees("narrows the rows first", {
-    filters: [
-      { field: "status", op: "eq", value: "paid" },
-      { field: "amount", op: "gt", value: 10 },
-    ],
-    measure: SUM_AMOUNT,
+    expect(executed).to.equal(written);
   });
 
-  agrees("compares a date as a date", {
-    filters: [
-      { field: "createdAt", op: "ge", value: "2026-01-01T00:00:00.000Z" },
-    ],
-    measure: COUNT,
+  it("narrows the rows first", () => {
+    const { executed, written } = renderings({
+      filters: [
+        { field: "status", op: "eq", value: "paid" },
+        { field: "amount", op: "gt", value: 10 },
+      ],
+      measure: SUM_AMOUNT,
+    });
+    expect(executed).to.equal(written);
   });
 
-  agrees("groups by a field", {
-    filters: [],
-    measure: COUNT,
-    group: { field: "status" },
+  it("compares a date as a date", () => {
+    const { executed, written } = renderings({
+      filters: [
+        { field: "createdAt", op: "ge", value: "2026-01-01T00:00:00.000Z" },
+      ],
+      measure: COUNT,
+    });
+    expect(executed).to.equal(written);
   });
 
-  agrees("groups by a month, carrying the measured field", {
-    filters: [{ field: "status", op: "eq", value: "paid" }],
-    measure: SUM_AMOUNT,
-    group: { field: "createdAt", bucket: "month", timezone: "Europe/Brussels" },
+  it("groups by a field", () => {
+    const { executed, written } = renderings({
+      filters: [],
+      measure: COUNT,
+      group: { field: "status" },
+    });
+    expect(executed).to.equal(written);
+  });
+
+  it("groups by a month, carrying the measured field", () => {
+    const { executed, written } = renderings({
+      filters: [{ field: "status", op: "eq", value: "paid" }],
+      measure: SUM_AMOUNT,
+      group: {
+        field: "createdAt",
+        bucket: "month",
+        timezone: "Europe/Brussels",
+      },
+    });
+    expect(executed).to.equal(written);
   });
 
   for (const bucket of ["day", "month", "quarter", "year"] as const) {
-    agrees(`buckets by ${bucket} the same way`, {
-      filters: [],
-      measure: COUNT,
-      group: { field: "createdAt", bucket },
+    it(`buckets by ${bucket} the same way`, () => {
+      const { executed, written } = renderings({
+        filters: [],
+        measure: COUNT,
+        group: { field: "createdAt", bucket },
+      });
+      expect(executed).to.equal(written);
     });
   }
 
-  agrees("orders and limits a ranking", {
-    filters: [],
-    measure: SUM_AMOUNT,
-    group: { field: "status" },
-    order: { by: "measure", direction: "desc" },
-    limit: 5,
+  it("orders and limits a ranking", () => {
+    const { executed, written } = renderings({
+      filters: [],
+      measure: SUM_AMOUNT,
+      group: { field: "status" },
+      order: { by: "measure", direction: "desc" },
+      limit: 5,
+    });
+    expect(executed).to.equal(written);
   });
 
   describe("values supplied per request", () => {

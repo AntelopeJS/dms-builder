@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { setModuleConfig } from "../config";
+import { projectFile } from "./helpers/project-files";
 import { invalidateCatalog } from "../implementations/dms-builder/engine/catalog";
 import { invalidateInference } from "../implementations/dms-builder/engine/catalog-inference";
 import { invalidateResourceIndex } from "../implementations/dms-builder/engine/resource-index";
@@ -110,7 +111,7 @@ export function createFixture(options: FixtureOptions = {}): Fixture {
   return {
     root: FIXTURE_ROOT,
     read: (relativePath) =>
-      fs.readFileSync(path.join(FIXTURE_ROOT, "src", relativePath), "utf8"),
+      projectFile(FIXTURE_ROOT, path.join("src", relativePath)),
     exists: (relativePath) =>
       fs.existsSync(path.join(FIXTURE_ROOT, "src", relativePath)),
     write: (relativePath, content) =>

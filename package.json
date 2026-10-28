@@ -9,7 +9,7 @@
   },
   "type": "module",
   "scripts": {
-    "lint": "oxlint && pnpm --dir packages/dms-builder/frontend-vue lint && antelopejs-check-interface-ranges",
+    "lint": "oxlint && pnpm --dir packages/dms-builder/frontend-vue lint && antelopejs-check-interface-ranges && pnpm --filter @antelopejs/dms-builder check:package-contract",
     "lint:fix": "oxlint --fix && oxfmt . && pnpm --dir packages/dms-builder/frontend-vue lint:fix",
     "format": "oxfmt .",
     "build": "pnpm --filter @antelopejs/dms-builder build",

@@ -71,10 +71,7 @@ function asMapped(entry: MappedRelation): MappedResource {
 }
 
 function moduleFile(relative: string): string {
-  return fs.readFileSync(
-    path.join(app.root, "modules", MODULE, "src", relative),
-    "utf8",
-  );
+  return projectFile(app.root, path.join("modules", MODULE, "src", relative));
 }
 
 /**

@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { expect } from "chai";
 import {
@@ -15,7 +14,7 @@ import {
   type Fixture,
 } from "./harness";
 import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
-import { withFileEdited } from "./helpers/project-files";
+import { projectFile, withFileEdited } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const ERP = "erp";
@@ -56,9 +55,9 @@ describe("a project with more than one local module", function () {
     expect(ledger?.files.database).to.equal(
       path.join(app.root, "modules", ERP, "src", "ledger", "database.ts"),
     );
-    const barrel = fs.readFileSync(
-      path.join(app.root, "modules", ERP, "src", "index.ts"),
-      "utf8",
+    const barrel = projectFile(
+      app.root,
+      path.join("modules", ERP, "src", "index.ts"),
     );
     expect(barrel).to.include("./ledger");
   });

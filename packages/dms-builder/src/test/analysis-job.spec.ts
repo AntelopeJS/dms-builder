@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { expect } from "chai";
 import type {
@@ -23,6 +22,7 @@ import {
   Reference,
   Relation,
 } from "./analysis-catalog";
+import { projectDirectory } from "./helpers/project-files";
 import {
   createFixture,
   destroyFixture,
@@ -176,7 +176,7 @@ describe("an analysis job", function () {
     const state = await analysed();
     expect(state.status).to.equal("done");
     expect(
-      fs.readdirSync(path.join(app.root, "modules", MODULE, "src")),
+      projectDirectory(app.root, path.join("modules", MODULE, "src")),
     ).to.deep.equal(["index.ts"]);
     expect(state.progress).to.include({ relations: 4, profiled: 3 });
     const proposal = state.proposal!;
