@@ -202,9 +202,7 @@ export function describePageAccess(
   let blocks: BlockNode[] = [];
   try {
     blocks = buildPageBlocks(record);
-  } catch {
-    // A page the scan cannot read keeps its access; its actions go unsaid.
-  }
+  } catch {}
   const { actions, held } = blockAccess(blocks, permission, tree);
   const granted: string[] = [];
   collectGranted(node, granted);

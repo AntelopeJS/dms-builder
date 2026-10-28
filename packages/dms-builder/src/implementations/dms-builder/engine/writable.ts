@@ -372,9 +372,7 @@ function removeEmptyDirectory(dir: string): void {
     if (fs.readdirSync(dir).length === 0) {
       fs.rmdirSync(dir);
     }
-  } catch {
-    // Already gone, or not ours to remove. Leaving it costs nothing.
-  }
+  } catch {}
 }
 
 export class Transaction {

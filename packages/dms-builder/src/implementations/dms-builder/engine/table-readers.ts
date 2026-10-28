@@ -133,9 +133,7 @@ export async function tableRowCounts(
       if (typeof rows === "number") {
         counts[record.ref] = rows;
       }
-    } catch {
-      // Unreadable is not empty: the list simply says nothing about it.
-    }
+    } catch {}
   }
   return counts;
 }
@@ -175,9 +173,7 @@ export function pageImpact(ref: string): PageImpact | undefined {
   let blocks = 0;
   try {
     blocks = countBlocks(buildPageBlocks(page));
-  } catch {
-    // A page the scan cannot read still goes; its count goes unsaid.
-  }
+  } catch {}
   const queries = findQueryRoutes(page.classNode).map((route) => route.name);
   const points = (url: string): boolean =>
     [ref, pageRoutePath(ref)].some(
