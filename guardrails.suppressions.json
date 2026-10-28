@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "anti-slop/no-unknown-type-aliases": 1
+  },
+  "tsExpectError": 0,
+  "tsIgnore": 0,
+  "safety": 2
+}
