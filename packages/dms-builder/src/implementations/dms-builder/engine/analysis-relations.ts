@@ -5,7 +5,11 @@ import type {
   ProposedKind,
 } from "@antelopejs/interface-dms-builder";
 import { type RelationFacts, hasTrait } from "./analysis-input";
-import { isTechnicalTable, preferredLabel } from "./analysis-names";
+import {
+  isSecretColumn,
+  isTechnicalTable,
+  preferredLabel,
+} from "./analysis-names";
 
 const LINK_TABLE_REFERENCES = 2;
 const LINK_TABLE_OTHER_COLUMNS = 1;
@@ -82,18 +86,23 @@ function isLinkTable(facts: RelationFacts): boolean {
   return keyIsReferences && others.length <= LINK_TABLE_OTHER_COLUMNS;
 }
 
+/** Every column a field reads, the key among them: any of them can name a row. */
 function labelItem(facts: RelationFacts, proposed: string | null): OpenItem {
-  const textColumns = facts.description.columns.filter(
-    (column) => column.accepts[0]?.declared === "string",
+  const key = facts.description.key?.columns ?? [];
+  const columns = facts.description.columns.filter(
+    (column) => column.accepts.length > 0 && !isSecretColumn(column.name),
   );
   return {
     id: `label:${facts.relation}`,
     kind: "label",
     relation: facts.relation,
-    question: `Which column names a row of ${facts.relation}, in lists and in the relation columns that point at it?`,
-    options: textColumns.map((column) => ({
+    question: `Which column names a row of ${facts.relation}? It is what its list shows first, and what columns of other tables pointing at it show.`,
+    options: columns.map((column) => ({
       value: column.name,
-      title: column.name,
+      title:
+        key.length === 1 && key[0] === column.name
+          ? `${column.name} (the key)`
+          : column.name,
     })),
     proposed,
   };
@@ -104,11 +113,11 @@ function purposeItem(facts: RelationFacts): OpenItem {
     id: `purpose:${facts.relation}`,
     kind: "purpose",
     relation: facts.relation,
-    question: `What does ${facts.relation} hold? Its names, comments and profile do not say.`,
+    question: `What should ${facts.relation} become? Its names, comments and data do not say what it holds.`,
     options: [
-      { value: "tableView", title: "Entities to list and edit: a TableView" },
-      { value: "statsOnly", title: "Facts to count: stats only" },
-      { value: "excluded", title: "Nothing to show: leave it out" },
+      { value: "tableView", title: "A page to list and edit its rows" },
+      { value: "statsOnly", title: "Counted in stats, no page" },
+      { value: "excluded", title: "Left out" },
     ],
     proposed: null,
   };

@@ -1,75 +1,132 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { connectSteps, type ConnectForm, type DatabaseEngine, ENGINES } from '../runtime/database'
+import {
+	type ConnectForm,
+	type DatabaseEngine,
+	ENGINES,
+	type ManagedNames,
+	connectSteps,
+	connectVariables,
+	connectionId,
+	defaultNames,
+	emptyFields,
+	fieldProblem,
+	isConnectionUrl,
+	managedNames,
+	missingField,
+	parseConnectionUrl,
+	refusalText,
+} from '../runtime/database-connect'
+import type { ProjectModules } from '../runtime/database-types'
 import type { FileChange } from '../runtime/types'
 
 /**
- * *Connect a database*: the names the wiring needs, the diff of what it writes
- * to `antelope.config.ts`, and the URL, which goes into the git-ignored `.env`
- * and nowhere else. The project restarts once afterwards.
+ * *Connect a database*: a name, the database's type and how to reach it. The
+ * modules and the variable the builder manages follow the name, under *Advanced
+ * settings*. The URL goes into the git-ignored `.env` and nowhere else; the
+ * project restarts once afterwards.
  */
 
-const emit = defineEmits<{ cancel: []; connected: [connection: string] }>()
+const emit = defineEmits<{ cancel: []; written: [connection: string]; connected: [connection: string] }>()
 
 const api = useBuilderApi()
 
-const form = reactive<ConnectForm>({
-	engine: 'postgres',
-	connection: 'erp',
-	providerModule: ENGINES.postgres.providerModule,
-	generatedModule: 'erp-tables',
-	variable: 'ERP_DATABASE_URL',
-	databaseVariable: 'ERP_DATABASE_NAME',
-	version: '',
-	dmsPinned: false,
-	withDmsAi: true,
-})
-const engines = (Object.keys(ENGINES) as DatabaseEngine[]).map((engine) => ({
-	value: engine,
-	label: ENGINES[engine].title,
-}))
-const wiring = computed(() => ENGINES[form.engine])
+const ENGINE_ITEMS = Object.entries(ENGINES).map(([value, spec]) => ({ label: spec.label, value }))
 
-watch(() => form.engine, (engine, previous) => {
-	if (form.providerModule === ENGINES[previous].providerModule) {
-		form.providerModule = ENGINES[engine].providerModule
-	}
+const form = reactive<ConnectForm>({
+	name: '',
+	engine: 'postgres',
+	fields: emptyFields('postgres'),
+	overrides: {},
 })
-const url = ref('')
-const databaseName = ref('')
+/** The project's modules and the pin connecting needs; nothing until read, so no batch is planned without them. */
+const project = ref<ProjectModules | null>(null)
+const projectProblem = ref('')
+const pasted = ref('')
+const pasteProblem = ref('')
 const preview = ref<FileChange[] | null>(null)
 const busy = ref(false)
 const problem = ref('')
 const written = ref(false)
+/** Counts the edits of the form, so an answer to an older one is dropped. */
+let edits = 0
+
+async function readProject(): Promise<void> {
+	projectProblem.value = ''
+	try {
+		project.value = await api.projectModules()
+	} catch (error) {
+		const message = (error as { data?: { message?: string } }).data?.message
+		projectProblem.value = `The project's modules could not be read: ${message ?? (error instanceof Error ? error.message : String(error))}`
+	}
+}
+
+onMounted(readProject)
 
 watch(form, () => {
+	edits += 1
 	preview.value = null
 }, { deep: true })
 
-const complete = computed(
-	() =>
-		[
-			form.connection,
-			form.providerModule,
-			form.generatedModule,
-			form.variable,
-			form.version,
-			...(wiring.value.separateDatabase ? [form.databaseVariable] : []),
-		].every((value) => value.trim() !== ''),
-)
+const id = computed(() => connectionId(form.name))
+const names = computed(() => managedNames(form))
+const defaults = computed(() => defaultNames(form.name, form.engine))
+const missing = computed(() => missingField(form))
+const invalid = computed(() => fieldProblem(form.fields))
+const blocked = computed(() => !!missing.value || !!invalid.value || !project.value || busy.value)
+const extraOptions = computed(() => Object.entries(form.fields.options))
+const spec = computed(() => ENGINES[form.engine])
 
-function refusal(result: { ok: false; error: unknown }): string {
-	return JSON.stringify(result.error)
+function setName(key: keyof ManagedNames, value: string): void {
+	if (value === defaults.value[key]) {
+		delete form.overrides[key]
+		return
+	}
+	form.overrides[key] = value
+}
+
+function setEngine(engine: DatabaseEngine): void {
+	form.engine = engine
+	form.fields = emptyFields(engine)
+}
+
+function applyUrl(text: string): boolean {
+	try {
+		form.fields = parseConnectionUrl(form.engine, text)
+		pasteProblem.value = ''
+		return true
+	} catch (error) {
+		pasteProblem.value = `This URL could not be read: ${error instanceof Error ? error.message : String(error)}`
+		return false
+	}
+}
+
+function pasteUrl(): void {
+	if (pasted.value.trim() && applyUrl(pasted.value)) {
+		pasted.value = ''
+	}
+}
+
+function pasteIntoHost(event: ClipboardEvent): void {
+	const text = event.clipboardData?.getData('text') ?? ''
+	if (!isConnectionUrl(form.engine, text)) {
+		return
+	}
+	event.preventDefault()
+	applyUrl(text)
 }
 
 async function showDiff(): Promise<void> {
+	if (!project.value) return
 	busy.value = true
 	problem.value = ''
-	const result = await api.configureProject(connectSteps(form), true)
+	const asked = edits
+	const result = await api.configureProject(connectSteps(form, project.value), true)
 	busy.value = false
+	if (asked !== edits) return
 	if (!result.ok) {
-		problem.value = refusal(result)
+		problem.value = refusalText(result.error)
 		preview.value = null
 		return
 	}
@@ -77,40 +134,18 @@ async function showDiff(): Promise<void> {
 }
 
 async function write(): Promise<void> {
+	if (!project.value) return
 	busy.value = true
 	problem.value = ''
-	const result = await api.configureProject(connectSteps(form), false)
+	const result = await api.configureProject(connectSteps(form, project.value), false, connectVariables(form))
+	busy.value = false
 	if (!result.ok) {
-		busy.value = false
-		problem.value = refusal(result)
+		problem.value = refusalText(result.error)
 		return
 	}
-	const values: [string, string][] = [
-		[form.variable, url.value.trim()],
-		...(wiring.value.separateDatabase ? [[form.databaseVariable, databaseName.value.trim()] as [string, string]] : []),
-	]
-	url.value = ''
-	const unset = await setVariables(values.filter(([, value]) => value !== ''))
-	if (unset.length > 0) {
-		problem.value = `The configuration is written, but not ${unset.join('; ')}. Set ${unset.length > 1 ? 'them' : 'it'} in .env.`
-	}
-	busy.value = false
+	form.fields.password = ''
 	written.value = true
-}
-
-/** Writes each variable into .env, and answers the ones refused with why. */
-async function setVariables(values: [string, string][]): Promise<string[]> {
-	const unset: string[] = []
-	for (const [variable, value] of values) {
-		const set = await api.setVariable(variable, value).catch((error: unknown) => ({
-			ok: false,
-			message: error instanceof Error ? error.message : String(error),
-		}))
-		if (!set.ok) {
-			unset.push(`${variable} (${set.message ?? 'refused'})`)
-		}
-	}
-	return unset
+	emit('written', id.value)
 }
 </script>
 
@@ -119,70 +154,144 @@ async function setVariables(values: [string, string][]): Promise<string[]> {
 		<header>
 			<p class="text-xl font-semibold tracking-tight text-highlighted">Connect a database</p>
 			<p class="text-xs text-muted">
-				Wires a client's database into the project: its engine's module in external mode,
-				a module for its tables and collections, and a catalog connection for the builder.
+				Wires an existing database into the project, so its tables can be mapped into pages.
 			</p>
 		</header>
 
 		<template v-if="!written">
 			<div class="grid grid-cols-2 gap-3">
-				<UFormField label="Engine">
-					<USelect v-model="form.engine" :items="engines" class="w-full" />
-				</UFormField>
-				<UFormField label="Connection" help="The name pages and routes use.">
-					<UInput v-model="form.connection" class="w-full" />
-				</UFormField>
-				<UFormField label="Version" :help="`The range of ${wiring.package} to install.`">
-					<UInput v-model="form.version" :placeholder="wiring.versionExample" class="w-full" />
-				</UFormField>
-				<UFormField label="Provider module">
-					<UInput v-model="form.providerModule" class="w-full" />
-				</UFormField>
-				<UFormField label="Module it maps into">
-					<UInput v-model="form.generatedModule" class="w-full" />
-				</UFormField>
-				<UFormField label="Variable" help="Holds the URL in each environment.">
-					<UInput v-model="form.variable" class="w-full font-mono" />
-				</UFormField>
 				<UFormField
-					v-if="wiring.separateDatabase"
-					label="Database variable"
-					help="Holds the database name in each environment."
+					label="Name"
+					:help="id && id !== form.name ? `Used as ${id}` : 'Names the connection in the builder and dms-ai.'"
 				>
-					<UInput v-model="form.databaseVariable" class="w-full font-mono" />
+					<UInput v-model="form.name" placeholder="erp" class="w-full" />
 				</UFormField>
-				<UFormField
-					v-if="wiring.separateDatabase"
-					label="Database name, for development"
-					help="Written into .env beside the URL."
-				>
-					<UInput v-model="databaseName" autocomplete="off" placeholder="erp" class="w-full font-mono" />
-				</UFormField>
-				<UFormField
-					label="URL, for development"
-					help="Written into .env, which git must ignore. Never into the configuration."
-				>
-					<UInput
-						v-model="url"
-						type="password"
-						autocomplete="off"
-						:placeholder="wiring.urlExample"
-						class="w-full font-mono"
+				<UFormField label="Database type">
+					<USelect
+						:model-value="form.engine"
+						:items="ENGINE_ITEMS"
+						class="w-full"
+						@update:model-value="setEngine($event as DatabaseEngine)"
 					/>
 				</UFormField>
 			</div>
-			<p class="text-xs text-muted">{{ wiring.accountAdvice }}</p>
-			<div class="flex flex-col gap-2">
-				<UCheckbox v-model="form.dmsPinned" label="The DMS modules are already pinned to their database" />
-				<UCheckbox v-model="form.withDmsAi" label="Give dms-ai a connection too" />
-			</div>
 
+			<section class="flex flex-col gap-3 rounded-md border border-default p-3">
+				<p class="text-sm font-semibold text-highlighted">Connection</p>
+				<div class="flex gap-2">
+					<UInput
+						v-model="pasted"
+						type="password"
+						autocomplete="off"
+						:placeholder="`Paste a ${spec.schemes[0]}// URL to fill the fields`"
+						class="flex-1 font-mono"
+						@keydown.enter="pasteUrl"
+					/>
+					<UButton label="Fill in" variant="soft" :disabled="!pasted.trim()" @click="pasteUrl" />
+				</div>
+				<p v-if="pasteProblem" class="text-xs text-error">{{ pasteProblem }}</p>
+				<div class="grid grid-cols-[1fr_8rem] gap-3">
+					<UFormField label="Host">
+						<UInput v-model="form.fields.host" class="w-full font-mono" @paste="pasteIntoHost" />
+					</UFormField>
+					<UFormField label="Port">
+						<UInput v-model="form.fields.port" inputmode="numeric" class="w-full font-mono" />
+					</UFormField>
+				</div>
+				<div class="grid grid-cols-3 gap-3">
+					<UFormField label="Database">
+						<UInput v-model="form.fields.database" class="w-full font-mono" />
+					</UFormField>
+					<UFormField label="User">
+						<UInput v-model="form.fields.user" autocomplete="off" class="w-full font-mono" />
+					</UFormField>
+					<UFormField label="Password">
+						<UInput
+							v-model="form.fields.password"
+							type="password"
+							autocomplete="new-password"
+							class="w-full font-mono"
+						/>
+					</UFormField>
+				</div>
+				<div v-if="spec.sslMode" class="flex items-center gap-3">
+					<USwitch v-model="form.fields.ssl" aria-label="Connect over SSL" />
+					<span class="text-sm text-default">Connect over SSL</span>
+				</div>
+				<p v-if="extraOptions.length" class="text-xs text-muted">
+					Other options, kept from the pasted URL:
+					<span class="font-mono">{{ extraOptions.map(([key, value]) => `${key}=${value}`).join(', ') }}</span>
+				</p>
+				<p class="text-xs text-muted">{{ spec.accountAdvice }}</p>
+				<p class="text-xs text-muted">
+					Written into the project's <span class="font-mono">.env</span> as
+					<span class="font-mono">{{ names.variable }}</span><template v-if="spec.separateDatabase">,
+						the database as <span class="font-mono">{{ names.databaseVariable }}</span></template>,
+					never into the configuration.
+				</p>
+			</section>
+
+			<DmsBuilderFoldCard
+				icon="i-ph-gear-six"
+				title="Advanced settings"
+				:summary="`${names.driverModule}, ${names.tablesModule}, ${names.variable}`"
+			>
+				<div class="grid grid-cols-2 gap-3">
+					<UFormField label="Driver module" :help="`The ${spec.package} instance that connects to this database.`">
+						<UInput
+							:model-value="names.driverModule"
+							class="w-full font-mono"
+							@update:model-value="setName('driverModule', String($event))"
+						/>
+					</UFormField>
+					<UFormField label="Package version" :help="`The range of ${spec.package} to install.`">
+						<UInput
+							:model-value="names.version"
+							class="w-full font-mono"
+							@update:model-value="setName('version', String($event))"
+						/>
+					</UFormField>
+					<UFormField label="Tables module" help="The module the database's tables and pages are written into.">
+						<UInput
+							:model-value="names.tablesModule"
+							class="w-full font-mono"
+							@update:model-value="setName('tablesModule', String($event))"
+						/>
+					</UFormField>
+					<UFormField label="Variable" help="Holds the URL in each environment.">
+						<UInput
+							:model-value="names.variable"
+							class="w-full font-mono"
+							@update:model-value="setName('variable', String($event))"
+						/>
+					</UFormField>
+					<UFormField
+						v-if="spec.separateDatabase"
+						label="Database variable"
+						help="Holds the database name in each environment."
+					>
+						<UInput
+							:model-value="names.databaseVariable"
+							class="w-full font-mono"
+							@update:model-value="setName('databaseVariable', String($event))"
+						/>
+					</UFormField>
+				</div>
+			</DmsBuilderFoldCard>
+
+			<p v-if="projectProblem" class="flex items-center gap-2 text-xs text-error">
+				{{ projectProblem }}
+				<UButton label="Try again" size="xs" variant="soft" @click="readProject" />
+			</p>
 			<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
 
-			<div class="flex gap-2">
-				<UButton label="Show the changes" variant="soft" :disabled="!complete || busy" @click="showDiff" />
-				<UButton label="Write them" :disabled="!complete || busy || !preview" @click="write" />
+			<div class="flex items-center gap-2">
+				<UButton label="Show the changes" variant="soft" :disabled="blocked" @click="showDiff" />
+				<UButton label="Write them" :disabled="blocked || !preview" @click="write" />
 				<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('cancel')" />
+				<span v-if="missing" class="text-xs text-muted">Needs {{ missing }}.</span>
+				<span v-else-if="invalid" class="text-xs text-error">Check the details: {{ invalid }}.</span>
+				<span v-else-if="!project && !projectProblem" class="text-xs text-muted">Reading the project…</span>
 			</div>
 
 			<DmsBuilderDiffView v-if="preview" :changes="preview" />
@@ -195,13 +304,11 @@ async function setVariables(values: [string, string][]): Promise<string[]> {
 			<p><b class="font-semibold text-highlighted">Written. Restart the project.</b></p>
 			<p>
 				The connection exists once the project restarts. Every deployed environment sets
-				<span class="font-mono">{{ form.variable }}</span> where it keeps its secrets, never in git<template
-					v-if="wiring.separateDatabase"
-				>, and <span class="font-mono">{{ form.databaseVariable }}</span> to its database</template>.
+				<span class="font-mono">{{ names.variable }}</span><template v-if="spec.separateDatabase">
+					and <span class="font-mono">{{ names.databaseVariable }}</span></template> where it keeps its secrets, never in git.
 			</p>
-			<p v-if="problem" class="text-error">{{ problem }}</p>
 			<div>
-				<UButton label="Done" size="sm" @click="emit('connected', form.connection)" />
+				<UButton label="Done" size="sm" @click="emit('connected', id)" />
 			</div>
 		</div>
 	</div>

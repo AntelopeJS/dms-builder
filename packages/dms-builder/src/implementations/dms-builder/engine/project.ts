@@ -1,7 +1,39 @@
 import fs from "node:fs";
 import path from "node:path";
-import { IndentationText, Project } from "ts-morph";
+import { IndentationText, Project, ts } from "ts-morph";
 import { getModuleConfig } from "../../../config";
+
+/**
+ * The compiler options of the DMS project template, for a project that has no `tsconfig.json`: a
+ * module the builder scaffolds there compiles with them, and the builder typechecks with them.
+ */
+export const DEFAULT_COMPILER_OPTIONS = {
+  moduleResolution: "bundler",
+  target: "esnext",
+  module: "commonjs",
+  lib: ["ES2020"],
+  types: ["node"],
+  strict: true,
+  esModuleInterop: true,
+  resolveJsonModule: true,
+  experimentalDecorators: true,
+  emitDecoratorMetadata: true,
+  declaration: true,
+  sourceMap: true,
+  useDefineForClassFields: true,
+} satisfies Record<string, string | boolean | string[]>;
+
+/**
+ * ts-morph's TypeScript predates `moduleResolution: "bundler"` with `module: "commonjs"`, which
+ * the template's own compiler accepts; `preserve` resolves the same way for a typecheck.
+ */
+const CHECKER_MODULE = "preserve";
+
+const UNCHECKED_PATTERNS = [
+  "**/node_modules/**",
+  ".antelope/**",
+  "antelope.config.*",
+];
 
 export function resolveProjectRoot(): string {
   const configured = getModuleConfig().projectRoot;
@@ -219,11 +251,18 @@ export function createProject(rootDir: string): Project {
   if (tsConfigFilePath) {
     return new Project({ tsConfigFilePath, manipulationSettings });
   }
+  const { options } = ts.convertCompilerOptionsFromJson(
+    { ...DEFAULT_COMPILER_OPTIONS, module: CHECKER_MODULE, allowJs: true },
+    rootDir,
+  );
   const project = new Project({
-    compilerOptions: { allowJs: true },
+    compilerOptions: options,
     manipulationSettings,
   });
-  project.addSourceFilesAtPaths(path.join(rootDir, "**/*.ts"));
+  project.addSourceFilesAtPaths([
+    path.join(rootDir, "**/*.ts"),
+    ...UNCHECKED_PATTERNS.map((pattern) => `!${path.join(rootDir, pattern)}`),
+  ]);
   return project;
 }
 

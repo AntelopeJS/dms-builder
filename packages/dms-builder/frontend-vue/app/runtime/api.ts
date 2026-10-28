@@ -1,12 +1,15 @@
 import { API_PREFIX, PAGE_LAYOUT_PATH } from './constants'
 import type {
 	AnalysisState,
+	ConnectionInfo,
 	DatabaseConnection,
 	MappedRelation,
 	MapResourcesInput,
 	MapResourcesResult,
 	ProjectConfigResult,
 	ProjectConfigStep,
+	ProjectModules,
+	ProjectVariable,
 	RowSample,
 } from './database-types'
 import type {
@@ -180,14 +183,23 @@ export function useBuilderApi() {
 			read<MappedRelation[]>('/database/mapping', { connection, module }),
 		mapDatabase: (input: MapResourcesInput) =>
 			post<MapResourcesResult>('/database/map', input),
-		configureProject: (steps: ProjectConfigStep[], dryRun: boolean) =>
-			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun } }),
-		/** Writes the value into the project's `.env`; the answer never carries it back. */
-		setVariable: (name: string, value: string) =>
-			$authFetch<{ ok: boolean; name?: string; message?: string }>(
-				`${API_PREFIX}/database/variable`,
-				{ method: 'PUT', body: { name, value } },
-			),
+		/** The ids of the modules the project's configuration lists. */
+		projectModules: () => get<ProjectModules>('/database/project'),
+		/**
+		 * Applies the steps, or answers their diff on a dry run. The variables' values go into the
+		 * project's `.env` before the configuration is written; the answer never carries them back.
+		 */
+		configureProject: (steps: ProjectConfigStep[], dryRun: boolean, variables?: ProjectVariable[]) =>
+			post<ProjectConfigResult>('/database/project', { steps, opts: { dryRun }, variables }),
+		/** What the connection wired into the configuration, and its details without the password. */
+		databaseConnection: (connection: string) =>
+			get<ConnectionInfo>('/database/connection', { connection }),
+		/** Takes the connection out of the project, with its tables module and that module's folder. */
+		removeConnection: (connection: string, opts: { dryRun: boolean }) =>
+			post<ProjectConfigResult>('/database/connection/remove', { connection, ...opts }),
+		/** Writes the connection's new URL into `.env`; one with no password keeps the current one. */
+		setConnectionUrl: (connection: string, url: string) =>
+			post<{ variable: string }>('/database/connection/url', { connection, url }),
 		/** A few rows for the integrator to look at, held in the panel and nowhere else. */
 		sampleRows: (connection: string, relation: string, limit: number) =>
 			$authFetch<RowSample>(`${API_PREFIX}/database/sample`, {

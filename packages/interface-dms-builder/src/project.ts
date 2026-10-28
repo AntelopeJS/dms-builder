@@ -51,24 +51,50 @@ export interface ConfigureModuleStep {
  * Scaffolds a local module at `path` (relative to the project root) and adds its entry: a
  * `package.json` carrying the project's interface dependencies, a `tsconfig.json` with the
  * project's compiler options, and an `src/index.ts`. The entry watches and rebuilds it as the
- * project's own module is.
+ * project's own module is. With `connection`, its `dmsBuilder.database` record names that
+ * connection: the module holds that connection's tables, and goes with it when it is removed.
  */
 export interface CreateLocalModuleStep {
   op: "CreateLocalModule";
   id: string;
   path: string;
   entry?: ModuleEntryInput;
+  connection?: string;
+}
+
+/**
+ * Removes a module entry and the `envOverrides` entries that supply its config. Its files stay.
+ * Refused while another module's `importOverrides` names it as a source.
+ */
+export interface RemoveModuleStep {
+  op: "RemoveModule";
+  id: string;
+}
+
+/** Removes the named connection `id` to `interface` from every module's `importOverrides`. */
+export interface RemoveConnectionStep {
+  op: "RemoveConnection";
+  interface: string;
+  id: string;
 }
 
 export type ProjectConfigStep =
   | AddModuleStep
   | ConfigureModuleStep
-  | CreateLocalModuleStep;
+  | CreateLocalModuleStep
+  | RemoveModuleStep
+  | RemoveConnectionStep;
 
 /** Options for a project-config operation. */
 export interface ProjectConfigOpts {
   /** Answer the changes the steps would make, and write nothing. */
   dryRun?: boolean;
+}
+
+/** Options for `CreateLocalModule`. */
+export interface CreateLocalModuleOpts extends ProjectConfigOpts {
+  /** The connection whose tables the module holds, as `CreateLocalModuleStep.connection`. */
+  connection?: string;
 }
 
 /** The files a project-config operation wrote, or would write. */
@@ -109,13 +135,13 @@ export const ConfigureModule =
     ) => Promise<OpResult<ProjectConfigResult>>
   >();
 
-/** One `CreateLocalModule` step. */
+/** One `CreateLocalModule` step; `opts.connection` is the step's `connection`. */
 export const CreateLocalModule =
   InterfaceFunction<
     (
       id: string,
       path: string,
       entry?: ModuleEntryInput,
-      opts?: ProjectConfigOpts,
+      opts?: CreateLocalModuleOpts,
     ) => Promise<OpResult<ProjectConfigResult>>
   >();

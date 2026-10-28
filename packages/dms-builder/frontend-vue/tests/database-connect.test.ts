@@ -1,0 +1,277 @@
+import { describe, expect, it } from 'vitest'
+import {
+	type ConnectForm,
+	connectSteps,
+	connectVariables,
+	connectionUrl,
+	defaultNames,
+	connectionId,
+	detailsFields,
+	emptyFields,
+	engineOfScheme,
+	fieldProblem,
+	isConnectionUrl,
+	missingField,
+	parseConnectionUrl,
+} from '../app/runtime/database-connect'
+
+function form(overrides: Partial<ConnectForm> = {}): ConnectForm {
+	return {
+		name: 'ERP',
+		engine: 'postgres',
+		fields: { ...emptyFields('postgres'), host: 'db.example', database: 'erp', user: 'reader', password: 's3cret' },
+		overrides: {},
+		...overrides,
+	}
+}
+
+describe('the names the builder manages for a connection', () => {
+	it('follows the name under a prefix no ordinary module uses', () => {
+		expect(defaultNames('Client ERP', 'postgres')).toEqual({
+			driverModule: 'builder-db-client-erp',
+			tablesModule: 'builder-db-client-erp-tables',
+			variable: 'BUILDER_DB_CLIENT_ERP_URL',
+			databaseVariable: 'BUILDER_DB_CLIENT_ERP_DATABASE',
+			version: '>=0.2.1 <1.0.0',
+		})
+	})
+
+	it('folds accents rather than splitting the word', () => {
+		expect(connectionId('Données Comptabilité')).toBe('donnees-comptabilite')
+	})
+
+	it('keeps a name the integrator changed, and derives the others', () => {
+		const steps = connectSteps(form({ overrides: { tablesModule: 'erp-tables' } }), { modules: [] })
+		expect(steps.map((step) => `${step.op}:${step.id}`)).toEqual([
+			'AddModule:builder-db-erp',
+			'CreateLocalModule:erp-tables',
+			'ConfigureModule:dms-builder',
+		])
+	})
+})
+
+describe('the wiring of a database', () => {
+	it('adds the driver below every other database provider and touches no other module than the builder', () => {
+		const [driver, tables, builder] = connectSteps(form(), { modules: ['mongodb', 'dms-builder'] })
+		expect(driver).toMatchObject({
+			op: 'AddModule',
+			entry: {
+				source: { type: 'package', package: '@antelopejs/postgres' },
+				env: { url: 'BUILDER_DB_ERP_URL' },
+				exportPriority: { '@antelopejs/interface-database': -1 },
+			},
+		})
+		expect(tables).toMatchObject({
+			path: 'modules/builder-db-erp-tables',
+			entry: { importOverrides: [{ interface: '@antelopejs/interface-database', source: 'builder-db-erp' }] },
+		})
+		expect(builder).toMatchObject({ id: 'dms-builder' })
+	})
+
+	it('gives dms-ai a connection when the project has it', () => {
+		const steps = connectSteps(form(), { modules: ['dms-builder', 'dms-ai'] })
+		expect(steps.at(-1)).toMatchObject({
+			op: 'ConfigureModule',
+			id: 'dms-ai',
+			entry: { importOverrides: [{ source: 'builder-db-erp', id: 'erp' }] },
+		})
+	})
+
+	it('pins the DMS module to the project\'s own database when the builder says it needs it', () => {
+		const steps = connectSteps(form(), {
+			modules: ['dms', 'mongodb', 'dms-builder'],
+			databasePin: { module: 'dms', provider: 'mongodb' },
+		})
+		expect(steps.at(-1)).toEqual({
+			op: 'ConfigureModule',
+			id: 'dms',
+			entry: { importOverrides: [{ interface: '@antelopejs/interface-database', source: 'mongodb' }] },
+		})
+	})
+
+	it('never carries the connection details into the configuration', () => {
+		expect(JSON.stringify(connectSteps(form(), { modules: ['dms-ai'] }))).not.toMatch(/s3cret|db\.example|postgres:\/\//)
+	})
+
+	it('waits for a name, a host, a database and a user', () => {
+		expect(missingField(form())).toBeUndefined()
+		expect(missingField(form({ name: ' - ' }))).toBe('a name')
+		expect(missingField(form({ fields: { ...form().fields, user: '' } }))).toBe('a user')
+	})
+})
+
+describe('the wiring of a document database', () => {
+	const mongodb = (overrides: Partial<ConnectForm> = {}) =>
+		form({
+			engine: 'mongodb',
+			fields: { ...emptyFields('mongodb'), host: 'db.example', database: 'erp', user: 'reader', password: 's3cret' },
+			...overrides,
+		})
+
+	it('wires postgres with its URL only, and disables no export', () => {
+		const [driver] = connectSteps(form(), { modules: [] })
+		expect(driver.entry).not.toHaveProperty('disabledExports')
+		expect(connectVariables(form()).map((variable) => variable.name)).toEqual(['BUILDER_DB_ERP_URL'])
+	})
+
+	it('wires mongodb with its URL and database variables, and never offers its raw client', () => {
+		const [driver] = connectSteps(mongodb(), { modules: [] })
+		expect(driver.entry).toMatchObject({
+			source: { package: '@antelopejs/mongodb', version: '>=1.6.0 <2.0.0' },
+			config: { mode: 'external' },
+			env: { url: 'BUILDER_DB_ERP_URL', database: 'BUILDER_DB_ERP_DATABASE' },
+			disabledExports: ['@antelopejs/interface-mongodb'],
+		})
+		expect(connectVariables(mongodb())).toEqual([
+			{ name: 'BUILDER_DB_ERP_URL', value: 'mongodb://reader:s3cret@db.example:27017/erp' },
+			{ name: 'BUILDER_DB_ERP_DATABASE', value: 'erp' },
+		])
+	})
+
+	it('waits for a database variable only where the driver reads one', () => {
+		expect(missingField(mongodb({ overrides: { databaseVariable: ' ' } }))).toBe('a database variable')
+		expect(missingField(form({ overrides: { databaseVariable: ' ' } }))).toBeUndefined()
+	})
+
+	it('wires rethinkdb with the database in its URL, and never offers its raw client', () => {
+		const rethinkdb = form({
+			engine: 'rethinkdb',
+			fields: { ...emptyFields('rethinkdb'), host: 'db.example', database: 'erp', user: 'reader', password: 's3cret' },
+		})
+		const [driver] = connectSteps(rethinkdb, { modules: [] })
+		expect(driver.entry).toMatchObject({
+			source: { package: '@antelopejs/rethinkdb' },
+			env: { url: 'BUILDER_DB_ERP_URL' },
+			disabledExports: ['@antelopejs/interface-rethinkdb'],
+		})
+		expect(connectVariables(rethinkdb)).toEqual([
+			{ name: 'BUILDER_DB_ERP_URL', value: 'rethinkdb://reader:s3cret@db.example:28015/erp' },
+		])
+	})
+
+	it('reads a URL of each engine, and knows the engine by its scheme', () => {
+		expect(parseConnectionUrl('mongodb', 'mongodb://reader:pw@db.example/erp?authSource=admin')).toMatchObject({
+			port: '27017',
+			database: 'erp',
+			options: { authSource: 'admin' },
+		})
+		expect(() => parseConnectionUrl('mongodb', 'postgres://db.example/erp')).toThrow(/not a MongoDB URL/)
+		expect(engineOfScheme('rethinkdb')).toBe('rethinkdb')
+		expect(engineOfScheme('postgresql:')).toBe('postgres')
+		expect(engineOfScheme('mysql')).toBeUndefined()
+	})
+})
+
+describe('the tables module of a new connection', () => {
+	it('is created under its own folder, its record naming the connection', () => {
+		const steps = connectSteps(form(), { modules: [] })
+		expect(steps[1]).toEqual({
+			op: 'CreateLocalModule',
+			id: 'builder-db-erp-tables',
+			path: 'modules/builder-db-erp-tables',
+			entry: { importOverrides: [{ interface: '@antelopejs/interface-database', source: 'builder-db-erp' }] },
+			connection: 'erp',
+		})
+	})
+})
+
+describe('the details of a connection made before', () => {
+	it('fill the fields, SSL from its mode, the password left empty', () => {
+		const fields = detailsFields({
+			scheme: 'postgres',
+			host: 'db.example',
+			port: '5433',
+			database: 'erp main',
+			user: 'read@er',
+			hasPassword: true,
+			options: { sslmode: 'require', application_name: 'dms' },
+		})
+		expect(fields).toEqual({
+			host: 'db.example',
+			port: '5433',
+			database: 'erp main',
+			user: 'read@er',
+			password: '',
+			ssl: true,
+			options: { application_name: 'dms' },
+		})
+		expect(connectionUrl('postgres', fields)).toBe(
+			'postgres://read%40er@db.example:5433/erp%20main?application_name=dms&sslmode=require',
+		)
+	})
+})
+
+describe('a connection URL', () => {
+	it('fills the fields from a pasted URL, decoding its credentials', () => {
+		expect(
+			parseConnectionUrl('postgres', 'postgresql://re%40der:p%40ss%2Fw@db.example:6432/erp?sslmode=require&application_name=dms'),
+		).toEqual({
+			host: 'db.example',
+			port: '6432',
+			database: 'erp',
+			user: 're@der',
+			password: 'p@ss/w',
+			ssl: true,
+			options: { application_name: 'dms' },
+		})
+	})
+
+	it('takes the default port when the URL has none, and SSL off without sslmode', () => {
+		expect(parseConnectionUrl('postgres', 'postgres://u@h/db')).toMatchObject({ port: '5432', ssl: false, password: '' })
+	})
+
+	it('keeps a strict SSL mode as it was pasted', () => {
+		const fields = parseConnectionUrl('postgres', 'postgres://u:p@h/db?sslmode=verify-full')
+		expect(fields.ssl).toBe(true)
+		expect(connectionUrl('postgres', fields)).toBe('postgres://u:p@h:5432/db?sslmode=verify-full')
+	})
+
+	it('refuses a URL of another engine, or no URL at all', () => {
+		expect(() => parseConnectionUrl('postgres', 'mysql://u@h/db')).toThrow(/PostgreSQL/)
+		expect(() => parseConnectionUrl('postgres', 'db.example')).toThrow()
+	})
+
+	it('writes back what it read, credentials encoded and options kept', () => {
+		const pasted = 'postgres://re%40der:p%40ss@db.example:6432/erp?application_name=dms&sslmode=require'
+		expect(connectionUrl('postgres', parseConnectionUrl('postgres', pasted))).toBe(pasted)
+	})
+
+	it('keeps an sslmode the SSL switch does not stand for, until the switch is turned on', () => {
+		const fields = parseConnectionUrl('postgres', 'postgres://u:p@h/db?sslmode=no-verify')
+		expect(fields.ssl).toBe(false)
+		expect(connectionUrl('postgres', fields)).toBe('postgres://u:p@h:5432/db?sslmode=no-verify')
+		expect(connectionUrl('postgres', { ...fields, ssl: true })).toBe('postgres://u:p@h:5432/db?sslmode=require')
+	})
+
+	it('leaves out a port the saved details left out', () => {
+		const details = { scheme: 'postgres', host: 'h', port: '', database: 'db', user: 'u', hasPassword: true, options: {} }
+		expect(connectionUrl('postgres', detailsFields(details))).toBe('postgres://u@h/db')
+	})
+
+	it('builds one from the fields, with sslmode when SSL is on', () => {
+		expect(connectionUrl('postgres', { ...form().fields, ssl: true })).toBe(
+			'postgres://reader:s3cret@db.example:5432/erp?sslmode=require',
+		)
+	})
+
+	it('writes the database name as the driver decodes it, and refuses one it cannot', () => {
+		const fields = { ...form().fields, database: 'sales$2024' }
+		expect(connectionUrl('postgres', fields)).toBe('postgres://reader:s3cret@db.example:5432/sales$2024')
+		expect(parseConnectionUrl('postgres', 'postgres://u@h/sales%242024').database).toBe('sales%242024')
+		expect(fieldProblem({ ...fields, database: 'a?b' })).toMatch(/\?/)
+	})
+
+	it('writes a socket directory as one host, and an IPv6 address in brackets', () => {
+		expect(connectionUrl('postgres', { ...form().fields, host: '/var/run/postgresql', port: '' })).toBe(
+			'postgres://reader:s3cret@%2Fvar%2Frun%2Fpostgresql/erp',
+		)
+		expect(connectionUrl('postgres', { ...form().fields, host: '::1' })).toBe('postgres://reader:s3cret@[::1]:5432/erp')
+		expect(fieldProblem({ ...form().fields, host: 'db.example ' })).toBeUndefined()
+		expect(fieldProblem({ ...form().fields, host: 'db.example:5433' })).toMatch(/port/)
+	})
+
+	it('is recognised by its scheme when pasted into the host', () => {
+		expect(isConnectionUrl('postgres', ' postgresql://h/db')).toBe(true)
+		expect(isConnectionUrl('postgres', 'db.example')).toBe(false)
+	})
+})

@@ -4,6 +4,10 @@ import type { BlockPath } from "./addressing";
 export interface FileChange {
   path: string;
   kind: "create" | "modify" | "delete";
+  /**
+   * The change as unified diff hunks (`@@ -a,b +c,d @@`, then lines prefixed with a space, `-`
+   * or `+`), with no file headers; empty for a deleted file or folder.
+   */
   diff: string;
 }
 

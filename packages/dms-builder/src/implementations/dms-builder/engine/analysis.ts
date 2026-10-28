@@ -10,7 +10,11 @@ import type {
   ProposedExclusion,
   ProposedResource,
 } from "@antelopejs/interface-dms-builder";
-import { type ReferenceTarget, proposeFields } from "./analysis-fields";
+import {
+  type ReferenceTarget,
+  proposeFields,
+  referenceTarget,
+} from "./analysis-fields";
 import {
   type AnalysisInput,
   type RelationFacts,
@@ -128,10 +132,10 @@ function targetsOf(
   const targets = new Map(Object.entries(input.mapped));
   for (const { facts, verdict } of classified) {
     if (verdict.kind === "proposed") {
-      targets.set(facts.relation, {
-        tableView: verdict.tableView.value,
-        key: facts.description.key?.columns ?? [],
-      });
+      targets.set(
+        facts.relation,
+        referenceTarget(facts.description, verdict.tableView.value),
+      );
     }
   }
   return targets;
@@ -154,23 +158,31 @@ function proposedResource(
     implied: input.references,
   });
   const { description } = facts;
-  return {
-    resource: {
-      relation: facts.relation,
-      tableView: verdict.tableView,
-      writable: { value: false, rule: "W1", kind: "default" },
-      label: verdict.label,
-      title: {
-        value: titleOf(description.comment, description.name),
-        rule: "L2",
-        kind: "default",
-      },
-      fields: fields.fields,
-      leftOut: fields.leftOut,
-      writes: description.writes,
+  const resource: ProposedResource = {
+    relation: facts.relation,
+    tableView: verdict.tableView,
+    writable: { value: false, rule: "W1", kind: "default" },
+    label: verdict.label,
+    title: {
+      value: titleOf(description.comment, description.name),
+      rule: "L2",
+      kind: "default",
     },
-    open: [...verdict.open, ...fields.open],
+    fields: fields.fields,
+    leftOut: fields.leftOut,
+    writes: description.writes,
   };
+  if (facts.rows !== null) {
+    resource.rows = facts.rows;
+  }
+  const counted = facts.profile?.rows;
+  const profiledRows =
+    facts.profile?.sample?.rows ??
+    (counted?.status === "ok" ? counted.value.rows : undefined);
+  if (profiledRows !== undefined) {
+    resource.profiledRows = profiledRows;
+  }
+  return { resource, open: [...verdict.open, ...fields.open] };
 }
 
 /**

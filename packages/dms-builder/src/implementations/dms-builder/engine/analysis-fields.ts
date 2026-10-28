@@ -1,8 +1,10 @@
 import { MixedTypeDeclarations } from "./mixed-types";
+import { nativeKind } from "./native-kind";
 import type {
   ColumnDescription,
   ColumnProfile,
   Measure,
+  RelationDescription,
 } from "@antelopejs/interface-database-catalog";
 import type {
   OpenItem,
@@ -36,6 +38,27 @@ const SORTED_TYPES: readonly string[] = ["date", "number"];
 export interface ReferenceTarget {
   tableView: boolean;
   key: string[];
+  /** The declarations the key accepts, when it is one column. */
+  keyAccepts: string[];
+  /** The kind of value the key holds, when it is one column, as `nativeKind` reads it. */
+  keyKind?: string;
+}
+
+export function referenceTarget(
+  description: RelationDescription,
+  tableView: boolean,
+): ReferenceTarget {
+  const key = description.key?.columns ?? [];
+  const keyColumn =
+    key.length === 1
+      ? description.columns.find((column) => column.name === key[0])
+      : undefined;
+  return {
+    tableView,
+    key,
+    keyAccepts: keyColumn?.accepts.map((entry) => entry.declared) ?? [],
+    keyKind: keyColumn && nativeKind(keyColumn.native),
+  };
 }
 
 /** What the field rules read beyond the relation. */
@@ -126,24 +149,61 @@ function fieldTypeItem(
   };
 }
 
+/**
+ * Whether the column holds the kind of value the target's key holds, so a value of one can find a
+ * row of the other. A declared foreign key needs no such check: the database enforces it.
+ */
+export function holdsKeyKind(
+  column: ColumnDescription,
+  target: ReferenceTarget,
+): boolean {
+  return target.keyKind === nativeKind(column.native);
+}
+
+/** Single-keyed TableViews whose key holds the kind of value the column holds, by name. */
+function otherTargets(
+  column: ColumnDescription,
+  context: FieldContext,
+  except: string,
+): string[] {
+  const holds = new Set(column.accepts.map((entry) => entry.declared));
+  return [...context.targets]
+    .filter(
+      ([relation, target]) =>
+        relation !== except &&
+        target.tableView &&
+        target.key.length === 1 &&
+        holdsKeyKind(column, target) &&
+        target.keyAccepts.some((declared) => holds.has(declared)),
+    )
+    .map(([relation]) => relation)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 function referenceItem(
   facts: RelationFacts,
-  column: string,
+  column: ColumnDescription,
   reference: ImpliedReference,
+  context: FieldContext,
 ): OpenItem {
   const share = Math.round(containmentOf(reference) * PERCENT);
+  const { relation, column: target } = reference.to;
   return {
-    id: `reference:${facts.relation}.${column}`,
+    id: `reference:${facts.relation}.${column.name}`,
     kind: "reference",
     relation: facts.relation,
-    column,
-    question: `${share}% of ${facts.relation}.${column} is found in ${reference.to.relation}.${reference.to.column}. Is it a reference to it?`,
+    column: column.name,
+    question: `Does ${facts.relation}.${column.name} point at a row of another table? ${share}% of its values are found in ${relation}.${target}. As a reference, the column shows that row's label and filters by it.`,
     options: [
-      {
-        value: reference.to.relation,
-        title: `A reference to ${reference.to.relation}`,
-      },
       { value: null, title: "A plain column" },
+      {
+        value: relation,
+        title: `A reference to ${relation} (${share}% found)`,
+      },
+      ...otherTargets(column, context, relation).map((other) => ({
+        value: other,
+        title: `A reference to ${other}`,
+      })),
     ],
     proposed: null,
   };
@@ -157,15 +217,17 @@ interface RelationChoice {
 /** A column's relation: a declared one (F4), or an implied one the catalog checked (F5). */
 function relationChoice(
   facts: RelationFacts,
-  column: string,
+  description: ColumnDescription,
   context: FieldContext,
 ): RelationChoice {
+  const column = description.name;
   const declared = declaredReference(facts, column, context);
   if (declared) {
     return { relation: declared };
   }
   const implied = impliedMatch(facts, column, context);
-  if (!implied) {
+  const target = implied && context.targets.get(implied.to.relation);
+  if (!implied || (target && !holdsKeyKind(description, target))) {
     return {};
   }
   const containment = containmentOf(implied);
@@ -177,7 +239,7 @@ function relationChoice(
     };
   }
   return containment >= OPEN_CONTAINMENT
-    ? { open: referenceItem(facts, column, implied) }
+    ? { open: referenceItem(facts, description, implied, context) }
     : {};
 }
 
@@ -323,7 +385,7 @@ export function proposeFields(
       }
       continue;
     }
-    const choice = relationChoice(facts, column.name, context);
+    const choice = relationChoice(facts, column, context);
     if (choice.open) {
       proposed.open.push(choice.open);
     }

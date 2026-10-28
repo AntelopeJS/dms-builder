@@ -1,22 +1,32 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
+import { refusalText } from '../runtime/database-connect'
 import {
 	answerItem,
+	currentAnswer,
 	draftFromMapped,
 	draftFromProposal,
 	forgetMappingDraft,
 	includeResource,
+	type KeptDraft,
+	keptDraft,
+	keptMappedDrafts,
 	mappedTableViewsOf,
 	mergedDraft,
 	type MappingDraft,
+	pointingAt,
+	purposeText,
 	remapInput,
 	type ResourceDraft,
 	ruleSentence,
 	settledInput,
+	storedMappedDrafts,
 	storedMappingDraft,
+	storeMappedDrafts,
 	storeMappingDraft,
 	unanswered,
+	unsavedRelations,
 } from '../runtime/database'
 import type {
 	AnalysisState,
@@ -31,16 +41,17 @@ import type {
 /**
  * A connection's mapping, decided in the builder: the analysis runs, its
  * proposal comes back with every choice marked as a catalog fact or a default
- * and the questions it could not decide on top, the integrator settles it, and
+ * and the questions it could not decide asked at the relation they are about,
+ * the integrator settles it, and
  * Apply sends one `MapResources` once they have read what it writes. The
  * relations the module maps already are listed too, and one changed there is
  * mapped again on its own. Nothing is written before the integrator says so.
  */
 
 const props = defineProps<{ connection: string; module: string }>()
+const emit = defineEmits<{ unsaved: [count: number] }>()
 
 const POLL_MS = 1000
-const KIND_COLORS: Record<ProposedKind, 'neutral' | 'warning'> = { fact: 'neutral', default: 'warning' }
 
 type Selection = { kind: 'proposed' | 'mapped'; relation: string }
 
@@ -49,13 +60,18 @@ const state = ref<AnalysisState | null>(null)
 const draft = ref<MappingDraft | null>(null)
 const mapped = ref<MappedRelation[]>([])
 const mappedDrafts = ref<Record<string, ResourceDraft>>({})
+/** The mapped relations as last read, which an unsaved draft differs from. */
+const mappedRead = ref<Record<string, ResourceDraft>>({})
 const selected = ref<Selection | null>(null)
 const schemas = ref<string[]>([])
 const problem = ref('')
 const busy = ref(false)
 const confirming = ref(false)
 const applied = ref<MapResourcesResult | null>(null)
-const remapped = ref('')
+const remapped = ref<{ titles: string[]; page?: string; relabelled: string[]; warnings: string[] } | null>(null)
+/** What Apply warned about: a page it could not write. */
+const appliedWarnings = ref<string[]>([])
+const remapProblem = ref('')
 /** What reading the mapping warned about: a mapped relation the database no longer has. */
 const mappedWarnings = ref<string[]>([])
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -63,10 +79,12 @@ let disposed = false
 
 const proposal = computed<MappingProposal | undefined>(() => state.value?.proposal)
 const open = computed(() => (proposal.value && draft.value ? unanswered(proposal.value, draft.value) : []))
+const schemasItem = computed(() => open.value.find((item) => item.kind === 'schemas'))
 const tableViews = computed(() => draft.value?.resources.filter((entry) => entry.include && entry.tableView) ?? [])
 const statsOnly = computed(() => draft.value?.resources.filter((entry) => entry.include && !entry.tableView) ?? [])
 const left = computed(() => draft.value?.resources.filter((entry) => !entry.include) ?? [])
 const mappedTableViews = computed(() => mappedTableViewsOf(mapped.value))
+const unsaved = computed(() => unsavedRelations(mappedDrafts.value, mappedRead.value))
 const summary = computed(() =>
 	proposal.value && draft.value ? settledInput(proposal.value, draft.value, mappedTableViews.value) : undefined,
 )
@@ -99,25 +117,61 @@ function failed(message: string): void {
 	}
 }
 
-async function loadMapped(): Promise<void> {
+/** The unsaved drafts, from the browser and the panel, without those `sent` holds as they were sent. */
+function unsavedDrafts(): Record<string, KeptDraft> {
+	return Object.fromEntries(
+		unsaved.value.map((relation) => [relation, keptDraft(mappedDrafts.value[relation]!, mappedRead.value[relation])]),
+	)
+}
+
+function draftsToKeep(sent: Record<string, string>): Record<string, KeptDraft> {
+	const kept: Record<string, KeptDraft> = {
+		...storedMappedDrafts(props.connection, props.module),
+		...unsavedDrafts(),
+	}
+	return Object.fromEntries(
+		Object.entries(kept).filter(([relation, change]) => sent[relation] !== JSON.stringify(change.draft)),
+	)
+}
+
+/** Drops a mapped relation's change not applied yet, back to what was read. */
+function discard(relation: string): void {
+	const read = mappedRead.value[relation]
+	if (read) {
+		mappedDrafts.value[relation] = JSON.parse(JSON.stringify(read)) as ResourceDraft
+	}
+}
+
+/**
+ * Reads the module's mapped relations again. The changes not applied yet are kept: those of other
+ * relations, and those made to a relation while what `sent` holds for it was being written.
+ */
+async function loadMapped(sent: Record<string, string> = {}): Promise<void> {
 	const result = await api.mapping(props.connection, props.module)
 	if (disposed) return
 	if (!result.ok) {
-		problem.value = JSON.stringify(result.error)
+		problem.value = refusalText(result.error)
 		return
 	}
+	const kept = draftsToKeep(sent)
 	mapped.value = result.data
 	mappedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
-	mappedDrafts.value = Object.fromEntries(
+	mappedRead.value = Object.fromEntries(
 		result.data.map((entry) => [entry.resource.relation, draftFromMapped(entry)]),
 	)
+	const editedWhileSent = Object.fromEntries(
+		Object.entries(kept)
+			.filter(([relation]) => relation in sent && relation in mappedRead.value)
+			.map(([relation, change]) => [relation, keptDraft(change.draft, mappedRead.value[relation])]),
+	)
+	mappedDrafts.value = keptMappedDrafts(mappedRead.value, { ...kept, ...editedWhileSent })
 }
 
 async function poll(id: string): Promise<void> {
 	const result = await api.analysis(id)
 	if (disposed) return
 	if (!result.ok) {
-		failed(JSON.stringify(result.error))
+		failed(refusalText(result.error))
 		return
 	}
 	state.value = result.data
@@ -138,22 +192,51 @@ async function analyse(only?: string[]): Promise<void> {
 	const result = await api.analyseDatabase(props.connection, props.module, only)
 	if (disposed) return
 	if (!result.ok) {
-		failed(JSON.stringify(result.error))
+		failed(refusalText(result.error))
 		return
 	}
 	state.value = result.data
 	await poll(result.data.id)
 }
 
+function onBeforeUnload(event: BeforeUnloadEvent): void {
+	if (unsaved.value.length) event.preventDefault()
+}
+
 watch(draft, (value) => value && storeMappingDraft(value), { deep: true })
-onMounted(() => void loadMapped())
+watch(
+	mappedDrafts,
+	() => {
+		if (!Object.keys(mappedRead.value).length) return
+		storeMappedDrafts(props.connection, props.module, unsavedDrafts())
+	},
+	{ deep: true },
+)
+watch(
+	() => unsaved.value.length,
+	(count) => {
+		emit('unsaved', count)
+		if (count) remapped.value = null
+	},
+	{ immediate: true },
+)
+onMounted(() => {
+	void loadMapped()
+	window.addEventListener('beforeunload', onBeforeUnload)
+})
 onBeforeUnmount(() => {
 	disposed = true
 	stopPolling()
+	window.removeEventListener('beforeunload', onBeforeUnload)
+	emit('unsaved', 0)
 })
 
 function answer(item: OpenItem, value: unknown): void {
 	if (draft.value) answerItem(draft.value, item, value)
+}
+
+function openFor(relation: string): OpenItem[] {
+	return open.value.filter((item) => item.relation === relation)
 }
 
 function discardDraft(): void {
@@ -167,9 +250,14 @@ function proposedRule(relation: string): { rule: string; kind: ProposedKind } | 
 	return proposed && { rule: proposed.tableView.rule, kind: proposed.tableView.kind }
 }
 
+/** A page's address in the DMS, from its ref, which starts with a slash or not. */
+function pageHref(page: string): string {
+	return page.startsWith('/') ? page : `/${page}`
+}
+
 function select(kind: Selection['kind'], relation: string): void {
 	selected.value = { kind, relation }
-	remapped.value = ''
+	remapProblem.value = ''
 }
 
 async function apply(): Promise<void> {
@@ -180,29 +268,51 @@ async function apply(): Promise<void> {
 	busy.value = false
 	confirming.value = false
 	if (!result.ok) {
-		problem.value = JSON.stringify(result.error)
+		problem.value = refusalText(result.error)
 		return
 	}
 	applied.value = result.data
+	appliedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
 	forgetMappingDraft(props.connection, props.module)
 	await loadMapped()
 }
 
-async function remap(relation: string): Promise<void> {
-	const resource = mappedDrafts.value[relation]
-	if (!resource) return
+/** The relations whose label a remap changes, as the columns pointing at them must show. */
+function relabelledBy(relations: string[]): string[] {
+	const changed = relations.filter(
+		(relation) => mappedDrafts.value[relation]?.label !== mappedRead.value[relation]?.label,
+	)
+	const pointing = changed.flatMap((relation) => pointingAt(null, mapped.value, relation))
+	return [...new Set(pointing.map((column) => column.split('.').slice(0, -1).join('.')))]
+		.filter((relation) => !relations.includes(relation))
+		.map((relation) => mappedDrafts.value[relation]?.title ?? relation)
+}
+
+async function remap(): Promise<void> {
+	const relations = unsaved.value
+	if (!relations.length) return
 	busy.value = true
-	problem.value = ''
+	remapped.value = null
+	remapProblem.value = ''
+	const resources = relations.map(
+		(relation) => JSON.parse(JSON.stringify(mappedDrafts.value[relation])) as ResourceDraft,
+	)
+	const sent = Object.fromEntries(resources.map((resource) => [resource.relation, JSON.stringify(resource)]))
 	const result = await api.mapDatabase(
-		remapInput(props.connection, props.module, resource, mappedTableViews.value),
+		remapInput(props.connection, props.module, resources, mappedTableViews.value),
 	)
 	busy.value = false
 	if (!result.ok) {
-		problem.value = JSON.stringify(result.error)
+		remapProblem.value = refusalText(result.error)
 		return
 	}
-	remapped.value = relation
-	await loadMapped()
+	remapped.value = {
+		titles: resources.map((resource) => resource.title),
+		page: relations.length === 1 ? result.data.resources[0]?.page : undefined,
+		relabelled: relabelledBy(relations),
+		warnings: (result.warnings ?? []).map((warning) => warning.message),
+	}
+	await loadMapped(sent)
 }
 </script>
 
@@ -213,12 +323,12 @@ async function remap(relation: string): Promise<void> {
 				<p class="text-xl font-semibold tracking-tight text-highlighted">{{ connection }}</p>
 				<p class="font-mono text-xs text-muted">
 					<template v-if="proposal">{{ proposal.database.engine }} · {{ proposal.database.role }} · </template>
-					maps into {{ module }}
+					saved in module {{ module }}
 				</p>
 			</div>
 			<UButton
 				v-if="proposal && draft && !applied"
-				label="Discard my changes"
+				label="Start over from the suggestion"
 				color="neutral"
 				variant="ghost"
 				size="sm"
@@ -247,55 +357,40 @@ async function remap(relation: string): Promise<void> {
 			class="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-toned"
 		>
 			<b class="font-semibold text-highlighted">Applied.</b>
-			{{ applied.resources.length }} relations mapped. The pages appear once the module reloads; stats pages
-			are made in the page workspace, or by the assistant.
+			{{ applied.resources.length }} tables added. Their pages appear in the menu under
+			{{ connection.toUpperCase() }} within a few seconds.
+			<p v-for="warning in appliedWarnings" :key="warning" class="text-warning">{{ warning }}</p>
 		</div>
 
-		<template v-if="proposal && draft && !applied">
-			<section v-if="open.length" class="flex flex-col gap-2">
-				<p class="text-sm font-semibold text-highlighted">To decide ({{ open.length }})</p>
-				<div
-					v-for="item in open"
-					:key="item.id"
-					class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
-				>
-					<span class="min-w-0 flex-1 text-toned">{{ item.question }}</span>
-					<template v-if="item.kind === 'schemas'">
-						<USelect
-							v-model="schemas"
-							multiple
-							:items="item.options.map((option) => ({ label: option.title, value: String(option.value) }))"
-							placeholder="Schemas"
-							size="xs"
-							class="w-64"
-						/>
-						<UButton label="Analyse these" size="xs" :disabled="!schemas.length" @click="analyse(schemas)" />
-					</template>
-					<USelect
-						v-else
-						:items="item.options.map((option) => ({ label: option.title, value: JSON.stringify(option.value) }))"
-						placeholder="Answer"
-						size="xs"
-						class="w-64"
-						@update:model-value="answer(item, JSON.parse($event as string))"
-					/>
-				</div>
-			</section>
-		</template>
+		<section
+			v-if="proposal && draft && !applied && schemasItem"
+			class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
+		>
+			<span class="min-w-0 flex-1 text-toned">{{ schemasItem.question }}</span>
+			<USelect
+				v-model="schemas"
+				multiple
+				:items="schemasItem.options.map((option) => ({ label: option.title, value: String(option.value) }))"
+				placeholder="Schemas"
+				size="xs"
+				class="w-64"
+			/>
+			<UButton label="Analyse these" size="xs" :disabled="!schemas.length" @click="analyse(schemas)" />
+		</section>
 
 		<div v-if="(proposal && draft && !applied) || mapped.length" class="grid min-h-0 grid-cols-[280px_minmax(0,1fr)] gap-4">
-			<aside class="flex flex-col gap-3" aria-label="Relations">
+			<aside class="flex flex-col gap-3" aria-label="Tables">
 				<template v-if="proposal && draft && !applied">
 					<template v-for="group in [
-						{ title: 'TableViews', entries: tableViews },
-						{ title: 'Stats only', entries: statsOnly },
-						{ title: 'Left out', entries: left },
+						{ title: 'Pages', entries: tableViews },
+						{ title: 'Stats only, no page', entries: statsOnly },
+						{ title: 'Not added', entries: left },
 					]" :key="group.title">
 						<DmsEyebrow v-if="group.entries.length">{{ group.title }} ({{ group.entries.length }})</DmsEyebrow>
 						<div v-for="entry in group.entries" :key="entry.relation" class="flex items-center gap-2">
 							<UCheckbox
 								:model-value="entry.include"
-								:aria-label="`Map ${entry.relation}`"
+								:aria-label="`Add ${entry.relation}`"
 								@update:model-value="includeResource(draft, entry.relation, $event === true)"
 							/>
 							<UButton
@@ -308,22 +403,28 @@ async function remap(relation: string): Promise<void> {
 							>
 								{{ entry.relation }}
 							</UButton>
-							<UTooltip v-if="proposedRule(entry.relation)" :text="ruleSentence(proposedRule(entry.relation)!.rule)">
-								<UBadge :color="KIND_COLORS[proposedRule(entry.relation)!.kind]" variant="subtle" size="sm">
-									{{ proposedRule(entry.relation)!.kind }}
+							<UBadge v-if="openFor(entry.relation).length" color="warning" variant="subtle" size="sm">
+								{{ openFor(entry.relation).length }} to decide
+							</UBadge>
+							<UTooltip
+								v-if="proposedRule(entry.relation)?.kind === 'default'"
+								:text="ruleSentence(proposedRule(entry.relation)!.rule)"
+							>
+								<UBadge color="warning" variant="subtle" size="sm">
+									suggested
 								</UBadge>
 							</UTooltip>
 						</div>
 					</template>
 					<template v-if="proposal.excluded.length">
-						<DmsEyebrow>Excluded by the analysis ({{ proposal.excluded.length }})</DmsEyebrow>
+						<DmsEyebrow>Skipped automatically ({{ proposal.excluded.length }})</DmsEyebrow>
 						<p v-for="entry in proposal.excluded" :key="entry.relation" class="text-[11px] text-muted">
 							<span class="font-mono">{{ entry.relation }}</span>: {{ entry.reason }} ({{ ruleSentence(entry.rule) }})
 						</p>
 					</template>
 				</template>
 				<template v-if="mapped.length">
-					<DmsEyebrow>Mapped ({{ mapped.length }})</DmsEyebrow>
+					<DmsEyebrow>Already added ({{ mapped.length }})</DmsEyebrow>
 					<UButton
 						v-for="entry in mapped"
 						:key="entry.resource.relation"
@@ -335,6 +436,9 @@ async function remap(relation: string): Promise<void> {
 						@click="select('mapped', entry.resource.relation)"
 					>
 						{{ entry.resource.relation }}
+						<UBadge v-if="unsaved.includes(entry.resource.relation)" color="warning" variant="subtle" size="sm">
+							unsaved
+						</UBadge>
 					</UButton>
 				</template>
 			</aside>
@@ -345,6 +449,9 @@ async function remap(relation: string): Promise<void> {
 						v-model:resource="draft.resources[currentIndex]"
 						:connection="connection"
 						:proposed="currentProposed"
+						:open="openFor(selected.relation)"
+						:pointing="pointingAt(draft, mapped, selected.relation)"
+						@answer="answer"
 					/>
 				</template>
 				<template v-else-if="selected?.kind === 'mapped' && mappedDrafts[selected.relation]">
@@ -352,38 +459,73 @@ async function remap(relation: string): Promise<void> {
 						v-model:resource="mappedDrafts[selected.relation]"
 						:connection="connection"
 						:proposed="currentProposed"
+						:pointing="pointingAt(draft, mapped, selected.relation)"
 					/>
-					<div class="mt-3 flex items-center gap-3">
-						<UButton label="Map again" size="sm" :loading="busy" @click="remap(selected.relation)" />
-						<span v-if="remapped === selected.relation" class="text-xs text-success">Mapped again.</span>
-						<span v-else class="text-xs text-muted">Rewrites this relation and its page from these choices.</span>
+					<div class="mt-3 flex flex-wrap items-center gap-3" aria-live="polite">
+						<UButton
+							:label="busy ? 'Applying…' : unsaved.length > 1 ? `Apply changes (${unsaved.length} tables)` : 'Apply changes'"
+							size="sm"
+							:loading="busy"
+							:disabled="!unsaved.length"
+							@click="remap"
+						/>
+						<span v-if="remapProblem" class="text-xs text-error">{{ remapProblem }}</span>
+						<span
+							v-else-if="remapped"
+							class="rounded-md border border-success/40 bg-success/10 px-2 py-1 text-xs text-toned"
+						>
+							Saved {{ remapped.titles.join(', ') }}. The pages update once the module reloads, in a few seconds.
+							<template v-if="remapped.relabelled.length">
+								The columns pointing at them in {{ remapped.relabelled.join(', ') }} show the new label too.
+							</template>
+							<template v-for="warning in remapped.warnings" :key="warning">{{ warning }}. </template>
+							<a v-if="remapped.page" :href="pageHref(remapped.page)" class="text-primary underline">Open the page</a>
+						</span>
+						<span v-else-if="unsaved.length" class="text-xs text-warning">
+							Not saved yet: {{ unsaved.map((relation) => mappedDrafts[relation]?.title).join(', ') }}.
+						</span>
+						<span v-else class="text-xs text-muted">No changes to apply.</span>
+						<UButton
+							v-if="selected && unsaved.includes(selected.relation) && !busy"
+							label="Discard changes"
+							size="xs"
+							color="neutral"
+							variant="ghost"
+							@click="discard(selected.relation)"
+						/>
 					</div>
 				</template>
-				<p v-else class="text-xs text-muted">Pick a relation to see its columns, or apply the proposal as it stands.</p>
+				<p v-else class="text-xs text-muted">Pick a table to see its columns, or apply the suggestion as it stands.</p>
 			</section>
 		</div>
 
 		<footer v-if="proposal && draft && !applied && summary" class="flex flex-col gap-3 border-t border-default pt-3">
 			<div v-if="confirming" class="flex flex-col gap-1 rounded-md border border-default bg-elevated px-3 py-2 text-xs text-toned">
-				<p class="font-semibold text-highlighted">Apply writes, in one change:</p>
+				<p class="font-semibold text-highlighted">Applying will:</p>
 				<p v-for="entry in summary.resources" :key="entry.relation">
 					· <span class="font-mono">{{ entry.relation }}</span>:
-					{{ entry.tableView ? `a TableView page${entry.writable ? ', editable' : ', read-only'}` : 'stats only, no page' }},
-					{{ entry.fields.length }} columns
+					{{ purposeText(entry) }},
+					with {{ entry.fields.length }} columns
 				</p>
 				<p v-if="summary.excluded?.length">
-					· {{ summary.excluded.length }} relations recorded as left out, so the next analysis does not propose them
+					· remember {{ summary.excluded.length }} tables as not added, so the next analysis does not suggest them
 				</p>
-				<p v-if="open.length">· {{ open.length }} questions stay open and come back next time</p>
+				<template v-if="open.length">
+					<p>· leave {{ open.length }} questions open for next time, applied meanwhile as:</p>
+					<p v-for="item in open" :key="item.id" class="pl-3">
+						<span class="font-mono">{{ item.column ? `${item.relation}.${item.column}` : item.relation ?? connection }}</span>:
+						{{ currentAnswer(draft, item, mappedTableViews) }}
+					</p>
+				</template>
 			</div>
 			<div class="flex items-center gap-3">
 				<template v-if="confirming">
-					<UButton label="Write it" :loading="busy" @click="apply" />
+					<UButton label="Confirm" :loading="busy" @click="apply" />
 					<UButton label="Back" color="neutral" variant="ghost" @click="confirming = false" />
 				</template>
 				<UButton v-else label="Apply" @click="confirming = true" />
 				<span class="text-xs text-muted">
-					Maps {{ tableViews.length }} TableViews and {{ statsOnly.length }} stats-only relations.
+					Adds {{ tableViews.length }} tables with a page and {{ statsOnly.length }} for stats only.
 				</span>
 			</div>
 		</footer>

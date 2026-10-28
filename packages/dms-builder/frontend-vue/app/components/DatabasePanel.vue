@@ -2,7 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { DATABASE_ICON } from '../runtime/constants'
-import type { DatabaseConnection } from '../runtime/database-types'
+import { defaultNames } from '../runtime/database-connect'
+import type { ConnectionInfo, DatabaseConnection } from '../runtime/database-types'
 
 /**
  * The databases the project maps: the builder's catalog connections in a list,
@@ -14,26 +15,146 @@ const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
 const module = ref('')
-/** A connection written to the configuration, which exists once the project restarts. */
-const pending = ref<string | null>(null)
+/** The module field as typed; the mapping follows it once the field is left. */
+const moduleInput = ref('')
+/** Tables of the open connection changed and not applied yet. */
+const unsaved = ref(0)
+/** Connections written to the configuration, which exist once the project restarts. */
+const pending = ref<string[]>([])
+/** Connections taken out of the configuration, still served until the project restarts. */
+const removed = ref<string[]>([])
+/** What the open connection wired, read from the configuration. */
+const info = ref<ConnectionInfo | null>(null)
+const infoProblem = ref('')
+/** Whether the open connection's wiring was read, so its mapping opens on the module it holds its tables in. */
+const infoRead = ref(false)
+
+function connectionProblem(error: unknown): string {
+	const data = (error as { data?: { message?: string; code?: string } }).data
+	if (data?.message) {
+		return `Edit and Remove are unavailable: ${data.message}`
+	}
+	return data?.code === 'not_found'
+		? 'This connection is no longer in the configuration: restart the project to finish.'
+		: 'Edit and Remove are unavailable: the connection could not be read.'
+}
+/** What the section beside the list shows for the open connection. */
+const view = ref<'mapping' | 'edit' | 'remove'>('mapping')
 
 async function load(): Promise<void> {
 	connections.value = await api.databaseConnections().catch(() => [])
-	if (!selected.value && connections.value.length) {
-		open(connections.value[0].id)
+	const first = connections.value.find((entry) => !removed.value.includes(entry.id))
+	if (!selected.value && first) {
+		void open(first.id)
 	}
 }
 
-function connected(id: string): void {
+/**
+ * A connection written to the configuration: listed as pending from then on, however the form
+ * closes. The form stays open on its notice until Done, even the one shown for a first connection.
+ */
+function wrote(id: string): void {
+	connecting.value = true
+	pending.value = [...pending.value.filter((entry) => entry !== id), id]
+	removed.value = removed.value.filter((entry) => entry !== id)
+}
+
+function connected(): void {
 	connecting.value = false
-	pending.value = id
 	void load()
 }
 
-function open(id: string): void {
+/** What a listed connection's line says under its name. */
+function status(entry: DatabaseConnection): { text: string; tone: string } {
+	if (pending.value.includes(entry.id)) {
+		return { text: 'Restart to connect', tone: 'text-warning' }
+	}
+	if (removed.value.includes(entry.id)) {
+		return { text: 'Removed, restart to finish', tone: 'text-warning' }
+	}
+	if (entry.error) {
+		return { text: entry.error, tone: 'text-error' }
+	}
+	return { text: `${entry.engine} ${entry.version} · ${entry.database} · ${entry.role}`, tone: 'text-muted' }
+}
+
+/** Leaving the open connection drops its unapplied changes, so it asks first. */
+function mayLeave(): boolean {
+	return (
+		unsaved.value === 0 ||
+		window.confirm(`${unsaved.value} changed tables are not applied yet. Leave them unsaved?`)
+	)
+}
+
+function startConnecting(): void {
+	if (connecting.value || mayLeave()) connecting.value = !connecting.value
+}
+
+async function open(id: string): Promise<void> {
+	if (id === selected.value) {
+		connecting.value = false
+		view.value = 'mapping'
+		return
+	}
+	if (!mayLeave()) return
 	selected.value = id
 	connecting.value = false
-	module.value = `${id}-tables`
+	view.value = 'mapping'
+	info.value = null
+	infoRead.value = false
+	await readInfo(id)
+}
+
+async function readInfo(id: string): Promise<void> {
+	infoProblem.value = ''
+	const read = await api.databaseConnection(id).catch((error: unknown) => {
+		infoProblem.value = connectionProblem(error)
+		return null
+	})
+	if (selected.value !== id) return
+	info.value = read
+	if (!infoRead.value) {
+		module.value =
+			read?.wiring.modules[0]?.id ?? read?.wiring.unrecorded[0]?.id ?? defaultNames(id, 'postgres').tablesModule
+		moduleInput.value = module.value
+		infoRead.value = true
+	}
+}
+
+/** Opens the mapping of the module typed, once the field is left, asking first when changes would be dropped. */
+function useModule(): void {
+	const next = moduleInput.value.trim()
+	if (!next || next === module.value) {
+		moduleInput.value = module.value
+		return
+	}
+	if (!mayLeave()) {
+		moduleInput.value = module.value
+		return
+	}
+	module.value = next
+}
+
+function show(next: 'edit' | 'remove'): void {
+	if (view.value === next) {
+		closeView()
+		return
+	}
+	if (mayLeave()) view.value = next
+}
+
+function wasRemoved(id: string): void {
+	removed.value = [...removed.value.filter((entry) => entry !== id), id]
+	pending.value = pending.value.filter((entry) => entry !== id)
+}
+
+/** Back to the mapping, or to no connection when the open one was removed. */
+function closeView(): void {
+	view.value = 'mapping'
+	if (selected.value && removed.value.includes(selected.value)) {
+		selected.value = null
+		info.value = null
+	}
 }
 
 onMounted(load)
@@ -50,16 +171,21 @@ onMounted(load)
 				label="Connect a database"
 				size="sm"
 				:variant="connecting ? 'soft' : 'solid'"
-				@click="connecting = !connecting"
+				@click="startConnecting"
 			/>
 			<div
-				v-if="pending && !connections?.some((entry) => entry.id === pending)"
-				class="rounded-md border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-toned"
+				v-for="id in pending.filter((entry) => !connections?.some((listed) => listed.id === entry))"
+				:key="id"
+				class="flex items-center gap-2.5 px-2 py-2"
+				data-pending-connection
 			>
-				<b class="font-semibold text-highlighted">{{ pending }}</b> is written to the configuration.
-				Restart the project for it to connect.
+				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0 text-muted" />
+				<span class="flex min-w-0 flex-col">
+					<span class="truncate text-[13px] font-semibold text-highlighted">{{ id }}</span>
+					<span class="truncate text-[11px] text-warning">Restart to connect</span>
+				</span>
 			</div>
-			<p v-else-if="connections && !connections.length" class="text-xs text-muted">
+			<p v-if="connections && !connections.length && !pending.length" class="text-xs text-muted">
 				No database is connected to the builder yet.
 			</p>
 			<UButton
@@ -70,32 +196,78 @@ onMounted(load)
 				block
 				class="justify-start gap-2.5 px-2 py-2 text-left font-normal"
 				:class="selected === entry.id && !connecting ? 'bg-primary/10' : ''"
+				:disabled="removed.includes(entry.id)"
 				@click="open(entry.id)"
 			>
 				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0" />
 				<span class="flex min-w-0 flex-col">
 					<span class="truncate text-[13px] font-semibold text-highlighted">{{ entry.id }}</span>
-					<span class="truncate font-mono text-[11px]" :class="entry.error ? 'text-error' : 'text-muted'">
-						{{ entry.error ?? `${entry.engine} ${entry.version} · ${entry.database} · ${entry.role}` }}
+					<span class="truncate text-[11px]" :class="[status(entry).tone, status(entry).tone === 'text-muted' ? 'font-mono' : '']">
+						{{ status(entry).text }}
 					</span>
 				</span>
 			</UButton>
-			<UFormField v-if="selected && !connecting" label="Module it maps into" size="xs">
-				<UInput v-model="module" size="xs" class="w-full font-mono" />
-			</UFormField>
+			<template v-if="selected && !connecting">
+				<UFormField label="Module for its tables" size="xs">
+					<UInput
+						v-model="moduleInput"
+						size="xs"
+						class="w-full font-mono"
+						@blur="useModule"
+						@keydown.enter="useModule"
+					/>
+				</UFormField>
+				<p v-if="infoProblem" class="text-xs text-error">{{ infoProblem }}</p>
+				<div v-if="info && !removed.includes(selected)" class="flex gap-2">
+					<UButton
+						icon="i-ph-pencil-simple"
+						label="Edit connection"
+						size="xs"
+						color="neutral"
+						:variant="view === 'edit' ? 'soft' : 'outline'"
+						@click="show('edit')"
+					/>
+					<UButton
+						icon="i-ph-trash"
+						label="Remove"
+						size="xs"
+						color="error"
+						:variant="view === 'remove' ? 'soft' : 'outline'"
+						@click="show('remove')"
+					/>
+				</div>
+			</template>
 		</aside>
 
 		<section class="flex min-h-0 min-w-0 flex-col overflow-y-auto">
 			<DmsBuilderDatabaseConnect
-				v-if="connecting || (connections && !connections.length && !pending)"
+				v-if="connecting || (connections && !connections.length && !pending.length)"
 				@cancel="connecting = false"
+				@written="wrote"
 				@connected="connected"
 			/>
+			<DmsBuilderDatabaseConnectionEdit
+				v-else-if="selected && info && view === 'edit'"
+				:key="`edit:${selected}`"
+				:connection="selected"
+				:info="info"
+				@close="closeView"
+				@saved="readInfo(selected)"
+			/>
+			<DmsBuilderDatabaseConnectionRemove
+				v-else-if="selected && info && view === 'remove'"
+				:key="`remove:${selected}`"
+				:connection="selected"
+				:info="info"
+				@close="closeView"
+				@removed="wasRemoved"
+			/>
 			<DmsBuilderDatabaseProposal
-				v-else-if="selected"
+				v-else-if="selected && infoRead && !removed.includes(selected)"
 				:key="`${selected}:${module}`"
 				:connection="selected"
 				:module="module"
+				@unsaved="unsaved = $event"
 			/>
 		</section>
 	</div>

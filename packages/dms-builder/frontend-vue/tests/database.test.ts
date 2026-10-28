@@ -1,18 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
 	answerItem,
-	connectSteps,
-	type ConnectForm,
+	currentAnswer,
 	draftFromMapped,
 	draftFromProposal,
 	includeResource,
 	KEEP_MAPPING_DRAFT_MS,
 	mergedDraft,
+	pointingAt,
 	remapInput,
 	settledInput,
 	storedMappingDraft,
 	storeMappingDraft,
 	unanswered,
+	unsavedRelations,
 } from '../app/runtime/database'
 import type {
 	MappedRelation,
@@ -312,70 +313,6 @@ describe('a mapping draft kept in the browser', () => {
 	})
 })
 
-describe('the wiring of a database', () => {
-	const form: ConnectForm = {
-		engine: 'postgres',
-		connection: 'erp',
-		providerModule: 'postgres-erp',
-		generatedModule: 'erp-tables',
-		variable: 'ERP_DATABASE_URL',
-		databaseVariable: '',
-		version: '^0.2.0',
-		dmsPinned: false,
-		withDmsAi: true,
-	}
-
-	it('adds the provider, the generated module, the mongodb priority and a connection per consumer', () => {
-		const steps = connectSteps(form)
-		expect(steps.map((step) => `${step.op}:${step.id}`)).toEqual([
-			'AddModule:postgres-erp',
-			'CreateLocalModule:erp-tables',
-			'ConfigureModule:mongodb',
-			'ConfigureModule:dms-builder',
-			'ConfigureModule:dms-ai',
-		])
-		expect(JSON.stringify(steps)).not.toMatch(/postgres:\/\//)
-	})
-
-	it('wires postgres with its URL only, and disables no export', () => {
-		const [provider] = connectSteps(form)
-		expect(provider.entry).toMatchObject({
-			source: { package: '@antelopejs/postgres' },
-			env: { url: 'ERP_DATABASE_URL' },
-		})
-		expect(provider.entry).not.toHaveProperty('disabledExports')
-	})
-
-	it('wires mongodb with its URL and database variables, and never offers its raw client', () => {
-		const [provider] = connectSteps({
-			...form,
-			engine: 'mongodb',
-			providerModule: 'mongodb-erp',
-			databaseVariable: 'ERP_DATABASE_NAME',
-		})
-		expect(provider.entry).toMatchObject({
-			source: { package: '@antelopejs/mongodb' },
-			config: { mode: 'external' },
-			env: { url: 'ERP_DATABASE_URL', database: 'ERP_DATABASE_NAME' },
-			disabledExports: ['@antelopejs/interface-mongodb'],
-		})
-	})
-
-	it('wires rethinkdb with the database in its URL, and never offers its raw client', () => {
-		const [provider] = connectSteps({ ...form, engine: 'rethinkdb', providerModule: 'rethinkdb-erp' })
-		expect(provider.entry).toMatchObject({
-			source: { package: '@antelopejs/rethinkdb' },
-			env: { url: 'ERP_DATABASE_URL' },
-			disabledExports: ['@antelopejs/interface-rethinkdb'],
-		})
-	})
-
-	it('leaves mongodb and dms-ai alone when the project needs neither', () => {
-		const steps = connectSteps({ ...form, dmsPinned: true, withDmsAi: false })
-		expect(steps.map((step) => step.id)).toEqual(['postgres-erp', 'erp-tables', 'dms-builder'])
-	})
-})
-
 describe('a relation the module maps already', () => {
 	const mapped: MappedRelation = {
 		ref: 'erp/erp/customers',
@@ -392,14 +329,79 @@ describe('a relation the module maps already', () => {
 		])
 	})
 
-	it('is mapped again on its own, from its changed draft', () => {
+	it('is mapped again from its changed draft', () => {
 		const draft = draftFromMapped(mapped)
 		draft.fields[2].include = false
 		draft.writable = true
-		const input = remapInput('erp', 'erp-tables', draft, new Set())
+		const input = remapInput('erp', 'erp-tables', [draft], new Set())
 		expect(input.resources).toHaveLength(1)
 		expect(input.resources[0]).toMatchObject({ relation: 'erp.customers', writable: true, label: 'name' })
 		expect(input.resources[0].fields.map((entry) => entry.column)).toEqual(['name'])
 		expect(input).not.toHaveProperty('excluded')
+	})
+})
+
+describe('where a label shows, and what an open question holds meanwhile', () => {
+	const ORDERS = resource('erp.orders', [field('id'), field('notes')], 'id')
+	const INVOICES = resource('erp.invoices', [field('id'), field('order_id', 'erp.orders')], 'id')
+	const PROPOSAL: MappingProposal = {
+		connection: 'erp',
+		module: 'erp-tables',
+		database: { engine: 'postgresql 17.5', role: 'erp_reader', writes: 'none' },
+		resources: [ORDERS, INVOICES],
+		excluded: [],
+		open: [
+			{
+				id: 'label:erp.orders',
+				kind: 'label',
+				relation: 'erp.orders',
+				question: '',
+				options: [],
+				proposed: 'id',
+			},
+			{
+				id: 'reference:erp.orders.notes',
+				kind: 'reference',
+				relation: 'erp.orders',
+				column: 'notes',
+				question: '',
+				options: [],
+				proposed: null,
+			},
+		],
+	}
+
+	it('names the relation columns of the draft and of the module that point at a relation', () => {
+		const draft = draftFromProposal(PROPOSAL)
+		const mapped: MappedRelation[] = [
+			{
+				ref: 'erp/erp/returns',
+				resource: resource('erp.returns', [field('order_id', 'erp.orders'), field('old_order', 'erp.orders')], null),
+				included: ['order_id'],
+			},
+		]
+		expect(pointingAt(draft, mapped, 'erp.orders')).toEqual(['erp.invoices.order_id', 'erp.returns.order_id'])
+		includeResource(draft, 'erp.invoices', false)
+		expect(pointingAt(draft, mapped, 'erp.orders')).toEqual(['erp.returns.order_id'])
+	})
+
+	it('says what Apply writes for a question left open', () => {
+		const draft = draftFromProposal(PROPOSAL)
+		expect(PROPOSAL.open.map((item) => currentAnswer(draft, item))).toEqual(['labelled by id', 'a plain column'])
+		answerItem(draft, PROPOSAL.open[1]!, 'erp.invoices')
+		expect(currentAnswer(draft, PROPOSAL.open[1]!)).toBe('a reference to erp.invoices')
+	})
+})
+
+describe('the mapped relations changed and not applied yet', () => {
+	it('are the drafts that differ from what was read', () => {
+		const read = {
+			'erp.customers': draftFromMapped({ ref: 'erp/erp/customers', resource: resource('erp.customers', [field('name')], 'name'), included: ['name'] }),
+			'erp.orders': draftFromMapped({ ref: 'erp/erp/orders', resource: resource('erp.orders', [field('id')], 'id'), included: ['id'] }),
+		}
+		const drafts = structuredClone(read)
+		expect(unsavedRelations(drafts, read)).toEqual([])
+		drafts['erp.orders'].label = null
+		expect(unsavedRelations(drafts, read)).toEqual(['erp.orders'])
 	})
 })

@@ -1,11 +1,8 @@
 import fs from "node:fs";
 import type {
-  AddModuleStep,
-  ConfigureModuleStep,
   CreateLocalModuleStep,
   ImportOverrideInput,
   ModuleEntryInput,
-  ProjectConfigStep,
 } from "@antelopejs/interface-dms-builder";
 import {
   type ArrayLiteralExpression,
@@ -15,14 +12,16 @@ import {
   type PropertyAssignment,
   type SourceFile,
 } from "ts-morph";
+import { VARIABLE_NAME } from "./env-lines";
+import { hides, overridesWrittenAsLiterals } from "./literal-overrides";
 import { configObject, propertyKey } from "./modules";
 import { indentationText, resolveProjectRoot } from "./project";
 import { keyText, literalText } from "./project-config-text";
 import { type Scaffold, scaffoldLocalModule } from "./project-scaffold";
 
-const ENV_OVERRIDES = "envOverrides";
-const MODULES = "modules";
-const IMPORT_OVERRIDES = "importOverrides";
+export const ENV_OVERRIDES = "envOverrides";
+export const MODULES = "modules";
+export const IMPORT_OVERRIDES = "importOverrides";
 const DISABLED_EXPORTS = "disabledExports";
 
 /**
@@ -36,16 +35,30 @@ export interface ConfigDraft {
   unit: string;
   scaffolds: Scaffold[];
   variables: string[];
+  /** Files other than the configuration a step rewrites, with their content before. */
+  edits: FileEdit[];
+  /**
+   * The only interfaces a module this batch removes can be a source through, when the caller
+   * knows them: an override of another interface whose source is not a literal does not hold it.
+   */
+  sourceInterfaces?: ReadonlySet<string>;
+}
+
+/** A file a step rewrites whole. */
+export interface FileEdit {
+  path: string;
+  before: string;
+  content: string;
 }
 
 /** A step the configuration cannot take, with the reason the caller is told. */
 export class StepRefusal extends Error {}
 
-function refuse(message: string): never {
+export function refuse(message: string): never {
   throw new StepRefusal(message);
 }
 
-function propertyNamed(
+export function propertyNamed(
   owner: ObjectLiteralExpression,
   name: string,
 ): PropertyAssignment | undefined {
@@ -73,7 +86,7 @@ function rootObject(draft: ConfigDraft): ObjectLiteralExpression {
 }
 
 /** The object literal at `path` from the configuration's root, or nothing when a key is absent. */
-function objectAt(
+export function objectAt(
   draft: ConfigDraft,
   path: string[],
 ): ObjectLiteralExpression | undefined {
@@ -120,6 +133,7 @@ export function openDraft(configPath: string): ConfigDraft {
     unit: configIndent(before) ?? indentationText(resolveProjectRoot()),
     scaffolds: [],
     variables: [],
+    edits: [],
   };
   if (!configObject(file)) {
     refuse("the configuration is not an exported defineConfig({ … }) literal");
@@ -136,7 +150,7 @@ function lineIndent(draft: ConfigDraft, node: Node): string {
   return /^[\t ]*/.exec(text.slice(lineStart))?.[0] ?? "";
 }
 
-function replace(
+export function replace(
   draft: ConfigDraft,
   start: number,
   end: number,
@@ -204,7 +218,7 @@ function addProperty(
 }
 
 /** Sets `key` on the object at `path`, replacing its value when present. */
-function setProperty(
+export function setProperty(
   draft: ConfigDraft,
   path: string[],
   key: string,
@@ -229,7 +243,7 @@ function ensureObject(draft: ConfigDraft, path: string[]): void {
   }
 }
 
-function stringOf(node: Node | undefined): string | undefined {
+export function stringOf(node: Node | undefined): string | undefined {
   return Node.isStringLiteral(node) ||
     Node.isNoSubstitutionTemplateLiteral(node)
     ? node.getLiteralValue()
@@ -261,6 +275,9 @@ function bindVariables(
   }
   ensureObject(draft, [ENV_OVERRIDES]);
   for (const [configPath, variable] of Object.entries(env)) {
+    if (!VARIABLE_NAME.test(variable)) {
+      refuse(`${variable} is not a variable name`);
+    }
     const target = `${MODULES}.${id}.config.${configPath}`;
     const overrides =
       objectAt(draft, [ENV_OVERRIDES]) ??
@@ -279,7 +296,7 @@ function bindVariables(
 }
 
 /** The overrides a module already declares, from either spelling `importOverrides` takes. */
-function existingOverrides(
+export function existingOverrides(
   initializer: Node | undefined,
 ): ImportOverrideInput[] {
   if (Node.isObjectLiteralExpression(initializer)) {
@@ -296,18 +313,20 @@ function existingOverrides(
     : [];
 }
 
+export function overrideOf(element: Node): ImportOverrideInput {
+  const entry = plainObject(element, IMPORT_OVERRIDES);
+  return {
+    interface:
+      stringOf(propertyNamed(entry, "interface")?.getInitializer()) ?? "",
+    source: stringOf(propertyNamed(entry, "source")?.getInitializer()),
+    id: stringOf(propertyNamed(entry, "id")?.getInitializer()),
+  };
+}
+
 function overridesOfArray(
   array: ArrayLiteralExpression,
 ): ImportOverrideInput[] {
-  return array.getElements().map((element) => {
-    const entry = plainObject(element, IMPORT_OVERRIDES);
-    return {
-      interface:
-        stringOf(propertyNamed(entry, "interface")?.getInitializer()) ?? "",
-      source: stringOf(propertyNamed(entry, "source")?.getInitializer()),
-      id: stringOf(propertyNamed(entry, "id")?.getInitializer()),
-    };
-  });
+  return array.getElements().map(overrideOf);
 }
 
 function describeBinding(entry: ImportOverrideInput): string {
@@ -339,7 +358,9 @@ function mergedOverrides(
 }
 
 /** The pins-only spelling when nothing needs more, the array spelling otherwise. */
-function overridesValue(entries: ImportOverrideInput[]): unknown {
+function overridesValue(
+  entries: ImportOverrideInput[],
+): Record<string, string | undefined> | ImportOverrideInput[] {
   if (
     entries.every(
       (entry) => entry.id === undefined && entry.source !== undefined,
@@ -367,9 +388,13 @@ function mergeOverrides(
   const entry =
     objectAt(draft, [MODULES, id]) ??
     refuse(`the project has no module "${id}"`);
-  const current = existingOverrides(
-    propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
-  );
+  const written = propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer();
+  if (hides(entry, IMPORT_OVERRIDES) || !overridesWrittenAsLiterals(written)) {
+    refuse(
+      `the importOverrides of module "${id}" are not written with literals only, and writing them again would lose a part: add ${added.map(describeBinding).join(", ")} there by hand`,
+    );
+  }
+  const current = existingOverrides(written);
   const merged = mergedOverrides(id, current, added);
   setProperty(draft, [MODULES, id], IMPORT_OVERRIDES, overridesValue(merged));
 }
@@ -405,7 +430,7 @@ function mergeDisabledExports(
   ]);
 }
 
-function writeEntry(
+export function writeEntry(
   draft: ConfigDraft,
   id: string,
   entry: ModuleEntryInput,
@@ -423,7 +448,7 @@ function writeEntry(
   bindVariables(draft, id, entry.env);
 }
 
-function addModule(
+export function addModule(
   draft: ConfigDraft,
   id: string,
   entry: ModuleEntryInput,
@@ -441,37 +466,63 @@ function addModule(
   writeEntry(draft, id, entry);
 }
 
-function createLocalModule(
+export function createLocalModule(
   draft: ConfigDraft,
   step: CreateLocalModuleStep,
 ): void {
-  const scaffold = scaffoldLocalModule(step.id, step.path);
+  const scaffold = scaffoldLocalModule(step.id, step.path, step.connection);
   draft.scaffolds.push(scaffold);
   addModule(draft, step.id, { ...step.entry, source: scaffold.source });
 }
 
-type StepHandlers = {
-  [Op in ProjectConfigStep["op"]]: (
-    draft: ConfigDraft,
-    step: Extract<ProjectConfigStep, { op: Op }>,
-  ) => void;
-};
-
-const STEPS: StepHandlers = {
-  AddModule: (draft, step: AddModuleStep) =>
-    addModule(draft, step.id, step.entry),
-  ConfigureModule: (draft, step: ConfigureModuleStep) =>
-    writeEntry(draft, step.id, step.entry),
-  CreateLocalModule: createLocalModule,
-};
-
-type AnyStepHandler = (draft: ConfigDraft, step: ProjectConfigStep) => void;
-
-/** Applies one step to the draft, or throws a {@link StepRefusal} saying why it cannot. */
-export function applyStep(draft: ConfigDraft, step: ProjectConfigStep): void {
-  const handler = STEPS[step.op] as AnyStepHandler | undefined;
-  if (!handler) {
-    refuse(`unknown step "${String(step.op)}"`);
+/**
+ * Each module entry of the configuration written as a plain object literal, by id. An entry
+ * written otherwise, a version string or a spread, is left out: nothing the builder reads is there.
+ */
+export function moduleEntries(
+  draft: ConfigDraft,
+): [string, ObjectLiteralExpression][] {
+  const entries: [string, ObjectLiteralExpression][] = [];
+  const modules = objectAt(draft, [MODULES]);
+  for (const property of modules?.getProperties() ?? []) {
+    if (!Node.isPropertyAssignment(property)) {
+      continue;
+    }
+    const entry = property.getInitializer();
+    if (
+      Node.isObjectLiteralExpression(entry) &&
+      !entry.getProperties().some(Node.isSpreadAssignment)
+    ) {
+      entries.push([propertyKey(property.getNameNode()), entry]);
+    }
   }
-  handler(draft, step);
+  return entries;
+}
+
+/** The `importOverrides` a module entry declares. */
+export function overridesOf(entry: ObjectLiteralExpression) {
+  return existingOverrides(
+    propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer(),
+  );
+}
+
+/**
+ * The `importOverrides` a module entry declares as plain literals, for a reader: an element written
+ * any other way is left out instead of refused, since no connection the builder wrote is there.
+ */
+export function readableOverrides(
+  entry: ObjectLiteralExpression,
+): ImportOverrideInput[] {
+  const overrides = propertyNamed(entry, IMPORT_OVERRIDES)?.getInitializer();
+  if (!Node.isArrayLiteralExpression(overrides)) {
+    return existingOverrides(overrides);
+  }
+  return overrides
+    .getElements()
+    .filter(
+      (element) =>
+        Node.isObjectLiteralExpression(element) &&
+        !element.getProperties().some(Node.isSpreadAssignment),
+    )
+    .map(overrideOf);
 }

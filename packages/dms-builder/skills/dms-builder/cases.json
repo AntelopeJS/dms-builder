@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "builder-edit-button-missing",
+      "area": "modules",
+      "style": "casual",
+      "prompt": "the edit this page button is gone",
+      "expect": {
+        "skills": ["dms-builder"],
+        "acceptable": ["dms-builder-safe", "dms", "dms-ai"]
+      }
+    },
+    {
+      "id": "dms-builder-call-interface",
+      "area": "modules",
+      "style": "clean",
+      "prompt": "I want to call the dms-builder interface or its HTTP API from my own code to add a KpiCard to a page, and be sure nobody edited that page in between. Which calls and result fields do I use?",
+      "expect": {
+        "skills": ["dms-builder"],
+        "acceptable": ["dms", "dms-pages"],
+        "mustMention": ["AddBlock", "OpResult", "expectedVersion"]
+      }
+    },
+    {
+      "id": "dms-builder-avoid-safe-mode",
+      "area": "modules",
+      "style": "clean",
+      "prompt": "The generation mode is safe. Move the revenue chart above the table on the /charts/revenue page using the Builder tools.",
+      "expect": {
+        "skills": ["dms-builder-safe"],
+        "acceptable": ["dms-ai", "dms-best-practices", "dms"],
+        "avoid": ["dms-builder"]
+      }
+    }
+  ]
+}

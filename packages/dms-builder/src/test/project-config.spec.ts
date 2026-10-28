@@ -16,6 +16,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { tsConfigFile } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const DATABASE = "@antelopejs/interface-database";
@@ -80,7 +81,14 @@ const CONNECT_STEPS: ProjectConfigStep[] = [
   },
 ];
 
-const CONNECTED_CONFIG = `import { defineConfig } from "@antelopejs/interface-core/config";
+const CONNECTED_CONFIG = `import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { defineConfig } from "@antelopejs/interface-core/config";
+
+const projectEnvFile = join(__dirname, ".env");
+if (existsSync(projectEnvFile)) {
+  process.loadEnvFile(projectEnvFile);
+}
 
 export default defineConfig({
   name: "fixture",
@@ -252,6 +260,22 @@ describe("project-config operations", function () {
     expect(ledger?.sourceModule).to.equal("erp-tables");
   });
 
+  it("scaffolds a local module from a tsconfig.json with comments and trailing commas", async () => {
+    fs.writeFileSync(
+      path.join(app.root, "tsconfig.json"),
+      '{\n  // the project\'s options\n  "compilerOptions": { "strict": true, },\n}\n',
+    );
+    expectOk(
+      await ConfigureProject([
+        { op: "CreateLocalModule", id: "reports", path: "modules/reports" },
+      ]),
+      "CreateLocalModule",
+    );
+    expect(
+      tsConfigFile(app.root, "modules/reports/tsconfig.json").compilerOptions,
+    ).to.include({ strict: true });
+  });
+
   it("writes nothing when one step of a batch is refused", async () => {
     const result = await ConfigureProject([
       CONNECT_STEPS[0],
@@ -302,5 +326,121 @@ describe("project-config operations", function () {
     expect(fs.readFileSync(example, "utf8")).to.equal(
       "MONGODB_URL=\nERP_DATABASE_URL=\n",
     );
+  });
+
+  it("loads .env beside a namespace import of node:path, which it leaves as it is", async () => {
+    const namespace = 'import * as path from "node:path";\n';
+    fs.writeFileSync(configPath(), namespace + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig())
+      .to.include(namespace)
+      .and.to.include('import { join } from "node:path";')
+      .and.to.include('const projectEnvFile = join(__dirname, ".env");');
+  });
+
+  it("loads .env under another name when the configuration has a join of its own", async () => {
+    const own = 'import { join } from "pathe";\n';
+    fs.writeFileSync(configPath(), own + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig())
+      .to.include(own)
+      .and.to.include('import { join as joinEnvPath } from "node:path";')
+      .and.to.include('const projectEnvFile = joinEnvPath(__dirname, ".env");');
+    expectOk(
+      await ConfigureProject([
+        {
+          op: "ConfigureModule",
+          id: "mongodb",
+          entry: { env: { url: "MONGODB_URL" } },
+        },
+      ]),
+      "ConfigureModule",
+    );
+    expect(readConfig().match(/loadEnvFile\(/g)).to.have.length(1);
+  });
+
+  it("loads .env when the configuration only mentions dotenv in a comment", async () => {
+    fs.writeFileSync(configPath(), `// TODO: dotenv\n${PROJECT_CONFIG}`);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.include("process.loadEnvFile(projectEnvFile);");
+  });
+
+  it("loads .env beside a dotenv that loads another file, and not beside one that loads it", async () => {
+    const other =
+      'import { config } from "dotenv";\nconfig({ path: ".env.local" });\n';
+    fs.writeFileSync(configPath(), other + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.include("process.loadEnvFile(projectEnvFile);");
+    const same =
+      'import { config } from "dotenv";\nconfig({ path: join(__dirname, ".env") });\n';
+    fs.writeFileSync(configPath(), same + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig()).to.not.include("loadEnvFile");
+  });
+
+  it("names its loading code apart from a constant the configuration declares", async () => {
+    const own = 'const projectEnvFile = ".env.shared";\n';
+    fs.writeFileSync(configPath(), own + PROJECT_CONFIG);
+    expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
+    expect(readConfig())
+      .to.include(own)
+      .and.to.include('const projectEnvFile2 = join(__dirname, ".env");')
+      .and.to.include("process.loadEnvFile(projectEnvFile2);");
+  });
+
+  it("refuses to add an override where writing the others again would lose one, and writes nothing", async () => {
+    for (const overrides of [
+      '[{ interface: "@antelopejs/interface-x", source: X_SOURCE }]',
+      '{ [AUTH]: "auth-x" }',
+      "SHARED_OVERRIDES",
+    ]) {
+      const config = PROJECT_CONFIG.replace(
+        /mongodb: \{/,
+        `mongodb: {\n      importOverrides: ${overrides},`,
+      );
+      fs.writeFileSync(configPath(), config);
+      const refused = await ConfigureProject([
+        {
+          op: "ConfigureModule",
+          id: "mongodb",
+          entry: {
+            importOverrides: [
+              { interface: "@antelopejs/interface-y", source: "y" },
+            ],
+          },
+        },
+      ]);
+      expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+        /not written with literals only/,
+      );
+      expect(readConfig()).to.equal(config);
+    }
+  });
+
+  it("refuses a variable that is not a name, and writes nothing", async () => {
+    fs.writeFileSync(path.join(app.root, ".env.example"), "MONGODB_URL=\n");
+    const refused = await ConfigureProject([
+      {
+        op: "ConfigureModule",
+        id: "mongodb",
+        entry: { env: { url: "DB_URL(" } },
+      },
+    ]);
+    expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+      /DB_URL\( is not a variable name/,
+    );
+    expect(readConfig()).to.equal(PROJECT_CONFIG);
+  });
+
+  it("writes the configuration and a new module while the project's own code does not typecheck", async () => {
+    app.write("broken.ts", 'export const count: number = "none";\n');
+    expectOk(
+      await ConfigureProject([
+        CONNECT_STEPS[0],
+        { op: "CreateLocalModule", id: "reports", path: "modules/reports" },
+      ]),
+      "AddModule and CreateLocalModule",
+    );
+    expect(readConfig()).to.include("postgres-erp").and.to.include("reports");
   });
 });
