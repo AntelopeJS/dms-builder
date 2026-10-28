@@ -13,7 +13,7 @@ import type {
   OpResult,
 } from "@antelopejs/interface-dms-builder";
 import { impliedReferenceChecks, proposeMapping } from "./analysis";
-import type { ReferenceTarget } from "./analysis-fields";
+import { type ReferenceTarget, referenceTarget } from "./analysis-fields";
 import { type ImpliedReference, relationName } from "./analysis-input";
 import { type CatalogConnection, catalogOf } from "./catalog-connection";
 import { mappedRecordsOf } from "./map-resources";
@@ -124,10 +124,10 @@ function mappedTargets(
       .filter((description) => settled.mapped.has(relationName(description)))
       .map((description) => [
         relationName(description),
-        {
-          tableView: settled.mapped.get(relationName(description)) ?? false,
-          key: description.key?.columns ?? [],
-        },
+        referenceTarget(
+          description,
+          settled.mapped.get(relationName(description)) ?? false,
+        ),
       ]),
   );
 }
@@ -143,7 +143,7 @@ function schemasQuestion(
   return {
     id: `schemas:${input.connection}`,
     kind: "schemas",
-    question: `${pending.length} relations are to analyse. Which schemas matter?`,
+    question: `The database has ${pending.length} tables, more than one analysis reads at once, so none were read yet. Pick the schemas to analyse.`,
     options: [...counts].map(([schema, count]) => ({
       value: schema,
       title: `${schema} (${count})`,

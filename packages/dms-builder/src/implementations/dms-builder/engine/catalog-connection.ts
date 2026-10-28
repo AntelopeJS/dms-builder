@@ -1,25 +1,10 @@
-import {
-  GetInterfaceInstances,
-  GetResponsibleModule,
-  type InterfaceConnection,
-  RunWithResponsibleModule,
-} from "@antelopejs/interface-core";
+import type { InterfaceConnection } from "@antelopejs/interface-core";
 import type * as Catalog from "@antelopejs/interface-database-catalog";
-
-const CATALOG_INTERFACE = "@antelopejs/interface-database-catalog";
-
-/**
- * The module this file belongs to, read while the module evaluates it. A route handler runs in
- * the context of the module serving HTTP, so a lookup made there would answer that module's
- * connections, not this one's.
- */
-const OWN_MODULE = GetResponsibleModule();
+import { CATALOG_INTERFACE } from "./interface-ids";
+import { ownConnections } from "./own-connections";
 
 function catalogConnections(): InterfaceConnection[] {
-  const lookup = () => GetInterfaceInstances(CATALOG_INTERFACE);
-  return OWN_MODULE === undefined
-    ? lookup()
-    : RunWithResponsibleModule(OWN_MODULE, lookup);
+  return ownConnections(CATALOG_INTERFACE);
 }
 
 /** The catalog functions of one connection, as its provider answers them. */

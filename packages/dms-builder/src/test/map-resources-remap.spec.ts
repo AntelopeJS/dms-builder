@@ -18,6 +18,10 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { builderRecord, setBuilderRecord } from "./helpers/module-manifest";
+import { projectFile } from "./helpers/project-files";
+import { invalidateSourceIndex } from "../implementations/dms-builder/engine/source-index";
+import { resetWritableProject } from "../implementations/dms-builder/engine/writable";
 import {
   DESCRIPTIONS,
   FAKE_CATALOG,
@@ -169,6 +173,24 @@ describe("mapping again a database already mapped", function () {
     ).to.deep.equal([]);
   });
 
+  it("gives a relation mapped again under a new title that title, read back the same", async () => {
+    const before = await GetMapping("erp", MODULE);
+    const contacts = (before.ok ? before.data : [])
+      .filter((entry) => entry.resource.relation === "sales.contacts")
+      .map((entry) => ({ ...asMapped(entry), title: "People" }));
+    const remapped = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: contacts,
+    });
+    expectOk(remapped, "MapResources with a new title");
+    const read = await GetMapping("erp", MODULE);
+    const after = read.ok
+      ? read.data.find((entry) => entry.resource.relation === "sales.contacts")
+      : undefined;
+    expect(after?.resource.title.value).to.equal("People");
+  });
+
   it("rewrites a relation mapped before from new choices, and keeps its page", async () => {
     const remapped = await MapResources({
       module: MODULE,
@@ -241,14 +263,84 @@ describe("mapping again a database already mapped", function () {
     expect(contacts).to.include('keyMapping: { label: "name", value: "_id" }');
   });
 
+  it("relabels the columns pointing at a relation mapped again under a new label", async () => {
+    const read = await GetMapping("erp", MODULE);
+    const accounts = (read.ok ? read.data : []).find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    );
+    const other = accounts?.resource.fields.find(
+      (field) => field.column !== "name" && field.accepts.includes("string"),
+    )?.column;
+    expect(other, "a second text column on sales.accounts").to.be.a("string");
+    const remapped = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [{ ...asMapped(accounts!), label: other }],
+    });
+    expectOk(remapped, "MapResources with a new label");
+    expect(moduleFile("sales/contacts/data-api.ts")).to.include(
+      `keyMapping: { label: "${other}", value: "_id" }`,
+    );
+    const again = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [{ ...asMapped(accounts!), label: other }],
+    });
+    expectOk(again, "MapResources with the same label");
+    const touched = again.ok ? again.changes.map((change) => change.path) : [];
+    expect(touched.filter((file) => file.includes("contacts"))).to.deep.equal(
+      [],
+    );
+  });
+
+  it("refuses to leave a relation without a label while a column shows it by its label", async () => {
+    const read = await GetMapping("erp", MODULE);
+    const accounts = (read.ok ? read.data : []).find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    );
+    const { label: _label, ...unlabelled } = asMapped(accounts!);
+    const refused = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [unlabelled],
+    });
+    expect(refused.ok ? "" : JSON.stringify(refused.error)).to.match(
+      /sales\.contacts refers to sales\.accounts, which would have no label to show/,
+    );
+  });
+
+  it("keeps a page title written by hand when the relation is mapped again under another", async () => {
+    const page = (await ListPages()).find(
+      (entry) => entry.id === "sales-accounts",
+    );
+    const file = path.relative(app.root, page!.filepath);
+    fs.writeFileSync(
+      path.join(app.root, file),
+      `const ACCOUNTS_TITLE = "Accounts";\n${projectFile(app.root, file).replace(/displayName: "[^"]*"/, "displayName: ACCOUNTS_TITLE")}`,
+    );
+    resetWritableProject();
+    invalidateSourceIndex();
+    const read = await GetMapping("erp", MODULE);
+    const accounts = (read.ok ? read.data : []).find(
+      (entry) => entry.resource.relation === "sales.accounts",
+    );
+    expectOk(
+      await MapResources({
+        module: MODULE,
+        connection: "erp",
+        resources: [
+          { ...asMapped(accounts!), title: "Customers", writable: true },
+        ],
+      }),
+      "MapResources with a new title",
+    );
+    expect(projectFile(app.root, file)).to.include(
+      "displayName: ACCOUNTS_TITLE",
+    );
+  });
+
   it("records relations decided against, and forgets one once it is mapped", async () => {
-    const manifest = () =>
-      JSON.parse(
-        fs.readFileSync(
-          path.join(app.root, "modules", MODULE, "package.json"),
-          "utf8",
-        ),
-      ).dmsBuilder;
+    const manifest = () => builderRecord(app.root, MODULE);
     const excluded = await MapResources({
       module: MODULE,
       connection: "erp",
@@ -259,7 +351,7 @@ describe("mapping again a database already mapped", function () {
       ],
     });
     expectOk(excluded, "MapResources exclusions");
-    expect(manifest().excluded).to.deep.equal({
+    expect(manifest().database?.excludedTables).to.deep.equal({
       "sales.audit": "a log",
       "sales.products": "not needed",
     });
@@ -278,8 +370,29 @@ describe("mapping again a database already mapped", function () {
     });
     expectOk(mapped, "MapResources of an excluded relation");
     expect(manifest()).to.deep.equal({
+      database: {
+        connection: "erp",
+        excludedTables: { "sales.audit": "a log" },
+      },
+    });
+  });
+
+  it("reads the record dms-builder 0.6 wrote, and saves it under the new names", async () => {
+    setBuilderRecord(app.root, MODULE, {
       mapped: "erp",
       excluded: { "sales.audit": "a log" },
+    });
+    const saved = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [],
+    });
+    expectOk(saved, "MapResources over a 0.6 record");
+    expect(builderRecord(app.root, MODULE)).to.deep.equal({
+      database: {
+        connection: "erp",
+        excludedTables: { "sales.audit": "a log" },
+      },
     });
   });
 

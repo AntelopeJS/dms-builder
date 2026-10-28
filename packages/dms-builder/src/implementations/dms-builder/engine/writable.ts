@@ -4,6 +4,7 @@ import type {
   FileChange,
   TypecheckError,
 } from "@antelopejs/interface-dms-builder";
+import { type StructuredPatchHunk, structuredPatch } from "diff";
 import {
   type ClassDeclaration,
   type Diagnostic,
@@ -314,33 +315,30 @@ function relevantDiagnostics(project: Project): TypecheckError[] {
     .map(diagnosticToError);
 }
 
+const DIFF_CONTEXT_LINES = 3;
+
+/** A hunk side's start as unified diffs write it: the line before, for a side with no lines. */
+function sideStart(start: number, lines: number): number {
+  return lines === 0 ? start - 1 : start;
+}
+
+function hunkText(hunk: StructuredPatchHunk): string {
+  const header = `@@ -${sideStart(hunk.oldStart, hunk.oldLines)},${hunk.oldLines} +${sideStart(hunk.newStart, hunk.newLines)},${hunk.newLines} @@`;
+  return [header, ...hunk.lines].join("\n");
+}
+
+/**
+ * The change from `before` to `after` as unified diff hunks, with a few unchanged lines around
+ * each; empty when nothing changed.
+ */
 export function diffText(before: string, after: string): string {
   if (before === after) {
     return "";
   }
-  const oldLines = before.split("\n");
-  const newLines = after.split("\n");
-  let start = 0;
-  while (
-    start < oldLines.length &&
-    start < newLines.length &&
-    oldLines[start] === newLines[start]
-  ) {
-    start++;
-  }
-  let endOld = oldLines.length - 1;
-  let endNew = newLines.length - 1;
-  while (
-    endOld >= start &&
-    endNew >= start &&
-    oldLines[endOld] === newLines[endNew]
-  ) {
-    endOld--;
-    endNew--;
-  }
-  const removed = oldLines.slice(start, endOld + 1).map((line) => `- ${line}`);
-  const added = newLines.slice(start, endNew + 1).map((line) => `+ ${line}`);
-  return `@@ line ${start + 1} @@\n${[...removed, ...added].join("\n")}`;
+  const patch = structuredPatch("", "", before, after, "", "", {
+    context: DIFF_CONTEXT_LINES,
+  });
+  return patch.hunks.map(hunkText).join("\n");
 }
 
 type ChangeKind = "create" | "modify" | "delete";

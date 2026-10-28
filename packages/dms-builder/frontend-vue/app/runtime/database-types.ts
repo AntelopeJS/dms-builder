@@ -53,6 +53,9 @@ export interface ProposedResource {
 	fields: ProposedField[]
 	leftOut: ProposedLeftOut[]
 	writes: ProposedWrites
+	rows?: number
+	/** The rows its column profiles were measured on; a column's `nulls` is out of these. */
+	profiledRows?: number
 }
 
 export interface ProposedExclusion {
@@ -185,8 +188,61 @@ export interface ModuleEntryInput {
 export type ProjectConfigStep =
 	| { op: 'AddModule'; id: string; entry: ModuleEntryInput }
 	| { op: 'ConfigureModule'; id: string; entry: ModuleEntryInput }
-	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput }
+	| { op: 'CreateLocalModule'; id: string; path: string; entry?: ModuleEntryInput; connection?: string }
+
+/**
+ * The `interface-database` pin the DMS module needs so the tables module's own pin to the new
+ * database leaves the DMS on the project's default one.
+ */
+export interface DatabasePin {
+	module: string
+	provider: string
+}
+
+/** The modules the project's configuration lists, and the pin connecting a database needs, if any. */
+export interface ProjectModules {
+	modules: string[]
+	databasePin?: DatabasePin
+}
+
+/** A variable's development value, sent with the batch that maps it and written into `.env` first. */
+export interface ProjectVariable {
+	name: string
+	value: string
+}
 
 export interface ProjectConfigResult {
 	files: string[]
 }
+
+/** What a connection wired into the configuration, by module id. */
+export interface ConnectionWiring {
+	connection: string
+	driver: string
+	/** The local modules holding its tables, their record naming the connection. */
+	modules: { id: string; path: string }[]
+	/** Local modules read through the driver whose record names no connection: kept on removal. */
+	unrecorded: { id: string; path: string }[]
+	/** Whether the driver goes with the connection: it is not the project's own database, nor shared. */
+	ownsDriver: boolean
+	variable?: string
+	/** Every variable supplying the driver's configuration. */
+	variables: string[]
+}
+
+/** A connection's details as its URL holds them, the password left out. */
+export interface ConnectionDetails {
+	scheme: string
+	host: string
+	port: string
+	database: string
+	user: string
+	hasPassword: boolean
+	options: Record<string, string>
+}
+
+export interface ConnectionInfo {
+	wiring: ConnectionWiring
+	details?: ConnectionDetails
+}
+

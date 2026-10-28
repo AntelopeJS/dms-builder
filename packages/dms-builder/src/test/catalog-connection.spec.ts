@@ -7,14 +7,15 @@ const CATALOG_INTERFACE = "@antelopejs/interface-database-catalog";
 const INTERFACE_CORE = "@antelopejs/interface-core";
 const BUILDER = "dms-builder";
 const HTTP_MODULE = "api";
-const CONNECTION_MODULE = path.join(
+const ENGINE = path.join(
   __dirname,
   "..",
   "implementations",
   "dms-builder",
   "engine",
-  "catalog-connection.js",
 );
+const CONNECTION_MODULE = path.join(ENGINE, "catalog-connection.js");
+const RELOADED = [CONNECTION_MODULE, path.join(ENGINE, "own-connections.js")];
 
 type Loader = (request: string, parent: unknown, isMain: boolean) => unknown;
 
@@ -59,13 +60,13 @@ function loadInBuilderContext(catalogPath: string): ConnectionModule {
   const core = interfaceCore(catalogPath);
   loader._load = (request, parent, isMain) =>
     request === INTERFACE_CORE ? core : original(request, parent, isMain);
-  delete require.cache[CONNECTION_MODULE];
+  RELOADED.forEach((file) => delete require.cache[file]);
   try {
     context.module = BUILDER;
     return require(CONNECTION_MODULE) as ConnectionModule;
   } finally {
     loader._load = original;
-    delete require.cache[CONNECTION_MODULE];
+    RELOADED.forEach((file) => delete require.cache[file]);
   }
 }
 

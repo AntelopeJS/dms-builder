@@ -5,7 +5,6 @@ import {
   JSONBody,
   Parameter,
   Post,
-  Put,
 } from "@antelopejs/interface-api";
 import type { SampleRequest } from "@antelopejs/interface-database-catalog";
 import { AuthTenantOwner } from "@antelopejs/interface-dms/guards";
@@ -23,12 +22,35 @@ import {
   listCatalogConnections,
 } from "../implementations/dms-builder/engine/catalog-connection";
 import {
-  EnvRefusal,
-  setProjectVariable,
+  type DatabasePin,
+  dmsDatabasePin,
+} from "../implementations/dms-builder/engine/database-pin";
+import { configuredModuleIds } from "../implementations/dms-builder/engine/modules";
+import {
+  connectionDetails,
+  connectionWiring,
+  isConnectionRefusal,
+  setConnectionUrl,
+} from "../implementations/dms-builder/engine/database-connection";
+import { removeDatabaseConnection } from "../implementations/dms-builder/engine/database-connection-remove";
+import {
+  configureProjectWithVariable,
+  type ProjectVariable,
 } from "../implementations/dms-builder/engine/project-env";
 
 const HTTP_NOT_FOUND = 404;
 const HTTP_REFUSED = 422;
+
+interface RemoveConnectionBody {
+  connection: string;
+  dryRun?: boolean;
+}
+
+interface ConnectionUrlBody {
+  connection: string;
+  /** The new URL; with no password, the current one is kept. */
+  url: string;
+}
 
 interface SampleBody extends SampleRequest {
   connection: string;
@@ -37,11 +59,14 @@ interface SampleBody extends SampleRequest {
 interface ProjectBody {
   steps: ProjectConfigStep[];
   opts?: ProjectConfigOpts;
+  /** A variable's development value, written into `.env` before the configuration. */
+  variable?: ProjectVariable;
 }
 
-interface VariableBody {
-  name: string;
-  value: string;
+/** The modules the project's configuration lists, by id, and the pin connecting a database needs. */
+interface ProjectModules {
+  modules: string[];
+  databasePin?: DatabasePin;
 }
 
 /** One of the builder's catalog connections, with what its provider answers about it. */
@@ -118,25 +143,67 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     return engine.GetMapping(connection, module);
   }
 
-  @Post(ROUTES.databaseProject)
-  async project(@AuthTenantOwner() _user: User, @JSONBody() body: ProjectBody) {
-    return engine.ConfigureProject(body.steps, body.opts);
-  }
-
-  @Put(ROUTES.databaseVariable)
-  async variable(
+  @Get(ROUTES.databaseProject)
+  async projectModules(
     @AuthTenantOwner() _user: User,
-    @JSONBody() body: VariableBody,
-  ) {
+  ): Promise<ProjectModules | HTTPResult> {
     try {
-      setProjectVariable(body.name, body.value);
-      return { ok: true, name: body.name };
+      return { modules: configuredModuleIds(), databasePin: dmsDatabasePin() };
     } catch (error) {
-      if (error instanceof EnvRefusal) {
+      if (isConnectionRefusal(error)) {
         return refused(error);
       }
       throw error;
     }
+  }
+
+  @Post(ROUTES.databaseProject)
+  async project(@AuthTenantOwner() _user: User, @JSONBody() body: ProjectBody) {
+    if (!body.variable || body.opts?.dryRun) {
+      return engine.ConfigureProject(body.steps, body.opts);
+    }
+    return configureProjectWithVariable(body.steps, body.variable);
+  }
+
+  @Get(ROUTES.databaseConnection)
+  async connection(
+    @AuthTenantOwner() _user: User,
+    @Parameter("connection", "query") connection: string,
+  ) {
+    try {
+      const wiring = connectionWiring(connection);
+      if (!wiring) {
+        return new HTTPResult(HTTP_NOT_FOUND, {
+          code: "not_found",
+          ref: connection,
+        });
+      }
+      const details = connectionDetails(wiring);
+      return { wiring, details: details.ok ? details.data : undefined };
+    } catch (error) {
+      if (isConnectionRefusal(error)) {
+        return refused(error);
+      }
+      throw error;
+    }
+  }
+
+  @Post(ROUTES.databaseConnectionRemove)
+  async removeConnection(
+    @AuthTenantOwner() _user: User,
+    @JSONBody() body: RemoveConnectionBody,
+  ) {
+    return removeDatabaseConnection(body.connection, {
+      dryRun: body.dryRun,
+    });
+  }
+
+  @Post(ROUTES.databaseConnectionUrl)
+  async connectionUrl(
+    @AuthTenantOwner() _user: User,
+    @JSONBody() body: ConnectionUrlBody,
+  ) {
+    return setConnectionUrl(body.connection, body.url);
   }
 
   @Post(ROUTES.databaseSample)

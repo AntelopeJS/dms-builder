@@ -10,18 +10,13 @@ import type {
 	MappedRelation,
 	MappedResource,
 	MappingProposal,
-	ModuleEntryInput,
 	OpenItem,
-	ProjectConfigStep,
 	ProposedField,
 	ProposedResource,
 } from './database-types'
 
-const CATALOG_INTERFACE = '@antelopejs/interface-database-catalog'
-const DATABASE_INTERFACE = '@antelopejs/interface-database'
-const POSTGRES_PACKAGE = '@antelopejs/postgres'
-const STATEMENT_TIMEOUT_MS = 30000
 const DRAFT_PREFIX = 'dms-builder:database:'
+const MAPPED_PREFIX = 'dms-builder:database-mapped:'
 /** How long a mapping draft nobody came back to is kept. */
 export const KEEP_MAPPING_DRAFT_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -247,65 +242,73 @@ export function settledInput(
 	}
 }
 
+/** What a relation becomes, as the summary of Apply words it. */
+export function purposeText(resource: { include?: boolean; tableView: boolean; writable: boolean }): string {
+	if (resource.include === false) {
+		return 'left out'
+	}
+	if (!resource.tableView) {
+		return 'add it to stats, with no page'
+	}
+	return `add a page${resource.writable ? ' where rows can be edited' : ', read-only'}`
+}
+
+/** What an open item holds in the draft for now, as Apply would write it. */
+export function currentAnswer(
+	draft: MappingDraft,
+	item: OpenItem,
+	mappedTableViews: ReadonlySet<string> = new Set(),
+): string {
+	const resource = resourceIn(draft, item.relation)
+	if (item.kind === 'schemas') {
+		return 'not analysed'
+	}
+	if (!resource?.include) {
+		return 'left out'
+	}
+	if (item.kind === 'purpose') {
+		return purposeText(resource)
+	}
+	if (item.kind === 'label') {
+		return resource.label ? `labelled by ${resource.label}` : 'no label'
+	}
+	const field = resource.fields.find((candidate) => candidate.column === item.column)
+	if (!field?.include) {
+		return 'column left out'
+	}
+	const relation = relationKept(draft, field.relation, mappedTableViews)
+	return relation ? `a reference to ${relation}` : 'a plain column'
+}
+
+/** The relation columns of the draft and the module that point at a relation, as `relation.column`. */
+export function pointingAt(
+	draft: MappingDraft | null,
+	mapped: MappedRelation[],
+	relation: string,
+): string[] {
+	const fromDraft = (draft?.resources ?? [])
+		.filter((resource) => resource.include)
+		.flatMap((resource) =>
+			resource.fields
+				.filter((field) => field.include && field.relation === relation)
+				.map((field) => `${resource.relation}.${field.column}`),
+		)
+	const drafted = new Set((draft?.resources ?? []).map((resource) => resource.relation))
+	const fromMapped = mapped
+		.filter((entry) => !drafted.has(entry.resource.relation))
+		.flatMap((entry) =>
+			entry.resource.fields
+				.filter(
+					(field) => field.relation?.value === relation && entry.included.includes(field.column),
+				)
+				.map((field) => `${entry.resource.relation}.${field.column}`),
+		)
+	return [...fromDraft, ...fromMapped]
+}
+
 /** The open items the draft has not answered yet. */
 export function unanswered(proposal: MappingProposal, draft: MappingDraft): OpenItem[] {
 	return proposal.open.filter((item) => !(item.id in draft.answers))
-}
-
-/** What the *Connect a database* form asks for. */
-export interface ConnectForm {
-	connection: string
-	providerModule: string
-	generatedModule: string
-	variable: string
-	postgresVersion: string
-	/** Whether the DMS modules are pinned to their database already, so mongodb needs no priority. */
-	dmsPinned: boolean
-	/** Whether the project has dms-ai, which then gets its own connection. */
-	withDmsAi: boolean
-}
-
-function catalogConnection(form: ConnectForm): ModuleEntryInput {
-	return {
-		importOverrides: [
-			{ interface: CATALOG_INTERFACE, source: form.providerModule, id: form.connection },
-		],
-	}
-}
-
-/** The `ConfigureProject` batch that wires the database into the project, as design §1 lists it. */
-export function connectSteps(form: ConnectForm): ProjectConfigStep[] {
-	const steps: ProjectConfigStep[] = [
-		{
-			op: 'AddModule',
-			id: form.providerModule,
-			entry: {
-				source: { type: 'package', package: POSTGRES_PACKAGE, version: form.postgresVersion },
-				config: { mode: 'external', statementTimeoutMs: STATEMENT_TIMEOUT_MS },
-				env: { url: form.variable },
-			},
-		},
-		{
-			op: 'CreateLocalModule',
-			id: form.generatedModule,
-			path: `modules/${form.generatedModule}`,
-			entry: {
-				importOverrides: [{ interface: DATABASE_INTERFACE, source: form.providerModule }],
-			},
-		},
-	]
-	if (!form.dmsPinned) {
-		steps.push({
-			op: 'ConfigureModule',
-			id: 'mongodb',
-			entry: { exportPriority: { [DATABASE_INTERFACE]: 1 } },
-		})
-	}
-	steps.push({ op: 'ConfigureModule', id: 'dms-builder', entry: catalogConnection(form) })
-	if (form.withDmsAi) {
-		steps.push({ op: 'ConfigureModule', id: 'dms-ai', entry: catalogConnection(form) })
-	}
-	return steps
 }
 
 interface StoredMapping {
@@ -451,19 +454,107 @@ export function draftFromMapped(entry: MappedRelation): ResourceDraft {
 	return draft
 }
 
-/** The `MapResources` that maps one relation again from its changed draft. */
+/** The `MapResources` that maps relations the module maps already again, from their changed drafts. */
 export function remapInput(
 	connection: string,
 	module: string,
-	resource: ResourceDraft,
+	resources: ResourceDraft[],
 	mappedTableViews: ReadonlySet<string>,
 ): MapResourcesInput {
-	const draft: MappingDraft = { connection, module, resources: [resource], answers: {}, excluded: {} }
+	const draft: MappingDraft = { connection, module, resources, answers: {}, excluded: {} }
 	return {
 		module,
 		connection,
-		resources: [mappedResource(draft, resource, mappedTableViews)],
+		resources: resources.map((resource) => mappedResource(draft, resource, mappedTableViews)),
 	}
+}
+
+/** A mapped relation's change not applied yet, with the relation as read when it was made. */
+export interface KeptDraft {
+	draft: ResourceDraft
+	read: string
+}
+
+interface StoredMapped {
+	drafts: Record<string, KeptDraft>
+	at: number
+}
+
+function mappedKey(connection: string, module: string): string {
+	return `${MAPPED_PREFIX}${connection}:${module}`
+}
+
+/** A change to keep: the draft, and the relation as read when it was made. */
+export function keptDraft(draft: ResourceDraft, read: ResourceDraft | undefined): KeptDraft {
+	return { draft: JSON.parse(JSON.stringify(draft)) as ResourceDraft, read: JSON.stringify(read) }
+}
+
+/**
+ * Keeps the changed drafts of mapped relations in the browser, so leaving the panel, the workspace
+ * or the builder before applying them loses nothing; none kept, nothing stored.
+ */
+export function storeMappedDrafts(
+	connection: string,
+	module: string,
+	drafts: Record<string, KeptDraft>,
+	now = Date.now(),
+): void {
+	try {
+		if (Object.keys(drafts).length === 0) {
+			storage()?.removeItem(mappedKey(connection, module))
+			return
+		}
+		const value: StoredMapped = { drafts, at: now }
+		storage()?.setItem(mappedKey(connection, module), JSON.stringify(value))
+	} catch {
+		return
+	}
+}
+
+/** The changed drafts of mapped relations kept for a connection and module, unless they are too old. */
+export function storedMappedDrafts(
+	connection: string,
+	module: string,
+	now = Date.now(),
+): Record<string, KeptDraft> {
+	try {
+		const raw = storage()?.getItem(mappedKey(connection, module))
+		const value = raw ? (JSON.parse(raw) as StoredMapped) : undefined
+		if (!value?.drafts || now - value.at > KEEP_MAPPING_DRAFT_MS) {
+			return {}
+		}
+		return value.drafts
+	} catch {
+		return {}
+	}
+}
+
+/**
+ * The drafts once the mapping is read again: what was read, with the kept changes of relations
+ * still read as they were when the change was made. A change made to a relation that changed since,
+ * remapped elsewhere or altered in the database, is dropped rather than written over it.
+ */
+export function keptMappedDrafts(
+	read: Record<string, ResourceDraft>,
+	kept: Record<string, KeptDraft>,
+): Record<string, ResourceDraft> {
+	return Object.fromEntries(
+		Object.entries(read).map(([relation, draft]) => {
+			const change = kept[relation]
+			const current = change && change.read === JSON.stringify(draft) ? change.draft : draft
+			return [relation, JSON.parse(JSON.stringify(current)) as ResourceDraft]
+		}),
+	)
+}
+
+/** The drafts of mapped relations changed since they were read, by relation. */
+export function unsavedRelations(
+	drafts: Record<string, ResourceDraft>,
+	read: Record<string, ResourceDraft>,
+): string[] {
+	return Object.keys(drafts).filter(
+		(relation) => JSON.stringify(drafts[relation]) !== JSON.stringify(read[relation]),
+	)
 }
 
 /** The relations the module maps as TableViews, which relation columns may point at. */
@@ -477,25 +568,25 @@ export function mappedTableViewsOf(mapped: MappedRelation[]): Set<string> {
 
 /** What each rule decides, as the workspace says it beside a choice. */
 export const RULE_SENTENCES: Record<string, string> = {
-	R1: 'The catalog says this relation cannot be mapped.',
-	R2: 'No key: it can feed stats pages, not a TableView.',
+	R1: 'The database reports this table cannot be read.',
+	R2: 'No key: it can feed stats, not a page.',
 	R3: 'It has no rows.',
 	R4: "A framework's or a migration tool's table.",
-	R5: 'Keyed by its two foreign keys: a link table, for stats only.',
-	R6: 'Keyed, with rows and a column that names a row: a TableView.',
-	R7: 'Referenced by others but nothing names a row: a TableView labelled by its key.',
-	R8: 'Keyed, with a time axis and nothing that names a row: events or a log, for stats only.',
-	R9: 'No rule decides what it holds.',
-	L1: 'The label candidate preferred by its name, then the first by order.',
-	L2: "From the catalog's comment when it is short, otherwise from the name.",
-	F1: 'No field type reads this column.',
+	R5: 'It only links two other tables: for stats only.',
+	R6: 'It has a key, rows and a column that names a row: a page.',
+	R7: 'Other tables point at it but no column names a row: a page, its rows named by their key.',
+	R8: 'Dated rows and nothing that names a row: events or a log, for stats only.',
+	R9: 'Nothing in the data says what it holds.',
+	L1: 'The column whose name best fits a row name, then the first such column.',
+	L2: "From the database's comment when it is short, otherwise from the name.",
+	F1: 'No column type can read it.',
 	F2: 'Named like a secret.',
-	F3: 'The first declaration the column accepts.',
-	F4: 'A declared foreign key onto a TableView.',
-	F5: "Every value is found in the target's key, though no foreign key declares it.",
-	FL: 'From what the profile says the column is.',
+	F3: 'The first type the column can be read as.',
+	F4: 'The database declares it points at a table with a page.',
+	F5: 'Every value matches a row of the other table, though the database does not declare it.',
+	FL: 'From what the data looks like.',
 	W1: 'Read-only until you choose otherwise.',
-	mapped: 'What the module maps now.',
+	mapped: 'As it is saved now.',
 }
 
 export function ruleSentence(rule: string): string {
