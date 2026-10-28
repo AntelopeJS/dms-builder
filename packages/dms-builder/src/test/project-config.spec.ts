@@ -16,7 +16,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
-import { tsConfigFile } from "./helpers/project-files";
+import { projectFile, tsConfigFile } from "./helpers/project-files";
 
 const OP_TIMEOUT = 120_000;
 const DATABASE = "@antelopejs/interface-database";
@@ -151,7 +151,7 @@ function configPath(): string {
 }
 
 function readConfig(): string {
-  return fs.readFileSync(configPath(), "utf8");
+  return projectFile(app.root, "antelope.config.ts");
 }
 
 /**
@@ -323,7 +323,7 @@ describe("project-config operations", function () {
     const example = path.join(app.root, ".env.example");
     fs.writeFileSync(example, "MONGODB_URL=\n");
     expectOk(await ConfigureProject([CONNECT_STEPS[0]]), "AddModule");
-    expect(fs.readFileSync(example, "utf8")).to.equal(
+    expect(projectFile(app.root, ".env.example")).to.equal(
       "MONGODB_URL=\nERP_DATABASE_URL=\n",
     );
   });

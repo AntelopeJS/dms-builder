@@ -19,15 +19,13 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { projectFile } from "./helpers/project-files";
 import { FAKE_CATALOG, INPUT, MODULE, OP_TIMEOUT } from "./mapped-database";
 
 let app: Fixture;
 
 function moduleFile(relative: string): string {
-  return fs.readFileSync(
-    path.join(app.root, "modules", MODULE, "src", relative),
-    "utf8",
-  );
+  return projectFile(app.root, path.join("modules", MODULE, "src", relative));
 }
 
 /**

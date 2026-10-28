@@ -17,6 +17,11 @@ export function projectFile(root: string, relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
 
+/** The names a fixture project's directory holds. */
+export function projectDirectory(root: string, relativePath: string): string[] {
+  return fs.readdirSync(path.join(root, relativePath));
+}
+
 /** A `package.json` under a fixture project, or the builder's own when `root` is its package. */
 export function packageManifest(
   root: string,
