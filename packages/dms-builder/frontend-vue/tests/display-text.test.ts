@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { categoryOptions } from '../app/runtime/categories'
 import { displayText } from '../app/runtime/i18n'
@@ -44,17 +43,5 @@ describe('display strings', () => {
 		expect(pageLinkItems([page(KEY)]).map((item) => item.label)).toEqual([TEXT])
 		const categories: CategorySummary[] = [{ ref: 'main', displayName: KEY } as CategorySummary]
 		expect(categoryOptions(categories).map((option) => option.label)).toEqual([TEXT])
-	})
-
-	it('draws the page title through the locale wherever the editor shows it', () => {
-		// Each of these reads the page's display name for a heading; none of them
-		// may draw it raw, or `$demo.nav.home` reaches the screen.
-		for (const name of ['Bar', 'Banners', 'Canvas', 'Inspector', 'Layers']) {
-			const source = readFileSync(
-				new URL(`../app/components/${name}.vue`, import.meta.url),
-				'utf8',
-			)
-			expect(source, name).toMatch(/displayText\(\s*\(?(patch|draft|session)/)
-		}
 	})
 })

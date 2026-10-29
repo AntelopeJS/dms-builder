@@ -1,8 +1,11 @@
 const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
-const Module = require("node:module");
 const path = require("node:path");
 const { test } = require("node:test");
+const { loadModule } = require("./helpers/load-module.cjs");
+
+function distFile(name) {
+  return path.resolve(__dirname, "../dist", name);
+}
 
 /**
  * The builder rewrites the app's sources, so what gates it must be the core's
@@ -11,9 +14,7 @@ const { test } = require("node:test");
  * production start.
  */
 function loadConfig(dev) {
-  const filename = path.resolve(__dirname, "../dist/config.js");
-  const load = Module.createRequire(filename);
-  const mocks = {
+  return loadModule(distFile("config.js"), {
     "@antelopejs/interface-core/runtime": {
       GetRuntimeInfo: async () => ({
         dev,
@@ -21,13 +22,7 @@ function loadConfig(dev) {
         env: "default",
       }),
     },
-  };
-  const compiled = new Module(filename, module);
-  compiled.filename = filename;
-  compiled.paths = Module._nodeModulePaths(path.dirname(filename));
-  compiled.require = (name) => mocks[name] ?? load(name);
-  compiled._compile(readFileSync(filename, "utf8"), filename);
-  return compiled.exports;
+  });
 }
 
 test("enables the builder when the project runs in development", async () => {
@@ -74,17 +69,6 @@ test("re-decides when the module is reconfigured", async () => {
   assert.equal(await config.isBuilderEnabled(), false);
 });
 
-function loadModule(relativePath, mocks) {
-  const filename = path.resolve(__dirname, relativePath);
-  const load = Module.createRequire(filename);
-  const compiled = new Module(filename, module);
-  compiled.filename = filename;
-  compiled.paths = Module._nodeModulePaths(path.dirname(filename));
-  compiled.require = (name) => mocks[name] ?? load(name);
-  compiled._compile(readFileSync(filename, "utf8"), filename);
-  return compiled.exports;
-}
-
 /**
  * The two surfaces together, over the real `config.js`: what a deployment sees
  * is that neither the controller nor the frontend module is ever loaded.
@@ -109,7 +93,7 @@ function bootModule(dev) {
     },
     "@antelopejs/interface-dms-builder": {},
     "./implementations/dms-builder": {},
-    "./config": loadModule("../dist/config.js", runtimeMock),
+    "./config": loadModule(distFile("config.js"), runtimeMock),
   };
   // A getter, so the list records the import rather than the mock's creation.
   Object.defineProperty(mocks, "./routes", {
@@ -119,7 +103,7 @@ function bootModule(dev) {
       return {};
     },
   });
-  const index = loadModule("../dist/index.js", mocks);
+  const index = loadModule(distFile("index.js"), mocks);
   return { index, registrations, loadedRoutes };
 }
 
