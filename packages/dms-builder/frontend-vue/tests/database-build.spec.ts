@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import DatabaseBuild from '../app/components/DatabaseBuild.vue'
+import { ASSISTANT_ACTIONS_KEY, type AssistantActions } from '../app/runtime/database-build'
 import type { AnalysisState, ConnectionInfo, MappingProposal } from '../app/runtime/database-types'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
 import { findAll, fire, installDocumentStub, mount, textOf, type TestNode } from './support/render'
@@ -171,5 +172,56 @@ describe('building a connection just written', () => {
 		fire(button(mounted.root, 'Edit the connection')!, 'click')
 		expect(edits).toBe(1)
 		expect(backend.calls.some((call) => `${call.method} ${call.path}` === ANALYSE)).toBe(false)
+	})
+})
+
+describe('the fork and the assistant', () => {
+	function atTheFork(): void {
+		backend.answers[CONNECTION] = INFO
+		backend.answers[CONNECTIONS] = [{ id: 'roaster', engine: 'postgresql', version: '16.15', database: 'orb', role: 'reader' }]
+		backend.answers[ANALYSIS] = analysis('done')
+	}
+
+	function assistant(isAvailable: boolean): AssistantActions & { started: unknown[][] } {
+		const started: unknown[][] = []
+		return { isAvailable, started, startConversation: (...args: unknown[]) => started.push(args) }
+	}
+
+	it('offers no assistant button when dms-ai provides no entry', async () => {
+		atTheFork()
+		const mounted = mount(DatabaseBuild, { props: { connection: 'roaster', module: 'builder-db-roaster-tables' } })
+		unmount = mounted.unmount
+		await tick(10)
+		expect(button(mounted.root, 'Review it myself')).toBeDefined()
+		expect(button(mounted.root, 'Let the assistant finish')).toBeUndefined()
+	})
+
+	it('offers no assistant button while the assistant does not run in the tab', async () => {
+		atTheFork()
+		const mounted = mount(DatabaseBuild, {
+			props: { connection: 'roaster', module: 'builder-db-roaster-tables' },
+			provide: [[ASSISTANT_ACTIONS_KEY, assistant(false)]],
+		})
+		unmount = mounted.unmount
+		await tick(10)
+		expect(button(mounted.root, 'Let the assistant finish')).toBeUndefined()
+	})
+
+	it('starts a plan-mode conversation naming the connection and its tables module', async () => {
+		atTheFork()
+		const entry = assistant(true)
+		const mounted = mount(DatabaseBuild, {
+			props: { connection: 'roaster', module: 'builder-db-roaster-tables' },
+			provide: [[ASSISTANT_ACTIONS_KEY, entry]],
+		})
+		unmount = mounted.unmount
+		await tick(10)
+		fire(button(mounted.root, 'Let the assistant finish')!, 'click')
+		expect(entry.started).toEqual([
+			[
+				'Use dms-external-database on connection roaster, module builder-db-roaster-tables. The connection is live and analysed: settle the open items, map the tables and add stats pages.',
+				{ mode: 'plan' },
+			],
+		])
 	})
 })

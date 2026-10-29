@@ -248,6 +248,23 @@ export function buildState(answers: BuildAnswers, reloadingFor = 0): BuildView {
 	}
 }
 
+/**
+ * dms-ai's public assistant actions, as its layer provides them under {@link ASSISTANT_ACTIONS_KEY}.
+ * The builder declares the shape it calls and depends on nothing of dms-ai.
+ */
+export interface AssistantActions {
+	readonly isAvailable: boolean
+	startConversation: (prompt: string, options?: { mode?: 'plan' | 'normal' }) => void
+}
+
+/** The global key dms-ai provides its assistant actions under, the same symbol in every layer. */
+export const ASSISTANT_ACTIONS_KEY = Symbol.for('dms-ai:assistant-actions')
+
+/** The message *Let the assistant finish* prefills: the skill, the connection and its tables module. */
+export function assistantMessage(connection: string, module: string): string {
+	return `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables and add stats pages.`
+}
+
 /** The schemas the question pre-checks: `public`, or else the one with the most tables. */
 export function preferredSchemas(item: OpenItem): string[] {
 	const values = item.options.map((option) => String(option.value))

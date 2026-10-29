@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { refusalText } from '../runtime/database-connect'
 import {
+	ASSISTANT_ACTIONS_KEY,
+	type AssistantActions,
+	assistantMessage,
 	type BuildStep,
 	type BuildView,
 	buildState,
@@ -33,6 +36,7 @@ const STATUS_ICONS: Record<StepStatus, { icon: string; tone: string }> = {
 }
 
 const api = useBuilderApi()
+const assistant = inject<AssistantActions | null>(ASSISTANT_ACTIONS_KEY, null)
 const view = ref<BuildView | null>(null)
 const checked = ref<string[]>([])
 const problem = ref('')
@@ -44,6 +48,11 @@ let disposed = false
 
 const steps = computed<BuildStep[]>(() => view.value?.steps ?? [])
 const settled = computed(() => !!view.value?.fork || !!view.value?.empty)
+const canHandOff = computed(() => !!assistant?.isAvailable)
+
+function letAssistantFinish(): void {
+	assistant?.startConversation(assistantMessage(props.connection, props.module), { mode: 'plan' })
+}
 
 async function startAnalysis(schemas?: string[]): Promise<void> {
 	starting = true
@@ -158,6 +167,7 @@ onBeforeUnmount(() => {
 				Nothing is mapped yet. Choose who settles the questions and maps the tables.
 			</p>
 			<div class="flex gap-2">
+				<UButton v-if="canHandOff" label="Let the assistant finish" @click="letAssistantFinish" />
 				<UButton label="Review it myself" variant="soft" @click="emit('review', view.job)" />
 			</div>
 		</section>
