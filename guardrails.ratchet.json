@@ -2,17 +2,16 @@
   "rules": {
     "antelopejs/no-comments": 436,
     "antelopejs/no-fs-read-in-tests": 12,
-    "anti-slop/no-known-value-widening": 54,
-    "anti-slop/no-runtime-typeof": 61,
+    "anti-slop/no-known-value-widening": 52,
+    "anti-slop/no-runtime-typeof": 57,
     "anti-slop/no-shape-in-symbol-names": 81,
     "anti-slop/no-unknown-parameters": 57,
     "anti-slop/no-unknown-returns": 34,
-    "anti-slop/no-unsafe-dictionary-type": 142,
-    "anti-slop/require-safety-comment-for-type-assertion": 109,
+    "anti-slop/no-unsafe-dictionary-type": 140,
+    "anti-slop/require-safety-comment-for-type-assertion": 108,
     "jest/valid-title": 1
   },
   "oversizeFiles": {
-    ".github/social-card.png": 245222,
     "packages/dms-builder/frontend-vue/app/components/Config.vue": 25037,
     "packages/dms-builder/frontend-vue/app/components/DataSource.vue": 28371,
     "packages/dms-builder/frontend-vue/app/components/Node.vue": 27513,

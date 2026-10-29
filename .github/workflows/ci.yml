@@ -8,6 +8,7 @@ on:
   # and filtering on `main` left every intermediate step ungated -- only the
   # secret scanner ran.
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,7 +23,7 @@ jobs:
   # `pnpm run checks`: typecheck, lint (oxlint and the Vue layer's ESLint),
   # format, knip, the node, Vue unit and component suites, size, ratchet and
   # sync.
-  checks:
+  ci:
     uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1
     with:
       docs-files: |
@@ -32,9 +33,12 @@ jobs:
         packages/interface-dms-builder/README.md
         packages/interface-dms-builder/docs
       docs-typescript-project: packages/interface-dms-builder/docs/tsconfig.json
+    permissions:
+      contents: write
+      actions: write
 
   # `ajs dms verify-source`: the production build of the DMS core layer with
-  # this one, then vue-tsc. Its own job, so it runs alongside `checks`.
+  # this one, then vue-tsc. Its own job, so it runs alongside `ci`.
   frontend-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -68,13 +72,13 @@ jobs:
   # pending.
   ubuntu:
     if: always()
-    needs: [checks, frontend-verify, engine-specs]
+    needs: [ci, frontend-verify, engine-specs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - if: >-
           contains(needs.*.result, 'failure') ||
           contains(needs.*.result, 'cancelled') ||
-          needs.checks.result == 'skipped' ||
+          needs.ci.result == 'skipped' ||
           needs.frontend-verify.result == 'skipped'
         run: exit 1
