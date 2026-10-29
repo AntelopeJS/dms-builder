@@ -43,11 +43,11 @@ import type {
 } from './types'
 import { sessionState, type BlockGap, type SessionCore } from './session-model'
 
+export interface FollowedBlocks {
+	selection?: BlockDraft
+	regions: Array<[BlockDraft, string]>
+}
 
-	export interface FollowedBlocks {
-		selection?: BlockDraft
-		regions: Array<[BlockDraft, string]>
-	}
 export function createDerived(scope: SessionCore) {
 	const { session } = scope
 

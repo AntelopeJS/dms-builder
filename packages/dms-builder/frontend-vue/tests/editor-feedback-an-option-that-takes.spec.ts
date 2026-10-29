@@ -52,7 +52,7 @@ describe('an option that takes one of several kinds', () => {
 	it('names the kinds it offers rather than ranking them', async () => {
 		const root = await tabWithABadge()
 
-		// `Option 1 2, Option 3` says nothing about what picking one does.
+		// `Option 1, Option 2, Option 3` says nothing about what picking one does.
 		expect(kindButtons(root).map((node) => node.props.label)).toEqual(KINDS)
 	})
 
