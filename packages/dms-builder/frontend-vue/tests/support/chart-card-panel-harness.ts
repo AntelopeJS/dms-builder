@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, it, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { cloneVNode, h, nextTick, type Component } from 'vue'
 import ChartCardPanel from '../../app/components/ChartCardPanel.vue'
 import Config from '../../app/components/Config.vue'

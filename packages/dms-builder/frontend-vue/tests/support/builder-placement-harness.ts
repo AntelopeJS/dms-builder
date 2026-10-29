@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, it, vi } from 'vitest'
+import { beforeEach, afterEach, vi } from 'vitest'
 import { installFakeHost, type FakeBackend } from './builder-harness'
 import { findNode } from '../../app/runtime/draft'
 import { useBuilder, type BuilderController } from '../../app/runtime/session'

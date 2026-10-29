@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, it, vi } from 'vitest'
+import { beforeEach, afterEach, vi } from 'vitest'
 import { type Component } from 'vue'
 import FormPanel from '../../app/components/FormPanel.vue'
 import FormTarget from '../../app/components/FormTarget.vue'

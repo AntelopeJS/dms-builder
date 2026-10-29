@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, it, vi } from 'vitest'
+import { beforeEach, afterEach, vi } from 'vitest'
 import { type Component } from 'vue'
 import Boundary from '../../app/components/Boundary.vue'
 import Children from '../../app/components/Children.vue'
