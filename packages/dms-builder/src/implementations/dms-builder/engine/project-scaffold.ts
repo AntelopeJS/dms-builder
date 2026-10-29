@@ -15,7 +15,7 @@ export const BUILDER_CODE_INTERFACES = {
   "@antelopejs/interface-data-api": ">=0.4.0 <1.0.0",
   "@antelopejs/interface-database": ">=0.1.11 <1.0.0",
   "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
-  "@antelopejs/interface-dms": ">=0.9.0 <1.0.0",
+  "@antelopejs/interface-dms": ">=0.9.2 <1.0.0",
 } satisfies Record<string, string>;
 /**
  * The build tooling a module needs, at these ranges when the project does not declare its own.

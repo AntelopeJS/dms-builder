@@ -33,6 +33,7 @@ import {
   setConnectionUrl,
 } from "../implementations/dms-builder/engine/database-connection";
 import { removeDatabaseConnection } from "../implementations/dms-builder/engine/database-connection-remove";
+import { latestAnalysis } from "../implementations/dms-builder/engine/analysis-job";
 import {
   configureProjectWithVariables,
   type ProjectVariable,
@@ -118,12 +119,21 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
     return engine.AnalyseDatabase(body);
   }
 
+  /** One analysis by `id`, or the latest of a `connection`: the running one, or else the last to finish. */
   @Get(ROUTES.databaseAnalysis)
   async analysis(
     @AuthTenantOwner() _user: User,
-    @Parameter("id", "query") id: string,
+    @Parameter("id", "query") id: string | undefined,
+    @Parameter("connection", "query") connection: string | undefined,
   ) {
-    return engine.GetAnalysis(id);
+    if (id) {
+      return engine.GetAnalysis(id);
+    }
+    const latest = latestAnalysis(connection ?? "");
+    if (!latest.ok) {
+      return new HTTPResult(HTTP_NOT_FOUND, latest.error);
+    }
+    return latest;
   }
 
   @Post(ROUTES.databaseMap)
