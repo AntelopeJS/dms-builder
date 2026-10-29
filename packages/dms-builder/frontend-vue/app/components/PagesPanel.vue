@@ -10,37 +10,18 @@ import {
 import { openWhenServed } from '../runtime/dev-reload'
 import { displayText } from '../runtime/i18n'
 import { usePageDelete } from '../runtime/page-delete'
-import { useBuilder, type PageLayout } from '../runtime/session'
+import { useBuilder } from '../runtime/session'
 import type { PageSummary } from '../runtime/types'
+import {
+	type CategoryNode,
+	type Row,
+	pageRow,
+	empty,
+	slugify,
+	type StartLayout,
+	LAYOUT_ITEMS,
+} from '../build/PagesPanel'
 
-interface CategoryNode {
-	ref: string
-	label: string
-	pages: PageSummary[]
-	children: CategoryNode[]
-}
-
-/** A line of the tree: keyed by the category's ref, or by the page's route. */
-interface RowBase {
-	ref: string
-	label: string
-	icon?: string
-	/** The category being renamed is drawn as the form that renames it. */
-	slot?: 'rename'
-}
-
-interface CategoryRow extends RowBase {
-	kind: 'category'
-	node: CategoryNode
-	children?: Row[]
-}
-
-interface PageRow extends RowBase {
-	kind: 'page'
-	page: PageSummary
-}
-
-type Row = CategoryRow | PageRow
 
 const builder = useBuilder()
 const { deleting, deletePage } = usePageDelete()
@@ -86,16 +67,6 @@ function shown(page: PageSummary): PageSummary {
 			page.displayName,
 		icon: (patch.icon as string | undefined) ?? meta?.icon ?? page.icon,
 		hidden: (patch.hidden as boolean | undefined) ?? meta?.hidden ?? page.hidden,
-	}
-}
-
-function pageRow(page: PageSummary): PageRow {
-	return {
-		kind: 'page',
-		ref: page.ref,
-		label: page.displayName,
-		icon: page.icon || 'i-ph-file',
-		page,
 	}
 }
 
@@ -241,20 +212,6 @@ const address = computed(
 	() => `${categoryRoute(draft.value.parent)}/${draft.value.name || '…'}`,
 )
 
-function empty(node: CategoryNode): boolean {
-	return !node.pages.length && !node.children.length
-}
-
-/** What a folder, a route segment and a class name can all be built from. */
-function slugify(value: string): string {
-	return value
-		.normalize('NFD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-}
-
 // The slug follows the title until it is edited by hand: typing it twice is
 // busywork, and a title typed into the slug field writes a folder with spaces
 // in it and a route that has to be escaped to be linked.
@@ -291,16 +248,6 @@ const valid = computed(
 		!taken.value &&
 		(creating.value !== 'page' || !!draft.value.parent),
 )
-
-type StartLayout = PageLayout | 'blank'
-
-/** What a new page can start from; a blank page is written as it is. */
-const LAYOUT_ITEMS: { label: string; value: StartLayout; icon: string }[] = [
-	{ label: 'Blank', value: 'blank', icon: 'i-ph-file-light' },
-	{ label: 'Dashboard', value: 'dashboard', icon: 'i-ph-squares-four-light' },
-	{ label: 'List', value: 'list', icon: 'i-ph-table-light' },
-	{ label: 'Form', value: 'form', icon: 'i-ph-note-pencil-light' },
-]
 const layout = ref<StartLayout>('blank')
 
 function startRename(node: CategoryNode): void {
