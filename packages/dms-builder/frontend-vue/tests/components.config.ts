@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, transformWithOxc, type Plugin } from 'vite'
 
@@ -27,6 +28,11 @@ function singleFileComponents(): Plugin {
 			const { parse, compileScript } = await import('@vue/compiler-sfc')
 			const { descriptor } = parse(code, { filename: file })
 			const compiled = compileScript(descriptor, {
+				fs: {
+					fileExists: existsSync,
+					readFile: (target: string) => readFileSync(target, 'utf8'),
+					realpath: realpathSync,
+				},
 				id: createHash('sha256').update(file).digest('hex').slice(0, 8),
 				inlineTemplate: true,
 				// Static hoisting emits vnodes the renderer would have to clone
