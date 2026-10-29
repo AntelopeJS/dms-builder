@@ -6,6 +6,7 @@ import { isPerTenantSchema } from "./query-emit";
 import { routeModelBinding, findQueryRoutes } from "./query-structure";
 import { listResourceRecords } from "./resource-index";
 import { listPageRecords } from "./source-index";
+import { isPlainObject } from "./value";
 
 /** A page that reads a table, and how many of its blocks and sources do. */
 export interface TableReader {
@@ -24,8 +25,8 @@ function stringsIn(value: unknown, found: string[] = []): string[] {
     for (const entry of value) {
       stringsIn(entry, found);
     }
-  } else if (value !== null && typeof value === "object") {
-    for (const entry of Object.values(value as Record<string, unknown>)) {
+  } else if (isPlainObject(value)) {
+    for (const entry of Object.values(value)) {
       stringsIn(entry, found);
     }
   }
@@ -103,11 +104,6 @@ export function tableReaders(): Record<string, TableReader[]> {
   );
 }
 
-/** The count a table stream answers, awaited the way any query is. */
-interface CountableTable {
-  count(): PromiseLike<unknown>;
-}
-
 /**
  * How many rows each table holds, by its ref, read at the request's tenant for
  * a per-tenant schema. A table the database cannot be asked about — no schema
@@ -128,8 +124,7 @@ export async function tableRowCounts(
         tenant && isPerTenantSchema(record.schema)
           ? schema.instance(tenant)
           : schema.instance();
-      const table: unknown = instance.table(record.tableName);
-      const rows = await (table as CountableTable).count();
+      const rows = await instance.table(record.tableName).count();
       if (typeof rows === "number") {
         counts[record.ref] = rows;
       }

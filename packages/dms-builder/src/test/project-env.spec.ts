@@ -30,7 +30,10 @@ function refusal(write: () => void): string {
   try {
     write();
   } catch (error) {
-    return (error as Error).message;
+    if (error instanceof Error) {
+      return error.message;
+    }
+    throw error;
   }
   throw new Error("the write was expected to be refused");
 }

@@ -7,10 +7,11 @@ import {
 } from "ts-morph";
 import { buildCatalog } from "./catalog";
 import { importedName, unwrapExpression } from "./expression";
+import { type LiteralObject, type LiteralValue } from "./guards";
 import { findResourceBySymbol } from "./resource-index";
 
 export interface LiteralResult {
-  value: unknown;
+  value: LiteralValue;
   fullyLiteral: boolean;
   /**
    * The named constants the value was read from, each with where it sits in
@@ -20,8 +21,22 @@ export interface LiteralResult {
   constants?: NamedConstant[];
 }
 
+/** The result of reading an object literal: always an object, opaque or not. */
+export interface ObjectLiteralResult extends LiteralResult {
+  value: LiteralObject;
+}
+
 /** A value a `const` can hold that the writer can put back as its name. */
 type ConstantValue = string | number | boolean | null;
+
+function isConstantValue(value: LiteralValue): value is ConstantValue {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
 
 /** A named constant a value was read from. */
 export interface NamedConstant {
@@ -42,7 +57,7 @@ function nestedConstants(
   }));
 }
 
-function opaqueExpr(node: Node): LiteralResult {
+function opaqueExpr(node: Node): ObjectLiteralResult {
   return { value: { $expr: node.getText() }, fullyLiteral: false };
 }
 
@@ -91,8 +106,8 @@ function dataTypeCall(node: Node): LiteralResult | undefined {
     return undefined;
   }
   const config = arg ? objectLiteralToValue(arg) : undefined;
-  const value: Record<string, unknown> = { $dataType: descriptor.id };
-  if (config && Object.keys(config.value as object).length > 0) {
+  const value: LiteralObject = { $dataType: descriptor.id };
+  if (config && Object.keys(config.value).length > 0) {
     value.config = config.value;
   }
   return {
@@ -131,7 +146,7 @@ function blockCall(node: Node): LiteralResult | undefined {
     value: {
       $block: {
         type: name,
-        config: (config?.value as Record<string, unknown>) ?? {},
+        config: config?.value ?? {},
       },
     },
     fullyLiteral: config ? config.fullyLiteral : true,
@@ -200,14 +215,10 @@ function constantValue(node: Node): { value: ConstantValue } | undefined {
     readingConstants.delete(definition);
   }
   const { value } = initializer;
-  if (
-    !initializer.fullyLiteral ||
-    value === undefined ||
-    (typeof value === "object" && value !== null)
-  ) {
+  if (!initializer.fullyLiteral || !isConstantValue(value)) {
     return undefined;
   }
-  return { value: value as ConstantValue };
+  return { value };
 }
 
 /**
@@ -293,12 +304,12 @@ function literalToValue(node: Node | undefined): LiteralResult {
   );
 }
 
-export function objectLiteralToValue(node: Node): LiteralResult {
+export function objectLiteralToValue(node: Node): ObjectLiteralResult {
   node = unwrapExpression(node);
   if (!Node.isObjectLiteralExpression(node)) {
     return opaqueExpr(node);
   }
-  const result: Record<string, unknown> = {};
+  const result: LiteralObject = {};
   const constants: NamedConstant[] = [];
   let fullyLiteral = true;
   for (const prop of node.getProperties()) {
@@ -325,13 +336,16 @@ export function objectLiteralToValue(node: Node): LiteralResult {
   return { value: result, fullyLiteral, constants };
 }
 
-/** Top-level options are the edit boundary; nested code locks its whole option. */
-export function editableOptions(node: Node | undefined): {
-  config: Record<string, unknown>;
+/** What a block's options object lets the builder edit, and what it locks. */
+export interface EditableOptions {
+  config: LiteralObject;
   lockedOptions: Record<string, string>;
   reason?: string;
-} {
-  const config: Record<string, unknown> = {};
+}
+
+/** Top-level options are the edit boundary; nested code locks its whole option. */
+export function editableOptions(node: Node | undefined): EditableOptions {
+  const config: LiteralObject = {};
   const lockedOptions: Record<string, string> = {};
   if (!node) return { config, lockedOptions };
   node = unwrapExpression(node);
@@ -382,7 +396,7 @@ function arrayLiteralToValue(node: Node): LiteralResult {
   if (!Node.isArrayLiteralExpression(node)) {
     return opaqueExpr(node);
   }
-  const items: unknown[] = [];
+  const items: LiteralValue[] = [];
   const constants: NamedConstant[] = [];
   let fullyLiteral = true;
   for (const [index, element] of node.getElements().entries()) {

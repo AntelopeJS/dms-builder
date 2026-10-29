@@ -51,7 +51,7 @@ export function Reference(
 }
 
 /** The parts of a relation a spec chooses; the rest is what a plain table answers. */
-export interface RelationShape {
+export interface RelationSpec {
   relation: string;
   key?: string[];
   columns: ColumnDescription[];
@@ -62,24 +62,24 @@ export interface RelationShape {
   kind?: RelationDescription["kind"];
 }
 
-export function Relation(shape: RelationShape): RelationDescription {
-  const [schema, name] = shape.relation.split(".");
+export function Relation(spec: RelationSpec): RelationDescription {
+  const [schema, name] = spec.relation.split(".");
   const description: RelationDescription = {
     schema,
     name,
-    kind: shape.kind ?? "table",
+    kind: spec.kind ?? "table",
     estimatedRows: 100,
     estimate: "statistics",
-    key: shape.key ? { columns: shape.key, source: "primary" } : null,
+    key: spec.key ? { columns: spec.key, source: "primary" } : null,
     writes: WRITES,
-    comment: shape.comment ?? null,
-    columns: shape.columns,
+    comment: spec.comment ?? null,
+    columns: spec.columns,
     indexes: [],
-    references: shape.references ?? [],
-    referencedBy: shape.referencedBy ?? [],
+    references: spec.references ?? [],
+    referencedBy: spec.referencedBy ?? [],
   };
-  return shape.unmappable
-    ? { ...description, unmappable: shape.unmappable }
+  return spec.unmappable
+    ? { ...description, unmappable: spec.unmappable }
     : description;
 }
 

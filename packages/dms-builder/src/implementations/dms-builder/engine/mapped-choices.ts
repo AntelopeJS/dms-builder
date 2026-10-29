@@ -45,7 +45,7 @@ function targetOf(
   field: ResourceFieldStructure | undefined,
   relations: Map<string, string>,
 ): string | undefined {
-  const config = field?.dataType?.config as Record<string, unknown> | undefined;
+  const config = field?.dataType?.config;
   const controller = config?.dataApiController as RelationTarget | undefined;
   const ref = controller?.$ref?.resource;
   return ref ? relations.get(ref) : undefined;

@@ -30,16 +30,16 @@ function Column(
   };
 }
 
-type RelationShape = Pick<
+type RelationSpec = Pick<
   RelationDescription,
   "schema" | "name" | "kind" | "writes" | "columns" | "references"
 > & { key: { columns: string[] } | null };
 
 /** A relation as the catalog describes it, with what these specs do not read left empty. */
-function Relation(shape: RelationShape): RelationDescription {
+function Relation(spec: RelationSpec): RelationDescription {
   return {
-    ...shape,
-    key: shape.key && { columns: shape.key.columns, source: "primary" },
+    ...spec,
+    key: spec.key && { columns: spec.key.columns, source: "primary" },
     estimatedRows: null,
     estimate: null,
     comment: null,

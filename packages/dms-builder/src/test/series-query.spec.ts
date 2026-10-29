@@ -15,6 +15,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import type { AddQueryInput } from "@antelopejs/interface-dms-builder";
 
 const PAGE = "/shop/dashboard";
 const MODEL_FILE = "order/database.ts";
@@ -217,7 +218,7 @@ describe("a series query", () => {
   describe("refuses what the database could not compute", () => {
     async function rejected(
       name: string,
-      params: Record<string, unknown>,
+      params: NonNullable<AddQueryInput["params"]>,
     ): Promise<string[]> {
       const result = await AddQuery(PAGE, {
         name,

@@ -31,12 +31,32 @@ export class UnknownBlockTypeError extends Error {
   }
 }
 
-export function createImportCollector(opts?: {
-  resolveRef?: EmitContext["resolveRef"];
-}): {
+/** An emit context together with the imports it has collected. */
+export interface ImportCollector {
   ctx: EmitContext;
   imports: ImportRef[];
-} {
+}
+
+type ExprSentinel = {
+  $expr: string;
+};
+
+type DataTypeSentinel = {
+  $dataType: string;
+  config?: unknown;
+};
+
+type BlockSentinel = {
+  $block: { type: string; config?: unknown };
+};
+
+type RefSentinel = {
+  $ref: { resource: string; as?: unknown };
+};
+
+export function createImportCollector(opts?: {
+  resolveRef?: EmitContext["resolveRef"];
+}): ImportCollector {
   const imports: ImportRef[] = [];
   return {
     ctx: {
@@ -53,12 +73,18 @@ export function isPlainObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isExprSentinel(value: Record<string, unknown>): boolean {
-  return typeof value.$expr === "string" && Object.keys(value).length === 1;
+function isExprSentinel(value: Record<string, unknown>): value is ExprSentinel {
+  return (
+    "$expr" in value &&
+    typeof value.$expr === "string" &&
+    Object.keys(value).length === 1
+  );
 }
 
-function isDataTypeSentinel(value: Record<string, unknown>): boolean {
-  if (typeof value.$dataType !== "string") {
+function isDataTypeSentinel(
+  value: Record<string, unknown>,
+): value is DataTypeSentinel {
+  if (!("$dataType" in value) || typeof value.$dataType !== "string") {
     return false;
   }
   return Object.keys(value).every(
@@ -66,8 +92,14 @@ function isDataTypeSentinel(value: Record<string, unknown>): boolean {
   );
 }
 
-function isBlockSentinel(value: Record<string, unknown>): boolean {
-  if (!isPlainObject(value.$block) || Object.keys(value).length !== 1) {
+function isBlockSentinel(
+  value: Record<string, unknown>,
+): value is BlockSentinel {
+  if (
+    !("$block" in value) ||
+    !isPlainObject(value.$block) ||
+    Object.keys(value).length !== 1
+  ) {
     return false;
   }
   return typeof value.$block.type === "string";
@@ -77,8 +109,8 @@ function isBlockSentinel(value: Record<string, unknown>): boolean {
  * Emits a nested block as its factory call — the shape a `x-component` option
  * takes, such as a ChartCard's `chart`.
  */
-function blockText(value: Record<string, unknown>, ctx: EmitContext): string {
-  const block = value.$block as { type: string; config?: unknown };
+function blockText(value: BlockSentinel, ctx: EmitContext): string {
+  const block = value.$block;
   const descriptor = buildCatalog().blocks.find(
     (candidate) => candidate.type === block.type,
   );
@@ -94,14 +126,18 @@ function blockText(value: Record<string, unknown>, ctx: EmitContext): string {
   return `${descriptor.type}(${arg})`;
 }
 
-function isRefSentinel(value: Record<string, unknown>): boolean {
-  if (!isPlainObject(value.$ref) || Object.keys(value).length !== 1) {
+function isRefSentinel(value: Record<string, unknown>): value is RefSentinel {
+  if (
+    !("$ref" in value) ||
+    !isPlainObject(value.$ref) ||
+    Object.keys(value).length !== 1
+  ) {
     return false;
   }
   return typeof value.$ref.resource === "string";
 }
 
-function refText(value: Record<string, unknown>, ctx: EmitContext): string {
+function refText(value: RefSentinel, ctx: EmitContext): string {
   const ref = value.$ref as RefValue["$ref"];
   if (!ctx.resolveRef) {
     throw new UnknownReferenceError(ref.resource);
@@ -115,11 +151,8 @@ function definedEntries(obj: Record<string, unknown>): [string, unknown][] {
   return Object.entries(obj).filter(([, value]) => value !== undefined);
 }
 
-function dataTypeText(
-  value: Record<string, unknown>,
-  ctx: EmitContext,
-): string {
-  const id = value.$dataType as string;
+function dataTypeText(value: DataTypeSentinel, ctx: EmitContext): string {
+  const id = value.$dataType;
   const descriptor = buildCatalog().dataTypes.find((type) => type.id === id);
   if (!descriptor) {
     throw new UnknownDataTypeError(id);
@@ -178,7 +211,7 @@ function objectValueText(
 export function serializeValue(value: unknown, ctx: EmitContext): string {
   if (isPlainObject(value)) {
     if (isExprSentinel(value)) {
-      return value.$expr as string;
+      return value.$expr;
     }
     if (isDataTypeSentinel(value)) {
       return dataTypeText(value, ctx);

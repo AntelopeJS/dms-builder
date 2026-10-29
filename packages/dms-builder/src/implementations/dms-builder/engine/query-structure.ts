@@ -15,10 +15,11 @@ import {
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
 import { bindName } from "./query-chain";
-import { outputForResponseKey, shapeForHelper } from "./query-emit";
+import { outputForResponseKey, arrangementForHelper } from "./query-emit";
 import {
   getQueryTemplate,
   parseModelMethod,
+  type QueryParams,
   type QueryTemplate,
 } from "./query-template";
 import { findResourceBySymbol, findResourceRecord } from "./resource-index";
@@ -29,7 +30,7 @@ export const MODEL_DECORATORS = ["Model", "TenantScopedModel"];
 /** What a generated query route imports beyond its model, for pruning. */
 export const ROUTE_GUARD_SYMBOLS = ["AuthUserWithPermission", "User"];
 const ROUTE_DECORATORS = ["Get", "Post", "Put", "Patch", "Delete"];
-const PARAM_SOURCES = new Set(["query", "param", "header"]);
+const PARAM_SOURCES = new Set<ParamSource>(["query", "param", "header"]);
 
 /** One argument of a route's call into its model method, per the §4 grammar. */
 type QueryArg =
@@ -42,7 +43,7 @@ export interface QueryRouteCall {
   /** What the route answers, read from what its response is built out of. */
   output: QueryOutputKind;
   /** The arrangement a helper applied, when one did. */
-  response?: string;
+  response?: QueryStructure["response"];
   /** Whether the helper is handed the preceding period too. */
   compare?: boolean;
 }
@@ -337,7 +338,7 @@ function unwrapReturnedCall(method: MethodDeclaration) {
 interface UnwrappedResponse {
   call: CallExpression;
   output: QueryOutputKind;
-  response?: string;
+  response?: QueryStructure["response"];
   compare?: boolean;
 }
 
@@ -365,8 +366,8 @@ function unwrapHelperCall(call: CallExpression): UnwrappedResponse | undefined {
   if (!Node.isIdentifier(callee)) {
     return undefined;
   }
-  const shape = shapeForHelper(callee.getText());
-  if (!shape) {
+  const arrangement = arrangementForHelper(callee.getText());
+  if (!arrangement) {
     return undefined;
   }
   const [first, options] = call.getArguments();
@@ -380,7 +381,7 @@ function unwrapHelperCall(call: CallExpression): UnwrappedResponse | undefined {
   return {
     call: inner,
     output: "series",
-    response: shape,
+    response: arrangement,
     compare: comparesPrevious(options) || undefined,
   };
 }
@@ -436,6 +437,11 @@ export function parseQueryRouteCall(
 
 type ParamSource = "query" | "param" | "header";
 
+/** Whether a parameter's declared source is one a route can read from. */
+function isParamSource(value: string): value is ParamSource {
+  return [...PARAM_SOURCES].some((source) => source === value);
+}
+
 /**
  * The route's declared parameters. `@Parameter` defaults to `query` when its
  * source is omitted, and a hand-written route may bind a `header` — reporting
@@ -457,7 +463,7 @@ function routeParams(
     const source = stringLiteralValue(args?.[1]) ?? "query";
     params.push({
       name,
-      in: PARAM_SOURCES.has(source) ? (source as ParamSource) : "query",
+      in: isParamSource(source) ? source : "query",
     });
   }
   return params;
@@ -484,7 +490,7 @@ function findModelMethod(
  */
 export function unknownParamKeys(
   template: QueryTemplate,
-  params: Record<string, unknown>,
+  params: QueryParams,
 ): string[] {
   const known = new Set(Object.keys(template.descriptor.params));
   return Object.keys(params).filter((key) => !known.has(key));
@@ -499,11 +505,11 @@ export function unknownParamKeys(
  * the route no longer supplies what the chain reads.
  */
 function resolveBindings(
-  params: Record<string, unknown>,
+  params: QueryParams,
   method: MethodDeclaration,
   call: QueryRouteCall,
   route: { name: string; in: ParamSource }[],
-): Record<string, unknown> | undefined {
+): QueryParams | undefined {
   if (!Array.isArray(params.where)) {
     return params;
   }
@@ -582,7 +588,7 @@ export function buildQueryStructure(route: QueryRoute): QueryStructure {
     return { ...base, opaque: true, opaqueReason: "unparseable_chain" };
   }
   if (call.response) {
-    base.response = call.response as QueryStructure["response"];
+    base.response = call.response;
   }
   if (call.compare) {
     base.compare = true;

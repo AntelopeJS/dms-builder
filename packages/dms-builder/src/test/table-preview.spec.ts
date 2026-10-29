@@ -22,6 +22,7 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import type { BlockDraft, RefValue } from "@antelopejs/interface-dms-builder";
 
 const PAGE = "/shop/board";
 
@@ -42,11 +43,31 @@ class ticketDataAPI extends Controller("/api/ticket") {
   declare title: string;
 }
 
+interface ColumnOption {
+  id: string;
+  header: string;
+}
+
+function isColumnOption(value: unknown): value is ColumnOption {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "header" in value &&
+    typeof value.header === "string"
+  );
+}
+
+function isColumnList(value: unknown): value is ColumnOption[] {
+  return Array.isArray(value) && value.every(isColumnOption);
+}
+
 /** What a preview built in place of one block, as the canvas receives it. */
-async function previewOf(block: Record<string, unknown>) {
+async function previewOf(block: Omit<BlockDraft, "name">) {
   const preview = expectOk(
     await PreviewLayout(PAGE, {
-      blocks: [{ name: "block", ...block } as never],
+      blocks: [{ name: "block", ...block }],
     }),
     "PreviewLayout",
   );
@@ -121,7 +142,10 @@ describe("previewing a block over a table", () => {
     expect(options.source).to.deep.include({
       fetchUrl: "/api/ticket/list",
     });
-    const columns = options.columns as Array<{ id: string; header: string }>;
+    const columns = options.columns;
+    if (!isColumnList(columns)) {
+      expect.fail("the table view lists its columns");
+    }
     expect(columns.map((column) => [column.id, column.header])).to.deep.equal([
       ["title", "Title"],
     ]);
@@ -187,17 +211,15 @@ describe("previewing a block over a table", () => {
       "GetPageStructure",
     ).blocks;
     expect(block.editable, "the class reads back as the table").to.equal(true);
-    const [field] = (block.config ?? {}).fields as Array<{
-      type: { config: Record<string, unknown> };
-    }>;
-    expect(field.type.config.dataApiController).to.deep.equal({
-      $ref: { resource: "ticket" },
-    });
+    expect(block.config).to.have.deep.nested.property(
+      "fields[0].type.config.dataApiController",
+      { $ref: { resource: "ticket" } },
+    );
   });
 });
 
 /** A form field over another table, as the panel writes one. */
-function relationTo(dataApiController: unknown): Record<string, unknown> {
+function relationTo(dataApiController: RefValue) {
   return {
     id: "ticket",
     label: "Ticket",

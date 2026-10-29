@@ -25,6 +25,7 @@ import type {
   FieldSpec,
   MutationOpts,
   PageDraft,
+  QueryPreviewRequest,
 } from "@antelopejs/interface-dms-builder";
 import {
   DEFAULT_ROUTE_PREFIX,
@@ -80,7 +81,7 @@ interface ConfigureFieldBody {
 interface QueryPreviewBody {
   query: AddQueryInput;
   /** Values the route would receive, by the name it exposes them under. */
-  args?: Record<string, unknown>;
+  args?: QueryPreviewRequest["args"];
 }
 
 interface QueryBody {
@@ -365,9 +366,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.dataSources)
   async dataSources(
     @AuthTenantOwner() _user: User,
-    @Parameter("responseShape", "query") responseShape?: string,
+    @Parameter("responseShape", "query") response?: string,
   ) {
-    return engine.ListDataSources(responseShape);
+    return engine.ListDataSources(response);
   }
 
   @Get(ROUTES.queryTemplates)

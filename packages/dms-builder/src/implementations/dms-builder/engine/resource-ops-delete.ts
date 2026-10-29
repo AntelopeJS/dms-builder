@@ -207,16 +207,16 @@ function applyFieldImports(sourceFile: SourceFile, symbols: string[]): void {
   }
 }
 
-function buildFieldText(
-  spec: FieldSpec,
-  ctx: EmitContext,
-): {
+/** A field's table and Data API text, the decorators each needs, and the emit warnings. */
+interface FieldText {
   table: string;
   tableSymbols: string[];
   api: string;
   apiSymbols: string[];
   warnings: OpWarning[];
-} {
+}
+
+function buildFieldText(spec: FieldSpec, ctx: EmitContext): FieldText {
   const table = tableFieldText(spec);
   const api = dataApiFieldText(spec, ctx);
   return {

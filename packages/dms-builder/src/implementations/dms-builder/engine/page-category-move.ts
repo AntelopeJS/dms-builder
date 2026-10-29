@@ -20,8 +20,19 @@ import {
   Transaction,
 } from "./writable";
 
+type DeclaredCategory = CategoryRecord & {
+  importName: string;
+  importModule: string;
+};
+
+function isDeclaredCategory(
+  category: CategoryRecord,
+): category is DeclaredCategory {
+  return !!category.importName && !!category.importModule;
+}
+
 export interface CategoryMove {
-  target: CategoryRecord;
+  target: DeclaredCategory;
   newRef: string;
   newPath?: string;
 }
@@ -34,7 +45,7 @@ export function planCategoryMove(
 ): CategoryMove | OpResult<{ ref: string }> {
   const target = findCategoryRecord(category);
   if (!target) return notFound<{ ref: string }>(category);
-  if (!target.importName || !target.importModule) {
+  if (!isDeclaredCategory(target)) {
     return unsupported<{ ref: string }>(
       `category "${category}" is built-in or not declared in source, so a page cannot reference it`,
     );
@@ -86,11 +97,11 @@ export function applyCategoryMove(
   }
   const used = referencedImportNames(file);
   const property = findCategoryProperty(file, optionsArg);
-  property?.setInitializer(target.importName as string);
-  const specifier = (target.importModule as string).endsWith(".ts")
-    ? relativeModule(newPath, target.importModule as string)
-    : (target.importModule as string);
-  ensureNamedImport(file, target.importName as string, specifier);
+  property?.setInitializer(target.importName);
+  const specifier = target.importModule.endsWith(".ts")
+    ? relativeModule(newPath, target.importModule)
+    : target.importModule;
+  ensureNamedImport(file, target.importName, specifier);
   pruneUnusedImports(file, used);
   if (move.newPath !== undefined) transaction.trackDelete(sourceFile);
 }

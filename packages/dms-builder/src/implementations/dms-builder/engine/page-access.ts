@@ -115,7 +115,7 @@ function accessMode(
 }
 
 /** A block held through a setting: the engine reads it back as `{ $block }`. */
-function isHeldBlock(value: unknown): boolean {
+function isHeldBlock(value: unknown): value is { $block: unknown } {
   return (
     typeof value === "object" &&
     value !== null &&

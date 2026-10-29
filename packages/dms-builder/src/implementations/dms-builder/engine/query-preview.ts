@@ -146,8 +146,8 @@ function arrange(
       truncated: false,
     });
   }
-  const shape = requested ?? "series";
-  if (shape === "series") {
+  const arrangement = requested ?? "series";
+  if (arrangement === "series") {
     return preview({
       output,
       body: { [RESPONSE_KEYS.series]: points },
@@ -163,8 +163,8 @@ function arrange(
   }
   return preview({
     output,
-    response: shape,
-    body: RESPONSE_ARRANGERS[shape](points, options) as QueryResponseBody,
+    response: arrangement,
+    body: RESPONSE_ARRANGERS[arrangement](points, options) as QueryResponseBody,
     truncated: read.truncated,
   });
 }
@@ -328,7 +328,7 @@ export async function runQueryPreview(
   }
   const structure = buildResourceStructure(query.resource);
   if (!structure.ok) {
-    return structure as OpResult<QueryPreview>;
+    return structure;
   }
   const table = openTable(
     record.schema,

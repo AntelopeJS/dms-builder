@@ -223,8 +223,7 @@ export function childArgText(
   slot?: string,
   meta?: Record<string, unknown>,
 ): string {
-  const entries: Record<string, unknown> = {};
-  if (slot !== undefined) entries.slot = slot;
+  const entries = slot === undefined ? {} : { slot };
   const metaText = objectText({ ...entries, ...meta }, ctx);
   return `${JSON.stringify(id)}, ${valueText}${metaText ? `, ${metaText}` : ""}`;
 }

@@ -9,7 +9,7 @@ import { registerBuiltinQueryTemplates } from "../implementations/dms-builder/en
 import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
-  return { name, dataType: { $dataType: dataType } } as ResourceFieldStructure;
+  return { name, dataType: { $dataType: dataType } };
 }
 
 const FIELDS = [
@@ -18,46 +18,42 @@ const FIELDS = [
   field("createdAt", "date"),
 ];
 
-/** Every call a plan may make on a stream; each one answers the same handle. */
-const CHAIN_CALLS = [
-  "filter",
-  "map",
-  "group",
-  "orderBy",
-  "slice",
-  "count",
-  "sum",
-  "avg",
-  "min",
-  "max",
-] as const;
+/** What a table answers once awaited: a number for a scalar plan, one point per group for a grouped one. */
+type Answer = number | { x: number; y: number }[];
+
+/** The awaitable half of a table handle, whose outcome a test decides. */
+interface Settling {
+  then(resolve: (answer: Answer) => void, reject: (error: Error) => void): void;
+}
 
 /**
- * A table that answers whatever the test decided, without a database. Every call
- * the plan makes returns the same handle, and awaiting it yields the rows.
+ * A table without a database. Every call the plan makes returns the same handle,
+ * and awaiting it settles as the test decided.
  */
-function tableAnswering(rows: unknown): PlanStream {
-  const handle: Partial<PlanStream> & {
-    then: (resolve: (value: unknown) => unknown) => unknown;
-  } = {
-    then: (resolve) => resolve(rows),
+function tableSettling(then: Settling["then"]): PlanStream {
+  const handle: PlanStream & Settling = {
+    then,
+    filter: () => handle,
+    map: () => handle,
+    group: () => handle,
+    orderBy: () => handle,
+    slice: () => handle,
+    count: () => handle,
+    sum: () => handle,
+    avg: () => handle,
+    min: () => handle,
+    max: () => handle,
   };
-  for (const name of CHAIN_CALLS) {
-    Object.assign(handle, { [name]: () => handle });
-  }
-  return handle as PlanStream;
+  return handle;
+}
+
+/** A table that answers whatever the test decided. */
+function tableAnswering(rows: Answer): PlanStream {
+  return tableSettling((resolve) => resolve(rows));
 }
 
 function failingTable(message: string): PlanStream {
-  const handle: Partial<PlanStream> & {
-    then: (resolve: unknown, reject: (error: unknown) => unknown) => unknown;
-  } = {
-    then: (_resolve, reject) => reject(new Error(message)),
-  };
-  for (const name of CHAIN_CALLS) {
-    Object.assign(handle, { [name]: () => handle });
-  }
-  return handle as PlanStream;
+  return tableSettling((_resolve, reject) => reject(new Error(message)));
 }
 
 const COUNT_QUERY = {
