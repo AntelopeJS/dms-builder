@@ -123,7 +123,10 @@ describe('the build steps, derived from the three answers', () => {
 
 	it('fails step 4 with the analysis error', () => {
 		const answers: BuildAnswers = { declared: true, listed: LISTED, analysis: { ...job('failed'), error: 'timeout' } }
-		expect(buildState(answers).steps[3]).toMatchObject({ status: 'failed', detail: 'The analysis failed: timeout' })
+		const view = buildState(answers)
+		expect(view.steps[3]).toMatchObject({ status: 'failed', detail: 'The analysis failed: timeout' })
+		expect(view.analysisFailed).toBe(true)
+		expect(view.needsAnalysis).toBe(false)
 	})
 
 	it('asks the schemas question instead of forking', () => {

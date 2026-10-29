@@ -43,11 +43,13 @@ const problem = ref('')
 let reloadingSince: number | undefined
 let announced = false
 let starting = false
+/** Counts the poll loops started; a loop that is no longer the latest stops at its next turn. */
+let generation = 0
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 
 const steps = computed<BuildStep[]>(() => view.value?.steps ?? [])
-const settled = computed(() => !!view.value?.fork || !!view.value?.empty)
+const settled = computed(() => !!view.value?.fork || !!view.value?.empty || !!view.value?.analysisFailed)
 const canHandOff = computed(() => !!assistant?.isAvailable)
 
 function letAssistantFinish(): void {
@@ -64,9 +66,9 @@ async function startAnalysis(schemas?: string[]): Promise<void> {
 	}
 }
 
-async function poll(): Promise<void> {
+async function poll(loop: number): Promise<void> {
 	const answers = await readBuild(api, props.connection)
-	if (disposed) return
+	if (disposed || loop !== generation) return
 	const before = buildState(answers)
 	if (before.reloading) {
 		reloadingSince ??= Date.now()
@@ -85,9 +87,16 @@ async function poll(): Promise<void> {
 	if (next.needsAnalysis && !starting && !problem.value) {
 		await startAnalysis()
 	}
-	if (!disposed && !settled.value) {
-		timer = setTimeout(() => void poll(), POLL_MS)
+	if (!disposed && loop === generation && !settled.value) {
+		timer = setTimeout(() => void poll(loop), POLL_MS)
 	}
+}
+
+/** Polls again from now on, as the only loop. */
+function restartPolling(): void {
+	if (timer) clearTimeout(timer)
+	generation += 1
+	void poll(generation)
 }
 
 function toggleSchema(schema: string, on: boolean): void {
@@ -96,11 +105,15 @@ function toggleSchema(schema: string, on: boolean): void {
 
 async function readSchemas(): Promise<void> {
 	await startAnalysis(checked.value)
-	if (timer) clearTimeout(timer)
-	await poll()
+	restartPolling()
 }
 
-onMounted(() => void poll())
+async function analyseAgain(): Promise<void> {
+	await startAnalysis()
+	restartPolling()
+}
+
+onMounted(restartPolling)
 onBeforeUnmount(() => {
 	disposed = true
 	if (timer) clearTimeout(timer)
@@ -151,6 +164,11 @@ onBeforeUnmount(() => {
 						<div>
 							<UButton label="Continue" size="xs" :disabled="!checked.length" @click="readSchemas" />
 						</div>
+					</div>
+					<div v-if="entry.key === 'read' && view?.analysisFailed" class="flex gap-2">
+						<UButton label="Analyse again" size="xs" @click="analyseAgain" />
+						<UButton label="Edit the connection" size="xs" variant="soft" @click="emit('edit')" />
+						<UButton label="Remove" size="xs" color="error" variant="outline" @click="emit('remove')" />
 					</div>
 					<div v-if="entry.key === 'read' && view?.empty" class="flex gap-2">
 						<UButton label="Remove" size="xs" color="error" variant="outline" @click="emit('remove')" />

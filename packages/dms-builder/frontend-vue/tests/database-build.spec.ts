@@ -175,6 +175,61 @@ describe('building a connection just written', () => {
 	})
 })
 
+describe('an analysis that failed, or is asked again', () => {
+	function connected(): void {
+		backend.answers[CONNECTION] = INFO
+		backend.answers[CONNECTIONS] = [{ id: 'orb', engine: 'postgresql', version: '16.15', database: 'orb', role: 'reader' }]
+	}
+
+	function reads(): number {
+		return backend.calls.filter((call) => `${call.method} ${call.path}` === CONNECTIONS).length
+	}
+
+	it('stops polling on a failed analysis, and Analyse again runs it and follows it to the fork', async () => {
+		connected()
+		backend.answers[ANALYSIS] = { ...analysis('done'), data: { ...analysis('done').data, status: 'failed', proposal: undefined, error: 'timeout' } }
+		const mounted = mount(DatabaseBuild, { props: { connection: 'orb', module: 'builder-db-orb-tables' } })
+		unmount = mounted.unmount
+		await tick(10)
+		expect(stepStatus(mounted.root, 'read')).toBe('failed')
+		expect(button(mounted.root, 'Edit the connection')).toBeDefined()
+		const before = reads()
+		await tick(5000)
+		expect(reads()).toBe(before)
+
+		backend.answers[ANALYSE] = analysis('running')
+		backend.answers[ANALYSIS] = analysis('done')
+		fire(button(mounted.root, 'Analyse again')!, 'click')
+		await tick(10)
+		expect(backend.calls.filter((call) => `${call.method} ${call.path}` === ANALYSE)).toHaveLength(1)
+		expect(button(mounted.root, 'Review it myself')).toBeDefined()
+	})
+
+	it('keeps one poll loop after the schemas are answered', async () => {
+		connected()
+		const schemas = {
+			id: 'schemas:orb',
+			kind: 'schemas' as const,
+			question: 'Pick the schemas',
+			options: [{ value: 'public', title: 'public (7)' }],
+			proposed: null,
+		}
+		const asking = analysis('done')
+		backend.answers[ANALYSIS] = { ...asking, data: { ...asking.data, proposal: { ...PROPOSAL, resources: [], open: [schemas] } } }
+		const mounted = mount(DatabaseBuild, { props: { connection: 'orb', module: 'builder-db-orb-tables' } })
+		unmount = mounted.unmount
+		await tick(10)
+		backend.answers[ANALYSE] = analysis('running')
+		backend.answers[ANALYSIS] = analysis('running')
+		vi.advanceTimersByTime(1000)
+		fire(button(mounted.root, 'Continue')!, 'click')
+		await tick(10)
+		const before = reads()
+		await tick(3000)
+		expect(reads() - before).toBe(3)
+	})
+})
+
 describe('the fork and the assistant', () => {
 	function atTheFork(): void {
 		backend.answers[CONNECTION] = INFO

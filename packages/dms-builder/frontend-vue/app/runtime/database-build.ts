@@ -59,6 +59,8 @@ export interface BuildView {
 	needsAnalysis: boolean
 	/** The analysis read nothing mappable. */
 	empty: boolean
+	/** The latest analysis failed: step 4 offers to analyse again. */
+	analysisFailed: boolean
 	/** The analysis job the fork and *Review it myself* stand on. */
 	job?: string
 	fork?: ForkSummary
@@ -243,6 +245,7 @@ export function buildState(answers: BuildAnswers, reloadingFor = 0): BuildView {
 		schemas,
 		needsAnalysis: connected && !analysis,
 		empty: summary?.tables === 0,
+		analysisFailed: !!analysis && analysis.status !== 'running' && !analysis.proposal,
 		job: analysis?.id,
 		fork: summary && summary.tables > 0 ? summary : undefined,
 	}
