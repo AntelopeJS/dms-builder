@@ -190,7 +190,6 @@ function instantiateDataType(value: Record<string, unknown>): unknown {
     throw new DegradedBlockError(`dataType "${id}" is not constructible`);
   }
   const Ctor = exported as new (config?: unknown) => unknown;
-  // Materialized like any other option: a relation's config names its table.
   return new Ctor(
     value.config === undefined ? undefined : materialize(value.config),
   );
@@ -468,11 +467,14 @@ function instantiateBlock(
   return builder;
 }
 
+/**
+ * Preview a page draft's layout. The page is looked up in the source index, not
+ * on disk, because the preview runs on every edit.
+ */
 export async function previewLayout(
   ref: string,
   draft: PageDraft,
 ): Promise<OpResult<PageLayoutPreview>> {
-  // A read of the source index, not of disk: the preview runs on every edit.
   if (!findPageRecord(ref)) {
     return notFound<PageLayoutPreview>(ref);
   }

@@ -1,9 +1,11 @@
-// Reading a grouped chain back into the plan that produced it.
-//
-// The inverse of the grouped half of query-plan.ts, and deliberately strict: a
-// chain that does not decompose exactly into the hops the emitter writes reads as
-// nothing at all, which is what keeps the builder from rewriting a chain a human
-// has taken over.
+/**
+ * Reading a grouped chain back into the plan that produced it.
+ *
+ * The inverse of the grouped half of query-plan.ts, and deliberately strict: a
+ * chain that does not decompose exactly into the hops the emitter writes reads as
+ * nothing at all, which is what keeps the builder from rewriting a chain a human
+ * has taken over.
+ */
 
 import { type CallExpression, type MethodDeclaration, Node } from "ts-morph";
 import { stringLiteralValue } from "./literals";
@@ -281,8 +283,6 @@ function readGroupHop(
   if (groupKey === undefined || !mapper) {
     return undefined;
   }
-  // The point's `x` is the group itself; anything else is not a shape the
-  // emitter writes.
   if (
     !Node.isIdentifier(mapper.x) ||
     mapper.x.getText() !== mapper.groupParam
@@ -299,7 +299,8 @@ function readGroupHop(
  * A projected chain groups on the projected field and measures the one carried
  * alongside it, so the names in the chain (`bucket`, `value`) are translated back
  * to the resource's own fields. Anything that does not line up is a chain the
- * emitter never wrote.
+ * emitter never wrote, including a projection carried through a count, which the
+ * emitter never writes.
  */
 function resolveGroup(
   projection: Projection | undefined,
@@ -321,8 +322,6 @@ function resolveGroup(
     timezone: projection.timezone,
   };
   if (measured.measure.kind !== "aggregate") {
-    // A count needs nothing carried through the projection, so the emitter never
-    // writes one. A chain that has one is someone else's.
     return projection.measured === undefined
       ? { group, measure: measured.measure }
       : undefined;

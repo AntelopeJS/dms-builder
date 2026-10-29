@@ -456,8 +456,6 @@ export function addBlock(
     return notFound<{ path: BlockPath }>(input.page);
   }
   const parent = resolveAddParent(cls, input);
-  // `target` is the shape that means "resolved"; anything else is the failure
-  // OpResult, which travels straight back out.
   if (!("target" in parent)) {
     return parent;
   }

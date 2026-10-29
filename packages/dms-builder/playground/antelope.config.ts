@@ -14,10 +14,12 @@ const dmsSource = DMS_MODULE_PATH
   ? {
       type: "local" as const,
       path: DMS_MODULE_PATH,
-      // Not `pnpm build`: it rebuilds `interface-dms` with a `rimraf dist`, and
-      // the core loads that interface from the very `dist` being erased — the
-      // module then fails to construct on a missing file. Compile in place, and
-      // build the interface once beforehand.
+      /**
+       * Not `pnpm build`: it rebuilds `interface-dms` with a `rimraf dist`, and
+       * the core loads that interface from the very `dist` being erased — the
+       * module then fails to construct on a missing file. Compile in place, and
+       * build the interface once beforehand.
+       */
       installCommand: ["pnpm exec tsc", "pnpm exec tsc-alias"],
     }
   : {
@@ -45,24 +47,30 @@ export default defineConfig({
           description: "No-code data sources, end to end",
         },
         auth: {
-          // Signs the DMS's own internal tokens, and is distinct from the
-          // auth-jwt session secret below.
+          /**
+           * Signs the DMS's own internal tokens, and is distinct from the
+           * auth-jwt session secret below.
+           */
           jwtSecret: "dev",
         },
       },
     },
 
-    // The module under development. `projectRoot` is what the builder rewrites:
-    // every page, resource and query it writes lands in this playground's own
-    // `src`, which is the point of running it here.
+    /**
+     * The module under development. `projectRoot` is what the builder rewrites:
+     * every page, resource and query it writes lands in this playground's own
+     * `src`, which is the point of running it here.
+     */
     "dms-builder": {
       source: {
         type: "local",
         path: "..",
         watchDir: ["src"],
         installCommand: ["pnpm build"],
-        // Not `pnpm build`: that starts with `rimraf dist`, and the running
-        // module is loaded from dist.
+        /**
+         * Not `pnpm build`: that starts with `rimraf dist`, and the running
+         * module is loaded from dist.
+         */
         reloadCommand: ["pnpm exec tsc"],
       },
       config: {
@@ -70,8 +78,10 @@ export default defineConfig({
       },
     },
 
-    // This playground's own module: the demo resource and the page holding the
-    // card to configure (see src/).
+    /**
+     * This playground's own module: the demo resource and the page holding the
+     * card to configure (see src/).
+     */
     playground: {
       source: {
         type: "local",
@@ -118,8 +128,10 @@ export default defineConfig({
         },
       },
     },
-    // The DMS serves pages carrying file fields and OAuth flows through the
-    // storage and mail modules, and fails on 500 without them.
+    /**
+     * The DMS serves pages carrying file fields and OAuth flows through the
+     * storage and mail modules, and fails on 500 without them.
+     */
     "file-storage-local": {
       source: {
         type: "package",

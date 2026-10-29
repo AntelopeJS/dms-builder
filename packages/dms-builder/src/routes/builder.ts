@@ -314,14 +314,16 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
     return engine.RemoveField(path);
   }
 
+  /**
+   * Preview a query draft. The tenant comes from the request rather than the
+   * body: a caller that could name the tenant to read could name someone else's.
+   */
   @Post(ROUTES.queryPreview)
   async queryPreview(
     @AuthTenantOwner() _user: User,
     @Context() context: RequestContext,
     @JSONBody() body: QueryPreviewBody,
   ) {
-    // The tenant comes from the request rather than from the body: a caller that
-    // could name the tenant to read could name someone else's.
     return engine.PreviewQuery({
       query: body.query,
       args: body.args,

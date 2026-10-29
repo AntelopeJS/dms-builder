@@ -22,7 +22,6 @@ describe("declared data sources", () => {
   it("narrows to what a block can read", async () => {
     const forCharts = await ListDataSources("series");
     expect(forCharts).to.be.an("array");
-    // Nothing declared answers a shape it did not claim.
     for (const source of forCharts) {
       expect(source.responseShape).to.equal("series");
     }

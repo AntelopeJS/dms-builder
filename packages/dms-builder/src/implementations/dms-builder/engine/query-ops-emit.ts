@@ -1,7 +1,7 @@
-// Émission d'une méthode de requête dans le modèle, et les opérations
-// publiques qui l'appellent.
-//
-// Découpé de query-ops.ts pour tenir sous la taille que le linter autorise.
+/**
+ * Emission of a query method into the model, and the public operations that
+ * call it.
+ */
 
 import type {
   AddQueryInput,
@@ -53,6 +53,12 @@ import {
   QueryEmission,
   resolveModelTarget,
 } from "./query-ops";
+/**
+ * Write a query's model method and route.
+ *
+ * The permission guard names the page class, so a page class without a name is
+ * refused: the emitted `@AuthUserWithPermission()` would not compile.
+ */
 export function emitQuery({
   pageClass,
   pageFile,
@@ -77,9 +83,6 @@ export function emitQuery({
   }
   const pageClassName = pageClass.getName();
   if (!pageClassName) {
-    // The guard names the page class, so an anonymous one would emit
-    // `@AuthUserWithPermission()` — code that does not compile, and a guard that
-    // would wave everything through if the decorator ever tolerated it.
     return unsupported<never>(
       "the page class has no name, so a generated route cannot name it in its permission guard",
     );
@@ -199,9 +202,6 @@ function locateQuery(query: QueryRef, opts: MutationOpts | undefined) {
   if (current.opaque || !current.template || !current.resource) {
     return opaque(query);
   }
-  // `resource` et `template` sont renvoyés à part : le narrowing du test
-  // ci-dessus ne traverse pas la frontière de fonction, et l'appelant les
-  // veut non-optionnels.
   return {
     parsed,
     context,
@@ -267,8 +267,10 @@ export function configureQuery(
     spec,
     ref: query,
     transaction,
-    // Retarget the method this query already calls, so a query that was
-    // forked off a shared one keeps editing its own fork.
+    /**
+     * Retarget the method this query already calls, so a query that was forked
+     * off a shared one keeps editing its own fork.
+     */
     preferred:
       previous.resource === input.resource ? previous.modelMethod : spec.name,
   });
@@ -301,6 +303,12 @@ function modelClassNames(resource: string): string[] {
   return name ? [name] : [];
 }
 
+/**
+ * Remove a query's route and, when it was the last caller, its model method.
+ *
+ * The route's model binding is read before the route is removed: an opaque
+ * route's backing method is recovered from its body.
+ */
 export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
   const parsed = parseQueryRef(query);
   if (!parsed) {
@@ -319,9 +327,6 @@ export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
   if (!route) {
     return notFound(query);
   }
-  // Read before the route goes: an opaque route's backing method is recovered
-  // from its body, and a query removed without it would orphan the model
-  // method it was the last caller of.
   const binding = routeModelBinding(route.method);
   const transaction = new Transaction(getWritableProject());
   transaction.track(context.sourceFile);

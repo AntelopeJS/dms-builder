@@ -1,7 +1,7 @@
-// Deleting a page: its class, whatever only the class used, and its file once
-// nothing else is left in it.
-//
-// Split out of ops-blocks.ts to stay under the size the linter allows.
+/**
+ * Deleting a page: its class, whatever only the class used, and its file once
+ * nothing else is left in it.
+ */
 
 import type { MutationOpts, OpResult } from "@antelopejs/interface-dms-builder";
 import type { ClassDeclaration } from "ts-morph";
@@ -29,6 +29,13 @@ import {
  * goes, with what only it used — the constants it read, the imports it needed,
  * the generated model methods its query routes called — and the file goes,
  * unwired from its barrel, only once nothing but imports is left in it.
+ *
+ * The file's importers are found before pruning, while it is still a module:
+ * pruned down to nothing it no longer is one, and the barrel's import of it
+ * stops resolving to it. Locals are pruned before imports, since a constant the
+ * page read can be the last user of an import. Orphaned model methods are
+ * dropped once the class is gone, so that its own routes no longer count as
+ * callers.
  */
 export function deletePage(ref: string, opts?: MutationOpts): OpResult {
   const context = openPage(ref);
@@ -48,13 +55,10 @@ export function deletePage(ref: string, opts?: MutationOpts): OpResult {
   const usedImports = referencedImportNames(sourceFile);
   const usedLocals = referencedLocalNames(sourceFile);
   const project = sourceFile.getProject();
-  // Found while the file is still a module: pruned down to nothing, it no
-  // longer is one, and the barrel's import of it stops resolving to it.
   const importers = findImporters(project, sourceFile.getFilePath());
   const transaction = new Transaction(project);
   transaction.track(sourceFile);
   pageClass.remove();
-  // Locals first: a constant the page read can be the last user of an import.
   pruneUnusedLocals(sourceFile, usedLocals);
   pruneUnusedImports(sourceFile, usedImports);
   if (holdsOnlyImports(sourceFile)) {
@@ -64,7 +68,6 @@ export function deletePage(ref: string, opts?: MutationOpts): OpResult {
     }
     transaction.trackDelete(sourceFile);
   }
-  // Once the class is gone, so that its own routes no longer count as callers.
   for (const { resource, methods } of bindings) {
     for (const method of methods) {
       dropOrphanedModelMethod(resource, method, transaction);

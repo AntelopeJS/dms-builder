@@ -96,13 +96,14 @@ function resourceFields(record: ResourceRecord): ResourceFieldStructure[] {
     .map((property) => readDataApiFieldAspects(property, indexed));
 }
 
+/**
+ * The member names a page class already uses. Static fields are blocks and are
+ * not counted: a block's own data is the query the editor names after it, so
+ * counting it as taken would leave a card unable to read anything.
+ */
 function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
   const names = new Set(PAGE_RESERVED_MEMBERS);
   for (const member of pageClass.getMembers()) {
-    // A block is a static field, read off the class itself; a route is a
-    // method on its prototype. The two never meet — and a block's own data is
-    // the query the editor names after it, so counting the block as taken made
-    // a card placed on the page unable to read anything.
     if ("isStatic" in member && member.isStatic()) {
       continue;
     }
@@ -166,6 +167,9 @@ function candidateMethodNames(
  * The route being rewritten is removed from the page before this runs, so it
  * does not count itself as a caller: reconfiguring a query nobody else shares
  * edits its method in place.
+ *
+ * A requested name held by a hand-owned chain is refused rather than forked
+ * around, so the caller learns that a human owns that method.
  */
 export function resolveModelTarget(
   opened: OpenModel,
@@ -196,8 +200,6 @@ export function resolveModelTarget(
   if (!writable) {
     return opaque<never>(ref);
   }
-  // The name the query asked for is taken by a hand-owned chain: refusing says
-  // so, where silently forking would hide that a human owns that method.
   const existing = opened.modelClass.getMethod(preferred);
   if (writable !== preferred && existing && !isGenerated(existing)) {
     return opaque<never>(ref);

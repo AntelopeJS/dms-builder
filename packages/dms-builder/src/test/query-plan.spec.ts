@@ -57,8 +57,6 @@ describe("the query plan", () => {
       },
       FIELDS,
     );
-    // Past the line a formatter would break, so the chain comes out one hop
-    // per line — the form a developer would have written it in.
     expect(chain.body).to.equal(
       '{\n  return this.table\n    .filter((row) => row.key("status").eq("paid"))' +
         '\n    .filter((row) => row.key("amount").gt(10))\n    .count();\n}',
@@ -126,8 +124,6 @@ describe("the query plan", () => {
       FIELDS,
     );
 
-    // The period binding the data-source editor writes: two bounds on one date
-    // field, exposed to the route as `from` and `to`.
     expect(chain.parameters.map((param) => param.name)).to.deep.equal([
       "minCreatedAt",
       "maxCreatedAt",

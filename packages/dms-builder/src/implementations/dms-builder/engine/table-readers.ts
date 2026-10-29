@@ -111,7 +111,8 @@ interface CountableTable {
 /**
  * How many rows each table holds, by its ref, read at the request's tenant for
  * a per-tenant schema. A table the database cannot be asked about — no schema
- * registered, no connection — is left out, never counted as empty.
+ * registered, no connection — is left out, never counted as empty. A table
+ * that fails to answer is likewise left out: unreadable is not empty.
  */
 export async function tableRowCounts(
   tenant: string | undefined,
@@ -132,9 +133,7 @@ export async function tableRowCounts(
       if (typeof rows === "number") {
         counts[record.ref] = rows;
       }
-    } catch {
-      // Unreadable is not empty: the list simply says nothing about it.
-    }
+    } catch {}
   }
   return counts;
 }
@@ -161,6 +160,9 @@ function countBlocks(blocks: BlockNode[]): number {
  * What a page's deletion reaches, said before it is asked: its blocks and data
  * sources go with it, and the links other pages hold to it are left pointing
  * at an address nothing answers. Undefined for a page the scan does not know.
+ * A page whose blocks cannot be read is still reported, its block count left
+ * at 0. A link counts when it points at the page or at one of its routes, which
+ * are served under the DMS's page prefix rather than at the page's own path.
  */
 export function pageImpact(ref: string): PageImpact | undefined {
   const pages = listPageRecords();
@@ -171,12 +173,8 @@ export function pageImpact(ref: string): PageImpact | undefined {
   let blocks = 0;
   try {
     blocks = countBlocks(buildPageBlocks(page));
-  } catch {
-    // A page the scan cannot read still goes; its count goes unsaid.
-  }
+  } catch {}
   const queries = findQueryRoutes(page.classNode).map((route) => route.name);
-  // A link to the page, or a call to one of its routes, which are served under
-  // the DMS's page prefix rather than at the page's own path.
   const points = (url: string): boolean =>
     [ref, pageRoutePath(ref)].some(
       (target) =>

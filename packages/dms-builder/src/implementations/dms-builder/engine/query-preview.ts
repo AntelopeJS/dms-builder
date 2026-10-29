@@ -1,9 +1,11 @@
-// Running one of a draft's queries against the real database, so a block can be
-// shown its own data before anything is written.
-//
-// The calculation is the plan the template describes — the same one the emitter
-// would have written into a model method — so what a preview shows is what the
-// saved page will answer, not an approximation of it.
+/**
+ * Running one of a draft's queries against the real database, so a block can be
+ * shown its own data before anything is written.
+ *
+ * The calculation is the plan the template describes, the same one the emitter
+ * would have written into a model method, so what a preview shows is what the
+ * saved page will answer.
+ */
 
 import { Schema } from "@antelopejs/interface-database";
 import {
@@ -86,8 +88,6 @@ function openTable(
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
-  // The table handle is the surface a plan drives, narrowed to the calls a plan
-  // can make. Typed as unknown first so the widening is one deliberate step.
   const table: unknown = instance.table(tableName);
   return table as PlanStream;
 }
@@ -241,8 +241,6 @@ export async function runPlanPreview(
     const plan = template.plan(params, fields);
     const args = request.args ?? {};
     const rows = await executePlan(table, plan, fields, args);
-    // The period before, read the way the route reads it, so the card's
-    // variation shows before the page is saved.
     const preceding = query.compare
       ? precedingArguments(plan, fields, args)
       : undefined;
@@ -338,8 +336,6 @@ export async function runQueryPreview(
     previewInstance(record.schema, request.tenant),
   );
   if (!table) {
-    // No database wired, or a schema the app never registered: a preview cannot
-    // invent rows, and saying so beats an empty chart the caller reads as data.
     return unsupported<QueryPreview>(
       `schema "${record.schema}" is not registered, so there is no table to read`,
     );

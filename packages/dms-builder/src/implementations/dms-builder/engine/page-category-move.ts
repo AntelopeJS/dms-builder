@@ -61,7 +61,10 @@ function pageDirectoryFor(
   return path.join(categoryDir, id, "page.ts");
 }
 
-/** Move the page as a transactional create/delete, preserving relative imports. */
+/**
+ * Move the page as a transactional create/delete, preserving relative imports.
+ * The old category import is captured before its last reference is replaced.
+ */
 export function applyCategoryMove(
   project: ReturnType<typeof getWritableProject>,
   sourceFile: SourceFile,
@@ -81,7 +84,6 @@ export function applyCategoryMove(
     reanchorRelativeImports(file, oldPath, newPath);
     rewireImporters(project, oldPath, newPath, transaction);
   }
-  // Capture the old category import before replacing its last reference.
   const used = referencedImportNames(file);
   const property = findCategoryProperty(file, optionsArg);
   property?.setInitializer(target.importName as string);

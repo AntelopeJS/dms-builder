@@ -71,7 +71,9 @@ test("re-decides when the module is reconfigured", async () => {
 
 /**
  * The two surfaces together, over the real `config.js`: what a deployment sees
- * is that neither the controller nor the frontend module is ever loaded.
+ * is that neither the controller nor the frontend module is ever loaded. The
+ * routes entry is a getter, so the list records the import rather than the
+ * mock's creation.
  */
 function bootModule(dev) {
   const runtimeMock = {
@@ -95,7 +97,6 @@ function bootModule(dev) {
     "./implementations/dms-builder": {},
     "./config": loadModule(distFile("config.js"), runtimeMock),
   };
-  // A getter, so the list records the import rather than the mock's creation.
   Object.defineProperty(mocks, "./routes", {
     enumerable: true,
     get: () => {

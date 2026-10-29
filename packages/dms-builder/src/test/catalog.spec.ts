@@ -53,8 +53,6 @@ describe("the block catalog", () => {
       expect(option, `${type} exposes fetchUrl`).to.not.equal(undefined);
       expect(option?.ui?.group).to.equal("data");
     }
-    // The widget names which editor the option opens, and it is the source
-    // editor these cards are for.
     for (const type of cards) {
       expect(
         blockNamed(type).config.fetchUrl?.ui?.widget,
@@ -84,10 +82,6 @@ describe("the block catalog", () => {
       "a row's children carry their span as child metadata",
     ).to.not.equal(undefined);
 
-    // A builder palette leaves out the type a container names as its one
-    // allowed child: that child is structure the editor writes around what is
-    // dropped in, never something placed on its own. The reach of that rule is
-    // this list, so it is pinned here rather than guessed at from the layer.
     expect(
       catalog.blocks
         .filter((block) => block.allowedChildren !== undefined)

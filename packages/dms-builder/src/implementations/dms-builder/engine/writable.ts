@@ -42,6 +42,12 @@ export function resetWritableProject(): void {
   writable = undefined;
 }
 
+/**
+ * Bring the project's source files in line with the disk, dropping the ones
+ * that are gone. Changed files are reapplied as a text change: ts-morph's own
+ * refresh prints them through a writer that normalizes CRLF before the editor
+ * can preserve source expressions.
+ */
 export function refreshFromDisk(project: Project): void {
   for (const sourceFile of project.getSourceFiles()) {
     if (!sourceFile.isInNodeModules()) {
@@ -51,8 +57,6 @@ export function refreshFromDisk(project: Project): void {
         continue;
       }
       const text = fs.readFileSync(filepath, "utf8");
-      // refreshFromFileSystemSync prints changed files through a writer,
-      // normalizing CRLF before the editor can preserve source expressions.
       if (text !== sourceFile.getFullText()) {
         sourceFile.applyTextChanges([
           { span: { start: 0, length: sourceFile.getEnd() }, newText: text },
@@ -187,6 +191,11 @@ interface LocalDeclaration {
     | TypeAliasDeclaration;
 }
 
+/**
+ * The file's unexported top-level declarations. A destructuring pattern is
+ * skipped: it names several bindings at once, and removing one of them is not
+ * a removal of the declaration.
+ */
 function localDeclarations(sourceFile: SourceFile): LocalDeclaration[] {
   const locals: LocalDeclaration[] = [];
   for (const statement of sourceFile.getVariableStatements()) {
@@ -194,8 +203,6 @@ function localDeclarations(sourceFile: SourceFile): LocalDeclaration[] {
       continue;
     }
     for (const node of statement.getDeclarations()) {
-      // A destructuring pattern names several bindings at once, and removing
-      // one of them is not a removal of the declaration.
       if (Node.isIdentifier(node.getNameNode())) {
         locals.push({ name: node.getName(), node });
       }
@@ -214,9 +221,12 @@ function localDeclarations(sourceFile: SourceFile): LocalDeclaration[] {
   return locals;
 }
 
-// Read off the identifiers rather than the language service: a name that only
-// looks used — a property of the same spelling — keeps a declaration that could
-// have gone, which is the safe way to be wrong.
+/**
+ * Whether anything else in the file uses the local. Read off the identifiers
+ * rather than the language service: a name that only looks used (a property of
+ * the same spelling) keeps a declaration that could have gone, which is the
+ * safe way to be wrong.
+ */
 function isLocalReferenced(
   sourceFile: SourceFile,
   local: LocalDeclaration,
@@ -354,16 +364,15 @@ interface TouchedFile {
  *
  * A page lives in a directory of its own, so removing the file alone leaves an
  * empty folder in the author's tree for every page deleted or moved. Anything
- * still inside — a sibling file, another page — keeps it.
+ * still inside — a sibling file, another page — keeps it. A directory that is
+ * already gone, or not ours to remove, is left alone: leaving it costs nothing.
  */
 function removeEmptyDirectory(dir: string): void {
   try {
     if (fs.readdirSync(dir).length === 0) {
       fs.rmdirSync(dir);
     }
-  } catch {
-    // Already gone, or not ours to remove. Leaving it costs nothing.
-  }
+  } catch {}
 }
 
 export class Transaction {

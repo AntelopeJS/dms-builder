@@ -64,6 +64,9 @@ const WIDGET_MARKERS: Record<string, string> = {
 /**
  * Carry the `x-` markers the emitter and consumers key on: a declared schema
  * expresses them as widgets, an inferred one as the markers themselves.
+ * A tuple's members and an intersection's branches carry hints like any other
+ * node, so they are visited too; skipping them drops the marker on anything
+ * nested there.
  */
 function withMarkers(option: OptionSchema): OptionSchema {
   const marker = option.ui?.widget && WIDGET_MARKERS[option.ui.widget];
@@ -80,8 +83,6 @@ function withMarkers(option: OptionSchema): OptionSchema {
   if (option.oneOf) {
     nested.oneOf = option.oneOf.map(withMarkers);
   }
-  // A tuple's members and an intersection's branches carry hints like any
-  // other node; skipping them dropped the marker on anything nested there.
   if (option.prefixItems) {
     nested.prefixItems = option.prefixItems.map(withMarkers);
   }

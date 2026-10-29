@@ -101,7 +101,6 @@ describe("the pages reading a table", () => {
 
   it("says nothing of the rows of a table no database answers for", async function () {
     this.timeout(60_000);
-    // The fixture wires no database: unreadable, so not counted as empty.
     expect(await tableRowCounts(undefined)).to.deep.equal({});
   });
 
@@ -138,7 +137,6 @@ describe("the pages reading a table", () => {
 
   it("counts a page calling one of the deleted page's routes as pointing at it", async function () {
     this.timeout(120_000);
-    // A page's routes are served under the DMS's page prefix, not at its path.
     const intake = expectOk(await GetPageStructure("/shop/intake"), "intake");
     expectOk(
       await SetPageBlocks(

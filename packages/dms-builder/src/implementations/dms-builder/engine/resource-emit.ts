@@ -40,14 +40,14 @@ const ALL_ROUTES_EXPR = "TableViewRoutes.All";
  * The members of `TableViewRoutes` each route writes. Every key of
  * `TableViewRoutes.All` has to be named here or under `KEY_TO_ROUTE`: a key the
  * builder cannot name is dropped the first time it rewrites the map, and the
- * route it served is gone from the resource for good.
+ * route it served is gone from the resource for good. `countBatch` and
+ * `summary`, the tab counters and footer figures of a table, are served beside
+ * the list, never alone.
  */
 const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
   list: [
     ["list", "List"],
     ["count", "Count"],
-    // The tab counters and footer figures of a table: served beside the
-    // list, never alone.
     ["countBatch", "CountBatch"],
     ["summary", "Summary"],
   ],
@@ -75,8 +75,7 @@ const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
   select: "select",
   archive: "archive",
   restore: "archive",
-  // Written as the `ExportRoutes` spread, but a map that names them one by one
-  // serves the same export.
+  /** Written as the `ExportRoutes` spread, but a map that names them one by one serves the same export. */
   exportStart: "export",
   exportStatus: "export",
   exportDownload: "export",
@@ -262,7 +261,7 @@ const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
   date: { field: "date", ts: "Date" },
   boolean: { field: "boolean", ts: "boolean" },
   status: { field: "boolean", ts: "boolean" },
-  // A relation holds the id of the row it points at.
+  /** A relation holds the id of the row it points at. */
   relation: { field: "string", ts: "string" },
   cascader_relation: { field: "string", ts: "string" },
   tree: { field: "string", ts: "string" },

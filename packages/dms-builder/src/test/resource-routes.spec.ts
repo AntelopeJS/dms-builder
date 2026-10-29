@@ -52,7 +52,6 @@ describe("resource route maps", () => {
   });
 
   it("writes every member back, each under the route All serves it as", () => {
-    // Every route but the export, so the map comes out member by member.
     const named = namedMembers(routeMapExpr(without("export")));
     for (const key of allKeys.filter((entry) => !exportKeys.has(entry))) {
       const member = named.get(key);

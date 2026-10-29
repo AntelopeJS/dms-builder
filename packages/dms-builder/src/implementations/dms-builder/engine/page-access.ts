@@ -188,7 +188,10 @@ function collectGranted(node: PermissionTree | undefined, found: string[]) {
   }
 }
 
-/** Who reaches the page, from the DMS's permission tree and the roles read. */
+/**
+ * Who reaches the page, from the DMS's permission tree and the roles read. A
+ * page the scan cannot read keeps its access; its actions go unsaid.
+ */
 export function describePageAccess(
   record: PageRecord,
   tree: Record<string, PermissionTree>,
@@ -199,9 +202,7 @@ export function describePageAccess(
   let blocks: BlockNode[] = [];
   try {
     blocks = buildPageBlocks(record);
-  } catch {
-    // A page the scan cannot read keeps its access; its actions go unsaid.
-  }
+  } catch {}
   const { actions, held } = blockAccess(blocks, permission, tree);
   const granted: string[] = [];
   collectGranted(node, granted);

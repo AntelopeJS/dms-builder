@@ -200,7 +200,6 @@ describe("who reaches a page", () => {
   it("answers nothing for a page it does not know, and no roles without a tenant", async function () {
     this.timeout(30_000);
     expect(await pageAccess("/shop/nowhere", undefined)).to.equal(undefined);
-    // The fixture wires no DMS: its tree never answers, and no tenant is asked.
     const access = await pageAccess("/shop/board", undefined);
     expect(access?.mode).to.equal("unmanaged");
     expect(access?.roles).to.equal(null);

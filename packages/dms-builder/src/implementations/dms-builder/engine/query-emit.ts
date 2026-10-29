@@ -101,9 +101,11 @@ function plainResponse(key: string, type: string): ResponseEmission {
   };
 }
 
-// `y` is nullable because a group the calculation found nothing to measure in is
-// answered as such rather than as a zero; a route promising a number there would
-// be lying about the one case a reader most needs to see.
+/**
+ * `y` is nullable because a group the calculation found nothing to measure in is
+ * answered as such rather than as a zero; a route promising a number there would
+ * be lying about the one case a reader most needs to see.
+ */
 const SERIES_TYPE = "{ x: number | string; y: number | null }[]";
 
 /**
@@ -305,6 +307,13 @@ function comparisonCall(
   return `model.${modelMethod}(${args.join(", ")})`;
 }
 
+/**
+ * The text of a query's route method.
+ *
+ * The route carries the page's own permission through a parameter decorator, so
+ * the gate applies to this route alone: a generated route would otherwise answer
+ * to anyone who can reach the server, while the layout it feeds is gated.
+ */
 export function queryRouteMethodText(
   spec: CompiledQuery,
   modelName: string,
@@ -321,10 +330,6 @@ export function queryRouteMethodText(
     decoratorImport("User"),
   ];
   const parameters = [
-    // The page's own permission, on this route alone. A generated route would
-    // otherwise answer to anyone who can reach the server, while the layout it
-    // feeds is gated; a parameter decorator keeps the gate off every other route
-    // the page owns. The class names itself, which its own body can do.
     `${indent}@AuthUserWithPermission(${pageClass}) _user: User,`,
     `${indent}@${modelDecorator}(${modelName}) model: ${modelName},`,
   ];
@@ -346,8 +351,6 @@ export function queryRouteMethodText(
   const call = `model.${modelMethod}(${args})`;
   const previous = comparisonCall(spec, modelMethod);
   if (previous) {
-    // The preceding period reuses the same method with the bounds the route
-    // received for it: one calculation, asked twice.
     for (const parameter of COMPARISON_PARAMETERS) {
       symbols.push(decoratorImport("Parameter"));
       parameters.push(
