@@ -16,7 +16,8 @@ import type { ConnectionInfo } from '../runtime/database-types'
  * *Edit connection*: the details the connection's URL holds, filled from `.env`
  * without the password. An empty password keeps the current one while the host,
  * port and user stay the same; another server needs its own. The new URL
- * goes into `.env`, and the project reconnects once it restarts.
+ * goes into `.env`; the project reloads on it, which the build screen the panel
+ * shows next follows.
  */
 
 const props = defineProps<{ connection: string; info: ConnectionInfo }>()
@@ -28,7 +29,6 @@ const saved = props.info.details ? detailsFields(props.info.details) : null
 const fields = ref(saved ? { ...saved, options: { ...saved.options } } : null)
 const busy = ref(false)
 const problem = ref('')
-const done = ref(false)
 const scheme = `${props.info.details?.scheme ?? 'postgres'}:`
 const engine = engineOfScheme(scheme) ?? 'postgres'
 const extraOptions = computed(() => Object.entries(fields.value?.options ?? {}))
@@ -59,7 +59,6 @@ async function save(): Promise<void> {
 		return
 	}
 	fields.value.password = ''
-	done.value = true
 	emit('saved')
 }
 </script>
@@ -78,7 +77,7 @@ async function save(): Promise<void> {
 			The connection's URL could not be read from <span class="font-mono">.env</span>.
 		</p>
 
-		<template v-else-if="!done">
+		<template v-else>
 			<section class="flex flex-col gap-3 rounded-md border border-default p-3">
 				<div class="grid grid-cols-[1fr_8rem] gap-3">
 					<UFormField label="Host">
@@ -137,17 +136,5 @@ async function save(): Promise<void> {
 				<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('close')" />
 			</div>
 		</template>
-
-		<div
-			v-else
-			class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-toned"
-			data-connection-saved
-		>
-			<p><b class="font-semibold text-highlighted">Saved. Restart the project.</b></p>
-			<p>The project reconnects with the new details once it restarts.</p>
-			<div>
-				<UButton label="Done" size="sm" @click="emit('close')" />
-			</div>
-		</div>
 	</div>
 </template>

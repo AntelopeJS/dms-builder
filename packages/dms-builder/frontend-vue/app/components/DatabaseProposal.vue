@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { refusalText } from '../runtime/database-connect'
+import { relabelledBy } from '../runtime/database-remap'
 import {
 	answerItem,
 	currentAnswer,
@@ -48,7 +49,8 @@ import type {
  * mapped again on its own. Nothing is written before the integrator says so.
  */
 
-const props = defineProps<{ connection: string; module: string }>()
+/** `job`: an analysis already run, whose state is read instead of analysing again. */
+const props = defineProps<{ connection: string; module: string; job?: string }>()
 const emit = defineEmits<{ unsaved: [count: number] }>()
 
 const POLL_MS = 1000
@@ -222,6 +224,7 @@ watch(
 )
 onMounted(() => {
 	void loadMapped()
+	if (props.job) void poll(props.job)
 	window.addEventListener('beforeunload', onBeforeUnload)
 })
 onBeforeUnmount(() => {
@@ -277,17 +280,6 @@ async function apply(): Promise<void> {
 	await loadMapped()
 }
 
-/** The relations whose label a remap changes, as the columns pointing at them must show. */
-function relabelledBy(relations: string[]): string[] {
-	const changed = relations.filter(
-		(relation) => mappedDrafts.value[relation]?.label !== mappedRead.value[relation]?.label,
-	)
-	const pointing = changed.flatMap((relation) => pointingAt(null, mapped.value, relation))
-	return [...new Set(pointing.map((column) => column.split('.').slice(0, -1).join('.')))]
-		.filter((relation) => !relations.includes(relation))
-		.map((relation) => mappedDrafts.value[relation]?.title ?? relation)
-}
-
 async function remap(): Promise<void> {
 	const relations = unsaved.value
 	if (!relations.length) return
@@ -309,7 +301,7 @@ async function remap(): Promise<void> {
 	remapped.value = {
 		titles: resources.map((resource) => resource.title),
 		page: relations.length === 1 ? result.data.resources[0]?.page : undefined,
-		relabelled: relabelledBy(relations),
+		relabelled: relabelledBy(relations, mappedDrafts.value, mappedRead.value, mapped.value),
 		warnings: (result.warnings ?? []).map((warning) => warning.message),
 	}
 	await loadMapped(sent)
