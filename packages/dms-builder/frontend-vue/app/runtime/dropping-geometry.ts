@@ -1,5 +1,5 @@
 import { descriptorOf } from './catalog'
-import { FULL_WIDTH_BLOCKS, ROW_CONTAINERS, ROW_WRAPPER } from './constants'
+import { FULL_WIDTH_BLOCKS, ROW_CONTAINERS } from './constants'
 import { findNode, leafName, parentPath } from './draft'
 import type {
 	BlockCatalog,
@@ -7,7 +7,6 @@ import type {
 	BlockTypeDescriptor,
 	PageDraft,
 } from './types'
-import { wrapperFor, beside } from './dropping'
 
 /** What a drag currently carries: a new block type, or a block being moved. */
 export interface DragPayload {

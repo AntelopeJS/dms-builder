@@ -21,7 +21,6 @@ import {
 	gap,
 	lift,
 	receiver,
-	into,
 	frameOf,
 	aim,
 	names,

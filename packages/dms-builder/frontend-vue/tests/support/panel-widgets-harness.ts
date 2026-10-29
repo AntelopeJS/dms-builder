@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, it, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { nextTick, type Component } from 'vue'
 import TableChoice from '../../app/components/TableChoice.vue'
 import TablePicker from '../../app/components/TablePicker.vue'

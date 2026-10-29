@@ -8,7 +8,6 @@ import {
 	builder,
 	openWith,
 	editable,
-	panel,
 	write,
 } from './support/editor-feedback-harness'
 
