@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { isDeepStrictEqual } = require("node:util");
 
 const root = path.resolve(__dirname, "..");
 const dmsBuilder = require(path.join(root, "package.json"));
@@ -70,12 +71,15 @@ function interfaceIsPublishable() {
       "the interface does not peer on interface-core >=0.2.4 <1.0.0",
     );
   }
-  const entry = interfacePackage.exports["."];
   if (
-    entry?.types !== "./dist/index.d.ts" ||
-    entry?.default !== "./dist/index.js"
+    !isDeepStrictEqual(interfacePackage.exports["."], {
+      types: "./dist/index.d.ts",
+      default: "./dist/index.js",
+    })
   ) {
-    failures.push("the interface root export is not dist/index");
+    failures.push(
+      `the interface root export is not exactly dist/index: ${JSON.stringify(interfacePackage.exports["."])}`,
+    );
   }
   for (const published of ["dist", "docs"]) {
     if (!interfacePackage.files.includes(published)) {
@@ -139,12 +143,15 @@ function everyBuiltModuleIsExported() {
     ];
   }
   const failures = [];
-  const wildcard = interfacePackage.exports["./*"];
   if (
-    wildcard?.types !== "./dist/*.d.ts" ||
-    wildcard?.default !== "./dist/*.js"
+    !isDeepStrictEqual(interfacePackage.exports["./*"], {
+      types: "./dist/*.d.ts",
+      default: "./dist/*.js",
+    })
   ) {
-    failures.push("the interface ./* export is not dist/*");
+    failures.push(
+      `the interface ./* export is not exactly dist/*: ${JSON.stringify(interfacePackage.exports["./*"])}`,
+    );
   }
   const entries = fs.readdirSync(dist, { recursive: true, encoding: "utf8" });
   for (const entry of entries) {
