@@ -23,7 +23,7 @@ function buildOpaque(
   name: string,
   reason: string,
   slot?: string,
-  meta?: Record<string, unknown>,
+  meta?: BlockNode["meta"],
 ): BlockNode {
   return {
     path,
@@ -37,18 +37,14 @@ function buildOpaque(
 }
 
 /** The `.child()` third argument, split into its `slot` and the rest. */
-function readChildMeta(metaArg: Node | undefined): {
-  slot?: string;
-  meta?: Record<string, unknown>;
-} {
+function readChildMeta(metaArg: Node | undefined): BlockNodeMeta {
   if (metaArg) metaArg = unwrapExpression(metaArg);
   if (!metaArg || !Node.isObjectLiteralExpression(metaArg)) {
     return {};
   }
   const read = objectLiteralToValue(metaArg);
   if (!read.fullyLiteral) return {};
-  const value = read.value as Record<string, unknown>;
-  const { slot, ...rest } = value;
+  const { slot, ...rest } = read.value;
   return {
     slot: typeof slot === "string" ? slot : undefined,
     meta: Object.keys(rest).length > 0 ? rest : undefined,
@@ -77,7 +73,7 @@ function buildChildNode(
 
 interface BlockNodeMeta {
   slot?: string;
-  meta?: Record<string, unknown>;
+  meta?: BlockNode["meta"];
 }
 
 function structureLockReason(

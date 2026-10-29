@@ -1,12 +1,14 @@
 import type {
   ImportRef,
   QueryOutputKind,
+  QueryStructure,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import {
   type CompiledChain,
   getQueryTemplate,
   type MethodParam,
+  type QueryParams,
 } from "./query-template";
 import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
@@ -69,7 +71,7 @@ export interface SeriesNaming {
  * is what a legend would show a reader who never asked for one.
  */
 export function seriesNaming(
-  params: Record<string, unknown>,
+  params: QueryParams,
   fields: ResourceFieldStructure[],
   resource: string,
 ): SeriesNaming {
@@ -123,19 +125,19 @@ function responseEmission(
   if (output === "scalar") {
     return plainResponse("value", "number");
   }
-  const shape = response ?? "series";
-  if (shape === "series") {
+  const arrangement = response ?? "series";
+  if (arrangement === "series") {
     return plainResponse("series", SERIES_TYPE);
   }
-  const helper = RESPONSE_HELPERS[shape];
+  const helper = RESPONSE_HELPERS[arrangement];
   if (!helper) {
     return plainResponse("series", SERIES_TYPE);
   }
   return {
-    returnType: `Promise<${RESPONSE_TYPES[shape]}>`,
+    returnType: `Promise<${RESPONSE_TYPES[arrangement]}>`,
     body: (current, previous) =>
       `${helper}(await ${current}${helperOptions(naming, previous)})`,
-    imports: [helper, RESPONSE_TYPES[shape]],
+    imports: [helper, RESPONSE_TYPES[arrangement]],
   };
 }
 
@@ -149,6 +151,21 @@ export const RESPONSE_KEYS: Record<QueryOutputKind, string> = {
 };
 
 /**
+ * `L` when it lists every member of `T`, else `never`: a list typed with it
+ * stops compiling when `T` gains a member the list lacks.
+ */
+type ExhaustiveList<T extends string, L extends readonly T[]> = [T] extends [
+  L[number],
+]
+  ? L
+  : never;
+
+const OUTPUT_KIND_LIST = ["scalar", "series"] as const;
+
+const OUTPUT_KINDS: ExhaustiveList<QueryOutputKind, typeof OUTPUT_KIND_LIST> =
+  OUTPUT_KIND_LIST;
+
+/**
  * The output kind a route's response property names, or `undefined` for a
  * property no shape emits.
  *
@@ -157,16 +174,24 @@ export const RESPONSE_KEYS: Record<QueryOutputKind, string> = {
  * what it answers — and so emission and recognition cannot drift apart.
  */
 export function outputForResponseKey(key: string): QueryOutputKind | undefined {
-  const found = Object.entries(RESPONSE_KEYS).find(([, name]) => name === key);
-  return found?.[0] as QueryOutputKind | undefined;
+  return OUTPUT_KINDS.find((kind) => RESPONSE_KEYS[kind] === key);
 }
 
+const HELPED_ARRANGEMENT_LIST = ["card", "value", "items"] as const;
+
+/** The arrangements `RESPONSE_HELPERS` names a helper for, in its key order. */
+const HELPED_ARRANGEMENTS: ExhaustiveList<
+  Exclude<NonNullable<QueryStructure["response"]>, "series">,
+  typeof HELPED_ARRANGEMENT_LIST
+> = HELPED_ARRANGEMENT_LIST;
+
 /** The arrangement a helper name stands for, for read-back. */
-export function shapeForHelper(helper: string): string | undefined {
-  const found = Object.entries(RESPONSE_HELPERS).find(
-    ([, name]) => name === helper,
+export function arrangementForHelper(
+  helper: string,
+): QueryStructure["response"] {
+  return HELPED_ARRANGEMENTS.find(
+    (arrangement) => RESPONSE_HELPERS[arrangement] === helper,
   );
-  return found?.[0];
 }
 
 /** What a template's queries answer with, for a caller outside the emitter. */
@@ -182,7 +207,7 @@ export interface CompiledQuery {
   /** The route path, e.g. `/stats/in-stock`. */
   endpoint: string;
   template: string;
-  params: Record<string, unknown>;
+  params: QueryParams;
   chain: CompiledChain;
   /** What an arrangement helper is told the series is. */
   naming: SeriesNaming;
@@ -307,6 +332,12 @@ function comparisonCall(
   return `model.${modelMethod}(${args.join(", ")})`;
 }
 
+/** A route method's source, with the symbols its text needs imported. */
+export interface RouteMethodText {
+  text: string;
+  symbols: ImportRef[];
+}
+
 /**
  * The text of a query's route method.
  *
@@ -320,7 +351,7 @@ export function queryRouteMethodText(
   schema: string,
   modelMethod: string,
   pageClass: string,
-): { text: string; symbols: ImportRef[] } {
+): RouteMethodText {
   const modelDecorator = modelDecoratorFor(schema);
   const indent = indentationText(resolveProjectRoot());
   const symbols = [

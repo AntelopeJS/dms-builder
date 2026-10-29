@@ -1,3 +1,5 @@
+import { isPlainObject } from "./value";
+
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 /** An object key as TypeScript writes it: bare where it can be, quoted otherwise. */
@@ -47,8 +49,8 @@ export function literalText(value: unknown, unit: string, base = ""): string {
   if (Array.isArray(value)) {
     return arrayText(value, unit, base);
   }
-  if (typeof value === "object" && value !== null) {
-    return objectText(value as Record<string, unknown>, unit, base);
+  if (isPlainObject(value)) {
+    return objectText(value, unit, base);
   }
   return JSON.stringify(value);
 }

@@ -1,4 +1,5 @@
 import type {
+  AddQueryInput,
   FilterOp,
   ImportRef,
   OpWarning,
@@ -10,10 +11,13 @@ import type {
 import type { MethodDeclaration } from "ts-morph";
 import type { QueryPlan } from "./query-plan";
 import { isIdentifier } from "./paths";
-import { FILTER_OPS } from "./query-chain";
+import { FILTER_OPS, filterOpNamed } from "./query-chain";
 import { describeValue } from "./describe-value";
 import { dbTypeFor } from "./resource-emit-types";
 import { isPlainObject } from "./value";
+
+/** The parameters a query template is given, as `AddQueryInput` carries them. */
+export type QueryParams = NonNullable<AddQueryInput["params"]>;
 
 /** A parameter the compiled chain needs, supplied by the route. */
 export interface MethodParam {
@@ -38,7 +42,7 @@ export interface CompiledChain {
 export interface QueryTemplate {
   descriptor: QueryTemplateDescriptor;
   validate(
-    params: Record<string, unknown>,
+    params: QueryParams,
     fields: ResourceFieldStructure[],
   ): ValidationIssue[];
   /**
@@ -46,17 +50,14 @@ export interface QueryTemplate {
    * description — the emitter that writes it into a model, the executor that
    * runs it for a preview, and nothing else may render a chain of its own.
    */
-  plan(
-    params: Record<string, unknown>,
-    fields: ResourceFieldStructure[],
-  ): QueryPlan;
+  plan(params: QueryParams, fields: ResourceFieldStructure[]): QueryPlan;
   /**
    * The inverse of {@link plan}: reads a model method back into the params
    * that would produce it, or returns `undefined` when the body is not a chain
    * this template shaped. Bound filter values come back as a `$bind` sentinel
    * naming the model parameter; read-back resolves those against the route.
    */
-  parse(method: MethodDeclaration): Record<string, unknown> | undefined;
+  parse(method: MethodDeclaration): QueryParams | undefined;
 }
 
 const templates = new Map<string, QueryTemplate>();
@@ -77,8 +78,8 @@ export function getQueryTemplate(id: string): QueryTemplate | undefined {
  */
 export function parseModelMethod(
   method: MethodDeclaration,
-): { template: string; params: Record<string, unknown> } | undefined {
-  const hits: { template: string; params: Record<string, unknown> }[] = [];
+): { template: string; params: QueryParams } | undefined {
+  const hits: { template: string; params: QueryParams }[] = [];
   for (const template of templates.values()) {
     const params = template.parse(method);
     if (params) {
@@ -320,19 +321,20 @@ export function checkFilter(
     return [resolved];
   }
   const op = filter.op;
-  if (typeof op !== "string" || !FILTER_OPS.has(op as FilterOp)) {
+  const operator = typeof op === "string" ? filterOpNamed(op) : undefined;
+  if (operator === undefined) {
     return [
       issue(`${pointer}/op`, `op must be one of ${[...FILTER_OPS].join(", ")}`),
     ];
   }
   if (
-    ORDERING_OPS.has(op as FilterOp) &&
+    ORDERING_OPS.has(operator) &&
     UNORDERED_DATA_TYPES.has(resolved.dataType)
   ) {
     return [
       issue(
         `${pointer}/op`,
-        `op "${op}" is not valid on a ${resolved.dataType} field`,
+        `op "${operator}" is not valid on a ${resolved.dataType} field`,
       ),
     ];
   }

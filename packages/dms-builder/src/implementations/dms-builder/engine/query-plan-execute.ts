@@ -165,6 +165,11 @@ function measureOver(
   return rows[aggregate](over);
 }
 
+interface BucketMembers {
+  bucket: PlanValue;
+  value?: PlanValue;
+}
+
 function applyGroup(
   stream: PlanStream,
   plan: QueryPlan,
@@ -173,7 +178,7 @@ function applyGroup(
   const bucketed = group.bucket !== undefined;
   const projected = bucketed
     ? stream.map((row) => {
-        const members: Record<string, unknown> = {
+        const members: BucketMembers = {
           bucket: bucketValue(row, group),
         };
         if (plan.measure.kind === "aggregate") {

@@ -338,7 +338,7 @@ function blockImports(
 function applyPageMeta(
   sourceFile: SourceFile,
   id: string,
-  patch: Record<string, unknown>,
+  patch: NonNullable<PageDraft["page"]>,
   ctx: EmitContext,
 ): OpResult<{ version: string }> | undefined {
   const cls = findPageClass(sourceFile, id);

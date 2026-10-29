@@ -11,7 +11,7 @@ import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
  * typed with.
  */
 function field(name: string, dataType: string): ResourceFieldStructure {
-  return { name, dataType: { $dataType: dataType } } as ResourceFieldStructure;
+  return { name, dataType: { $dataType: dataType } };
 }
 
 const FIELDS = [

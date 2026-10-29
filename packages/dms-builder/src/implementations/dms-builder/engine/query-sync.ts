@@ -30,6 +30,7 @@ import {
   findQueryRoutes,
 } from "./query-structure";
 import { findResourceRecord } from "./resource-index";
+import { isPlainObject } from "./value";
 import type { Transaction } from "./writable";
 
 interface SyncContext {
@@ -57,8 +58,8 @@ function configuredStrings(blocks: BlockDraft[], found: Set<string>): void {
       value.forEach(walk);
       return;
     }
-    if (value !== null && typeof value === "object") {
-      Object.values(value as Record<string, unknown>).forEach(walk);
+    if (isPlainObject(value)) {
+      Object.values(value).forEach(walk);
     }
   };
   for (const block of blocks) {

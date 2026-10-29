@@ -10,6 +10,7 @@ import {
   SetPageBlocks,
 } from "../implementations/dms-builder";
 import type {
+  BlockDraft,
   PageDraft,
   PageStructure,
 } from "@antelopejs/interface-dms-builder";
@@ -25,6 +26,24 @@ const PAGE_FILE = "board/page.ts";
 const OP_TIMEOUT = 60_000;
 
 let app: Fixture;
+
+/** A field a form preview lists: what the spec reads of it is its `id`. */
+interface PreviewField {
+  id: string;
+}
+
+function isPreviewField(value: unknown): value is PreviewField {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string"
+  );
+}
+
+function isPreviewFieldList(value: unknown): value is PreviewField[] {
+  return Array.isArray(value) && value.every(isPreviewField);
+}
 
 async function structure(): Promise<PageStructure> {
   return expectOk(await GetPageStructure(PAGE), "GetPageStructure");
@@ -153,9 +172,10 @@ describe("the page draft", () => {
 
       expect(preview.degraded).to.deep.equal([]);
       expect(preview.components.signup.componentName).to.equal("dms-form");
-      const fields = preview.components.signup.options?.fields as Array<{
-        id: string;
-      }>;
+      const fields = preview.components.signup.options?.fields;
+      if (!isPreviewFieldList(fields)) {
+        expect.fail("the form preview lists its fields");
+      }
       expect(fields.map((field) => field.id)).to.deep.equal(["email"]);
     });
 
@@ -344,7 +364,7 @@ describe("the page draft", () => {
   });
 
   describe("a block whose author named one of its values", () => {
-    const revenueKpi = (config: Record<string, unknown>) => ({
+    const revenueKpi = (config: NonNullable<BlockDraft["config"]>) => ({
       blocks: [{ name: "revenueKpi", type: "KpiCard", config }],
     });
 
@@ -359,7 +379,9 @@ describe("the page draft", () => {
       app.write(PAGE_FILE, written);
     }
 
-    async function save(config: Record<string, unknown>): Promise<string> {
+    async function save(
+      config: NonNullable<BlockDraft["config"]>,
+    ): Promise<string> {
       const current = await structure();
       expectOk(
         await SetPageBlocks(PAGE, revenueKpi(config), {

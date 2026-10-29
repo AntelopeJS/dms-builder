@@ -19,6 +19,11 @@ import {
   getStringProperty,
   stringLiteralValue,
 } from "./literals";
+import {
+  isLiteralObject,
+  type LiteralObject,
+  type LiteralValue,
+} from "./guards";
 import { contentVersion } from "./page-structure";
 import { findResourceBySymbol, findResourceRecord } from "./resource-index";
 
@@ -56,7 +61,7 @@ function dataTypeIdByCtor(ctorName: string): string | undefined {
   return ctorToId.get(ctorName);
 }
 
-function literalToValue(node: Node): unknown {
+function literalToValue(node: Node): LiteralValue {
   if (
     Node.isStringLiteral(node) ||
     Node.isNoSubstitutionTemplateLiteral(node)
@@ -79,7 +84,7 @@ function literalToValue(node: Node): unknown {
     return node.getElements().map((element) => literalToValue(element));
   }
   if (Node.isObjectLiteralExpression(node)) {
-    const result: Record<string, unknown> = {};
+    const result: LiteralObject = {};
     for (const prop of node.getProperties()) {
       if (!Node.isPropertyAssignment(prop)) {
         throw new OpaqueFieldError("non-literal object member");
@@ -110,7 +115,7 @@ function literalToValue(node: Node): unknown {
  * emitter writes a `$expr` back exactly as it stands, so nothing is lost and the
  * aspects the builder does model stay editable.
  */
-function tolerantValue(node: Node): unknown {
+function tolerantValue(node: Node): LiteralValue {
   try {
     return literalToValue(node);
   } catch (error) {
@@ -119,7 +124,7 @@ function tolerantValue(node: Node): unknown {
     }
   }
   if (Node.isObjectLiteralExpression(node)) {
-    const result: Record<string, unknown> = {};
+    const result: LiteralObject = {};
     for (const property of node.getProperties()) {
       if (!Node.isPropertyAssignment(property)) {
         throw new OpaqueFieldError("non-literal object member");
@@ -158,10 +163,9 @@ function reverseDataType(node: Node | undefined): DataTypeValue {
     return { $dataType: id };
   }
   const config = tolerantValue(configArg);
-  if (config && typeof config === "object" && !Array.isArray(config)) {
-    const entries = Object.entries(config as Record<string, unknown>);
-    return entries.length > 0
-      ? { $dataType: id, config: config as Record<string, unknown> }
+  if (isLiteralObject(config)) {
+    return Object.keys(config).length > 0
+      ? { $dataType: id, config }
       : { $dataType: id };
   }
   throw new OpaqueFieldError("@Column config is not an object literal");
@@ -187,8 +191,8 @@ const MODELLED_COLUMN_OPTIONS = new Set([
  */
 function readColumnExtras(
   columnArg: ObjectLiteralExpression,
-): Record<string, unknown> | undefined {
-  const extras: Record<string, unknown> = {};
+): LiteralObject | undefined {
+  const extras: LiteralObject = {};
   for (const property of columnArg.getProperties()) {
     if (!Node.isPropertyAssignment(property)) {
       throw new OpaqueFieldError("@Column holds a spread or a shorthand");

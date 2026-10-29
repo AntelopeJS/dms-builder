@@ -20,6 +20,7 @@ import type {
   BlockPath,
   CategoryRef,
   CategorySummary,
+  ConfigureBlock as ConfigureBlockContract,
   ConfigureBlockOpts,
   CreateCategoryInput,
   CreatePageInput,
@@ -110,9 +111,9 @@ export async function GetCatalog(): Promise<BlockCatalog> {
 }
 
 export async function ListDataSources(
-  responseShape?: string,
+  response?: string,
 ): Promise<DataSourceDescriptor[]> {
-  return listDeclaredDataSources(responseShape);
+  return listDeclaredDataSources(response);
 }
 
 export async function GetPageStructure(
@@ -196,7 +197,7 @@ export async function AddBlock(
 
 export async function ConfigureBlock(
   path: BlockPath,
-  patch: Record<string, unknown>,
+  patch: Parameters<typeof ConfigureBlockContract>[1],
   opts?: ConfigureBlockOpts,
 ): Promise<OpResult> {
   return configureBlock(path, patch, opts);

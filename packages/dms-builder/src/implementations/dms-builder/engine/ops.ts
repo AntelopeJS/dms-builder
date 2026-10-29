@@ -1,12 +1,15 @@
 import type {
   AddBlockInput,
   BlockPath,
+  ConfigureBlock,
+  ConfigureBlockOpts,
   DuplicateScope,
   MutationOpts,
   OpResult,
   OpWarning,
 } from "@antelopejs/interface-dms-builder";
 import {
+  SyntaxKind,
   type ClassDeclaration,
   Node,
   type ObjectLiteralExpression,
@@ -173,10 +176,12 @@ export function commit<T>(
     : { ok: true, data, changes };
 }
 
-export function clampIndex(
-  requested: number,
-  length: number,
-): { index: number; warnings: OpWarning[] } {
+interface ClampedIndex {
+  index: number;
+  warnings: OpWarning[];
+}
+
+export function clampIndex(requested: number, length: number): ClampedIndex {
   const index = Math.min(Math.max(requested, 0), length);
   if (index === requested) {
     return { index, warnings: [] };
@@ -197,8 +202,9 @@ function ensureOptionsObject(target: BlockTarget): ObjectLiteralExpression {
     return target.optionsObj;
   }
   const index = target.controllerArg ? 1 : 0;
-  target.factoryCall.insertArgument(index, "{}");
-  return target.factoryCall.getArguments()[index] as ObjectLiteralExpression;
+  return target.factoryCall
+    .insertArgument(index, "{}")
+    .asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
 }
 
 /**
@@ -263,8 +269,9 @@ function ensureChildMetaObject(
   const existing = call.getArguments()[2];
   if (existing && Node.isObjectLiteralExpression(existing)) return existing;
   if (existing) return undefined;
-  call.addArgument("{}");
-  return call.getArguments()[2] as ObjectLiteralExpression;
+  return call
+    .addArgument("{}")
+    .asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
 }
 
 export function childArgsOf(target: BlockTarget): string[] {
@@ -308,8 +315,8 @@ function insertStatic(
 
 export function configureBlock(
   targetPath: string,
-  patch: Record<string, unknown>,
-  opts?: { replace?: boolean; meta?: Record<string, unknown> } & MutationOpts,
+  patch: Parameters<typeof ConfigureBlock>[1],
+  opts?: ConfigureBlockOpts,
 ): OpResult {
   const parsed = parseBlockPath(targetPath);
   if (!parsed) {

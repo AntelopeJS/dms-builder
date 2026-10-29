@@ -82,7 +82,7 @@ const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
 };
 
 export function isResourceRoute(value: string): value is ResourceRoute {
-  return (RESOURCE_ROUTES as readonly string[]).includes(value);
+  return RESOURCE_ROUTES.some((route) => route === value);
 }
 
 /**

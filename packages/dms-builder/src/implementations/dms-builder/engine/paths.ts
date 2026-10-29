@@ -27,7 +27,7 @@ export function isIdentifier(name: unknown): name is string {
 }
 
 export function propertyKey(key: string): string {
-  return isIdentifier(key) ? key : JSON.stringify(key);
+  return IDENTIFIER.test(key) ? key : JSON.stringify(key);
 }
 
 export function valueToText(value: unknown): string {

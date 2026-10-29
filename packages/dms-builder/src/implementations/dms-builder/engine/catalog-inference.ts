@@ -7,7 +7,6 @@ import type {
   OptionSchema,
 } from "@antelopejs/interface-dms-builder";
 import {
-  type FunctionTypeNode,
   type InterfaceDeclaration,
   Node,
   type ParameterDeclaration,
@@ -277,7 +276,7 @@ function membersToSchema(
   return schema;
 }
 
-interface FactoryShape {
+interface FactorySignature {
   name: string;
   returnText: string;
   optionsType?: TypeNode;
@@ -346,12 +345,12 @@ function writableParameters(
   );
 }
 
-function factoryShape(
+function readFactorySignature(
   name: string,
   returnText: string,
   typeParameters: TypeParameterDeclaration[],
   parameters: ParameterDeclaration[],
-): FactoryShape {
+): FactorySignature {
   const isControllerLeading = controllerLeading(
     typeParameters,
     parameters[0]?.getTypeNode(),
@@ -365,13 +364,13 @@ function factoryShape(
   };
 }
 
-function functionShapes(sourceFile: SourceFile): FactoryShape[] {
-  const shapes: FactoryShape[] = [];
+function functionSignatures(sourceFile: SourceFile): FactorySignature[] {
+  const signatures: FactorySignature[] = [];
   for (const fn of sourceFile.getFunctions()) {
     const name = fn.getName();
     if (!name || !fn.isExported()) continue;
-    shapes.push(
-      factoryShape(
+    signatures.push(
+      readFactorySignature(
         name,
         fn.getReturnTypeNode()?.getText() ?? "",
         fn.getTypeParameters(),
@@ -383,17 +382,16 @@ function functionShapes(sourceFile: SourceFile): FactoryShape[] {
     if (!variable.getVariableStatement()?.isExported()) continue;
     const typeNode = variable.getTypeNode();
     if (!typeNode || !Node.isFunctionTypeNode(typeNode)) continue;
-    const fnType = typeNode as FunctionTypeNode;
-    shapes.push(
-      factoryShape(
+    signatures.push(
+      readFactorySignature(
         variable.getName(),
-        fnType.getReturnTypeNode()?.getText() ?? "",
-        fnType.getTypeParameters(),
-        fnType.getParameters(),
+        typeNode.getReturnTypeNode()?.getText() ?? "",
+        typeNode.getTypeParameters(),
+        typeNode.getParameters(),
       ),
     );
   }
-  return shapes;
+  return signatures;
 }
 
 function discoverBlocks(
@@ -402,16 +400,16 @@ function discoverBlocks(
 ): BlockTypeDescriptor[] {
   const blocks: BlockTypeDescriptor[] = [];
   for (const sourceFile of sourceFiles) {
-    for (const shape of functionShapes(sourceFile)) {
-      if (!BUILDER_RETURN.test(shape.returnText.trim())) continue;
-      if (!shape.writable) continue;
+    for (const signature of functionSignatures(sourceFile)) {
+      if (!BUILDER_RETURN.test(signature.returnText.trim())) continue;
+      if (!signature.writable) continue;
       blocks.push({
-        type: shape.name,
-        import: { name: shape.name, module: BASE_MODULE },
+        type: signature.name,
+        import: { name: signature.name, module: BASE_MODULE },
         container: true,
-        config: schemaFromTypeNode(shape.optionsType, index, new Set()),
+        config: schemaFromTypeNode(signature.optionsType, index, new Set()),
         shapeSource: "inferred",
-        controllerArg: shape.controllerArg,
+        controllerArg: signature.controllerArg,
       });
     }
   }
