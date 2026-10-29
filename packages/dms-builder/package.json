@@ -52,6 +52,7 @@
     "test:frontend": "pnpm --dir frontend-vue test",
     "test:components": "pnpm --dir frontend-vue test:components",
     "check:package-contract": "node scripts/package-contract-check.cjs",
+    "check:frontend-source": "node scripts/frontend-source-check.cjs",
     "release": "pnpm --filter @antelopejs/interface-dms-builder build && pnpm run check:package-contract && release-it",
     "prepack": "pnpm run build",
     "knip": "knip --dependencies",

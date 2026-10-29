@@ -21,7 +21,7 @@ The playground's `page.ts` files are written back by the builder, so oxfmt ignor
 
 ## Tests that `checks` does not run
 
-`pnpm run checks` runs the node suites (`tests/*.test.cjs`) and the Vue unit and component suites. Its lint step also runs `packages/dms-builder/scripts/package-contract-check.cjs` (`check:package-contract`), the manifest, dependency-range and lockfile invariants of both packages; `release` runs it too. Run these when your change touches what they cover:
+`pnpm run checks` runs the node suites (`tests/*.test.cjs`) and the Vue unit and component suites. Its lint step also runs `packages/dms-builder/scripts/package-contract-check.cjs` (`check:package-contract`), the manifest, dependency-range and lockfile invariants of both packages; `release` runs it too. It then runs `packages/dms-builder/scripts/frontend-source-check.cjs` (`check:frontend-source`), the frontend layer's catalog and source-text invariants: catalog namespace and parity, placeholders, no `@` in messages, every key the code reads present, no literal toast, no literal text in `Bar.vue` and `Banners.vue`, page titles drawn through `displayText`. Run these when your change touches what they cover:
 
 - `pnpm --filter @antelopejs/dms-builder test:unit`: the engine specs (mocha over `dist/test`). They write ts-morph fixtures to disk and take minutes. CI runs them on pushes to `main` only. Build first.
 - `pnpm --dir packages/dms-builder/frontend-vue typecheck`: `ajs dms verify-source`, the production build of the DMS core layer with this one, then vue-tsc. CI runs it in its own job.
