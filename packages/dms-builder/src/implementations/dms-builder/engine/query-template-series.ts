@@ -4,7 +4,7 @@
  */
 
 import type {
-  OptionSchema,
+  ConfigSchema,
   ResourceFieldStructure,
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
@@ -20,6 +20,7 @@ import {
   AGGREGATE_OPS,
   checkField,
   issue,
+  type QueryParams,
   type QueryTemplate,
   scanForExpr,
 } from "./query-template";
@@ -42,6 +43,14 @@ interface SeriesParams {
   direction?: unknown;
   limit?: unknown;
   where?: unknown;
+}
+
+/** Whether a value is one of the listed options. */
+function isOneOf<Option extends string>(
+  options: readonly Option[],
+  value: unknown,
+): value is Option {
+  return options.some((option) => option === value);
 }
 
 function measureOf(params: SeriesParams): PlanMeasure {
@@ -132,10 +141,7 @@ function checkGroup(
           ),
         ];
   }
-  if (
-    typeof params.bucket !== "string" ||
-    !PLAN_BUCKETS.includes(params.bucket as PlanBucket)
-  ) {
+  if (!isOneOf(PLAN_BUCKETS, params.bucket)) {
     return [
       issue("/bucket", `bucket must be one of ${PLAN_BUCKETS.join(", ")}`),
     ];
@@ -160,19 +166,14 @@ function checkGroup(
 
 function checkOrderAndLimit(params: SeriesParams): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  if (
-    params.orderBy !== undefined &&
-    !ORDER_KEYS.includes(params.orderBy as (typeof ORDER_KEYS)[number])
-  ) {
+  if (params.orderBy !== undefined && !isOneOf(ORDER_KEYS, params.orderBy)) {
     issues.push(
       issue("/orderBy", `orderBy must be ${ORDER_KEYS.join(" or ")}`),
     );
   }
   if (
     params.direction !== undefined &&
-    !ORDER_DIRECTIONS.includes(
-      params.direction as (typeof ORDER_DIRECTIONS)[number],
-    )
+    !isOneOf(ORDER_DIRECTIONS, params.direction)
   ) {
     issues.push(
       issue("/direction", `direction must be ${ORDER_DIRECTIONS.join(" or ")}`),
@@ -197,7 +198,7 @@ function checkOrderAndLimit(params: SeriesParams): ValidationIssue[] {
   return issues;
 }
 
-function seriesParamsSchema(): Record<string, OptionSchema> {
+function seriesParamsSchema(): ConfigSchema {
   return {
     op: {
       type: "string",
@@ -256,8 +257,8 @@ function seriesParamsSchema(): Record<string, OptionSchema> {
  * carries — comes back explicitly, since a caller editing these params and
  * sending them again must get the same chain.
  */
-function seriesParams(chain: SeriesChain): Record<string, unknown> {
-  const params: Record<string, unknown> = { groupBy: chain.group.field };
+function seriesParams(chain: SeriesChain): QueryParams {
+  const params: QueryParams = { groupBy: chain.group.field };
   if (chain.measure.kind === "aggregate") {
     params.op = chain.measure.op;
     params.field = chain.measure.field;

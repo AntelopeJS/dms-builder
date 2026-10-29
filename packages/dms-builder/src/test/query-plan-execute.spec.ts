@@ -14,7 +14,7 @@ import {
 import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
-  return { name, dataType: { $dataType: dataType } } as ResourceFieldStructure;
+  return { name, dataType: { $dataType: dataType } };
 }
 
 const FIELDS = [
@@ -24,14 +24,30 @@ const FIELDS = [
   field("archived", "boolean"),
 ];
 
+/** The source text a value or a stream was written down as. */
+interface Transcript {
+  text: string;
+}
+
+function carriesText(node: unknown): node is Transcript {
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    "text" in node &&
+    typeof node.text === "string"
+  );
+}
+
 /** A value, written down rather than computed. */
-function value(text: string): PlanValue {
-  const call = (name: string) => (argument?: unknown) =>
-    value(
-      argument === undefined
-        ? `${text}.${name}()`
-        : `${text}.${name}(${literal(argument)})`,
-    );
+function value(text: string): PlanValue & Transcript {
+  const call =
+    (name: string): PlanValue["eq"] =>
+    (argument) =>
+      value(
+        argument === undefined
+          ? `${text}.${name}()`
+          : `${text}.${name}(${literal(argument)})`,
+      );
   return {
     text,
     eq: call("eq"),
@@ -48,29 +64,31 @@ function value(text: string): PlanValue {
     add: call("add"),
     sub: call("sub"),
     floor: () => value(`${text}.floor()`),
-  } as PlanValue & { text: string };
+  };
 }
 
 function literal(input: unknown): string {
   if (input instanceof Date) {
     return `new Date(${JSON.stringify(input.toISOString())})`;
   }
-  if (typeof input === "object" && input !== null && "text" in input) {
-    return (input as { text: string }).text;
+  if (carriesText(input)) {
+    return input.text;
   }
   return JSON.stringify(input);
 }
 
-function members(shape: unknown): string {
-  const entries = Object.entries(shape as Record<string, unknown>).map(
+function members(fields: unknown): string {
+  if (fields === null || fields === undefined) {
+    throw new TypeError("Cannot convert undefined or null to object");
+  }
+  const entries = Object.entries(fields).map(
     ([key, member]) => `${key}: ${textOf(member)}`,
   );
   return `{ ${entries.join(", ")} }`;
 }
 
 function textOf(node: unknown): string {
-  const holder = node as { text?: string };
-  return typeof holder?.text === "string" ? holder.text : literal(node);
+  return carriesText(node) ? node.text : literal(node);
 }
 
 /**
@@ -81,17 +99,14 @@ function textOf(node: unknown): string {
  * the source the emitter writes, so any divergence is a failing assertion rather
  * than a preview that disagrees with the page it previews.
  */
-function stream(text: string): PlanStream & { text: string } {
-  const self = {
+function stream(text: string): PlanStream & Transcript {
+  return {
     text,
-    filter: (predicate: (row: PlanRow) => unknown) =>
+    filter: (predicate) =>
       stream(`${text}.filter((row) => ${textOf(predicate(row("row")))})`),
-    map: (mapper: (row: PlanRow) => unknown) =>
+    map: (mapper) =>
       stream(`${text}.map((row) => (${members(mapper(row("row")))}))`),
-    group: (
-      index: string,
-      mapper: (rows: PlanStream, group: unknown) => unknown,
-    ) =>
+    group: (index, mapper) =>
       stream(
         `${text}.group(${JSON.stringify(index)}, (rows, group) => (${members(
           mapper(stream("rows"), value("group")),
@@ -109,7 +124,6 @@ function stream(text: string): PlanStream & { text: string } {
     min: (over?: string) => value(`${text}.min(${JSON.stringify(over)})`),
     max: (over?: string) => value(`${text}.max(${JSON.stringify(over)})`),
   };
-  return self as PlanStream & { text: string };
 }
 
 function row(name: string): PlanRow {
@@ -286,7 +300,7 @@ describe("running a plan", () => {
         },
       };
       expect(() =>
-        executePlan(watched as PlanStream, bound, FIELDS, {
+        executePlan(watched, bound, FIELDS, {
           from: "2026-01-01T00:00:00.000Z",
         }),
       ).to.throw(/"cap"/);

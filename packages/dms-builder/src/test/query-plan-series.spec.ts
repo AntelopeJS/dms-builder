@@ -4,7 +4,7 @@ import type { QueryPlan } from "../implementations/dms-builder/engine/query-plan
 import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
-  return { name, dataType: { $dataType: dataType } } as ResourceFieldStructure;
+  return { name, dataType: { $dataType: dataType } };
 }
 
 const FIELDS = [

@@ -30,14 +30,14 @@ interface DeclaredBlockType {
   controllerArg?: boolean;
   config: ConfigSchema;
   childMeta?: ConfigSchema;
-  defaults: Record<string, unknown>;
-  fixedOptions?: Record<string, unknown>;
+  defaults: NonNullable<BlockTypeDescriptor["defaults"]>;
+  fixedOptions?: BlockTypeDescriptor["fixedOptions"];
   initialChildren?: BlockInitialChild[];
 }
 
 interface BlockTypesModule {
   ListBlockTypes: () => DeclaredBlockType[];
-  ListDataSources: (responseShape?: string) => DataSourceDescriptor[];
+  ListDataSources: (response?: string) => DataSourceDescriptor[];
 }
 
 let cached: BlockCatalog | undefined;
@@ -50,10 +50,10 @@ function loadDeclaredBlockTypes(): DeclaredBlockType[] {
 
 /** The sources developers have declared beside their own routes. */
 export function listDeclaredDataSources(
-  responseShape?: string,
+  response?: string,
 ): DataSourceDescriptor[] {
   const module = require(BLOCK_TYPES_MODULE) as BlockTypesModule;
-  return module.ListDataSources(responseShape);
+  return module.ListDataSources(response);
 }
 
 const WIDGET_MARKERS: Record<string, string> = {

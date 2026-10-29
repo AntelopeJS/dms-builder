@@ -1,3 +1,7 @@
+import type {
+  PageLive,
+  PagePermission,
+} from "@antelopejs/interface-dms-builder";
 import {
   type CallExpression,
   type ClassDeclaration,
@@ -19,6 +23,7 @@ import {
   getStringProperty,
   stringLiteralValue,
 } from "./literals";
+import { isLiteralObject } from "./guards";
 
 export interface CategoryRecord {
   ref: string;
@@ -46,9 +51,9 @@ export interface PageRecord {
   order?: number;
   description?: string;
   hidden?: boolean;
-  permission?: Record<string, unknown>;
+  permission?: PagePermission;
   /** The page's `live` options, when it is live and they are plain data. */
-  live?: Record<string, unknown>;
+  live?: PageLive;
   moduleId?: string;
   classNode: ClassDeclaration;
   optionsNode?: ObjectLiteralExpression;
@@ -84,14 +89,14 @@ export function joinSlug(parentSlug: string, urlSlug: string): string {
 function readObjectOption(
   opts: ObjectLiteralExpression,
   name: string,
-): Record<string, unknown> | undefined {
+): PagePermission | PageLive | undefined {
   const node = getObjectProperty(opts, name);
   if (!node || !Node.isObjectLiteralExpression(node)) {
     return undefined;
   }
   const value = objectLiteralToValue(node);
-  return value.fullyLiteral
-    ? (value.value as Record<string, unknown>)
+  return value.fullyLiteral && isLiteralObject(value.value)
+    ? value.value
     : undefined;
 }
 

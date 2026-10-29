@@ -8,6 +8,7 @@ import { type StructuredPatchHunk, structuredPatch } from "diff";
 import {
   type ClassDeclaration,
   type Diagnostic,
+  DiagnosticMessageChain,
   type ExportDeclaration,
   type FunctionDeclaration,
   type ImportDeclaration,
@@ -311,7 +312,10 @@ function diagnosticToError(diagnostic: Diagnostic): TypecheckError {
   return {
     file: diagnostic.getSourceFile()?.getFilePath() ?? "",
     line: diagnostic.getLineNumber() ?? 0,
-    message: typeof message === "string" ? message : message.getMessageText(),
+    message:
+      message instanceof DiagnosticMessageChain
+        ? message.getMessageText()
+        : message,
   };
 }
 

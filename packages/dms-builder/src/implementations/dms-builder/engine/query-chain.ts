@@ -6,6 +6,7 @@ import {
   SyntaxKind,
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
+import type { QueryParams } from "./query-template";
 
 /** The comparison operators a filter may use, shared by validation and read-back. */
 export const FILTER_OPS = new Set<FilterOp>([
@@ -16,6 +17,11 @@ export const FILTER_OPS = new Set<FilterOp>([
   "lt",
   "le",
 ]);
+
+/** The comparison operator a name spells, or `undefined` when it is none of them. */
+export function filterOpNamed(name: string): FilterOp | undefined {
+  return [...FILTER_OPS].find((op) => op === name);
+}
 
 /**
  * A filter's value as read off the chain: a scalar baked into the body, or a
@@ -133,8 +139,9 @@ export function readFilter(
   if (!Node.isCallExpression(compare)) {
     return undefined;
   }
-  const op = propName(compare);
-  if (op === undefined || !FILTER_OPS.has(op as FilterOp)) {
+  const opName = propName(compare);
+  const op = opName === undefined ? undefined : filterOpNamed(opName);
+  if (op === undefined) {
     return undefined;
   }
   const compareArgs = compare.getArguments();
@@ -165,7 +172,7 @@ export function readFilter(
   if (!value) {
     return undefined;
   }
-  return { field, op: op as FilterOp, value };
+  return { field, op, value };
 }
 
 /**
@@ -204,7 +211,7 @@ export function readChain(method: MethodDeclaration): RawChain | undefined {
  * `$bind` referencing its model-method parameter, each baked value its literal.
  * Empty filters yield no `where` key — the same params a caller would omit.
  */
-export function whereParams(filters: RawFilter[]): Record<string, unknown> {
+export function whereParams(filters: RawFilter[]): QueryParams {
   if (filters.length === 0) {
     return {};
   }
@@ -222,18 +229,20 @@ export function whereParams(filters: RawFilter[]): Record<string, unknown> {
 
 /** The bound-parameter name a filter value carries, from either sentinel form. */
 export function bindName(value: unknown): string | undefined {
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (typeof record.$bind === "string") {
-      return record.$bind;
-    }
-    const param = record.$param;
-    if (param && typeof param === "object") {
-      const name = (param as Record<string, unknown>).name;
-      if (typeof name === "string") {
-        return name;
-      }
-    }
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  if ("$bind" in value && typeof value.$bind === "string") {
+    return value.$bind;
+  }
+  const param = "$param" in value ? value.$param : undefined;
+  if (
+    param &&
+    typeof param === "object" &&
+    "name" in param &&
+    typeof param.name === "string"
+  ) {
+    return param.name;
   }
   return undefined;
 }

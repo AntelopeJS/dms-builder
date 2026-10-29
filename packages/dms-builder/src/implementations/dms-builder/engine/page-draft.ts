@@ -75,6 +75,8 @@ interface BlockConstants {
   meta: ConstantsByPath;
 }
 
+type BlockOptions = NonNullable<BlockDraft["config"]>;
+
 /** What every block already on the page was written as, by its draft path. */
 interface Originals {
   texts: OriginalTexts;
@@ -139,11 +141,11 @@ function constantsIn(options: Node | undefined): ConstantsByPath {
  * builder, and naming it would tie it to a constant it never used.
  */
 function withConstants(
-  options: Record<string, unknown>,
+  options: BlockOptions,
   constants: ConstantsByPath | undefined,
-): Record<string, unknown> {
+): BlockOptions {
   return constants?.size
-    ? (namedAt(options, [], constants) as Record<string, unknown>)
+    ? (namedAt(options, [], constants) as BlockOptions)
     : options;
 }
 
@@ -338,7 +340,7 @@ function blockImports(
 function applyPageMeta(
   sourceFile: SourceFile,
   id: string,
-  patch: Record<string, unknown>,
+  patch: NonNullable<PageDraft["page"]>,
   ctx: EmitContext,
 ): OpResult<{ version: string }> | undefined {
   const cls = findPageClass(sourceFile, id);

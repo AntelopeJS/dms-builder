@@ -78,6 +78,12 @@ const LIST_ROUTE_CAPABILITIES = {
   filter: true,
 };
 
+/** The options of a block as the draft holds them, by option name. */
+type BlockOptions = NonNullable<BlockDraft["config"]>;
+
+/** A config object whose `$dataType` names a DataType. */
+type DataTypeSentinel = Record<string, unknown> & { $dataType: string };
+
 /** A column as a table's metadata describes it to its views. */
 interface DescribedColumn {
   id: string;
@@ -104,11 +110,7 @@ interface TableViewModule {
 
 /** The subset of `ComponentBuilder` the preview drives. */
 interface PreviewBuilder {
-  child(
-    id: string,
-    component: unknown,
-    meta?: Record<string, unknown>,
-  ): unknown;
+  child(id: string, component: PreviewBuilder, meta?: BlockDraft["meta"]): this;
   serialize(): Promise<ComponentPreview>;
 }
 
@@ -122,6 +124,12 @@ class DegradedBlockError extends Error {
 
 function loadModule<T = Record<string, unknown>>(specifier: string): T {
   return require(specifier) as T;
+}
+
+function isDataTypeSentinel(
+  value: Record<string, unknown>,
+): value is DataTypeSentinel {
+  return typeof value.$dataType === "string";
 }
 
 function factoryFor(type: string): BlockFactory {
@@ -176,8 +184,8 @@ function resolveExport(specifier: string, name: string): unknown {
     );
 }
 
-function instantiateDataType(value: Record<string, unknown>): unknown {
-  const id = value.$dataType as string;
+function instantiateDataType(value: DataTypeSentinel): unknown {
+  const id = value.$dataType;
   const descriptor = buildCatalog().dataTypes.find((type) => type.id === id);
   if (!descriptor?.import.module) {
     throw new DegradedBlockError(`unknown dataType "${id}"`);
@@ -228,7 +236,7 @@ function materialize(value: unknown): unknown {
   if (isPlainObject(value.$ref)) {
     return referencedController(value.$ref);
   }
-  if (typeof value.$dataType === "string") {
+  if (isDataTypeSentinel(value)) {
     return instantiateDataType(value);
   }
   if (isPlainObject(value.$block)) {
@@ -322,9 +330,9 @@ function finished(schema: OptionSchema, value: unknown): unknown {
  */
 function withoutUnfinishedEntries(
   schema: ConfigSchema,
-  config: Record<string, unknown>,
-): Record<string, unknown> {
-  const kept: Record<string, unknown> = { ...config };
+  config: BlockOptions,
+): BlockOptions {
+  const kept: BlockOptions = { ...config };
   for (const [key, option] of Object.entries(schema)) {
     if (!(key in config)) {
       continue;
@@ -348,21 +356,21 @@ interface PreviewContext {
  * its siblings would vanish with it. It renders as a labelled placeholder and
  * the caller is told which paths were substituted.
  */
-function placeholderFor(reason: string): unknown {
+function placeholderFor(reason: string): PreviewBuilder {
   return factoryFor(PLACEHOLDER_TYPE)({
     label: reason,
     height: PLACEHOLDER_HEIGHT,
   });
 }
 
-function childMeta(block: BlockDraft): Record<string, unknown> | undefined {
-  const meta: Record<string, unknown> = {};
+function childMeta(block: BlockDraft): BlockDraft["meta"] {
+  const meta: NonNullable<BlockDraft["meta"]> = {};
   if (block.slot !== undefined) meta.slot = block.slot;
   const combined = { ...meta, ...block.meta };
   return Object.keys(combined).length > 0 ? combined : undefined;
 }
 
-function buildBlock(block: BlockDraft): unknown {
+function buildBlock(block: BlockDraft): PreviewBuilder {
   if (block.preserve || block.lockedOptions) {
     throw new DegradedBlockError("written by hand — kept as it stands");
   }
@@ -448,10 +456,10 @@ function instantiateBlock(
   block: BlockDraft,
   path: string,
   context: PreviewContext,
-): unknown {
+): PreviewBuilder {
   let builder: PreviewBuilder;
   try {
-    builder = buildBlock(block) as PreviewBuilder;
+    builder = buildBlock(block);
   } catch (error) {
     context.degraded.push(path);
     const reason =
@@ -481,11 +489,7 @@ export async function previewLayout(
   const components: Record<string, ComponentPreview> = {};
   const context: PreviewContext = { degraded: [], pageRef: ref };
   for (const block of draft.blocks) {
-    const builder = instantiateBlock(
-      block,
-      `${ref}#${block.name}`,
-      context,
-    ) as PreviewBuilder;
+    const builder = instantiateBlock(block, `${ref}#${block.name}`, context);
     components[block.name] = await builder.serialize();
   }
   return {

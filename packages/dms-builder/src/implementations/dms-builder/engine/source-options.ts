@@ -10,7 +10,7 @@ import { type EmitContext, serializeValue } from "./value";
 export function patchSourceOptions(
   expr: Expression,
   source: BlockNode,
-  config: Record<string, unknown>,
+  config: NonNullable<BlockNode["config"]>,
   children: { expression: Expression; text: string }[],
   ctx: EmitContext,
 ): string {

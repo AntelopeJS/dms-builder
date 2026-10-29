@@ -253,7 +253,7 @@ export function stringOf(node: Node | undefined): string | undefined {
 function mergeValues(
   draft: ConfigDraft,
   path: string[],
-  values: Record<string, unknown> | undefined,
+  values: ModuleEntryInput["config"],
 ): void {
   if (!values || Object.keys(values).length === 0) {
     return;

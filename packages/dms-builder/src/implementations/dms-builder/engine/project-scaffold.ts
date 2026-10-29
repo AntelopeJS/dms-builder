@@ -37,7 +37,7 @@ export interface Scaffold {
   entryFile: string;
   entryText: string;
   files: Map<string, string>;
-  source: Record<string, unknown>;
+  source: LocalSource;
 }
 
 interface PackageManifest {

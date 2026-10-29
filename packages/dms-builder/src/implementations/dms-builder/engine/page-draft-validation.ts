@@ -31,14 +31,10 @@ function walkOptions(
       }
     }
   }
-  if (schema.items && Array.isArray(value)) {
+  const items = schema.items;
+  if (items && Array.isArray(value)) {
     value.forEach((entry, index) => {
-      walkOptions(
-        schema.items as OptionSchema,
-        entry,
-        `${pointer}/${index}`,
-        visit,
-      );
+      walkOptions(items, entry, `${pointer}/${index}`, visit);
     });
   }
   if (schema.values && isPlainObject(value)) {
@@ -217,7 +213,7 @@ function duplicateNames(
   return issues;
 }
 
-function checkSourceShape(
+function checkSourcePreservation(
   block: BlockDraft,
   source: BlockNode,
   pointer: string,
@@ -276,7 +272,7 @@ export function validateDraft(
     if (inherited && !block.preserve)
       fail("Children of a preserved block are read-only");
     if (source && (block.preserve || source.lockedOptions)) {
-      issues.push(...checkSourceShape(block, source, pointer));
+      issues.push(...checkSourcePreservation(block, source, pointer));
     }
     return [
       ...issues,

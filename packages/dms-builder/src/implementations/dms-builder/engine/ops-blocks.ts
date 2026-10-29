@@ -430,12 +430,7 @@ export function configurePage(
     resolveRef: resourceRefResolver(),
   });
   try {
-    applyPatch(
-      optionsArg,
-      optionsPatch(scalar as Record<string, unknown>),
-      false,
-      ctx,
-    );
+    applyPatch(optionsArg, optionsPatch(scalar), false, ctx);
   } catch (error) {
     transaction.rollback();
     if (error instanceof UnknownDataTypeError) {

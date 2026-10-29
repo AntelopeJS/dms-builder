@@ -1,6 +1,7 @@
 /** The mapping from DMS data types to column types, and the resource code that follows from it. */
 
 import type {
+  CreateResourceInput,
   DataTypeValue,
   FieldSpec,
   ImportRef,
@@ -120,10 +121,7 @@ class ImportSet {
   }
 }
 
-function coerceSeeds(
-  seeds: Record<string, unknown>[],
-  fields: FieldSpec[],
-): Record<string, unknown>[] {
+function coerceSeeds(seeds: Seeds, fields: FieldSpec[]): Seeds {
   const dateFields = new Set(
     fields
       .filter((field) => dbTypeFor(field.dataType).ts === "Date")
@@ -133,7 +131,7 @@ function coerceSeeds(
     return seeds;
   }
   return seeds.map((seed) => {
-    const out: Record<string, unknown> = {};
+    const out: Seeds[number] = {};
     for (const [key, value] of Object.entries(seed)) {
       out[key] =
         dateFields.has(key) &&
@@ -255,6 +253,27 @@ function propertyName(name: string): string {
   return IDENTIFIER.test(name) ? name : JSON.stringify(name);
 }
 
+/** A field's declaration in the Table class, the symbols it needs and what it warns of. */
+export interface TableFieldText {
+  text: string;
+  symbols: string[];
+  warnings: OpWarning[];
+}
+
+/** A field's declaration in the DataAPI class and the symbols it needs. */
+export interface DataApiFieldText {
+  text: string;
+  symbols: string[];
+}
+
+/** A generated file's text and the warnings raised while writing it. */
+export interface EmittedFile {
+  text: string;
+  warnings: OpWarning[];
+}
+
+type Seeds = NonNullable<CreateResourceInput["seeds"]>;
+
 /**
  * The Table class declaration for one field.
  *
@@ -265,11 +284,7 @@ function propertyName(name: string): string {
  * narrowing an existing column to `string` would change the schema behind the
  * author's back.
  */
-export function tableFieldText(field: FieldSpec): {
-  text: string;
-  symbols: string[];
-  warnings: OpWarning[];
-} {
+export function tableFieldText(field: FieldSpec): TableFieldText {
   const symbols = ["Field"];
   const decorators: string[] = [];
   if (field.indexed) {
@@ -305,7 +320,7 @@ export function tableFieldText(field: FieldSpec): {
 export function dataApiFieldText(
   field: FieldSpec,
   ctx: EmitContext,
-): { text: string; symbols: string[] } {
+): DataApiFieldText {
   const symbols: string[] = [];
   const decorators: string[] = [];
   const listable = field.listable !== false;
@@ -372,7 +387,7 @@ export interface DatabaseFileSpec {
   filePath: string;
   schema?: string;
   fields: FieldSpec[];
-  seeds?: Record<string, unknown>[];
+  seeds?: Seeds;
   resolveRef?: EmitContext["resolveRef"];
   /** Whether the table declares `_id`; a relation without a key has none. Defaults to true. */
   idField?: boolean;
@@ -386,10 +401,7 @@ export interface DataApiFileSpec {
   resolveRef?: EmitContext["resolveRef"];
 }
 
-export function buildDatabaseFile(spec: DatabaseFileSpec): {
-  text: string;
-  warnings: OpWarning[];
-} {
+export function buildDatabaseFile(spec: DatabaseFileSpec): EmittedFile {
   const { names, fields, seeds } = spec;
   const useCoreSchema = spec.schema === undefined;
   const schemaExpr = useCoreSchema
@@ -450,10 +462,7 @@ export function buildDatabaseFile(spec: DatabaseFileSpec): {
   return { text: body, warnings };
 }
 
-export function buildDataApiFile(spec: DataApiFileSpec): {
-  text: string;
-  warnings: OpWarning[];
-} {
+export function buildDataApiFile(spec: DataApiFileSpec): EmittedFile {
   const { names, fields } = spec;
   const imports = new ImportSet();
   for (const name of [

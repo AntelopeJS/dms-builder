@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ImportRef } from "@antelopejs/interface-dms-builder";
+import type { BlockNode, ImportRef } from "@antelopejs/interface-dms-builder";
 import type { ImportDeclaration, SourceFile } from "ts-morph";
 import { propertyKey } from "./paths";
 import { indentationText, resolveProjectRoot } from "./project";
@@ -185,7 +185,10 @@ export function relativeModule(fromFile: string, toFile: string): string {
   return rel.startsWith(".") ? rel : `./${rel}`;
 }
 
-function objectText(config: Record<string, unknown>, ctx: EmitContext): string {
+type BlockConfig = NonNullable<BlockNode["config"]>;
+type BlockMeta = NonNullable<BlockNode["meta"]>;
+
+function objectText(config: BlockConfig, ctx: EmitContext): string {
   const entries = Object.entries(config).filter(
     ([, value]) => value !== undefined,
   );
@@ -203,7 +206,7 @@ function objectText(config: Record<string, unknown>, ctx: EmitContext): string {
 
 export function blockCallText(
   type: string,
-  config: Record<string, unknown>,
+  config: BlockConfig,
   ctx: EmitContext,
   controllerText?: string,
 ): string {
@@ -221,10 +224,9 @@ export function childArgText(
   valueText: string,
   ctx: EmitContext,
   slot?: string,
-  meta?: Record<string, unknown>,
+  meta?: BlockMeta,
 ): string {
-  const entries: Record<string, unknown> = {};
-  if (slot !== undefined) entries.slot = slot;
+  const entries = slot === undefined ? {} : { slot };
   const metaText = objectText({ ...entries, ...meta }, ctx);
   return `${JSON.stringify(id)}, ${valueText}${metaText ? `, ${metaText}` : ""}`;
 }
