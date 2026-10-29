@@ -64,7 +64,8 @@ function backendSourceFile(id: string): string | undefined {
  * backend only through its HTTP routes. It checks what the whole resolution
  * chain returns, so an alias is seen through and a symlink the resolver
  * returns is followed to its real path, and it runs before the other plugins
- * (`enforce: 'pre'`).
+ * (`enforce: 'pre'`). A backend file marked external fails too: the browser
+ * would still load it at run time.
  */
 export function backendBoundary(): Plugin {
 	return {
@@ -75,7 +76,7 @@ export function backendBoundary(): Plugin {
 				...options,
 				skipSelf: true,
 			})
-			if (resolved === null || resolved.external) {
+			if (resolved === null) {
 				return resolved
 			}
 			const file = backendSourceFile(resolved.id)

@@ -14,10 +14,14 @@ beforeEach(() => {
 	writeFileSync(join(root, 'backend/package.json'), JSON.stringify({ name: '@antelopejs/dms-builder' }))
 	writeFileSync(join(root, 'backend/src/api.ts'), 'export const api = 1;\n')
 	writeFileSync(join(root, 'backend/dist/api.ts'), 'export const api = 2;\n')
+	mkdirSync(join(root, 'backend/srcx'), { recursive: true })
+	writeFileSync(join(root, 'backend/srcx/api.ts'), 'export const api = 4;\n')
+	mkdirSync(join(root, 'backend/dist/src'), { recursive: true })
+	writeFileSync(join(root, 'backend/dist/src/api.ts'), 'export const api = 5;\n')
 })
 afterEach(() => rmSync(root, { recursive: true, force: true }))
 
-function bundle(entry: string, extra: Plugin[] = []) {
+function bundle(entry: string, extra: Plugin[] = [], external?: (id: string) => boolean) {
 	writeFileSync(join(root, 'frontend/entry.ts'), entry)
 	return build({
 		root,
@@ -27,6 +31,7 @@ function bundle(entry: string, extra: Plugin[] = []) {
 		build: {
 			write: false,
 			lib: { entry: join(root, 'frontend/entry.ts'), formats: ['es'] },
+			rollupOptions: { external },
 		},
 	})
 }
@@ -41,6 +46,26 @@ it('accepts another file of the backend package', async () => {
 	await expect(
 		bundle('import { api } from "../backend/dist/api";\nexport default api;\n'),
 	).resolves.toBeDefined()
+})
+
+it('accepts a backend directory whose name only starts with src', async () => {
+	await expect(
+		bundle('import { api } from "../backend/srcx/api";\nexport default api;\n'),
+	).resolves.toBeDefined()
+})
+
+it('accepts a src directory deeper in the backend package', async () => {
+	await expect(
+		bundle('import { api } from "../backend/dist/src/api";\nexport default api;\n'),
+	).resolves.toBeDefined()
+})
+
+it('fails on a backend source file the build marks external', async () => {
+	const failing = bundle('import { api } from "../backend/src/api";\nexport default api;\n', [], (id) =>
+		id.startsWith(join(root, 'backend/src')),
+	)
+	await expect(failing).rejects.toThrow('Backend boundary')
+	await expect(failing).rejects.toThrow(join(root, 'backend/src/api.ts'))
 })
 
 it('ignores a virtual module', async () => {
@@ -72,6 +97,12 @@ it('follows a symlink the resolver returns to the backend source', async () => {
 
 it('sees through a query on the resolved id', async () => {
 	const failing = bundle(IMPORT_TARGET, [resolvingTo(() => `${join(root, 'backend/src/api.ts')}?raw`)])
+	await expect(failing).rejects.toThrow('Backend boundary')
+	await expect(failing).rejects.toThrow(join(root, 'backend/src/api.ts'))
+})
+
+it('sees through a hash on the resolved id', async () => {
+	const failing = bundle(IMPORT_TARGET, [resolvingTo(() => `${join(root, 'backend/src/api.ts')}#fragment`)])
 	await expect(failing).rejects.toThrow('Backend boundary')
 	await expect(failing).rejects.toThrow(join(root, 'backend/src/api.ts'))
 })
