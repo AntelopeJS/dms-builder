@@ -24,7 +24,6 @@ import {
 	editable,
 	opaque,
 	refuseTheRow,
-	panel,
 	write,
 } from './support/editor-feedback-harness'
 

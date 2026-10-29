@@ -5,11 +5,14 @@ import type { OptionSchema } from '../runtime/types'
 import { codeSpans } from '../runtime/inline-code'
 import { type Props, type Emits, CODE_CLASS } from '../build/Option'
 import { useOptionPart1 } from '../build/OptionPart1'
+import { useOptionPart2 } from '../build/OptionPart2'
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const optionPart1 = useOptionPart1({ props, emit })
-const { label, ui, iconFallback, required, unfilled, keyedEntries, typed, typedValue, typedText, typedNumber, widget, pageLink, linkTargets, linkedTo, enumItems, setEntry, resourceItems, controllerRef, setController, dataTypeChoices, blockTypeItems, fieldItems, ineligible, set, clearable, colorText, isSwitch, isOn, objectValue, setProperty, arrayValue, setItem, entryKinds, entrySchema, entryKind, addItem, removeItem, moveItem, dataTypeValue, dataTypeSchema, setDataType, setDataTypeConfig, blockValue, blockOptions, setBlockType, setBlockConfig, patchBlockConfig, branchLabels, picked, branchIndex, branchProperties, branchValueSchema, selectBranch, jsonText, setJson, nestedProperties } = optionPart1
+const { label, ui, iconFallback, required, unfilled, keyedEntries, typed, typedValue, typedText, typedNumber, widget, pageLink, linkTargets, linkedTo, enumItems, setEntry, resourceItems, controllerRef, setController, dataTypeChoices, blockTypeItems, fieldItems, ineligible, set, clearable, colorText, isSwitch, isOn, objectValue, arrayValue, setItem, entryKinds, entrySchema, entryKind, addItem, removeItem, moveItem } = optionPart1
+const optionPart2 = useOptionPart2({ props, ...optionPart1 })
+const { setProperty, dataTypeValue, dataTypeSchema, setDataType, setDataTypeConfig, blockValue, blockOptions, setBlockType, setBlockConfig, patchBlockConfig, branchLabels, picked, branchIndex, branchProperties, branchValueSchema, selectBranch, jsonText, setJson, nestedProperties } = optionPart2
 </script>
 
 <template>
