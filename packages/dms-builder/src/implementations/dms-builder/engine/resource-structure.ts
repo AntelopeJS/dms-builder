@@ -219,9 +219,11 @@ function readColumnExtras(
  * `@Listable`, `@Select` and `@Exported` are three separate scopes of the same
  * mechanism and are read independently, so a rewrite never adds a scope its
  * author did not write. A decorator or argument the builder does not model
- * (such as `@Exported(fields)`, a spread, or a second `@Column` argument) makes
- * the field opaque rather than losing it on the next write. An expression that
- * is not data is carried verbatim as `$expr`.
+ * (such as `@Exported(fields)`, a spread, or a second argument to the
+ * `@Column` type's DataType constructor, `new X(config, extra)`) makes the
+ * field opaque rather than losing it on the next write. Only the first
+ * `@Column` argument is read. An expression that is not data is carried
+ * verbatim as `$expr`.
  */
 export function readDataApiFieldAspects(
   prop: PropertyDeclaration,
