@@ -370,7 +370,7 @@ function stackAnchor(draft: PageDraft, path: string): string {
 	return childrenOf(draft, grid).length === 1 ? grid : path
 }
 
-export function beside(
+function beside(
 	draft: PageDraft,
 	path: string,
 	edge: DropEdge,
