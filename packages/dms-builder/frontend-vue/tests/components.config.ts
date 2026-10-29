@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, transformWithOxc, type Plugin } from 'vite'
+import { backendBoundary } from '../build/backend-boundary.ts'
 
 /**
  * A second vitest project, for the tests that mount the builder's components.
@@ -48,7 +49,7 @@ function singleFileComponents(): Plugin {
 }
 
 export default defineConfig({
-	plugins: [singleFileComponents()],
+	plugins: [backendBoundary(), singleFileComponents()],
 	resolve: {
 		alias: {
 			'#dms/frontend-module': fileURLToPath(

@@ -1,7 +1,9 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
+import { backendBoundary } from './build/backend-boundary.ts'
 
 export default defineConfig({
+  plugins: [backendBoundary()],
   resolve: {
     alias: {
       // The host runtime only exists inside a generated Inertia workspace; the
