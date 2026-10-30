@@ -12,7 +12,7 @@ const { isRecord, isString } = require("./guards.js");
  *   devDependencies?: RangeMap;
  *   peerDependencies?: RangeMap;
  *   engines?: RangeMap;
- *   exports?: { [subpath: string]: unknown };
+ *   exports?: unknown;
  *   files?: string[];
  *   antelopeJs?: { implements?: string[] };
  * }} PackageManifest
@@ -49,13 +49,20 @@ function isManifest(value) {
     (value.peerDependencies === undefined ||
       isRangeMap(value.peerDependencies)) &&
     (value.engines === undefined || isRangeMap(value.engines)) &&
-    (value.exports === undefined || isRecord(value.exports)) &&
     (value.files === undefined || isStringArray(value.files)) &&
     (value.antelopeJs === undefined ||
       (isRecord(value.antelopeJs) &&
         (value.antelopeJs.implements === undefined ||
           isStringArray(value.antelopeJs.implements))))
   );
+}
+
+/**
+ * @param {PackageManifest} manifest
+ * @param {string} subpath
+ */
+function exportOf(manifest, subpath) {
+  return isRecord(manifest.exports) ? manifest.exports[subpath] : undefined;
 }
 
 /**
@@ -161,13 +168,13 @@ function interfaceIsPublishable() {
     );
   }
   if (
-    !isDeepStrictEqual(interfacePackage.exports?.["."], {
+    !isDeepStrictEqual(exportOf(interfacePackage, "."), {
       types: "./dist/index.d.ts",
       default: "./dist/index.js",
     })
   ) {
     failures.push(
-      `the interface root export is not exactly dist/index: ${JSON.stringify(interfacePackage.exports?.["."])}`,
+      `the interface root export is not exactly dist/index: ${JSON.stringify(exportOf(interfacePackage, "."))}`,
     );
   }
   for (const published of ["dist", "docs"]) {
@@ -204,7 +211,7 @@ function noRuntimeDependency() {
 
 function interfaceIsNotOwned() {
   const failures = [];
-  if (dmsBuilder.exports?.["./interfaces/dms-builder"] !== undefined) {
+  if (exportOf(dmsBuilder, "./interfaces/dms-builder") !== undefined) {
     failures.push("the package exports ./interfaces/dms-builder");
   }
   const files = fs
@@ -233,20 +240,20 @@ function everyBuiltModuleIsExported() {
   }
   const failures = [];
   if (
-    !isDeepStrictEqual(interfacePackage.exports?.["./*"], {
+    !isDeepStrictEqual(exportOf(interfacePackage, "./*"), {
       types: "./dist/*.d.ts",
       default: "./dist/*.js",
     })
   ) {
     failures.push(
-      `the interface ./* export is not exactly dist/*: ${JSON.stringify(interfacePackage.exports?.["./*"])}`,
+      `the interface ./* export is not exactly dist/*: ${JSON.stringify(exportOf(interfacePackage, "./*"))}`,
     );
   }
   const entries = fs.readdirSync(dist, { recursive: true, encoding: "utf8" });
   for (const entry of entries) {
     if (!entry.endsWith(`${path.sep}index.js`)) continue;
     const subpath = `./${path.dirname(entry).split(path.sep).join("/")}`;
-    if (interfacePackage.exports?.[subpath] === undefined) {
+    if (exportOf(interfacePackage, subpath) === undefined) {
       failures.push(`${subpath} is built but not exported`);
     }
   }
