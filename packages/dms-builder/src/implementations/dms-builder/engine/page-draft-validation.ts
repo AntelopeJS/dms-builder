@@ -8,7 +8,7 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import { blockDescriptor } from "./catalog";
-import { isString } from "./guards";
+import { isString } from "./scalar-guards";
 import { isIdentifier } from "./paths";
 import {
   buildResourceStructure,

@@ -2,7 +2,7 @@ import { Schema } from "@antelopejs/interface-database";
 import { pageRoutePath } from "@antelopejs/interface-dms/page";
 import type { BlockNode } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
-import { isNumber, isString } from "./primitive-guards";
+import { isNumber, isString } from "./scalar-guards";
 import { isPerTenantSchema } from "./query-emit";
 import { routeModelBinding, findQueryRoutes } from "./query-structure";
 import { listResourceRecords } from "./resource-index";

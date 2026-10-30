@@ -23,6 +23,7 @@ import { notFound } from "./ops";
 import { resolveProjectRoot } from "./project";
 import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
+import { isString } from "./scalar-guards";
 import { isPlainObject } from "./value";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
@@ -116,10 +117,6 @@ class DegradedBlockError extends Error {
   constructor(public readonly reason: string) {
     super(reason);
   }
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === "string";
 }
 
 function isCallable(value: unknown): value is Function {

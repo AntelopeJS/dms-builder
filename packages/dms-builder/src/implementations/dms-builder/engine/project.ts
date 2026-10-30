@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { IndentationText, Project, ts } from "ts-morph";
 import { getModuleConfig } from "../../../config";
-import { isNumber } from "./primitive-guards";
+import { isNumber } from "./scalar-guards";
 import { isPlainObject } from "./value";
 
 /**

@@ -11,11 +11,6 @@ export type LiteralValue =
 /** An object literal read as data. */
 export type LiteralObject = { [key: string]: LiteralValue };
 
-/** Whether a value met at run time is a string, whatever its declared type says. */
-export function isString(value: unknown): value is string {
-  return typeof value === "string";
-}
-
 /** Whether a value met at run time can be read by property name: an object, an array or a function. */
 export function isIndexable(value: unknown): value is Record<string, unknown> {
   return (

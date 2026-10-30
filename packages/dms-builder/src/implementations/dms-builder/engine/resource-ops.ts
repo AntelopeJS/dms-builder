@@ -9,7 +9,7 @@ import type {
   ResourceRef,
 } from "@antelopejs/interface-dms-builder";
 import { type ClassDeclaration, type Project, type SourceFile } from "ts-morph";
-import { isString } from "./primitive-guards";
+import { isString } from "./scalar-guards";
 import {
   barrelSpecifier,
   findNearestBarrel,

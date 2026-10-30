@@ -14,7 +14,7 @@ import {
 } from "./chain";
 import { editableOptions, objectLiteralToValue } from "./config-literal";
 import { unwrapExpression } from "./expression";
-import { isString } from "./guards";
+import { isString } from "./scalar-guards";
 import { stringLiteralValue } from "./literals";
 import { findResourceBySymbol } from "./resource-index";
 import type { PageRecord } from "./scan";

@@ -16,7 +16,7 @@ import { mappedRecordsOf } from "./map-resources";
 import { humanized } from "./map-resources-plan";
 import { mappedConnectionOfFile } from "./mapped-modules";
 import { invalidConfig } from "./ops";
-import { isString } from "./primitive-guards";
+import { isString } from "./scalar-guards";
 import type { ResourceRecord } from "./resource-index";
 import {
   buildResourceStructure,

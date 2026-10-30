@@ -3,7 +3,7 @@ import type { Permission, PermissionTree } from "@antelopejs/interface-dms";
 import { RoleModel, TenantMemberModel } from "@antelopejs/interface-dms/db";
 import type { BlockNode } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
-import { isString } from "./guards";
+import { isString } from "./scalar-guards";
 import { getBooleanProperty } from "./literals";
 import { readPermissionTree } from "./permissions";
 import type { PageRecord } from "./scan";

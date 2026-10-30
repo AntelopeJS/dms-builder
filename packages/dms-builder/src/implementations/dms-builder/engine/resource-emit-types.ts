@@ -10,7 +10,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { relativeModule } from "./emit";
 import { propertyKey } from "./paths";
-import { isNumber, isString } from "./primitive-guards";
+import { isNumber, isString } from "./scalar-guards";
 import { indentationText, resolveProjectRoot } from "./project";
 import {
   createImportCollector,
