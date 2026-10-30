@@ -1,3 +1,5 @@
+import { isString } from "./scalar-guards";
+
 /** A value read off a literal in source: data only, nothing executable. */
 export type LiteralValue =
   | string
@@ -10,6 +12,23 @@ export type LiteralValue =
 
 /** An object literal read as data. */
 export type LiteralObject = { [key: string]: LiteralValue };
+
+/** Whether a value is a string or absent. */
+export function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || isString(value);
+}
+
+/** Whether a value is an object whose every value is a string. */
+export function isStringRecord(
+  value: unknown,
+): value is Record<string, string> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every(isString)
+  );
+}
 
 /** Whether a value met at run time can be read by property name: an object, an array or a function. */
 export function isIndexable(value: unknown): value is Record<string, unknown> {
