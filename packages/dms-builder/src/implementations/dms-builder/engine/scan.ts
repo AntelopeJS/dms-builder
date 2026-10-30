@@ -63,11 +63,11 @@ export interface ScanResult {
   categories: Map<string, CategoryRecord>;
 }
 
-const RESERVED_ROOTS: Record<string, { id: string; fullSlug: string }> = {
-  pagesCategory: { id: "pages", fullSlug: "/" },
-  modulesCategory: { id: "modules", fullSlug: "/modules" },
-  settingsCategory: { id: "settings", fullSlug: "/settings" },
-};
+const RESERVED_ROOTS = new Map([
+  ["pagesCategory", { id: "pages", fullSlug: "/" }],
+  ["modulesCategory", { id: "modules", fullSlug: "/modules" }],
+  ["settingsCategory", { id: "settings", fullSlug: "/settings" }],
+]);
 
 const CATEGORY_FACTORIES = new Set(["Category", "RootCategory"]);
 
@@ -269,7 +269,7 @@ class SourceScanner {
   }
 
   private resolveReserved(name: string): CategoryRecord | undefined {
-    const reserved = RESERVED_ROOTS[name];
+    const reserved = RESERVED_ROOTS.get(name);
     if (!reserved) {
       return undefined;
     }

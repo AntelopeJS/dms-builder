@@ -1,3 +1,4 @@
+import type { SeriesMeasure } from "@antelopejs/interface-dms/base/query-response";
 import type {
   ImportRef,
   QueryOutputKind,
@@ -5,6 +6,7 @@ import type {
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import {
+  AGGREGATE_OPS,
   type CompiledChain,
   getQueryTemplate,
   type MethodParam,
@@ -13,6 +15,7 @@ import {
 import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
 import { words } from "./emit";
+import { isOneOf } from "./scalar-guards";
 
 /**
  * The prefix new query endpoints default to. Only a default — `AddQueryInput.endpoint`
@@ -56,7 +59,7 @@ const COUNT_MEASURE = "count";
 
 /** What a helper is told the series is: what was measured, and what to call it. */
 export interface SeriesNaming {
-  measure: string;
+  measure: SeriesMeasure;
   label: string;
 }
 
@@ -75,7 +78,7 @@ export function seriesNaming(
   fields: ResourceFieldStructure[],
   resource: string,
 ): SeriesNaming {
-  const measure = (params.op as string | undefined) ?? COUNT_MEASURE;
+  const measure = isOneOf(AGGREGATE_OPS, params.op) ? params.op : COUNT_MEASURE;
   if (measure === COUNT_MEASURE) {
     return { measure, label: resource };
   }

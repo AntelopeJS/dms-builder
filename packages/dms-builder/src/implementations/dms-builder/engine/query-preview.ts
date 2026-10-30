@@ -11,7 +11,6 @@ import { Schema } from "@antelopejs/interface-database";
 import {
   chartCardData,
   kpiCardData,
-  type SeriesMeasure,
   type SeriesOptions,
   topListData,
 } from "@antelopejs/interface-dms/base/query-response";
@@ -43,6 +42,7 @@ import type { QueryPlan } from "./query-plan";
 import { getQueryTemplate, isParamBinding } from "./query-template";
 import { findResourceRecord } from "./resource-index";
 import { buildResourceStructure } from "./resource-structure";
+import { isPlainObject } from "./value";
 
 /** How many points a preview will return before it says it stopped early. */
 const PREVIEW_LIMIT = 500;
@@ -88,8 +88,7 @@ function openTable(
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
-  const table: unknown = instance.table(tableName);
-  return table as PlanStream;
+  return instance.table(tableName) as PlanStream;
 }
 
 /**
@@ -112,12 +111,12 @@ interface ReadRows {
   truncated: boolean;
 }
 
-function readRows(rows: unknown): ReadRows {
+function readRows(rows: number | QueryPoint[]): ReadRows {
   if (!Array.isArray(rows)) {
     return { value: Number(rows), truncated: false };
   }
   return {
-    points: (rows as QueryPoint[]).slice(0, PREVIEW_LIMIT),
+    points: rows.slice(0, PREVIEW_LIMIT),
     truncated: rows.length > PREVIEW_LIMIT,
   };
 }
@@ -154,10 +153,7 @@ function arrange(
       truncated: read.truncated,
     });
   }
-  const options: SeriesOptions = {
-    ...naming,
-    measure: naming.measure as SeriesMeasure,
-  };
+  const options: SeriesOptions = { ...naming };
   if (previous) {
     options.previous = previous;
   }
@@ -262,6 +258,16 @@ export async function runPlanPreview(
   }
 }
 
+function namesResourceAndTemplate(
+  value: unknown,
+): value is Pick<AddQueryInput, "resource" | "template"> {
+  return (
+    isPlainObject(value) &&
+    typeof value.resource === "string" &&
+    typeof value.template === "string"
+  );
+}
+
 /**
  * A preview asked for on a GET: the query as JSON in one parameter, and every
  * other parameter what the route would receive — the period a card appends to
@@ -282,13 +288,7 @@ export function previewRequestFromSearch(
   } catch {
     query = undefined;
   }
-  const input = query as Partial<AddQueryInput> | undefined;
-  if (
-    typeof input !== "object" ||
-    input === null ||
-    typeof input.resource !== "string" ||
-    typeof input.template !== "string"
-  ) {
+  if (!namesResourceAndTemplate(query)) {
     return invalidConfig<PreviewRequest>(
       `"${queryParameter}" must be a query as JSON, naming its resource and template`,
     );
@@ -301,7 +301,7 @@ export function previewRequestFromSearch(
   }
   return {
     ok: true,
-    data: { query: input as AddQueryInput, args, tenant },
+    data: { query: query as AddQueryInput, args, tenant },
     changes: [],
   };
 }

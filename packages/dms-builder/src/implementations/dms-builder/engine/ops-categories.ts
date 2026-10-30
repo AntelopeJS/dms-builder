@@ -83,7 +83,7 @@ function buildCategorySource(
 export function createCategory(
   input: CreateCategoryInput,
 ): OpResult<{ ref: CategoryRef }> {
-  const invalid = slugError<{ ref: CategoryRef }>(input.name, "category");
+  const invalid = slugError(input.name, "category");
   if (invalid) {
     return invalid;
   }

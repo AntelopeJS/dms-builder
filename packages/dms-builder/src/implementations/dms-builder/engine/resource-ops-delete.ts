@@ -31,6 +31,7 @@ import {
   createImportCollector,
   type EmitContext,
   UnknownDataTypeError,
+  UnknownReferenceError,
 } from "./value";
 import { findImporters, Transaction } from "./writable";
 import {
@@ -274,9 +275,8 @@ export function addField(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType<{ path: string }>(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }
@@ -416,9 +416,8 @@ export function configureField(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }

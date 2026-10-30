@@ -29,7 +29,7 @@ function node(
 }
 
 /** The tree the DMS registers for /shop/board: the page, its table, its actions. */
-function boardTree(pageGranted?: boolean): Record<string, PermissionTree> {
+function boardTree(pageGranted?: boolean) {
   return {
     pages: {
       children: {

@@ -63,23 +63,23 @@ const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
   export: [],
 };
 
-const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
-  list: "list",
-  count: "list",
-  countBatch: "list",
-  summary: "list",
-  get: "get",
-  new: "create",
-  edit: "edit",
-  delete: "delete",
-  select: "select",
-  archive: "archive",
-  restore: "archive",
+const KEY_TO_ROUTE = new Map<string, ResourceRoute>([
+  ["list", "list"],
+  ["count", "list"],
+  ["countBatch", "list"],
+  ["summary", "list"],
+  ["get", "get"],
+  ["new", "create"],
+  ["edit", "edit"],
+  ["delete", "delete"],
+  ["select", "select"],
+  ["archive", "archive"],
+  ["restore", "archive"],
   /** Written as the `ExportRoutes` spread, but a map that names them one by one serves the same export. */
-  exportStart: "export",
-  exportStatus: "export",
-  exportDownload: "export",
-};
+  ["exportStart", "export"],
+  ["exportStatus", "export"],
+  ["exportDownload", "export"],
+]);
 
 export function isResourceRoute(value: string): value is ResourceRoute {
   return RESOURCE_ROUTES.some((route) => route === value);
@@ -124,7 +124,7 @@ export function routesFromRouteMap(
 ): ResourceRoute[] {
   const found = new Set<ResourceRoute>();
   for (const key of keys) {
-    const route = KEY_TO_ROUTE[key];
+    const route = KEY_TO_ROUTE.get(key);
     if (route) {
       found.add(route);
     }
@@ -135,34 +135,34 @@ export function routesFromRouteMap(
   return RESOURCE_ROUTES.filter((route) => found.has(route));
 }
 
-export const DECORATOR_IMPORTS: Record<string, string> = {
-  Controller: API_MODULE,
-  DataController: DATA_API_MODULE,
-  RegisterDataController: DATA_API_MODULE,
-  Access: METADATA_MODULE,
-  AccessMode: METADATA_MODULE,
-  Listable: METADATA_MODULE,
-  ModelReference: METADATA_MODULE,
-  Optional: METADATA_MODULE,
-  Sortable: METADATA_MODULE,
-  Model: DB_MODULE,
-  BasicDataModel: DB_MODULE,
-  Field: DB_MODULE,
-  Fixture: DB_MODULE,
-  Index: DB_MODULE,
-  RegisterTable: DB_MODULE,
-  Table: DB_MODULE,
-  Get: API_MODULE,
-  Parameter: API_MODULE,
-  TenantScopedModel: TENANT_MODEL_MODULE,
-  AuthUserWithPermission: GUARDS_MODULE,
-  User: AUTH_DB_MODULE,
-  Searchable: SEARCHABLE_MODULE,
-  Column: TABLE_VIEW_MODULE,
-  Select: TABLE_VIEW_MODULE,
-  TableViewRoutes: TABLE_VIEW_MODULE,
-  [CORE_SCHEMA_IDENTIFIER]: CONSTANTS_MODULE,
-};
+export const DECORATOR_IMPORTS = new Map<string, string>([
+  ["Controller", API_MODULE],
+  ["DataController", DATA_API_MODULE],
+  ["RegisterDataController", DATA_API_MODULE],
+  ["Access", METADATA_MODULE],
+  ["AccessMode", METADATA_MODULE],
+  ["Listable", METADATA_MODULE],
+  ["ModelReference", METADATA_MODULE],
+  ["Optional", METADATA_MODULE],
+  ["Sortable", METADATA_MODULE],
+  ["Model", DB_MODULE],
+  ["BasicDataModel", DB_MODULE],
+  ["Field", DB_MODULE],
+  ["Fixture", DB_MODULE],
+  ["Index", DB_MODULE],
+  ["RegisterTable", DB_MODULE],
+  ["Table", DB_MODULE],
+  ["Get", API_MODULE],
+  ["Parameter", API_MODULE],
+  ["TenantScopedModel", TENANT_MODEL_MODULE],
+  ["AuthUserWithPermission", GUARDS_MODULE],
+  ["User", AUTH_DB_MODULE],
+  ["Searchable", SEARCHABLE_MODULE],
+  ["Column", TABLE_VIEW_MODULE],
+  ["Select", TABLE_VIEW_MODULE],
+  ["TableViewRoutes", TABLE_VIEW_MODULE],
+  [CORE_SCHEMA_IDENTIFIER, CONSTANTS_MODULE],
+]);
 
 export const DATA_API_MODULE_ORDER = [
   API_MODULE,

@@ -7,7 +7,17 @@ export function keyText(key: string): string {
   return IDENTIFIER.test(key) ? key : JSON.stringify(key);
 }
 
-function isScalar(value: unknown): boolean {
+type Scalar =
+  | string
+  | number
+  | bigint
+  | boolean
+  | symbol
+  | null
+  | undefined
+  | ((...args: never[]) => void);
+
+function isScalar(value: unknown): value is Scalar {
   return typeof value !== "object" || value === null;
 }
 
@@ -22,25 +32,6 @@ function arrayText(items: unknown[], unit: string, base: string): string {
   return `[\n${lines.join("\n")}\n${base}]`;
 }
 
-function objectText(
-  value: Record<string, unknown>,
-  unit: string,
-  base: string,
-): string {
-  const entries = Object.entries(value).filter(
-    ([, item]) => item !== undefined,
-  );
-  if (entries.length === 0) {
-    return "{}";
-  }
-  const inner = base + unit;
-  const lines = entries.map(
-    ([key, item]) =>
-      `${inner}${keyText(key)}: ${literalText(item, unit, inner)},`,
-  );
-  return `{\n${lines.join("\n")}\n${base}}`;
-}
-
 /**
  * A JSON-shaped value as a TypeScript literal, for a property whose line starts with `base`:
  * nested lines are indented one `unit` per level from there, and every entry keeps its comma.
@@ -50,7 +41,18 @@ export function literalText(value: unknown, unit: string, base = ""): string {
     return arrayText(value, unit, base);
   }
   if (isPlainObject(value)) {
-    return objectText(value, unit, base);
+    const entries = Object.entries(value).filter(
+      ([, item]) => item !== undefined,
+    );
+    if (entries.length === 0) {
+      return "{}";
+    }
+    const inner = base + unit;
+    const lines = entries.map(
+      ([key, item]) =>
+        `${inner}${keyText(key)}: ${literalText(item, unit, inner)},`,
+    );
+    return `{\n${lines.join("\n")}\n${base}}`;
   }
   return JSON.stringify(value);
 }

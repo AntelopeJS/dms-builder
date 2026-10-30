@@ -6,6 +6,7 @@ import type {
   ConfigSchema,
   DynamicSlots,
   OptionSchema,
+  OptionWidget,
   SlotDescriptor,
 } from "@antelopejs/interface-dms-builder";
 import {
@@ -42,24 +43,26 @@ interface BlockTypesModule {
 
 let cached: BlockCatalog | undefined;
 
+function blockTypesModule(): BlockTypesModule {
+  return require(BLOCK_TYPES_MODULE) as BlockTypesModule;
+}
+
 /** Read the block types `dms-base` declares. */
 function loadDeclaredBlockTypes(): DeclaredBlockType[] {
-  const module = require(BLOCK_TYPES_MODULE) as BlockTypesModule;
-  return module.ListBlockTypes();
+  return blockTypesModule().ListBlockTypes();
 }
 
 /** The sources developers have declared beside their own routes. */
 export function listDeclaredDataSources(
   response?: string,
 ): DataSourceDescriptor[] {
-  const module = require(BLOCK_TYPES_MODULE) as BlockTypesModule;
-  return module.ListDataSources(response);
+  return blockTypesModule().ListDataSources(response);
 }
 
-const WIDGET_MARKERS: Record<string, string> = {
-  dataType: "x-dataType",
-  block: "x-component",
-};
+const WIDGET_MARKERS = new Map<OptionWidget, string>([
+  ["dataType", "x-dataType"],
+  ["block", "x-component"],
+]);
 
 /**
  * Carry the `x-` markers the emitter and consumers key on: a declared schema
@@ -69,7 +72,7 @@ const WIDGET_MARKERS: Record<string, string> = {
  * nested there.
  */
 function withMarkers(option: OptionSchema): OptionSchema {
-  const marker = option.ui?.widget && WIDGET_MARKERS[option.ui.widget];
+  const marker = option.ui?.widget && WIDGET_MARKERS.get(option.ui.widget);
   const nested: OptionSchema = { ...option };
   if (option.properties) {
     nested.properties = mapOptions(option.properties);
@@ -104,9 +107,7 @@ function mapOptions(config: ConfigSchema): ConfigSchema {
  * Icons the builder draws its own way: the DMS gives a table form the form's
  * pencil, and side by side in the palette the two read as one component.
  */
-const ICONS: Readonly<Record<string, string>> = {
-  ResourceForm: "i-ph-clipboard-text",
-};
+const ICONS = new Map([["ResourceForm", "i-ph-clipboard-text"]]);
 
 function fromDeclared(declared: DeclaredBlockType): BlockTypeDescriptor {
   return {
@@ -114,7 +115,7 @@ function fromDeclared(declared: DeclaredBlockType): BlockTypeDescriptor {
     import: { name: declared.type, module: BASE_MODULE },
     componentName: declared.componentName,
     label: declared.meta.name,
-    icon: ICONS[declared.type] ?? declared.meta.icon,
+    icon: ICONS.get(declared.type) ?? declared.meta.icon,
     group: declared.meta.group,
     container: declared.container === true,
     allowedChildren: declared.allowedChildren,

@@ -9,7 +9,6 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import {
-  type PlanBucket,
   PLAN_BUCKETS,
   type PlanGroup,
   type PlanMeasure,
@@ -18,12 +17,16 @@ import {
 } from "./query-plan";
 import {
   AGGREGATE_OPS,
+  aggregateMeasure,
   checkField,
   issue,
+  type ParsedParams,
   type QueryParams,
   type QueryTemplate,
   scanForExpr,
+  unvalidatedParam,
 } from "./query-template";
+import { isNumber, isOneOf, isString } from "./scalar-guards";
 import { checkFilters, whereSchema } from "./query-where";
 import { readSeriesChain, type SeriesChain } from "./query-chain-series";
 import { whereParams } from "./query-chain";
@@ -45,29 +48,20 @@ interface SeriesParams {
   where?: unknown;
 }
 
-/** Whether a value is one of the listed options. */
-function isOneOf<Option extends string>(
-  options: readonly Option[],
-  value: unknown,
-): value is Option {
-  return options.some((option) => option === value);
-}
-
 function measureOf(params: SeriesParams): PlanMeasure {
   return params.op === "count" || params.op === undefined
     ? { kind: "count" }
-    : {
-        kind: "aggregate",
-        op: params.op as string,
-        field: params.field as string,
-      };
+    : aggregateMeasure(params);
 }
 
 function groupOf(params: SeriesParams): PlanGroup {
+  if (!isString(params.groupBy)) {
+    throw unvalidatedParam("groupBy");
+  }
   return {
-    field: params.groupBy as string,
-    bucket: params.bucket as PlanBucket | undefined,
-    timezone: params.timezone as string | undefined,
+    field: params.groupBy,
+    bucket: isOneOf(PLAN_BUCKETS, params.bucket) ? params.bucket : undefined,
+    timezone: isString(params.timezone) ? params.timezone : undefined,
   };
 }
 
@@ -81,9 +75,10 @@ function orderOf(params: SeriesParams): PlanOrder | undefined {
     return { by: "group", direction: "asc" };
   }
   return {
-    by: (params.orderBy as PlanOrder["by"] | undefined) ?? "group",
-    direction:
-      (params.direction as PlanOrder["direction"] | undefined) ?? "asc",
+    by: isOneOf(ORDER_KEYS, params.orderBy) ? params.orderBy : "group",
+    direction: isOneOf(ORDER_DIRECTIONS, params.direction)
+      ? params.direction
+      : "asc",
   };
 }
 
@@ -95,7 +90,7 @@ function checkMeasure(
   if (params.op === undefined || params.op === "count") {
     return [];
   }
-  if (typeof params.op !== "string" || !AGGREGATE_OPS.has(params.op)) {
+  if (!isOneOf(AGGREGATE_OPS, params.op)) {
     return [
       issue(
         "/op",
@@ -154,7 +149,7 @@ function checkGroup(
       ),
     ];
   }
-  return params.timezone === undefined || typeof params.timezone === "string"
+  return params.timezone === undefined || isString(params.timezone)
     ? []
     : [
         issue(
@@ -182,7 +177,7 @@ function checkOrderAndLimit(params: SeriesParams): ValidationIssue[] {
   if (params.limit !== undefined) {
     const limit = params.limit;
     if (
-      typeof limit !== "number" ||
+      !isNumber(limit) ||
       !Number.isInteger(limit) ||
       limit < 1 ||
       limit > MAX_LIMIT
@@ -257,7 +252,7 @@ function seriesParamsSchema(): ConfigSchema {
  * carries — comes back explicitly, since a caller editing these params and
  * sending them again must get the same chain.
  */
-function seriesParams(chain: SeriesChain): QueryParams {
+function seriesParams(chain: SeriesChain): ParsedParams {
   const params: QueryParams = { groupBy: chain.group.field };
   if (chain.measure.kind === "aggregate") {
     params.op = chain.measure.op;
@@ -302,7 +297,7 @@ export function seriesTemplate(): QueryTemplate {
       measure: measureOf(params),
       group: groupOf(params),
       order: orderOf(params),
-      limit: params.limit as number | undefined,
+      limit: isNumber(params.limit) ? params.limit : undefined,
     }),
     parse: (method) => {
       const chain = readSeriesChain(method);

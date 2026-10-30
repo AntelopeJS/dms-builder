@@ -40,7 +40,7 @@ function manifestPath(root: string): string {
 const BYTE_ORDER_MARK = /^\uFEFF/;
 
 /** A module's manifest; refused, naming the file, when it is not JSON. */
-function readManifest(root: string): MappedManifest & Record<string, unknown> {
+function readManifest(root: string): MappedManifest {
   const file = manifestPath(root);
   if (!fs.existsSync(file)) {
     return {};

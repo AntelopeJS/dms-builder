@@ -1,3 +1,4 @@
+import { isIndexable } from "./guards";
 import {
   Node,
   type PropertyAccessExpression,
@@ -17,17 +18,15 @@ export function unwrapExpression(node: Node): Node {
   return node;
 }
 
-const exportsOf = new Map<string, Record<string, unknown> | undefined>();
+const exportsOf = new Map<string, unknown>();
 
-function loadExports(module: string): Record<string, unknown> | undefined {
-  if (!exportsOf.has(module)) {
-    try {
-      exportsOf.set(module, require(module) as Record<string, unknown>);
-    } catch {
-      exportsOf.set(module, undefined);
-    }
+function loadExports(module: string): void {
+  if (exportsOf.has(module)) return;
+  try {
+    exportsOf.set(module, require(module));
+  } catch {
+    exportsOf.set(module, undefined);
   }
-  return exportsOf.get(module);
 }
 
 /**
@@ -46,8 +45,16 @@ function fromEntryModule(
   if (entry.name !== name || !entry.module) return false;
   if (module === entry.module) return true;
   if (!module.startsWith(`${entry.module}/`)) return false;
-  const value = loadExports(module)?.[name];
-  return value !== undefined && value === loadExports(entry.module)?.[name];
+  loadExports(module);
+  loadExports(entry.module);
+  const mine = exportsOf.get(module);
+  const theirs = exportsOf.get(entry.module);
+  return (
+    isIndexable(mine) &&
+    isIndexable(theirs) &&
+    mine[name] !== undefined &&
+    mine[name] === theirs[name]
+  );
 }
 
 /** Resolve bindings, not their spelling: a local KpiCard is not a DMS import. */

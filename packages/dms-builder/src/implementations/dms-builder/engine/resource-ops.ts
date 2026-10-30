@@ -9,6 +9,7 @@ import type {
   ResourceRef,
 } from "@antelopejs/interface-dms-builder";
 import { type ClassDeclaration, type Project, type SourceFile } from "ts-morph";
+import { isString } from "./scalar-guards";
 import {
   barrelSpecifier,
   findNearestBarrel,
@@ -114,7 +115,7 @@ function resolveResourceBaseDir(
   if (location === undefined) {
     return src;
   }
-  if (typeof location === "string") {
+  if (isString(location)) {
     const resolved = resolveWithinSrc(src, location);
     return (
       resolved ??
@@ -170,7 +171,7 @@ function resolveResourcePlacement(
     return unsupported<CreateData>("no root barrel (src/index.ts) found");
   }
   const baseDir = resolveResourceBaseDir(src, input.location, input.module);
-  if (typeof baseDir !== "string") {
+  if (!isString(baseDir)) {
     return baseDir;
   }
   const mapped = mappedConnectionOfFile(baseDir);
@@ -289,9 +290,8 @@ export function createResource(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType<{ ref: ResourceRef; files: ResourceFiles }>(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }
@@ -307,13 +307,10 @@ export function createResource(
   return commit(transaction, { ref, files }, warnings);
 }
 
-export function refError(error: unknown): OpResult<never> | undefined {
-  if (error instanceof UnknownReferenceError) {
-    return invalidConfig<never>(
-      `${error.message}; call ListResources for valid resource refs`,
-    );
-  }
-  return undefined;
+export function refError(error: UnknownReferenceError): OpResult<never> {
+  return invalidConfig<never>(
+    `${error.message}; call ListResources for valid resource refs`,
+  );
 }
 
 export function reservedFieldError<T = void>(

@@ -198,4 +198,21 @@ describe("the query plan", () => {
       ]),
     ).to.deep.equal([{ field: "status", op: "eq", value: "paid" }]);
   });
+
+  it("refuses an entry that is not a filter instead of reading it as one", () => {
+    const entries = [
+      null,
+      "paid",
+      { field: "status", op: "eq" },
+      { field: 5, op: "eq", value: 1 },
+      { field: "status", op: "like", value: "a" },
+      { field: "status", op: 5, value: "a" },
+    ];
+    for (const entry of entries) {
+      expect(
+        () => planFilters([entry]),
+        `${JSON.stringify(entry)} is no filter`,
+      ).to.throw(/planned before it was validated/);
+    }
+  });
 });

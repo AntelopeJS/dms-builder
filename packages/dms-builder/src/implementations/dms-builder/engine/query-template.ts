@@ -9,15 +9,25 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import type { MethodDeclaration } from "ts-morph";
-import type { QueryPlan } from "./query-plan";
+import type { PlanMeasure, QueryPlan } from "./query-plan";
 import { isIdentifier } from "./paths";
-import { FILTER_OPS, filterOpNamed } from "./query-chain";
+import { FILTER_OPS, filterOpNamed, type ParsedWhere } from "./query-chain";
 import { describeValue } from "./describe-value";
 import { dbTypeFor } from "./resource-emit-types";
+import {
+  isBoolean,
+  isNumber,
+  isScalar,
+  isString,
+  type Scalar,
+} from "./scalar-guards";
 import { isPlainObject } from "./value";
 
 /** The parameters a query template is given, as `AddQueryInput` carries them. */
 export type QueryParams = NonNullable<AddQueryInput["params"]>;
+
+/** A template's parameters as read back from a model method, with `where` typed. */
+export type ParsedParams = QueryParams & ParsedWhere;
 
 /** A parameter the compiled chain needs, supplied by the route. */
 export interface MethodParam {
@@ -57,7 +67,7 @@ export interface QueryTemplate {
    * this template shaped. Bound filter values come back as a `$bind` sentinel
    * naming the model parameter; read-back resolves those against the route.
    */
-  parse(method: MethodDeclaration): QueryParams | undefined;
+  parse(method: MethodDeclaration): ParsedParams | undefined;
 }
 
 const templates = new Map<string, QueryTemplate>();
@@ -78,8 +88,8 @@ export function getQueryTemplate(id: string): QueryTemplate | undefined {
  */
 export function parseModelMethod(
   method: MethodDeclaration,
-): { template: string; params: QueryParams } | undefined {
-  const hits: { template: string; params: QueryParams }[] = [];
+): { template: string; params: ParsedParams } | undefined {
+  const hits: { template: string; params: ParsedParams }[] = [];
   for (const template of templates.values()) {
     const params = template.parse(method);
     if (params) {
@@ -105,11 +115,33 @@ export function listQueryTemplates(
 }
 
 const ORDERING_OPS = new Set<FilterOp>(["gt", "ge", "lt", "le"]);
-export const AGGREGATE_OPS = new Set(["sum", "avg", "min", "max"]);
+export const AGGREGATE_OPS = ["sum", "avg", "min", "max"] as const;
 const UNORDERED_DATA_TYPES = new Set(["select", "boolean"]);
 
 export function issue(pointer: string, message: string): ValidationIssue {
   return { pointer, message };
+}
+
+/** What a plan reports when it is asked for a parameter `validate` never passed. */
+export function unvalidatedParam(name: string): Error {
+  return new Error(
+    `query parameter "${name}" was planned before it was validated`,
+  );
+}
+
+/** The aggregate a validated `op` and `field` describe. */
+export function aggregateMeasure(params: {
+  op?: unknown;
+  field?: unknown;
+}): Extract<PlanMeasure, { kind: "aggregate" }> {
+  const { op, field } = params;
+  if (!isString(op)) {
+    throw unvalidatedParam("op");
+  }
+  if (!isString(field)) {
+    throw unvalidatedParam("field");
+  }
+  return { kind: "aggregate", op, field };
 }
 
 export function isParamBinding(value: unknown): value is QueryParamBinding {
@@ -137,7 +169,7 @@ export function scanForExpr(
   if (!isPlainObject(value)) {
     return [];
   }
-  if (typeof value.$expr === "string") {
+  if (isString(value.$expr)) {
     return [issue(pointer, `$expr is not allowed in ${within}`)];
   }
   return Object.entries(value).flatMap(([key, entry]) =>
@@ -200,7 +232,7 @@ export function checkField(
   name: unknown,
   pointer: string,
 ): FieldTypes | ValidationIssue {
-  if (typeof name !== "string" || name.length === 0) {
+  if (!isString(name) || name.length === 0) {
     return issue(pointer, "field must be a non-empty string");
   }
   const field = findField(fields, name);
@@ -214,12 +246,11 @@ export function checkField(
   return types ?? issue(pointer, `field "${name}" has no resolvable DataType`);
 }
 
-function literalMatchesType(value: unknown, ts: string): boolean {
-  if (ts === "number") return typeof value === "number";
-  if (ts === "boolean") return typeof value === "boolean";
-  if (ts === "Date")
-    return typeof value === "string" || typeof value === "number";
-  return typeof value === "string";
+function literalMatchesType(value: Scalar, ts: string): boolean {
+  if (ts === "number") return isNumber(value);
+  if (ts === "boolean") return isBoolean(value);
+  if (ts === "Date") return isString(value) || isNumber(value);
+  return isString(value);
 }
 
 const PARAM_SOURCES = new Set(["query", "param"]);
@@ -272,10 +303,15 @@ export function checkParamConflicts(
   const seen = new Map<string, ParamBindingInfo>();
   const issues: ValidationIssue[] = [];
   where.forEach((raw, index) => {
-    const param = paramBindingOf(raw, fields);
-    if (!param) {
+    if (!isPlainObject(raw) || !isParamBinding(raw.value)) {
       return;
     }
+    const resolved = checkField(fields, raw.field, "");
+    const param: ParamBindingInfo = {
+      name: raw.value.$param.name,
+      type: "ts" in resolved ? resolved.ts : "string",
+      in: raw.value.$param.in ?? "query",
+    };
     const previous = seen.get(param.name);
     if (!previous) {
       seen.set(param.name, param);
@@ -293,21 +329,6 @@ export function checkParamConflicts(
   return issues;
 }
 
-function paramBindingOf(
-  raw: unknown,
-  fields: ResourceFieldStructure[],
-): ParamBindingInfo | undefined {
-  if (!isPlainObject(raw) || !isParamBinding(raw.value)) {
-    return undefined;
-  }
-  const resolved = checkField(fields, raw.field, "");
-  return {
-    name: raw.value.$param.name,
-    type: "ts" in resolved ? resolved.ts : "string",
-    in: raw.value.$param.in ?? "query",
-  };
-}
-
 export function checkFilter(
   filter: unknown,
   fields: ResourceFieldStructure[],
@@ -321,7 +342,7 @@ export function checkFilter(
     return [resolved];
   }
   const op = filter.op;
-  const operator = typeof op === "string" ? filterOpNamed(op) : undefined;
+  const operator = isString(op) ? filterOpNamed(op) : undefined;
   if (operator === undefined) {
     return [
       issue(`${pointer}/op`, `op must be one of ${[...FILTER_OPS].join(", ")}`),
@@ -341,7 +362,10 @@ export function checkFilter(
   if (isParamBinding(filter.value)) {
     return checkParamBinding(filter.value, `${pointer}/value/$param`);
   }
-  if (!literalMatchesType(filter.value, resolved.ts)) {
+  if (
+    !isScalar(filter.value) ||
+    !literalMatchesType(filter.value, resolved.ts)
+  ) {
     return [
       issue(
         `${pointer}/value`,

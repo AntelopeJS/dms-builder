@@ -8,6 +8,7 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import { blockDescriptor } from "./catalog";
+import { isString } from "./scalar-guards";
 import { isIdentifier } from "./paths";
 import {
   buildResourceStructure,
@@ -16,14 +17,16 @@ import {
 import { isPlainObject } from "./value";
 import { issue, scanForExpr } from "./query-template";
 
-/** Walk a config value alongside the schema that describes it. */
+/** Walk a config value alongside the schema that describes it, visiting each string in it. */
 function walkOptions(
   schema: OptionSchema,
   value: unknown,
   pointer: string,
-  visit: (schema: OptionSchema, value: unknown, pointer: string) => void,
+  visit: (schema: OptionSchema, value: string, pointer: string) => void,
 ): void {
-  visit(schema, value, pointer);
+  if (isString(value)) {
+    visit(schema, value, pointer);
+  }
   if (schema.properties && isPlainObject(value)) {
     for (const [key, nested] of Object.entries(schema.properties)) {
       if (key in value) {
@@ -69,7 +72,7 @@ function checkFieldAspects(
       `${pointer}/config/${key}`,
       (node, value, at) => {
         const declared = node.ui?.fieldAspect;
-        if (!declared || typeof value !== "string") {
+        if (!declared) {
           return;
         }
         const aspects: FieldAspect[] = Array.isArray(declared)
@@ -265,7 +268,7 @@ export function validateDraft(
       fail(
         "No source-backed block at this path; blocks with locked options cannot be copied or reparented",
       );
-    if (block.slot !== undefined && typeof block.slot !== "string")
+    if (block.slot !== undefined && !isString(block.slot))
       fail("A slot must be a string");
     if (source && !source.editable && !block.preserve)
       fail("This block is locked; preserve it or edit its source code");

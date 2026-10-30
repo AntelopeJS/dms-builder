@@ -17,7 +17,11 @@ const ENGINE = path.join(
 const CONNECTION_MODULE = path.join(ENGINE, "catalog-connection.js");
 const RELOADED = [CONNECTION_MODULE, path.join(ENGINE, "own-connections.js")];
 
-type Loader = (request: string, parent: unknown, isMain: boolean) => unknown;
+type Loader = (
+  request: string,
+  parent: NodeJS.Module | null | undefined,
+  isMain: boolean,
+) => unknown;
 
 /** Node's module loader, whose hook a spec replaces to answer a stub for one package. */
 interface ModuleLoader {
@@ -30,7 +34,7 @@ const loader = require("node:module") as ModuleLoader;
 const context = { module: BUILDER };
 
 /** interface-core as 0.2.5 answers: connections belong to the module of the current context. */
-function interfaceCore(catalogPath: string): Record<string, unknown> {
+function interfaceCore(catalogPath: string) {
   return {
     GetResponsibleModule: () => context.module,
     RunWithResponsibleModule: <T>(module: string, callback: () => T): T => {
