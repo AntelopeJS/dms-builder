@@ -92,13 +92,6 @@ export function planFilters(where: unknown): PlanFilter[] {
   });
 }
 
-function literalText(value: unknown, ts: string): string {
-  if (ts === "Date") {
-    return `new Date(${JSON.stringify(value)})`;
-  }
-  return JSON.stringify(value);
-}
-
 const IDENTIFIER_START = /^[A-Za-z_$]/;
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
@@ -212,7 +205,9 @@ function emitFilters(
           parameters,
           taken,
         })
-      : literalText(filter.value, ts);
+      : ts === "Date"
+        ? `new Date(${JSON.stringify(filter.value)})`
+        : JSON.stringify(filter.value);
     return `.filter((row) => row.key(${JSON.stringify(filter.field)}).${filter.op}(${argument}))`;
   });
   return {

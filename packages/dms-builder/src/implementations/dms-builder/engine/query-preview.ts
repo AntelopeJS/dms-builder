@@ -43,6 +43,7 @@ import type { QueryPlan } from "./query-plan";
 import { getQueryTemplate, isParamBinding } from "./query-template";
 import { findResourceRecord } from "./resource-index";
 import { buildResourceStructure } from "./resource-structure";
+import { isPlainObject } from "./value";
 
 /** How many points a preview will return before it says it stopped early. */
 const PREVIEW_LIMIT = 500;
@@ -262,6 +263,16 @@ export async function runPlanPreview(
   }
 }
 
+function namesResourceAndTemplate(
+  value: unknown,
+): value is Pick<AddQueryInput, "resource" | "template"> {
+  return (
+    isPlainObject(value) &&
+    typeof value.resource === "string" &&
+    typeof value.template === "string"
+  );
+}
+
 /**
  * A preview asked for on a GET: the query as JSON in one parameter, and every
  * other parameter what the route would receive — the period a card appends to
@@ -282,13 +293,7 @@ export function previewRequestFromSearch(
   } catch {
     query = undefined;
   }
-  const input = query as Partial<AddQueryInput> | undefined;
-  if (
-    typeof input !== "object" ||
-    input === null ||
-    typeof input.resource !== "string" ||
-    typeof input.template !== "string"
-  ) {
+  if (!namesResourceAndTemplate(query)) {
     return invalidConfig<PreviewRequest>(
       `"${queryParameter}" must be a query as JSON, naming its resource and template`,
     );
@@ -301,7 +306,7 @@ export function previewRequestFromSearch(
   }
   return {
     ok: true,
-    data: { query: input as AddQueryInput, args, tenant },
+    data: { query: query as AddQueryInput, args, tenant },
     changes: [],
   };
 }
