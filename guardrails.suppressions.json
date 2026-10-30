@@ -4,7 +4,7 @@
   },
   "tsExpectError": 0,
   "tsIgnore": 0,
-  "safety": 2,
+  "safety": 1,
   "config": {
     "max-lines-per-function for packages/*/src/test/**/*.ts": 1,
     "no-redeclare for packages/dms-builder/frontend-vue/**/*.{ts,vue}": 1,
