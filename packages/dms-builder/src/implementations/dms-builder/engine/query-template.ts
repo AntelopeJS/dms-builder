@@ -11,7 +11,7 @@ import type {
 import type { MethodDeclaration } from "ts-morph";
 import type { PlanMeasure, QueryPlan } from "./query-plan";
 import { isIdentifier } from "./paths";
-import { FILTER_OPS, filterOpNamed } from "./query-chain";
+import { FILTER_OPS, filterOpNamed, type ParsedWhere } from "./query-chain";
 import { describeValue } from "./describe-value";
 import { dbTypeFor } from "./resource-emit-types";
 import {
@@ -25,6 +25,9 @@ import { isPlainObject } from "./value";
 
 /** The parameters a query template is given, as `AddQueryInput` carries them. */
 export type QueryParams = NonNullable<AddQueryInput["params"]>;
+
+/** A template's parameters as read back from a model method, with `where` typed. */
+export type ParsedParams = QueryParams & ParsedWhere;
 
 /** A parameter the compiled chain needs, supplied by the route. */
 export interface MethodParam {
@@ -64,7 +67,7 @@ export interface QueryTemplate {
    * this template shaped. Bound filter values come back as a `$bind` sentinel
    * naming the model parameter; read-back resolves those against the route.
    */
-  parse(method: MethodDeclaration): QueryParams | undefined;
+  parse(method: MethodDeclaration): ParsedParams | undefined;
 }
 
 const templates = new Map<string, QueryTemplate>();
@@ -85,8 +88,8 @@ export function getQueryTemplate(id: string): QueryTemplate | undefined {
  */
 export function parseModelMethod(
   method: MethodDeclaration,
-): { template: string; params: QueryParams } | undefined {
-  const hits: { template: string; params: QueryParams }[] = [];
+): { template: string; params: ParsedParams } | undefined {
+  const hits: { template: string; params: ParsedParams }[] = [];
   for (const template of templates.values()) {
     const params = template.parse(method);
     if (params) {

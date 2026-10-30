@@ -6,7 +6,6 @@ import {
   SyntaxKind,
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
-import type { QueryParams } from "./query-template";
 
 /** The comparison operators a filter may use, shared by validation and read-back. */
 export const FILTER_OPS = new Set<FilterOp>([
@@ -30,7 +29,7 @@ export function filterOpNamed(name: string): FilterOp | undefined {
  * it is the route's business, resolved separately on read-back.
  */
 type RawValue =
-  | { kind: "literal"; value: unknown }
+  | { kind: "literal"; value: string | number | boolean | null }
   | { kind: "param"; name: string };
 
 export interface RawFilter {
@@ -207,11 +206,24 @@ export function readChain(method: MethodDeclaration): RawChain | undefined {
 }
 
 /**
+ * A parsed filter, as a template's `where` params carry it: a literal baked into
+ * the chain, or a `$bind` naming the model parameter that supplies the value.
+ */
+export interface ParsedFilter {
+  field: string;
+  op: FilterOp;
+  value: string | number | boolean | null | { $bind: string };
+}
+
+/** The `where` a template's parameters carry once read back. */
+export type ParsedWhere = { where?: ParsedFilter[] };
+
+/**
  * A template's `where` params from parsed filters: each bound value becomes a
  * `$bind` referencing its model-method parameter, each baked value its literal.
  * Empty filters yield no `where` key — the same params a caller would omit.
  */
-export function whereParams(filters: RawFilter[]): QueryParams {
+export function whereParams(filters: RawFilter[]): ParsedWhere {
   if (filters.length === 0) {
     return {};
   }
@@ -225,26 +237,6 @@ export function whereParams(filters: RawFilter[]): QueryParams {
           : filter.value.value,
     })),
   };
-}
-
-/** The bound-parameter name a filter value carries, from either sentinel form. */
-export function bindName(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  if ("$bind" in value && typeof value.$bind === "string") {
-    return value.$bind;
-  }
-  const param = "$param" in value ? value.$param : undefined;
-  if (
-    param &&
-    typeof param === "object" &&
-    "name" in param &&
-    typeof param.name === "string"
-  ) {
-    return param.name;
-  }
-  return undefined;
 }
 
 /**

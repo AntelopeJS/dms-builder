@@ -20,6 +20,7 @@ import {
   aggregateMeasure,
   checkField,
   issue,
+  type ParsedParams,
   type QueryParams,
   type QueryTemplate,
   scanForExpr,
@@ -259,7 +260,7 @@ function seriesParamsSchema(): ConfigSchema {
  * carries — comes back explicitly, since a caller editing these params and
  * sending them again must get the same chain.
  */
-function seriesParams(chain: SeriesChain): QueryParams {
+function seriesParams(chain: SeriesChain): ParsedParams {
   const params: QueryParams = { groupBy: chain.group.field };
   if (chain.measure.kind === "aggregate") {
     params.op = chain.measure.op;
