@@ -12,6 +12,7 @@ import { checkFilters, whereSchema } from "./query-where";
 import { planFilters } from "./query-plan";
 import { readChain, whereParams } from "./query-chain";
 import { describeValue } from "./describe-value";
+import { isString } from "./scalar-guards";
 import {
   AGGREGATE_OPS,
   checkField,
@@ -80,7 +81,7 @@ function aggregateTemplate(): QueryTemplate {
         ...scanForExpr(params, "query params"),
         ...checkFilters(params.where, fields),
       ];
-      if (typeof params.op !== "string" || !AGGREGATE_OPS.has(params.op)) {
+      if (!isString(params.op) || !AGGREGATE_OPS.has(params.op)) {
         issues.push(
           issue("/op", `op must be one of ${[...AGGREGATE_OPS].join(", ")}`),
         );

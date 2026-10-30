@@ -14,6 +14,13 @@ import { isIdentifier } from "./paths";
 import { FILTER_OPS, filterOpNamed } from "./query-chain";
 import { describeValue } from "./describe-value";
 import { dbTypeFor } from "./resource-emit-types";
+import {
+  isBoolean,
+  isNumber,
+  isScalar,
+  isString,
+  type Scalar,
+} from "./scalar-guards";
 import { isPlainObject } from "./value";
 
 /** The parameters a query template is given, as `AddQueryInput` carries them. */
@@ -137,7 +144,7 @@ export function scanForExpr(
   if (!isPlainObject(value)) {
     return [];
   }
-  if (typeof value.$expr === "string") {
+  if (isString(value.$expr)) {
     return [issue(pointer, `$expr is not allowed in ${within}`)];
   }
   return Object.entries(value).flatMap(([key, entry]) =>
@@ -200,7 +207,7 @@ export function checkField(
   name: unknown,
   pointer: string,
 ): FieldTypes | ValidationIssue {
-  if (typeof name !== "string" || name.length === 0) {
+  if (!isString(name) || name.length === 0) {
     return issue(pointer, "field must be a non-empty string");
   }
   const field = findField(fields, name);
@@ -214,12 +221,11 @@ export function checkField(
   return types ?? issue(pointer, `field "${name}" has no resolvable DataType`);
 }
 
-function literalMatchesType(value: unknown, ts: string): boolean {
-  if (ts === "number") return typeof value === "number";
-  if (ts === "boolean") return typeof value === "boolean";
-  if (ts === "Date")
-    return typeof value === "string" || typeof value === "number";
-  return typeof value === "string";
+function literalMatchesType(value: Scalar, ts: string): boolean {
+  if (ts === "number") return isNumber(value);
+  if (ts === "boolean") return isBoolean(value);
+  if (ts === "Date") return isString(value) || isNumber(value);
+  return isString(value);
 }
 
 const PARAM_SOURCES = new Set(["query", "param"]);
@@ -321,7 +327,7 @@ export function checkFilter(
     return [resolved];
   }
   const op = filter.op;
-  const operator = typeof op === "string" ? filterOpNamed(op) : undefined;
+  const operator = isString(op) ? filterOpNamed(op) : undefined;
   if (operator === undefined) {
     return [
       issue(`${pointer}/op`, `op must be one of ${[...FILTER_OPS].join(", ")}`),
@@ -341,7 +347,10 @@ export function checkFilter(
   if (isParamBinding(filter.value)) {
     return checkParamBinding(filter.value, `${pointer}/value/$param`);
   }
-  if (!literalMatchesType(filter.value, resolved.ts)) {
+  if (
+    !isScalar(filter.value) ||
+    !literalMatchesType(filter.value, resolved.ts)
+  ) {
     return [
       issue(
         `${pointer}/value`,

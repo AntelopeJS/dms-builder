@@ -30,6 +30,7 @@ import {
   findQueryRoutes,
 } from "./query-structure";
 import { findResourceRecord } from "./resource-index";
+import { isString } from "./scalar-guards";
 import { isPlainObject } from "./value";
 import type { Transaction } from "./writable";
 
@@ -50,7 +51,7 @@ interface SyncContext {
  */
 function configuredStrings(blocks: BlockDraft[], found: Set<string>): void {
   const walk = (value: unknown): void => {
-    if (typeof value === "string") {
+    if (isString(value)) {
       found.add(value);
       return;
     }

@@ -24,6 +24,7 @@ import {
   type QueryTemplate,
   scanForExpr,
 } from "./query-template";
+import { isNumber, isString } from "./scalar-guards";
 import { checkFilters, whereSchema } from "./query-where";
 import { readSeriesChain, type SeriesChain } from "./query-chain-series";
 import { whereParams } from "./query-chain";
@@ -95,7 +96,7 @@ function checkMeasure(
   if (params.op === undefined || params.op === "count") {
     return [];
   }
-  if (typeof params.op !== "string" || !AGGREGATE_OPS.has(params.op)) {
+  if (!isString(params.op) || !AGGREGATE_OPS.has(params.op)) {
     return [
       issue(
         "/op",
@@ -154,7 +155,7 @@ function checkGroup(
       ),
     ];
   }
-  return params.timezone === undefined || typeof params.timezone === "string"
+  return params.timezone === undefined || isString(params.timezone)
     ? []
     : [
         issue(
@@ -182,7 +183,7 @@ function checkOrderAndLimit(params: SeriesParams): ValidationIssue[] {
   if (params.limit !== undefined) {
     const limit = params.limit;
     if (
-      typeof limit !== "number" ||
+      !isNumber(limit) ||
       !Number.isInteger(limit) ||
       limit < 1 ||
       limit > MAX_LIMIT
