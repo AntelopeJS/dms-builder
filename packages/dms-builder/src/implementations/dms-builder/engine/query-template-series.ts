@@ -26,7 +26,7 @@ import {
   scanForExpr,
   unvalidatedParam,
 } from "./query-template";
-import { isNumber, isString } from "./scalar-guards";
+import { isNumber, isOneOf, isString } from "./scalar-guards";
 import { checkFilters, whereSchema } from "./query-where";
 import { readSeriesChain, type SeriesChain } from "./query-chain-series";
 import { whereParams } from "./query-chain";
@@ -46,14 +46,6 @@ interface SeriesParams {
   direction?: unknown;
   limit?: unknown;
   where?: unknown;
-}
-
-/** Whether a value is one of the listed options. */
-function isOneOf<Option extends string>(
-  options: readonly Option[],
-  value: unknown,
-): value is Option {
-  return options.some((option) => option === value);
 }
 
 function measureOf(params: SeriesParams): PlanMeasure {
@@ -98,7 +90,7 @@ function checkMeasure(
   if (params.op === undefined || params.op === "count") {
     return [];
   }
-  if (!isString(params.op) || !AGGREGATE_OPS.has(params.op)) {
+  if (!isOneOf(AGGREGATE_OPS, params.op)) {
     return [
       issue(
         "/op",
