@@ -41,7 +41,13 @@ export interface OpWarning {
     /** A mapped relation's tables were written, but its TableView page could not be. */
     | "page_not_written"
     /** A relation the module maps is no longer in the database, or the role can no longer see it. */
-    | "relation_missing";
+    | "relation_missing"
+    /**
+     * The mapping was written, but the module it was written into did not load again afterwards:
+     * it was unloaded and did not start within the wait, or the runtime does not report it active.
+     * The message names the module; the backend log holds the error.
+     */
+    | "module_not_loaded";
   message: string;
 }
 

@@ -16,6 +16,8 @@ import {
   type Fixture,
 } from "./harness";
 import { OP_TIMEOUT } from "./mapped-database";
+import { setModuleReloadForTests } from "../implementations/dms-builder/engine/module-reload";
+import { reloadedAtOnce } from "./reload-stub";
 
 const MODULE = "erp-documents";
 const DATABASE = "erp";
@@ -108,6 +110,7 @@ describe("mapping a document source, whose key may be _id itself", function () {
   before(async () => {
     app = createFixture({ modules: [MODULE] });
     setCatalogConnectionsForTests({ docs: CATALOG });
+    setModuleReloadForTests(reloadedAtOnce);
     result = await MapResources({
       module: MODULE,
       connection: "docs",
@@ -143,6 +146,7 @@ describe("mapping a document source, whose key may be _id itself", function () {
 
   after(() => {
     setCatalogConnectionsForTests();
+    setModuleReloadForTests();
     destroyFixture();
   });
 

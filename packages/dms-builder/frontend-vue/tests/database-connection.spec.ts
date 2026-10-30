@@ -149,8 +149,9 @@ describe('editing a connection through a socket directory', () => {
 
 describe('editing a connection', () => {
 	it('fills its details, and saves a URL without the password when it was left empty', async () => {
+		let saves = 0
 		const mounted = mount(DatabaseConnectionEdit, {
-			props: { connection: 'erp', info: INFO },
+			props: { connection: 'erp', info: INFO, onSaved: () => (saves += 1) },
 			components: COMPONENTS,
 		})
 		unmount = mounted.unmount
@@ -162,7 +163,8 @@ describe('editing a connection', () => {
 			connection: 'erp',
 			url: 'postgres://reader@db.example:5432/erp?sslmode=require',
 		})
-		expect(textOf(mounted.root)).toContain('Saved. Restart the project.')
+		expect(saves).toBe(1)
+		expect(textOf(mounted.root)).not.toContain('Restart the project')
 	})
 })
 

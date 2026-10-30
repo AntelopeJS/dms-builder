@@ -7,6 +7,7 @@ import type {
   OptionSchema,
 } from "@antelopejs/interface-dms-builder";
 import {
+  type ClassDeclaration,
   type InterfaceDeclaration,
   Node,
   type ParameterDeclaration,
@@ -20,6 +21,8 @@ import {
 const BASE_MODULE = "@antelopejs/interface-dms/base";
 const DATATYPE_MODULE = `${BASE_MODULE}/data-types/default-types`;
 const DATATYPE_ACCESSOR = "DefaultDataTypes";
+/** Where the DataType classes are declared once `DefaultDataTypes` only re-exports them. */
+const DATATYPE_FOLDER = "data-types/default";
 const BUILDER_RETURN = /^(ComponentBuilder|FormBuilder)\b/;
 const MAX_DEPTH = 4;
 
@@ -426,22 +429,74 @@ function discoverBlocks(
  * so moving the decorator one file sideways renames it -- and a pattern pinned
  * to yesterday's name matches nothing, which reads as "this DMS registers no
  * DataTypes" rather than as a broken scrape.
+ *
+ * The classes are registered in `default-types.js`, or, where `DefaultDataTypes`
+ * only re-exports them, in the files of `data-types/default/`.
  */
 function readDataTypeIds(baseDir: string): Map<string, string> {
-  const file = path.join(baseDir, "data-types/default-types.js");
-  const source = fs.readFileSync(file, "utf8");
   const pattern =
     /(\w+) = __decorate\(\[\s*\(0, \w+\.RegisterDataType\)\("([^"]+)"\)/g;
   const ids = new Map<string, string>();
-  for (const match of source.matchAll(pattern)) {
-    ids.set(match[1], match[2]);
-  }
-  if (ids.size === 0 && source.includes("RegisterDataType")) {
-    throw new Error(
-      `${file} registers DataTypes in a shape this build does not recognise, so none could be read. The emitted decorator call has changed.`,
-    );
+  for (const file of dataTypeSources(baseDir)) {
+    const source = fs.readFileSync(file, "utf8");
+    const before = ids.size;
+    for (const match of source.matchAll(pattern)) {
+      ids.set(match[1], match[2]);
+    }
+    if (ids.size === before && source.includes("RegisterDataType)(")) {
+      throw new Error(
+        `${file} registers DataTypes in a shape this build does not recognise, so none could be read. The emitted decorator call has changed.`,
+      );
+    }
   }
   return ids;
+}
+
+/** The emitted files that register DataTypes: `default-types.js`, then those of `data-types/default/`. */
+function dataTypeSources(baseDir: string): string[] {
+  const folder = path.join(baseDir, DATATYPE_FOLDER);
+  const split = fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory()
+    ? fs
+        .readdirSync(folder)
+        .filter((name) => name.endsWith(".js"))
+        .sort()
+        .map((name) => path.join(folder, name))
+    : [];
+  return [path.join(baseDir, "data-types/default-types.js"), ...split];
+}
+
+/**
+ * The DataType classes `DefaultDataTypes` offers, by name: declared in the namespace, or
+ * re-exported there with `export import` from the files of `data-types/default/`.
+ */
+function offeredDataTypeClasses(
+  sourceFiles: SourceFile[],
+): Map<string, ClassDeclaration> {
+  const offered = new Set<string>();
+  const declared = new Map<string, ClassDeclaration>();
+  const folder = `/${DATATYPE_FOLDER}/`;
+  for (const sourceFile of sourceFiles) {
+    const namespace = sourceFile.getModule(DATATYPE_ACCESSOR);
+    if (namespace) {
+      for (const cls of namespace.getClasses()) {
+        offered.add(cls.getName() ?? "");
+        declared.set(cls.getName() ?? "", cls);
+      }
+      for (const statement of namespace.getStatements()) {
+        if (Node.isImportEqualsDeclaration(statement)) {
+          offered.add(statement.getName());
+        }
+      }
+    }
+    if (sourceFile.getFilePath().replaceAll("\\", "/").includes(folder)) {
+      for (const cls of sourceFile.getClasses()) {
+        if (!declared.has(cls.getName() ?? "")) {
+          declared.set(cls.getName() ?? "", cls);
+        }
+      }
+    }
+  }
+  return new Map([...declared].filter(([name]) => offered.has(name)));
 }
 
 /**
@@ -482,30 +537,26 @@ function discoverDataTypes(
 ): DataTypeDescriptor[] {
   const ids = readDataTypeIds(baseDir);
   const descriptors: DataTypeDescriptor[] = [];
-  for (const sourceFile of sourceFiles) {
-    const namespace = sourceFile.getModule(DATATYPE_ACCESSOR);
-    if (!namespace) continue;
-    for (const cls of namespace.getClasses()) {
-      const id = ids.get(cls.getName() ?? "");
-      if (!id) continue;
-      const optionsProp = cls.getProperty("options");
-      const optionsType =
-        optionsProp && Node.isPropertyDeclaration(optionsProp)
-          ? optionsProp.getTypeNode()
-          : undefined;
-      descriptors.push({
-        id,
-        import: {
-          name: `${DATATYPE_ACCESSOR}.${cls.getName()}`,
-          module: DATATYPE_MODULE,
-        },
-        config: markControllerOptions(
-          schemaFromTypeNode(optionsType, index, new Set()),
-          optionsType,
-          controllerParams(cls.getTypeParameters()),
-        ),
-      });
-    }
+  for (const cls of offeredDataTypeClasses(sourceFiles).values()) {
+    const id = ids.get(cls.getName() ?? "");
+    if (!id) continue;
+    const optionsProp = cls.getProperty("options");
+    const optionsType =
+      optionsProp && Node.isPropertyDeclaration(optionsProp)
+        ? optionsProp.getTypeNode()
+        : undefined;
+    descriptors.push({
+      id,
+      import: {
+        name: `${DATATYPE_ACCESSOR}.${cls.getName()}`,
+        module: DATATYPE_MODULE,
+      },
+      config: markControllerOptions(
+        schemaFromTypeNode(optionsType, index, new Set()),
+        optionsType,
+        controllerParams(cls.getTypeParameters()),
+      ),
+    });
   }
   return descriptors;
 }

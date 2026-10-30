@@ -26,9 +26,12 @@ const DESCRIBE_BATCH = 20;
 const PROFILE_LIMIT = 200;
 
 const jobs = new Map<string, AnalysisState>();
+/** Each connection's latest job, by id: the running one, or else the last to finish. */
+const latestByConnection = new Map<string, string>();
 
 function jobOf(connection: string): AnalysisState | undefined {
-  return [...jobs.values()].find((job) => job.connection === connection);
+  const id = latestByConnection.get(connection);
+  return id === undefined ? undefined : jobs.get(id);
 }
 
 function emptyProgress(): AnalysisProgress {
@@ -264,6 +267,7 @@ export function startAnalysis(
     progress: emptyProgress(),
   };
   jobs.set(job.id, job);
+  latestByConnection.set(job.connection, job.id);
   run(job, input, catalog);
   return snapshot(job);
 }
@@ -271,4 +275,10 @@ export function startAnalysis(
 export function analysisState(id: string): OpResult<AnalysisState> {
   const job = jobs.get(id);
   return job ? snapshot(job) : notFound<AnalysisState>(id);
+}
+
+/** The latest analysis of a connection: the running one, or else the last to finish. */
+export function latestAnalysis(connection: string): OpResult<AnalysisState> {
+  const job = jobOf(connection);
+  return job ? snapshot(job) : notFound<AnalysisState>(connection);
 }

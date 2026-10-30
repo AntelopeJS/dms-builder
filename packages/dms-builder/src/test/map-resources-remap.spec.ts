@@ -29,6 +29,8 @@ import {
   MODULE,
   OP_TIMEOUT,
 } from "./mapped-database";
+import { setModuleReloadForTests } from "../implementations/dms-builder/engine/module-reload";
+import { reloadedAtOnce } from "./reload-stub";
 
 let app: Fixture;
 
@@ -84,11 +86,13 @@ describe("mapping again a database already mapped", function () {
   before(async () => {
     app = createFixture({ modules: [MODULE] });
     setCatalogConnectionsForTests({ erp: FAKE_CATALOG });
+    setModuleReloadForTests(reloadedAtOnce);
     expectOk(await MapResources(INPUT), "MapResources");
   });
 
   after(() => {
     setCatalogConnectionsForTests();
+    setModuleReloadForTests();
     destroyFixture();
   });
 

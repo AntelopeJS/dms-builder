@@ -19,6 +19,7 @@ import {
 } from "./map-resources-plan";
 import { markMapped } from "./mapped-modules";
 import { moduleOfFile, targetModule } from "./modules";
+import { changesModule, watchReloadOf } from "./module-reload";
 import { commit, invalidConfig, unsupported } from "./ops";
 import { addSortedExport, barrelSpecifier, srcDir } from "./placement";
 import { buildDataApiFile, buildDatabaseFile } from "./resource-emit-types";
@@ -366,8 +367,36 @@ function describedRelations(input: MapResourcesInput): string[] {
 }
 
 /**
+ * Maps with {@link mapDescribedResources}, then, when the write changed a file of the target
+ * module, waits for the runtime to reload that module and warns `module_not_loaded` if it did not
+ * come back. The watch is set before the write so a quick reload is not missed.
+ */
+async function mapAndAwaitReload(
+  input: MapResourcesInput,
+  descriptions: RelationDescription[],
+): Promise<OpResult<MapResourcesResult>> {
+  const reload = watchReloadOf(input.module);
+  let result: OpResult<MapResourcesResult>;
+  try {
+    result = mapDescribedResources(input, descriptions);
+  } catch (error) {
+    reload.cancel();
+    throw error;
+  }
+  const root = targetModule(input.module)?.root;
+  if (!result.ok || !root || !changesModule(result.changes, root)) {
+    reload.cancel();
+    return result;
+  }
+  const warning = await reload.loaded();
+  return warning
+    ? { ...result, warnings: [...(result.warnings ?? []), warning] }
+    : result;
+}
+
+/**
  * Reads the descriptions of the relations through the builder's catalog connection, then maps
- * them with {@link mapDescribedResources}.
+ * them with {@link mapAndAwaitReload}.
  */
 export async function mapResources(
   input: MapResourcesInput,
@@ -380,10 +409,10 @@ export async function mapResources(
   }
   const relations = describedRelations(input);
   if (relations.length === 0) {
-    return mapDescribedResources(input, []);
+    return mapAndAwaitReload(input, []);
   }
   try {
-    return mapDescribedResources(
+    return await mapAndAwaitReload(
       input,
       await catalog.DescribeRelations(relations),
     );

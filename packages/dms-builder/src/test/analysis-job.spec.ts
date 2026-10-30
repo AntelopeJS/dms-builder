@@ -5,12 +5,16 @@ import type {
   ReferenceCheck,
   RelationDescription,
 } from "@antelopejs/interface-database-catalog";
-import type { AnalysisState } from "@antelopejs/interface-dms-builder";
+import type {
+  AnalysisState,
+  OpResult,
+} from "@antelopejs/interface-dms-builder";
 import {
   AnalyseDatabase,
   GetAnalysis,
   MapResources,
 } from "../implementations/dms-builder";
+import { latestAnalysis } from "../implementations/dms-builder/engine/analysis-job";
 import {
   type CatalogConnection,
   setCatalogConnectionsForTests,
@@ -29,6 +33,8 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
+import { setModuleReloadForTests } from "../implementations/dms-builder/engine/module-reload";
+import { reloadedAtOnce } from "./reload-stub";
 
 const MODULE = "erp-tables";
 const OP_TIMEOUT = 120_000;
@@ -147,6 +153,13 @@ async function finished(started: AnalysisState): Promise<AnalysisState> {
   }
 }
 
+function jobOf(result: OpResult<AnalysisState>): AnalysisState {
+  if (!result.ok) {
+    throw new Error(`no job: ${JSON.stringify(result.error)}`);
+  }
+  return result.data;
+}
+
 async function analysed(): Promise<AnalysisState> {
   const started = await AnalyseDatabase({ connection: "erp", module: MODULE });
   if (!started.ok) {
@@ -165,10 +178,12 @@ describe("an analysis job", function () {
   before(() => {
     app = createFixture({ modules: [MODULE] });
     setCatalogConnectionsForTests({ erp: catalogOver(RELATIONS) });
+    setModuleReloadForTests(reloadedAtOnce);
   });
 
   after(() => {
     setCatalogConnectionsForTests();
+    setModuleReloadForTests();
     destroyFixture();
   });
 
@@ -239,6 +254,33 @@ describe("an analysis job", function () {
     expect(JSON.stringify(unknown)).to.include("importOverrides");
     const own = await AnalyseDatabase({ connection: "erp", module: "nope" });
     expect(own.ok).to.equal(false);
+  });
+
+  it("answers a connection's latest job: the running one on a second start, then the next once it finished", async () => {
+    const first = jobOf(
+      await AnalyseDatabase({ connection: "erp", module: MODULE }),
+    );
+    const again = jobOf(
+      await AnalyseDatabase({ connection: "erp", module: MODULE }),
+    );
+    expect(again.id).to.equal(first.id);
+    expect(jobOf(latestAnalysis("erp")).id).to.equal(first.id);
+    await finished(first);
+    expect(jobOf(latestAnalysis("erp"))).to.include({
+      id: first.id,
+      status: "done",
+    });
+    const next = jobOf(
+      await AnalyseDatabase({ connection: "erp", module: MODULE }),
+    );
+    expect(next.id).to.not.equal(first.id);
+    expect(jobOf(latestAnalysis("erp")).id).to.equal(next.id);
+    expect((await GetAnalysis(first.id)).ok).to.equal(false);
+    await finished(next);
+  });
+
+  it("answers no job for a connection never analysed", () => {
+    expect(latestAnalysis("crm").ok).to.equal(false);
   });
 
   it("asks which schemas matter before profiling a large database", async () => {

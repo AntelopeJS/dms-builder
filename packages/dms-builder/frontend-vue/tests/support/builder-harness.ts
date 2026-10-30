@@ -38,7 +38,8 @@ export interface FakeBackend {
 	save: OpResult<{ version: string }>
 	/**
 	 * Answers for any other route, keyed `METHOD /path`, taking precedence over
-	 * the defaults: the resource routes answer whatever a suite needs them to.
+	 * the defaults: the resource routes answer whatever a suite needs them to. An
+	 * `Error` fails the request with it, as a backend that is down or a 404 does.
 	 */
 	answers: Record<string, unknown>
 	calledPaths: () => string[]
@@ -596,7 +597,8 @@ export function installFakeHost(): FakeBackend {
 				body: init.body,
 				query: init.query,
 			})
-			return Promise.resolve(answer(init.method, path, init.query))
+			const answered = answer(init.method, path, init.query)
+			return answered instanceof Error ? Promise.reject(answered) : Promise.resolve(answered)
 		},
 	})
 

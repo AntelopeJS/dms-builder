@@ -178,6 +178,8 @@ export function useBuilderApi() {
 		analyseDatabase: (connection: string, module: string, schemas?: string[]) =>
 			post<AnalysisState>('/database/analyse', { connection, module, schemas }),
 		analysis: (id: string) => read<AnalysisState>('/database/analysis', { id }),
+		/** The connection's latest analysis; a connection never analysed is answered 404. */
+		latestAnalysis: (connection: string) => get<OpResult<AnalysisState>>('/database/analysis', { connection }),
 		/** The relations the module maps for the connection, as their current choices. */
 		mapping: (connection: string, module: string) =>
 			read<MappedRelation[]>('/database/mapping', { connection, module }),

@@ -7,7 +7,9 @@ import type { ConnectionInfo, DatabaseConnection } from '../runtime/database-typ
 
 /**
  * The databases the project maps: the builder's catalog connections in a list,
- * the open one's mapping beside it, or the form that wires a new one.
+ * the open one's mapping beside it, or the form that wires a new one. A
+ * connection wired and not mapped yet opens on its build screen, as one just
+ * connected does.
  */
 
 const api = useBuilderApi()
@@ -19,7 +21,7 @@ const module = ref('')
 const moduleInput = ref('')
 /** Tables of the open connection changed and not applied yet. */
 const unsaved = ref(0)
-/** Connections written to the configuration, which exist once the project restarts. */
+/** Connections written to the configuration, until the builder lists them. */
 const pending = ref<string[]>([])
 /** Connections taken out of the configuration, still served until the project restarts. */
 const removed = ref<string[]>([])
@@ -39,7 +41,11 @@ function connectionProblem(error: unknown): string {
 		: 'Edit and Remove are unavailable: the connection could not be read.'
 }
 /** What the section beside the list shows for the open connection. */
-const view = ref<'mapping' | 'edit' | 'remove'>('mapping')
+const view = ref<'mapping' | 'edit' | 'remove' | 'build'>('mapping')
+/** Where closing Edit or Remove goes back to: the build screen they were opened from, or the mapping. */
+let returnTo: 'mapping' | 'build' = 'mapping'
+/** The analysis *Review it myself* opens the mapping on, so it is not run again. */
+const reviewJob = ref<string | undefined>()
 
 async function load(): Promise<void> {
 	connections.value = await api.databaseConnections().catch(() => [])
@@ -49,25 +55,28 @@ async function load(): Promise<void> {
 	}
 }
 
-/**
- * A connection written to the configuration: listed as pending from then on, however the form
- * closes. The form stays open on its notice until Done, even the one shown for a first connection.
- */
-function wrote(id: string): void {
-	connecting.value = true
+/** A connection written to the configuration: listed as pending until the builder lists it, and built. */
+function wrote(id: string, tablesModule: string): void {
 	pending.value = [...pending.value.filter((entry) => entry !== id), id]
 	removed.value = removed.value.filter((entry) => entry !== id)
+	connecting.value = false
+	selected.value = id
+	module.value = tablesModule
+	moduleInput.value = tablesModule
+	info.value = null
+	infoRead.value = true
+	reviewJob.value = undefined
+	view.value = 'build'
 }
 
 function connected(): void {
-	connecting.value = false
 	void load()
 }
 
 /** What a listed connection's line says under its name. */
 function status(entry: DatabaseConnection): { text: string; tone: string } {
-	if (pending.value.includes(entry.id)) {
-		return { text: 'Restart to connect', tone: 'text-warning' }
+	if (pending.value.includes(entry.id) && !entry.engine && !entry.error) {
+		return { text: 'Connecting…', tone: 'text-warning' }
 	}
 	if (removed.value.includes(entry.id)) {
 		return { text: 'Removed, restart to finish', tone: 'text-warning' }
@@ -100,9 +109,35 @@ async function open(id: string): Promise<void> {
 	selected.value = id
 	connecting.value = false
 	view.value = 'mapping'
+	reviewJob.value = undefined
 	info.value = null
 	infoRead.value = false
 	await readInfo(id)
+	const mapping = await api.mapping(id, module.value)
+	if (selected.value !== id) return
+	if (!mapping.ok || mapping.data.length === 0) view.value = 'build'
+}
+
+/** *Review it myself*: the mapping, on the analysis the build screen ran. */
+function review(job: string): void {
+	reviewJob.value = job
+	view.value = 'mapping'
+}
+
+/** Edit or Remove from the build screen, once the connection's wiring is read. */
+async function fromBuild(next: 'edit' | 'remove'): Promise<void> {
+	if (!selected.value) return
+	if (!info.value) await readInfo(selected.value)
+	if (!info.value) return
+	returnTo = 'build'
+	view.value = next
+}
+
+function savedEdit(): void {
+	if (!selected.value) return
+	void readInfo(selected.value)
+	returnTo = 'mapping'
+	view.value = 'build'
 }
 
 async function readInfo(id: string): Promise<void> {
@@ -140,7 +175,9 @@ function show(next: 'edit' | 'remove'): void {
 		closeView()
 		return
 	}
-	if (mayLeave()) view.value = next
+	if (!mayLeave()) return
+	returnTo = view.value === 'build' ? 'build' : 'mapping'
+	view.value = next
 }
 
 function wasRemoved(id: string): void {
@@ -150,7 +187,8 @@ function wasRemoved(id: string): void {
 
 /** Back to the mapping, or to no connection when the open one was removed. */
 function closeView(): void {
-	view.value = 'mapping'
+	view.value = returnTo
+	returnTo = 'mapping'
 	if (selected.value && removed.value.includes(selected.value)) {
 		selected.value = null
 		info.value = null
@@ -182,7 +220,7 @@ onMounted(load)
 				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0 text-muted" />
 				<span class="flex min-w-0 flex-col">
 					<span class="truncate text-[13px] font-semibold text-highlighted">{{ id }}</span>
-					<span class="truncate text-[11px] text-warning">Restart to connect</span>
+					<span class="truncate text-[11px] text-warning">Connecting…</span>
 				</span>
 			</div>
 			<p v-if="connections && !connections.length && !pending.length" class="text-xs text-muted">
@@ -244,7 +282,16 @@ onMounted(load)
 				v-if="connecting || (connections && !connections.length && !pending.length)"
 				@cancel="connecting = false"
 				@written="wrote"
+			/>
+			<DmsBuilderDatabaseBuild
+				v-else-if="selected && view === 'build' && !removed.includes(selected)"
+				:key="`build:${selected}:${module}`"
+				:connection="selected"
+				:module="module"
 				@connected="connected"
+				@review="review"
+				@edit="fromBuild('edit')"
+				@remove="fromBuild('remove')"
 			/>
 			<DmsBuilderDatabaseConnectionEdit
 				v-else-if="selected && info && view === 'edit'"
@@ -252,7 +299,7 @@ onMounted(load)
 				:connection="selected"
 				:info="info"
 				@close="closeView"
-				@saved="readInfo(selected)"
+				@saved="savedEdit"
 			/>
 			<DmsBuilderDatabaseConnectionRemove
 				v-else-if="selected && info && view === 'remove'"
@@ -264,9 +311,10 @@ onMounted(load)
 			/>
 			<DmsBuilderDatabaseProposal
 				v-else-if="selected && infoRead && !removed.includes(selected)"
-				:key="`${selected}:${module}`"
+				:key="`${selected}:${module}:${reviewJob ?? ''}`"
 				:connection="selected"
 				:module="module"
+				:job="reviewJob"
 				@unsaved="unsaved = $event"
 			/>
 		</section>

@@ -137,6 +137,14 @@ describe("the block catalog", () => {
     ).to.equal(undefined);
   });
 
+  it("reads the DataTypes declared beside DefaultDataTypes, which only re-exports them", () => {
+    const ids = catalog.dataTypes.map((type) => type.id);
+    expect(ids).to.include.members(["number", "string", "date", "relation"]);
+    const date = catalog.dataTypes.find((type) => type.id === "date");
+    expect(date?.import.name).to.equal("DefaultDataTypes.DateType");
+    expect(Object.keys(date?.config ?? {})).to.have.length.greaterThan(0);
+  });
+
   it("lists the field names a resource may not use", () => {
     expect(catalog.reservedFieldNames).to.include("_id");
     expect(catalog.reservedFieldNames).to.include("count");

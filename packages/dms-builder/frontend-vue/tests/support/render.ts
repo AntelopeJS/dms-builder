@@ -165,6 +165,8 @@ export interface MountOptions {
 	props?: Record<string, unknown>
 	/** Components registered globally, the way the Nuxt build auto-imports them. */
 	components?: Record<string, Component>
+	/** Values provided app-wide, the way another module's plugin provides them. */
+	provide?: Array<[key: symbol | string, value: unknown]>
 }
 
 export function mount(component: Component, options: MountOptions = {}): Mounted {
@@ -193,6 +195,9 @@ export function mount(component: Component, options: MountOptions = {}): Mounted
 	app.component('UListbox', listboxStub())
 	for (const [name, impl] of Object.entries(options.components ?? {})) {
 		app.component(name, impl)
+	}
+	for (const [key, value] of options.provide ?? []) {
+		app.provide(key, value)
 	}
 	app.mount(root)
 	return { root, app, warnings, unmount: () => app.unmount() }
