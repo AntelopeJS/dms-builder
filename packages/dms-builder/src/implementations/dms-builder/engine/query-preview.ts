@@ -11,7 +11,6 @@ import { Schema } from "@antelopejs/interface-database";
 import {
   chartCardData,
   kpiCardData,
-  type SeriesMeasure,
   type SeriesOptions,
   topListData,
 } from "@antelopejs/interface-dms/base/query-response";
@@ -155,10 +154,7 @@ function arrange(
       truncated: read.truncated,
     });
   }
-  const options: SeriesOptions = {
-    ...naming,
-    measure: naming.measure as SeriesMeasure,
-  };
+  const options: SeriesOptions = { ...naming };
   if (previous) {
     options.previous = previous;
   }

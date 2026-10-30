@@ -115,7 +115,7 @@ export function listQueryTemplates(
 }
 
 const ORDERING_OPS = new Set<FilterOp>(["gt", "ge", "lt", "le"]);
-export const AGGREGATE_OPS = new Set(["sum", "avg", "min", "max"]);
+export const AGGREGATE_OPS = ["sum", "avg", "min", "max"] as const;
 const UNORDERED_DATA_TYPES = new Set(["select", "boolean"]);
 
 export function issue(pointer: string, message: string): ValidationIssue {

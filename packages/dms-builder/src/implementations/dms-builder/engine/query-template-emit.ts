@@ -12,7 +12,7 @@ import { checkFilters, whereSchema } from "./query-where";
 import { planFilters } from "./query-plan";
 import { readChain, whereParams } from "./query-chain";
 import { describeValue } from "./describe-value";
-import { isString } from "./scalar-guards";
+import { isOneOf } from "./scalar-guards";
 import {
   AGGREGATE_OPS,
   aggregateMeasure,
@@ -82,7 +82,7 @@ function aggregateTemplate(): QueryTemplate {
         ...scanForExpr(params, "query params"),
         ...checkFilters(params.where, fields),
       ];
-      if (!isString(params.op) || !AGGREGATE_OPS.has(params.op)) {
+      if (!isOneOf(AGGREGATE_OPS, params.op)) {
         issues.push(
           issue("/op", `op must be one of ${[...AGGREGATE_OPS].join(", ")}`),
         );
@@ -108,7 +108,7 @@ function aggregateTemplate(): QueryTemplate {
       const chain = readChain(method);
       if (
         !chain ||
-        !AGGREGATE_OPS.has(chain.terminalName) ||
+        !isOneOf(AGGREGATE_OPS, chain.terminalName) ||
         chain.terminalArgs.length !== 1
       ) {
         return undefined;

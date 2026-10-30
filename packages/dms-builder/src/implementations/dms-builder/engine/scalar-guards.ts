@@ -20,3 +20,11 @@ export type Scalar = string | number | boolean;
 export function isScalar(value: unknown): value is Scalar {
   return isString(value) || isNumber(value) || isBoolean(value);
 }
+
+/** Whether a value is one of the listed options. */
+export function isOneOf<Option extends string>(
+  options: readonly Option[],
+  value: unknown,
+): value is Option {
+  return options.some((option) => option === value);
+}
