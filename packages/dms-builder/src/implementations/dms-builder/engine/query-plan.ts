@@ -15,13 +15,17 @@ import type {
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import { indentationText, resolveProjectRoot } from "./project";
+import { filterOpNamed } from "./query-chain";
 import {
   type CompiledChain,
   checkField,
   fallbackTypeWarning,
   isParamBinding,
   type MethodParam,
+  unvalidatedParam,
 } from "./query-template";
+import { isString } from "./scalar-guards";
+import { isPlainObject } from "./value";
 
 /** One conjunct of the plan's row selection. Filters combine with AND. */
 export interface PlanFilter {
@@ -81,14 +85,31 @@ export interface QueryPlan {
   limit?: number;
 }
 
-/** Read a template's `where` parameter as the plan's filters. */
+function isPlanFilter(raw: unknown): raw is PlanFilter {
+  return (
+    isPlainObject(raw) &&
+    isString(raw.field) &&
+    isString(raw.op) &&
+    filterOpNamed(raw.op) !== undefined &&
+    "value" in raw
+  );
+}
+
+/**
+ * Read a template's `where` parameter as the plan's filters. A template plans
+ * only after its `validate` passed, so an entry that is not a filter is a plan
+ * asked for before that, and refuses like the other plan readers do.
+ */
 export function planFilters(where: unknown): PlanFilter[] {
   if (!Array.isArray(where)) {
     return [];
   }
-  return where.map((raw) => {
-    const filter = raw as PlanFilter;
-    return { field: filter.field, op: filter.op, value: filter.value };
+  const entries: unknown[] = where;
+  return entries.map((raw) => {
+    if (!isPlanFilter(raw)) {
+      throw unvalidatedParam("where");
+    }
+    return { field: raw.field, op: raw.op, value: raw.value };
   });
 }
 
