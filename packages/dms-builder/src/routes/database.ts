@@ -85,15 +85,15 @@ async function connectionEntry(id: string): Promise<ConnectionEntry> {
     const info = await catalogOf(id)!.Info();
     return { id, ...info };
   } catch (error) {
-    return { id, error: (error as Error).message };
+    return {
+      id,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
-function refused(error: unknown): HTTPResult {
-  return new HTTPResult(HTTP_REFUSED, {
-    code: "refused",
-    message: (error as Error).message,
-  });
+function refused(message: string): HTTPResult {
+  return new HTTPResult(HTTP_REFUSED, { code: "refused", message });
 }
 
 /**
@@ -161,7 +161,7 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
       return { modules: configuredModuleIds(), databasePin: dmsDatabasePin() };
     } catch (error) {
       if (isConnectionRefusal(error)) {
-        return refused(error);
+        return refused(error.message);
       }
       throw error;
     }
@@ -192,7 +192,7 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
       return { wiring, details: details.ok ? details.data : undefined };
     } catch (error) {
       if (isConnectionRefusal(error)) {
-        return refused(error);
+        return refused(error.message);
       }
       throw error;
     }
@@ -232,7 +232,7 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
         limit: body.limit,
       });
     } catch (error) {
-      return refused(error);
+      return refused(error instanceof Error ? error.message : String(error));
     }
   }
 }

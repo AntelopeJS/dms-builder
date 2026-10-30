@@ -289,9 +289,8 @@ export function createResource(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType<{ ref: ResourceRef; files: ResourceFiles }>(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }
@@ -307,13 +306,10 @@ export function createResource(
   return commit(transaction, { ref, files }, warnings);
 }
 
-export function refError(error: unknown): OpResult<never> | undefined {
-  if (error instanceof UnknownReferenceError) {
-    return invalidConfig<never>(
-      `${error.message}; call ListResources for valid resource refs`,
-    );
-  }
-  return undefined;
+export function refError(error: UnknownReferenceError): OpResult<never> {
+  return invalidConfig<never>(
+    `${error.message}; call ListResources for valid resource refs`,
+  );
 }
 
 export function reservedFieldError<T = void>(

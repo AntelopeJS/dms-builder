@@ -38,10 +38,6 @@ function hasDeclarations(dir: string): boolean {
     .some((entry) => entry.endsWith(".d.ts"));
 }
 
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Where the DMS base interface ships its declarations.
  *
@@ -63,7 +59,7 @@ function resolveDmsBaseDir(): string {
     entry = require.resolve(BASE_MODULE);
   } catch (error) {
     throw new Error(
-      `Cannot resolve "${BASE_MODULE}". The builder reads the block factories and DataTypes off its declarations: ${describe(error)}`,
+      `Cannot resolve "${BASE_MODULE}". The builder reads the block factories and DataTypes off its declarations: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   const baseDir = path.dirname(entry);

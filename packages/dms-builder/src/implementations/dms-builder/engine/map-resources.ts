@@ -418,7 +418,7 @@ export async function mapResources(
     );
   } catch (error) {
     return invalidConfig<MapResourcesResult>(
-      `the catalog of "${input.connection}" refused: ${(error as Error).message}`,
+      `the catalog of "${input.connection}" refused: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
