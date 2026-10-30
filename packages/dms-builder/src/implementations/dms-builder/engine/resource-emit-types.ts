@@ -10,6 +10,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { relativeModule } from "./emit";
 import { propertyKey } from "./paths";
+import { isNumber, isString } from "./primitive-guards";
 import { indentationText, resolveProjectRoot } from "./project";
 import {
   createImportCollector,
@@ -134,8 +135,7 @@ function coerceSeeds(seeds: Seeds, fields: FieldSpec[]): Seeds {
     const out: Seeds[number] = {};
     for (const [key, value] of Object.entries(seed)) {
       out[key] =
-        dateFields.has(key) &&
-        (typeof value === "string" || typeof value === "number")
+        dateFields.has(key) && (isString(value) || isNumber(value))
           ? { $expr: `new Date(${JSON.stringify(value)})` }
           : value;
     }

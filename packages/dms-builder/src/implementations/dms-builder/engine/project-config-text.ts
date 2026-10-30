@@ -7,7 +7,17 @@ export function keyText(key: string): string {
   return IDENTIFIER.test(key) ? key : JSON.stringify(key);
 }
 
-function isScalar(value: unknown): boolean {
+type Scalar =
+  | string
+  | number
+  | bigint
+  | boolean
+  | symbol
+  | null
+  | undefined
+  | ((...args: never[]) => void);
+
+function isScalar(value: unknown): value is Scalar {
   return typeof value !== "object" || value === null;
 }
 

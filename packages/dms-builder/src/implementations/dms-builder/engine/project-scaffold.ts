@@ -46,8 +46,16 @@ interface PackageManifest {
   packageManager?: string;
 }
 
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 interface TsConfig {
-  compilerOptions?: Record<string, unknown>;
+  compilerOptions?: Record<string, JsonValue>;
 }
 
 class ScaffoldRefusal extends Error {}

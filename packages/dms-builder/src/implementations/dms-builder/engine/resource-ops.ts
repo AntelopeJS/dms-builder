@@ -9,6 +9,7 @@ import type {
   ResourceRef,
 } from "@antelopejs/interface-dms-builder";
 import { type ClassDeclaration, type Project, type SourceFile } from "ts-morph";
+import { isString } from "./primitive-guards";
 import {
   barrelSpecifier,
   findNearestBarrel,
@@ -114,7 +115,7 @@ function resolveResourceBaseDir(
   if (location === undefined) {
     return src;
   }
-  if (typeof location === "string") {
+  if (isString(location)) {
     const resolved = resolveWithinSrc(src, location);
     return (
       resolved ??
@@ -170,7 +171,7 @@ function resolveResourcePlacement(
     return unsupported<CreateData>("no root barrel (src/index.ts) found");
   }
   const baseDir = resolveResourceBaseDir(src, input.location, input.module);
-  if (typeof baseDir !== "string") {
+  if (!isString(baseDir)) {
     return baseDir;
   }
   const mapped = mappedConnectionOfFile(baseDir);

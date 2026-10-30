@@ -2,6 +2,7 @@ import { Schema } from "@antelopejs/interface-database";
 import { pageRoutePath } from "@antelopejs/interface-dms/page";
 import type { BlockNode } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
+import { isNumber, isString } from "./primitive-guards";
 import { isPerTenantSchema } from "./query-emit";
 import { routeModelBinding, findQueryRoutes } from "./query-structure";
 import { listResourceRecords } from "./resource-index";
@@ -19,7 +20,7 @@ export interface TableReader {
 }
 
 function stringsIn(value: unknown, found: string[] = []): string[] {
-  if (typeof value === "string") {
+  if (isString(value)) {
     found.push(value);
   } else if (Array.isArray(value)) {
     for (const entry of value) {
@@ -125,7 +126,7 @@ export async function tableRowCounts(
           ? schema.instance(tenant)
           : schema.instance();
       const rows = await instance.table(record.tableName).count();
-      if (typeof rows === "number") {
+      if (isNumber(rows)) {
         counts[record.ref] = rows;
       }
     } catch {}
