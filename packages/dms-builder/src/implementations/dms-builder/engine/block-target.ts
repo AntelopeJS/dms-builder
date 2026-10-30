@@ -46,12 +46,37 @@ function childCallById(
   );
 }
 
+interface UnwrappedBlock {
+  ok: true;
+  chain: ChainInfo;
+  factoryCall: CallExpression;
+  chainExpr: Expression;
+}
+
+function unwrapBlock(
+  expr: Expression,
+): UnwrappedBlock | Extract<TargetResult, { reason: "opaque" }> {
+  const unwrapped = resolveAndUnwrap(expr);
+  const { chain, rootExpr } = unwrapped;
+  if (unwrapped.opaqueReason || !chain?.factoryCall || !rootExpr) {
+    return {
+      ok: false,
+      reason: "opaque",
+      detail: unwrapped.opaqueReason ?? "",
+    };
+  }
+  return {
+    ok: true,
+    chain,
+    factoryCall: chain.factoryCall,
+    chainExpr: rootExpr,
+  };
+}
+
 function toTarget(
-  chain: ChainInfo,
-  chainExpr: Expression,
+  { chain, factoryCall, chainExpr }: UnwrappedBlock,
   childCall?: CallExpression,
 ): BlockTarget {
-  const factoryCall = chain.factoryCall as CallExpression;
   const controllerArg = chain.factory
     ? isControllerLeadingBlock(chain.factory)
     : false;
@@ -80,33 +105,22 @@ export function resolveBlockTarget(
   if (!init) {
     return { ok: false, reason: "not_found" };
   }
-  let unwrapped = resolveAndUnwrap(init);
-  if (unwrapped.opaqueReason || !unwrapped.chain || !unwrapped.rootExpr) {
-    return {
-      ok: false,
-      reason: "opaque",
-      detail: unwrapped.opaqueReason ?? "",
-    };
+  let current = unwrapBlock(init);
+  if (!current.ok) {
+    return current;
   }
-  let chain = unwrapped.chain;
-  let chainExpr = unwrapped.rootExpr;
   let childCall: CallExpression | undefined;
   for (const segment of rest) {
-    childCall = childCallById(chain, segment);
+    childCall = childCallById(current.chain, segment);
     const childExpr = childCall?.getArguments()[1];
     if (!childCall || !childExpr || !Node.isExpression(childExpr)) {
       return { ok: false, reason: "not_found" };
     }
-    unwrapped = resolveAndUnwrap(childExpr);
-    if (unwrapped.opaqueReason || !unwrapped.chain || !unwrapped.rootExpr) {
-      return {
-        ok: false,
-        reason: "opaque",
-        detail: unwrapped.opaqueReason ?? "",
-      };
+    const next = unwrapBlock(childExpr);
+    if (!next.ok) {
+      return next;
     }
-    chain = unwrapped.chain;
-    chainExpr = unwrapped.rootExpr;
+    current = next;
   }
-  return { ok: true, target: toTarget(chain, chainExpr, childCall) };
+  return { ok: true, target: toTarget(current, childCall) };
 }
