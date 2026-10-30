@@ -1,4 +1,4 @@
-import type { ImportRef, RefValue } from "@antelopejs/interface-dms-builder";
+import type { ImportRef } from "@antelopejs/interface-dms-builder";
 import { buildCatalog } from "./catalog";
 import { propertyKey } from "./paths";
 
@@ -10,7 +10,7 @@ interface RefResolution {
 export interface EmitContext {
   addImport(ref: ImportRef): void;
   /** Resolves a `$ref` to a class identifier + its import. Absent outside a resource-aware op. */
-  resolveRef?(ref: RefValue["$ref"]): RefResolution;
+  resolveRef?(ref: RefSentinel["$ref"]): RefResolution;
 }
 
 export class UnknownDataTypeError extends Error {
@@ -73,18 +73,21 @@ export function isPlainObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isExprSentinel(value: Record<string, unknown>): value is ExprSentinel {
+function isExprSentinel(value: unknown): value is ExprSentinel {
   return (
+    isPlainObject(value) &&
     "$expr" in value &&
     typeof value.$expr === "string" &&
     Object.keys(value).length === 1
   );
 }
 
-function isDataTypeSentinel(
-  value: Record<string, unknown>,
-): value is DataTypeSentinel {
-  if (!("$dataType" in value) || typeof value.$dataType !== "string") {
+function isDataTypeSentinel(value: unknown): value is DataTypeSentinel {
+  if (
+    !isPlainObject(value) ||
+    !("$dataType" in value) ||
+    typeof value.$dataType !== "string"
+  ) {
     return false;
   }
   return Object.keys(value).every(
@@ -92,10 +95,9 @@ function isDataTypeSentinel(
   );
 }
 
-function isBlockSentinel(
-  value: Record<string, unknown>,
-): value is BlockSentinel {
+function isBlockSentinel(value: unknown): value is BlockSentinel {
   if (
+    !isPlainObject(value) ||
     !("$block" in value) ||
     !isPlainObject(value.$block) ||
     Object.keys(value).length !== 1
@@ -126,8 +128,9 @@ function blockText(value: BlockSentinel, ctx: EmitContext): string {
   return `${descriptor.type}(${arg})`;
 }
 
-function isRefSentinel(value: Record<string, unknown>): value is RefSentinel {
+function isRefSentinel(value: unknown): value is RefSentinel {
   if (
+    !isPlainObject(value) ||
     !("$ref" in value) ||
     !isPlainObject(value.$ref) ||
     Object.keys(value).length !== 1
@@ -138,7 +141,7 @@ function isRefSentinel(value: Record<string, unknown>): value is RefSentinel {
 }
 
 function refText(value: RefSentinel, ctx: EmitContext): string {
-  const ref = value.$ref as RefValue["$ref"];
+  const ref = value.$ref;
   if (!ctx.resolveRef) {
     throw new UnknownReferenceError(ref.resource);
   }
