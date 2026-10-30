@@ -1,5 +1,4 @@
 const assert = require("node:assert/strict");
-const path = require("node:path");
 const { test } = require("node:test");
 const { Project } = require("ts-morph");
 
@@ -8,15 +7,10 @@ const { Project } = require("ts-morph");
  * loads; loading it is what must fill the registry, or `ListQueryTemplates`
  * comes back empty and every `AddQuery` is rejected.
  */
-const builder = require(
-  path.resolve(__dirname, "../dist/implementations/dms-builder/index.js"),
-);
-const { compileQuery } = require(
-  path.resolve(
-    __dirname,
-    "../dist/implementations/dms-builder/engine/query-ops.js",
-  ),
-);
+const builder = require("../dist/implementations/dms-builder/index.js");
+const {
+  compileQuery,
+} = require("../dist/implementations/dms-builder/engine/query-ops.js");
 
 /** A resource record with no fields: enough for templates without params. */
 function emptyResource() {
@@ -64,6 +58,8 @@ void test("still rejects an unknown template", () => {
     emptyResource(),
   );
   assert.equal(compiled.ok, false);
+  assert.ok("error" in compiled);
+  assert.ok(compiled.error.code === "invalid_config");
   assert.match(
     compiled.error.issues[0].message,
     /unknown query template "nope"/,

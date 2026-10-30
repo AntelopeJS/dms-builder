@@ -1,8 +1,10 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { test } = require("node:test");
+const { exposesConfig, exposesEntry } = require("./helpers/built-exports.js");
 const { loadModule } = require("./helpers/load-module.cjs");
 
+/** @param {string} name */
 function distFile(name) {
   return path.resolve(__dirname, "../dist", name);
 }
@@ -12,17 +14,23 @@ function distFile(name) {
  * development flag -- true under `ajs project run`, false under
  * `ajs project start` -- and not `NODE_ENV`, which nothing sets on the way to a
  * production start.
+ *
+ * @param {boolean} dev
  */
 function loadConfig(dev) {
-  return loadModule(distFile("config.js"), {
-    "@antelopejs/interface-core/runtime": {
-      GetRuntimeInfo: async () => ({
-        dev,
-        projectPath: "/app",
-        env: "default",
-      }),
+  return loadModule(
+    distFile("config.js"),
+    {
+      "@antelopejs/interface-core/runtime": {
+        GetRuntimeInfo: async () => ({
+          dev,
+          projectPath: "/app",
+          env: "default",
+        }),
+      },
     },
-  });
+    exposesConfig,
+  );
 }
 
 void test("enables the builder when the project runs in development", async () => {
@@ -74,6 +82,8 @@ void test("re-decides when the module is reconfigured", async () => {
  * is that neither the controller nor the frontend module is ever loaded. The
  * routes entry is a getter, so the list records the import rather than the
  * mock's creation.
+ *
+ * @param {boolean} dev
  */
 function bootModule(dev) {
   const runtimeMock = {
@@ -95,7 +105,7 @@ function bootModule(dev) {
     },
     "@antelopejs/interface-dms-builder": {},
     "./implementations/dms-builder": {},
-    "./config": loadModule(distFile("config.js"), runtimeMock),
+    "./config": loadModule(distFile("config.js"), runtimeMock, exposesConfig),
   };
   Object.defineProperty(mocks, "./routes", {
     enumerable: true,
@@ -104,7 +114,7 @@ function bootModule(dev) {
       return {};
     },
   });
-  const index = loadModule(distFile("index.js"), mocks);
+  const index = loadModule(distFile("index.js"), mocks, exposesEntry);
   return { index, registrations, loadedRoutes };
 }
 

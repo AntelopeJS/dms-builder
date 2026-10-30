@@ -6,5 +6,5 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["./*.cjs", "./helpers/*.cjs"]
+  "include": ["./*.cjs", "./helpers/*.cjs", "./helpers/*.js"]
 }
