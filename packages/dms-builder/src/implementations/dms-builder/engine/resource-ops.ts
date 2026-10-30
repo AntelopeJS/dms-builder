@@ -221,10 +221,7 @@ export function createResource(
     );
   }
   for (const field of input.fields) {
-    const reserved = reservedFieldError<{
-      ref: ResourceRef;
-      files: ResourceFiles;
-    }>(field.name);
+    const reserved = reservedFieldError(field.name);
     if (reserved) {
       return reserved;
     }
@@ -313,11 +310,9 @@ export function refError(error: UnknownReferenceError): OpResult<never> {
   );
 }
 
-export function reservedFieldError<T = void>(
-  name: string,
-): OpResult<T> | undefined {
+export function reservedFieldError(name: string): OpResult<never> | undefined {
   if (RESERVED_FIELD_NAMES.has(name)) {
-    return invalidConfig<T>(
+    return invalidConfig<never>(
       `field name "${name}" is reserved by the DataController (route or model property); choose another`,
     );
   }
