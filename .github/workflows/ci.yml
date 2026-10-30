@@ -33,9 +33,9 @@ jobs:
         packages/interface-dms-builder/README.md
         packages/interface-dms-builder/docs
       docs-typescript-project: packages/interface-dms-builder/docs/tsconfig.json
+      renovate-sync: false
     permissions:
-      contents: write
-      actions: write
+      contents: read
 
   # `ajs dms verify-source`: the production build of the DMS core layer with
   # this one, then vue-tsc. Its own job, so it runs alongside `ci`.
@@ -77,8 +77,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - if: >-
-          contains(needs.*.result, 'failure') ||
-          contains(needs.*.result, 'cancelled') ||
-          needs.ci.result == 'skipped' ||
-          needs.frontend-verify.result == 'skipped'
+          contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || needs.ci.result == 'skipped' || needs.frontend-verify.result == 'skipped'
         run: exit 1
+  renovate-sync:
+    if: >-
+      github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/') && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      actions: write
+    uses: AntelopeJS/.github/.github/workflows/ci-renovate-sync.yml@v1
