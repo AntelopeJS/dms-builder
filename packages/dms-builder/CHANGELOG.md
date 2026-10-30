@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.7.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.6.1...v0.7.0)
+
+### 🚀 Enhancements
+
+- **database:** Connect, edit and remove external databases end to end ([#65](https://github.com/AntelopeJS/dms-builder/pull/65))
+- Map MongoDB and RethinkDB databases ([#66](https://github.com/AntelopeJS/dms-builder/pull/66))
+- **frontend:** Enforce the backend boundary in production builds ([#74](https://github.com/AntelopeJS/dms-builder/pull/74))
+- The guided connection flow, from Connect to the fork ([#78](https://github.com/AntelopeJS/dms-builder/pull/78))
+
+### 💅 Refactors
+
+- Replace comments with TSDoc or remove them ([#70](https://github.com/AntelopeJS/dms-builder/pull/70))
+- Tighten engine and spec types, remove avoidable assertions ([#76](https://github.com/AntelopeJS/dms-builder/pull/76))
+- Split the oversize frontend files ([#77](https://github.com/AntelopeJS/dms-builder/pull/77))
+
+### 📖 Documentation
+
+- **changelog:** Upgrade notes of dms-builder 0.6.1 ([#61](https://github.com/AntelopeJS/dms-builder/pull/61))
+
+### 📦 Build
+
+- Upgrade the guardrail pack to 0.2.11 ([#68](https://github.com/AntelopeJS/dms-builder/pull/68))
+
+### 🏡 Chore
+
+- Adopt the guardrail pack from tooling-configs 0.2.0 ([#63](https://github.com/AntelopeJS/dms-builder/pull/63))
+- Configure Renovate with the shared preset ([#64](https://github.com/AntelopeJS/dms-builder/pull/64))
+- **release:** @antelopejs/interface-dms-builder v0.2.5 ([3931f13](https://github.com/AntelopeJS/dms-builder/commit/3931f13))
+
+### ✅ Tests
+
+- **skills:** Add eval cases for dms-builder ([#67](https://github.com/AntelopeJS/dms-builder/pull/67))
+- Move file reads and manifest invariants out of the test suites ([#69](https://github.com/AntelopeJS/dms-builder/pull/69))
+
+### ❤️ Contributors
+
+- Thomas ([@Thomasims](http://github.com/Thomasims))
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.6.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.6.0...v0.6.1)
