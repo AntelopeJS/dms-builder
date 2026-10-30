@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ts } from "ts-morph";
-import { isString } from "./primitive-guards";
+import { isString } from "./scalar-guards";
 import { DEFAULT_COMPILER_OPTIONS, resolveProjectRoot } from "./project";
 import { isPlainObject } from "./value";
 
