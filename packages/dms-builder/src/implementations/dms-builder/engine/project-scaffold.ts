@@ -42,20 +42,33 @@ export interface Scaffold {
   source: LocalSource;
 }
 
+type Versions = Record<string, string> | null | never[];
+
 interface PackageManifest {
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  packageManager?: string;
+  dependencies?: Versions;
+  devDependencies?: Versions;
+  packageManager?: string | null;
 }
 
 interface TsConfig {
-  compilerOptions?: object;
+  compilerOptions?: object | null;
 }
 
 class ScaffoldRefusal extends Error {}
 
-function isVersions(value: unknown): value is Record<string, string> {
+function isVersions(value: unknown): value is Versions {
+  if (value === null || Array.isArray(value)) {
+    return true;
+  }
   return isPlainObject(value) && Object.values(value).every(isString);
+}
+
+function isOptions(value: unknown): value is object | null {
+  return (
+    value === null ||
+    (Array.isArray(value) && value.length === 0) ||
+    isPlainObject(value)
+  );
 }
 
 function isPackageManifest(value: unknown): value is PackageManifest {
@@ -64,15 +77,16 @@ function isPackageManifest(value: unknown): value is PackageManifest {
     (value.dependencies === undefined || isVersions(value.dependencies)) &&
     (value.devDependencies === undefined ||
       isVersions(value.devDependencies)) &&
-    (value.packageManager === undefined || isString(value.packageManager))
+    (value.packageManager === undefined ||
+      value.packageManager === null ||
+      isString(value.packageManager))
   );
 }
 
 function isTsConfig(value: unknown): value is TsConfig {
   return (
     isPlainObject(value) &&
-    (value.compilerOptions === undefined ||
-      isPlainObject(value.compilerOptions))
+    (value.compilerOptions === undefined || isOptions(value.compilerOptions))
   );
 }
 
@@ -102,7 +116,7 @@ function readJson<T>(
 }
 
 function picked(
-  versions: Record<string, string> | undefined,
+  versions: Record<string, string> | never[] | undefined,
   keep: (name: string) => boolean,
 ): Record<string, string> {
   return Object.fromEntries(
@@ -120,7 +134,7 @@ function manifestText(
   connection: string | undefined,
   defaultOptions: boolean,
 ): string {
-  const all = { ...project.devDependencies, ...project.dependencies };
+  const all = Object.assign({}, project.devDependencies, project.dependencies);
   const tooling = picked(
     all,
     (name) =>
@@ -149,12 +163,11 @@ function manifestText(
 
 /** The project's compiler options, so the module compiles as the project does. */
 function tsconfigText(project: TsConfig): string {
-  const compilerOptions = {
-    ...project.compilerOptions,
+  const compilerOptions = Object.assign({}, project.compilerOptions, {
     rootDir: "src",
     outDir: "dist",
     tsBuildInfoFile: undefined,
-  };
+  });
   return `${JSON.stringify({ compilerOptions, include: ["src/**/*.ts"] }, null, 2)}\n`;
 }
 
