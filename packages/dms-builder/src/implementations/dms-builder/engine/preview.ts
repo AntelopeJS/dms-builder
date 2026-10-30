@@ -4,6 +4,10 @@ import {
   ControllerMeta,
 } from "@antelopejs/interface-api";
 import { GetMetadata } from "@antelopejs/interface-core";
+import type { Class } from "@antelopejs/interface-core/decorators";
+import type { ComponentBuilder } from "@antelopejs/interface-dms/component";
+import type { DataType } from "@antelopejs/interface-dms/base/data-types";
+import type * as TableViewApi from "@antelopejs/interface-dms/base/table-view";
 import type {
   BlockDraft,
   BlockPath,
@@ -68,7 +72,7 @@ const SOURCE_COLUMN_OPTIONS = [
   "cellWrap",
   "size",
   "display",
-];
+] as const satisfies readonly (keyof TableViewApi.ColumnOptions)[];
 
 /** What a data controller's list route handles itself: all of it. */
 const LIST_ROUTE_CAPABILITIES = {
@@ -82,39 +86,27 @@ const LIST_ROUTE_CAPABILITIES = {
 type BlockOptions = NonNullable<BlockDraft["config"]>;
 
 /** A config object whose `$dataType` names a DataType. */
-type DataTypeSentinel = Record<string, unknown> & { $dataType: string };
-
-/** A column as a table's metadata describes it to its views. */
-interface DescribedColumn {
-  id: string;
-  listable: boolean;
-  enableSorting: boolean;
-}
+type DataTypeSentinel = { $dataType: string; config?: unknown };
 
 /** What the preview reads of a table's metadata, never writes. */
-interface TableMetadata {
-  columns: Record<string, Record<string, unknown>>;
-  config: { location: string; columns: DescribedColumn[] };
-}
+type TableMetadata = Pick<TableViewApi.TableViewMeta, "columns" | "config">;
 
-/** The metadata class a table's views read, as `GetMetadata` takes it. */
-interface TableMetadataClass {
-  new (target: ControllerClass): TableMetadata;
-  key: symbol;
-}
-
+/** The part of the table view module the preview drives. */
 interface TableViewModule {
-  TableViewMeta: TableMetadataClass;
-  tableViewFromSource: (options: Record<string, unknown>) => PreviewBuilder;
+  TableViewMeta: typeof TableViewApi.TableViewMeta;
+  tableViewFromSource: (
+    options: Omit<TableViewApi.TableViewSourceOptions, "columns"> & {
+      columns: Record<string, Partial<TableViewApi.TableViewSourceColumn>>;
+    },
+  ) => PreviewBuilder;
 }
+
+/** What a builder takes of a child besides its component: its slot and the rest of its metadata. */
+type ChildMeta = Parameters<ComponentBuilder["child"]>[2];
 
 /** The subset of `ComponentBuilder` the preview drives. */
 interface PreviewBuilder {
-  child(
-    id: string,
-    component: PreviewBuilder,
-    meta?: Record<string, unknown>,
-  ): this;
+  child(id: string, component: PreviewBuilder, meta?: ChildMeta): this;
   serialize(): Promise<ComponentPreview>;
 }
 
@@ -126,19 +118,25 @@ class DegradedBlockError extends Error {
   }
 }
 
-function loadModule<T = Record<string, unknown>>(specifier: string): T {
-  return require(specifier) as T;
+function isString(value: unknown): value is string {
+  return typeof value === "string";
 }
 
-function isDataTypeSentinel(
-  value: Record<string, unknown>,
-): value is DataTypeSentinel {
-  return typeof value.$dataType === "string";
+function isCallable(value: unknown): value is Function {
+  return typeof value === "function";
+}
+
+function isSpreadable(value: unknown): value is object {
+  return isCallable(value) || isPlainObject(value);
+}
+
+function isDataTypeSentinel(value: unknown): value is DataTypeSentinel {
+  return isPlainObject(value) && isString(value.$dataType);
 }
 
 function factoryFor(type: string): BlockFactory {
-  const factory = loadModule(BASE_MODULE)[type];
-  if (typeof factory !== "function") {
+  const factory: unknown = require(BASE_MODULE)[type];
+  if (!isCallable(factory)) {
     throw new DegradedBlockError(`no runtime factory for block type "${type}"`);
   }
   return factory as BlockFactory;
@@ -153,7 +151,9 @@ function factoryFor(type: string): BlockFactory {
  * table created a moment ago, which the app has not reloaded under yet, is
  * simply not there.
  */
-function loadedController(ref: string | undefined): unknown {
+function loadedController(
+  ref: string | undefined,
+): ControllerClass | undefined {
   const record = ref ? findResourceRecord(ref) : undefined;
   if (!record) {
     return undefined;
@@ -164,44 +164,38 @@ function loadedController(ref: string | undefined): unknown {
     if (!file.startsWith(root) || file.includes(dependencies)) {
       continue;
     }
-    const exported = (entry?.exports as Record<string, unknown> | undefined)?.[
-      record.apiName
-    ];
-    if (
-      typeof exported === "function" &&
-      GetMetadata(exported as ControllerClass, ControllerMeta).location ===
-        record.route
-    ) {
-      return exported;
+    const exported: unknown = entry?.exports?.[record.apiName];
+    if (!isCallable(exported)) {
+      continue;
+    }
+    const controller = exported as ControllerClass;
+    if (GetMetadata(controller, ControllerMeta).location === record.route) {
+      return controller;
     }
   }
   return undefined;
 }
 
-/** Walks a dotted export path, e.g. `DefaultDataTypes.StringType`. */
-function resolveExport(specifier: string, name: string): unknown {
-  return name
-    .split(".")
-    .reduce<unknown>(
-      (current, part) => (isPlainObject(current) ? current[part] : undefined),
-      loadModule(specifier),
-    );
-}
-
-function instantiateDataType(value: DataTypeSentinel): unknown {
+/**
+ * A DataType instance for a `$dataType` config value, built from the export its
+ * catalog entry names: a dotted path such as `DefaultDataTypes.StringType`.
+ */
+function instantiateDataType(value: DataTypeSentinel): DataType {
   const id = value.$dataType;
   const descriptor = buildCatalog().dataTypes.find((type) => type.id === id);
   if (!descriptor?.import.module) {
     throw new DegradedBlockError(`unknown dataType "${id}"`);
   }
-  const exported = resolveExport(
-    descriptor.import.module,
-    descriptor.import.name,
-  );
-  if (typeof exported !== "function") {
+  const exported = descriptor.import.name
+    .split(".")
+    .reduce<unknown>(
+      (current, part) => (isPlainObject(current) ? current[part] : undefined),
+      require(descriptor.import.module),
+    );
+  if (!isCallable(exported)) {
     throw new DegradedBlockError(`dataType "${id}" is not constructible`);
   }
-  const Ctor = exported as new (config?: unknown) => unknown;
+  const Ctor = exported as Class<DataType>;
   return new Ctor(
     value.config === undefined ? undefined : materialize(value.config),
   );
@@ -214,10 +208,13 @@ function instantiateDataType(value: DataTypeSentinel): unknown {
  * Only read, as a table form's own class is: the DataType looks the table's
  * routes up on it, which is what the saved page would do when served.
  */
-function referencedController(ref: Record<string, unknown>): unknown {
+function referencedController(ref: {
+  as?: unknown;
+  resource?: unknown;
+}): ControllerClass {
   const dataApi = ref.as === undefined || ref.as === "dataApi";
   const controller =
-    dataApi && typeof ref.resource === "string"
+    dataApi && isString(ref.resource)
       ? loadedController(ref.resource)
       : undefined;
   if (!controller) {
@@ -234,7 +231,7 @@ function materialize(value: unknown): unknown {
   if (!isPlainObject(value)) {
     return value;
   }
-  if (typeof value.$expr === "string") {
+  if (isString(value.$expr)) {
     throw new DegradedBlockError("$expr cannot be previewed");
   }
   if (isPlainObject(value.$ref)) {
@@ -244,11 +241,11 @@ function materialize(value: unknown): unknown {
     return instantiateDataType(value);
   }
   if (isPlainObject(value.$block)) {
-    const block = value.$block as { type: string; config?: unknown };
+    const { type, config } = value.$block;
     return buildBlock({
       name: "preview",
-      type: block.type,
-      config: isPlainObject(block.config) ? block.config : {},
+      type: isString(type) ? type : undefined,
+      config: isPlainObject(config) ? config : {},
     });
   }
   const materialized: Record<string, unknown> = {};
@@ -289,7 +286,7 @@ function finished(schema: OptionSchema, value: unknown): unknown {
     return UNFINISHED;
   }
   if (schema.properties && isPlainObject(value)) {
-    const kept: Record<string, unknown> = { ...value };
+    const kept = { ...value };
     for (const [key, nested] of Object.entries(schema.properties)) {
       if (nested.ui?.hidden) {
         continue;
@@ -367,10 +364,9 @@ function placeholderFor(reason: string): PreviewBuilder {
   });
 }
 
-function childMeta(block: BlockDraft): Record<string, unknown> | undefined {
-  const meta: Record<string, unknown> = {};
-  if (block.slot !== undefined) meta.slot = block.slot;
-  const combined = { ...meta, ...block.meta };
+function childMeta(block: BlockDraft): ChildMeta {
+  const slot = block.slot === undefined ? {} : { slot: block.slot };
+  const combined = { ...slot, ...block.meta };
   return Object.keys(combined).length > 0 ? combined : undefined;
 }
 
@@ -398,9 +394,15 @@ function buildBlock(block: BlockDraft): PreviewBuilder {
   }
   const config = materialize(
     withoutUnfinishedEntries(descriptor.config, block.config ?? {}),
-  ) as Record<string, unknown>;
+  );
+  if (!isSpreadable(config)) {
+    throw new DegradedBlockError("its options cannot be previewed");
+  }
   const options = { ...descriptor.defaults, ...config };
   if (descriptor.type === TABLE_VIEW_TYPE) {
+    if (!controller) {
+      throw new DegradedBlockError(`${label} — needs the running page`);
+    }
     return tablePreview(controller, options);
   }
   return controller
@@ -408,26 +410,29 @@ function buildBlock(block: BlockDraft): PreviewBuilder {
     : factoryFor(descriptor.type)(options);
 }
 
-function picked(
-  source: Record<string, unknown>,
-  keys: string[],
-): Record<string, unknown> {
-  return Object.fromEntries(
-    keys
-      .filter((key) => source[key] !== undefined)
-      .map((key) => [key, source[key]]),
-  );
+function picked<Source extends object, Key extends keyof Source>(
+  source: Source | undefined,
+  keys: readonly Key[],
+): Partial<Pick<Source, Key>> {
+  const kept: Partial<Pick<Source, Key>> = {};
+  for (const key of keys) {
+    const entry = source?.[key];
+    if (entry !== undefined) {
+      kept[key] = entry;
+    }
+  }
+  return kept;
 }
 
 /** The columns the table lists, as a source table takes them. */
-function listedColumns(meta: TableMetadata): Record<string, unknown> {
+function listedColumns(meta: TableMetadata) {
   return Object.fromEntries(
     meta.config.columns
       .filter((column) => column.listable)
       .map((column) => [
         column.id,
         {
-          ...picked(meta.columns[column.id] ?? {}, SOURCE_COLUMN_OPTIONS),
+          ...picked(meta.columns[column.id], SOURCE_COLUMN_OPTIONS),
           sortable: column.enableSorting,
         },
       ]),
@@ -443,11 +448,11 @@ function listedColumns(meta: TableMetadata): Record<string, unknown> {
  * Its actions are what the saved page adds; the rows are the ones it will list.
  */
 function tablePreview(
-  controller: unknown,
-  options: Record<string, unknown>,
+  controller: ControllerClass,
+  options: BlockOptions,
 ): PreviewBuilder {
-  const module = loadModule<TableViewModule>(TABLE_VIEW_MODULE);
-  const meta = GetMetadata(controller as ControllerClass, module.TableViewMeta);
+  const module = require(TABLE_VIEW_MODULE) as TableViewModule;
+  const meta = GetMetadata(controller, module.TableViewMeta);
   return module.tableViewFromSource({
     ...picked(options, TABLE_PREVIEW_OPTIONS),
     columns: listedColumns(meta),
