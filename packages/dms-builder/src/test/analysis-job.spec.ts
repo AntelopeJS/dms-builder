@@ -81,11 +81,11 @@ const RELATIONS: RelationDescription[] = [
   }),
 ];
 
-const LABELS: Record<string, string> = {
-  "erp.customers": "name",
-  "erp.orders": "reference",
-  "erp.invoices": "number",
-};
+const LABELS = new Map([
+  ["erp.customers", "name"],
+  ["erp.orders", "reference"],
+  ["erp.invoices", "number"],
+]);
 
 function described(relation: string): RelationDescription {
   const found = RELATIONS.find(
@@ -120,7 +120,7 @@ function catalogOver(
     },
     async Profile(request: ProfileRequest) {
       calls.push(`Profile:${request.relation}`);
-      const label = LABELS[request.relation];
+      const label = LABELS.get(request.relation);
       return Profiled(
         request.relation,
         10,
