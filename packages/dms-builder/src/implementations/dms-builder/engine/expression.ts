@@ -1,3 +1,4 @@
+import { isIndexable } from "./guards";
 import {
   Node,
   type PropertyAccessExpression,
@@ -22,7 +23,8 @@ const exportsOf = new Map<string, Record<string, unknown> | undefined>();
 function loadExports(module: string): Record<string, unknown> | undefined {
   if (!exportsOf.has(module)) {
     try {
-      exportsOf.set(module, require(module) as Record<string, unknown>);
+      const loaded: unknown = require(module);
+      exportsOf.set(module, isIndexable(loaded) ? loaded : undefined);
     } catch {
       exportsOf.set(module, undefined);
     }
