@@ -25,19 +25,19 @@ function loadConfig(dev) {
   });
 }
 
-test("enables the builder when the project runs in development", async () => {
+void test("enables the builder when the project runs in development", async () => {
   const config = loadConfig(true);
   config.setModuleConfig({});
   assert.equal(await config.isBuilderEnabled(), true);
 });
 
-test("disables the builder when the project does not run in development", async () => {
+void test("disables the builder when the project does not run in development", async () => {
   const config = loadConfig(false);
   config.setModuleConfig({});
   assert.equal(await config.isBuilderEnabled(), false);
 });
 
-test("ignores NODE_ENV entirely", async () => {
+void test("ignores NODE_ENV entirely", async () => {
   const previous = process.env.NODE_ENV;
   process.env.NODE_ENV = "production";
   try {
@@ -49,19 +49,19 @@ test("ignores NODE_ENV entirely", async () => {
   }
 });
 
-test("lets an explicit override turn the builder on outside development", async () => {
+void test("lets an explicit override turn the builder on outside development", async () => {
   const config = loadConfig(false);
   config.setModuleConfig({ api: { enabled: true } });
   assert.equal(await config.isBuilderEnabled(), true);
 });
 
-test("lets an explicit override turn the builder off in development", async () => {
+void test("lets an explicit override turn the builder off in development", async () => {
   const config = loadConfig(true);
   config.setModuleConfig({ api: { enabled: false } });
   assert.equal(await config.isBuilderEnabled(), false);
 });
 
-test("re-decides when the module is reconfigured", async () => {
+void test("re-decides when the module is reconfigured", async () => {
   const config = loadConfig(false);
   config.setModuleConfig({ api: { enabled: true } });
   assert.equal(await config.isBuilderEnabled(), true);
@@ -108,7 +108,7 @@ function bootModule(dev) {
   return { index, registrations, loadedRoutes };
 }
 
-test("mounts nothing at all when the project does not run in development", async () => {
+void test("mounts nothing at all when the project does not run in development", async () => {
   const booted = bootModule(false);
   await booted.index.construct();
   await booted.index.start();
@@ -116,7 +116,7 @@ test("mounts nothing at all when the project does not run in development", async
   assert.deepEqual(booted.registrations, []);
 });
 
-test("mounts the routes and the frontend module in development", async () => {
+void test("mounts the routes and the frontend module in development", async () => {
   const booted = bootModule(true);
   await booted.index.construct();
   await booted.index.start();
@@ -133,7 +133,7 @@ test("mounts the routes and the frontend module in development", async () => {
   ]);
 });
 
-test("mounts both when an override enables the builder outside development", async () => {
+void test("mounts both when an override enables the builder outside development", async () => {
   const booted = bootModule(false);
   await booted.index.construct({ api: { enabled: true } });
   await booted.index.start();

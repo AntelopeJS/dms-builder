@@ -119,7 +119,7 @@ function interfaceIsNotOwned() {
     failures.push("the package exports ./interfaces/dms-builder");
   }
   const files = fs
-    .readdirSync(path.join(root, "src"), { recursive: true })
+    .readdirSync(path.join(root, "src"), { recursive: true, encoding: "utf8" })
     .filter((file) => file.endsWith(".ts"));
   for (const file of files) {
     const source = fs.readFileSync(path.join(root, "src", file), "utf8");

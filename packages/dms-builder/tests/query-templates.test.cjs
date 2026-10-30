@@ -32,7 +32,7 @@ function emptyResource() {
   };
 }
 
-test("lists the count, aggregate and series templates", async () => {
+void test("lists the count, aggregate and series templates", async () => {
   const ids = (await builder.ListQueryTemplates()).map(
     (template) => template.id,
   );
@@ -41,14 +41,14 @@ test("lists the count, aggregate and series templates", async () => {
   assert.ok(ids.includes("series"));
 });
 
-test("filters the templates by resource type", async () => {
+void test("filters the templates by resource type", async () => {
   const ids = (await builder.ListQueryTemplates("database-table")).map(
     (template) => template.id,
   );
   assert.deepEqual(ids.sort(), ["aggregate", "count", "series"]);
 });
 
-test("resolves a registered template when compiling a query", () => {
+void test("resolves a registered template when compiling a query", () => {
   const compiled = compileQuery(
     { name: "orderCount", resource: "orders", template: "count" },
     emptyResource(),
@@ -58,7 +58,7 @@ test("resolves a registered template when compiling a query", () => {
   assert.equal(compiled.chain.body, "{\n  return this.table.count();\n}");
 });
 
-test("still rejects an unknown template", () => {
+void test("still rejects an unknown template", () => {
   const compiled = compileQuery(
     { name: "orderCount", resource: "orders", template: "nope" },
     emptyResource(),
