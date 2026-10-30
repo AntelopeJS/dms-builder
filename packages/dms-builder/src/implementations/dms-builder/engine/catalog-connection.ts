@@ -52,6 +52,9 @@ export function setCatalogConnectionsForTests(
     ? () => Object.keys(catalogs)
     : declaredConnections;
   resolveCatalog = catalogs
-    ? (id) => catalogs[id] as CatalogConnection | undefined
+    ? (id) =>
+        Object.hasOwn(catalogs, id)
+          ? (catalogs[id] as CatalogConnection)
+          : undefined
     : declaredCatalog;
 }

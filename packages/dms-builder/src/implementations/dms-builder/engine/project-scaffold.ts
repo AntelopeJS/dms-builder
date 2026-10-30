@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ts } from "ts-morph";
+import { isString } from "./primitive-guards";
 import { DEFAULT_COMPILER_OPTIONS, resolveProjectRoot } from "./project";
+import { isPlainObject } from "./value";
 
 const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
 /**
@@ -46,22 +48,39 @@ interface PackageManifest {
   packageManager?: string;
 }
 
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
-
 interface TsConfig {
-  compilerOptions?: Record<string, JsonValue>;
+  compilerOptions?: object;
 }
 
 class ScaffoldRefusal extends Error {}
 
+function isVersions(value: unknown): value is Record<string, string> {
+  return isPlainObject(value) && Object.values(value).every(isString);
+}
+
+function isPackageManifest(value: unknown): value is PackageManifest {
+  return (
+    isPlainObject(value) &&
+    (value.dependencies === undefined || isVersions(value.dependencies)) &&
+    (value.devDependencies === undefined ||
+      isVersions(value.devDependencies)) &&
+    (value.packageManager === undefined || isString(value.packageManager))
+  );
+}
+
+function isTsConfig(value: unknown): value is TsConfig {
+  return (
+    isPlainObject(value) &&
+    (value.compilerOptions === undefined ||
+      isPlainObject(value.compilerOptions))
+  );
+}
+
 /** A JSON file of the project, read as TypeScript reads one: comments and trailing commas allowed. */
-function readJson<T>(file: string): T | undefined {
+function readJson<T>(
+  file: string,
+  isReadable: (value: unknown) => value is T,
+): T | undefined {
   if (!fs.existsSync(file)) {
     return undefined;
   }
@@ -74,8 +93,12 @@ function readJson<T>(file: string): T | undefined {
       `${path.basename(file)} cannot be read: ${ts.flattenDiagnosticMessageText(read.error.messageText, " ")}`,
     );
   }
-  // SAFETY: the file's own shape is its owner's; only the fields typed here are read.
-  return read.config as T;
+  if (!isReadable(read.config)) {
+    throw new ScaffoldRefusal(
+      `${path.basename(file)} cannot be read: its fields are not of the types the builder reads`,
+    );
+  }
+  return read.config;
 }
 
 function picked(
@@ -151,8 +174,8 @@ export function scaffoldLocalModule(
     throw new ScaffoldRefusal(`module path "${relativePath}" already exists`);
   }
   const project =
-    readJson<PackageManifest>(path.join(projectRoot, "package.json")) ?? {};
-  const own = readJson<TsConfig>(path.join(projectRoot, "tsconfig.json"));
+    readJson(path.join(projectRoot, "package.json"), isPackageManifest) ?? {};
+  const own = readJson(path.join(projectRoot, "tsconfig.json"), isTsConfig);
   const tsconfig = own ?? { compilerOptions: DEFAULT_COMPILER_OPTIONS };
   return {
     id,

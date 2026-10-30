@@ -29,20 +29,22 @@ export default defineConfig({
 const DMS_SOURCE = `source: { type: "local", path: "../dms" }`;
 
 function connections(
-  providers: Record<string, string[]>,
+  providers: Map<string, string[]>,
 ): (interfaceId: string) => InterfaceConnection[] {
   return (interfaceId) =>
-    (providers[interfaceId] ?? []).map((provider, index) => ({
+    (providers.get(interfaceId) ?? []).map((provider, index) => ({
       path: `${provider}.js`,
       provider,
       selected: index === 0,
     }));
 }
 
-const PROJECT = connections({
-  [DMS_INTERFACE]: ["dms"],
-  [DATABASE_INTERFACE]: ["builder-db-erp", "mongodb"],
-});
+const PROJECT = connections(
+  new Map([
+    [DMS_INTERFACE, ["dms"]],
+    [DATABASE_INTERFACE, ["builder-db-erp", "mongodb"]],
+  ]),
+);
 
 let root: string;
 
@@ -137,10 +139,12 @@ describe("the DMS module's database pin", () => {
     writeConfig(config(`...DMS_DEFAULTS, ${DMS_SOURCE}`));
     expect(
       dmsDatabasePin(
-        connections({
-          [DMS_INTERFACE]: ["dms"],
-          [DATABASE_INTERFACE]: ["dms"],
-        }),
+        connections(
+          new Map([
+            [DMS_INTERFACE, ["dms"]],
+            [DATABASE_INTERFACE, ["dms"]],
+          ]),
+        ),
       ),
     ).to.equal(undefined);
   });
@@ -156,8 +160,8 @@ describe("the DMS module's database pin", () => {
 
   it("needs no pin when the project has no database of its own", () => {
     writeConfig(config(DMS_SOURCE));
-    expect(dmsDatabasePin(connections({ [DMS_INTERFACE]: ["dms"] }))).to.equal(
-      undefined,
-    );
+    expect(
+      dmsDatabasePin(connections(new Map([[DMS_INTERFACE, ["dms"]]]))),
+    ).to.equal(undefined);
   });
 });
