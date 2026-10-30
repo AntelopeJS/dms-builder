@@ -9,7 +9,6 @@
  * refusal would have thrown out of the OpResult channel or read "undefined".
  */
 export function describeValue(value: unknown): string {
-  if (typeof value === "string") return JSON.stringify(value);
   try {
     const json = JSON.stringify(value);
     if (json !== undefined) return json;

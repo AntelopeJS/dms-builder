@@ -14,6 +14,7 @@ import {
 } from "./chain";
 import { editableOptions, objectLiteralToValue } from "./config-literal";
 import { unwrapExpression } from "./expression";
+import { isString } from "./guards";
 import { stringLiteralValue } from "./literals";
 import { findResourceBySymbol } from "./resource-index";
 import type { PageRecord } from "./scan";
@@ -46,7 +47,7 @@ function readChildMeta(metaArg: Node | undefined): BlockNodeMeta {
   if (!read.fullyLiteral) return {};
   const { slot, ...rest } = read.value;
   return {
-    slot: typeof slot === "string" ? slot : undefined,
+    slot: isString(slot) ? slot : undefined,
     meta: Object.keys(rest).length > 0 ? rest : undefined,
   };
 }

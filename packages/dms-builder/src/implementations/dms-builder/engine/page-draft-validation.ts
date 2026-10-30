@@ -8,6 +8,7 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import { blockDescriptor } from "./catalog";
+import { isString } from "./guards";
 import { isIdentifier } from "./paths";
 import {
   buildResourceStructure,
@@ -69,7 +70,7 @@ function checkFieldAspects(
       `${pointer}/config/${key}`,
       (node, value, at) => {
         const declared = node.ui?.fieldAspect;
-        if (!declared || typeof value !== "string") {
+        if (!declared || !isString(value)) {
           return;
         }
         const aspects: FieldAspect[] = Array.isArray(declared)
@@ -265,7 +266,7 @@ export function validateDraft(
       fail(
         "No source-backed block at this path; blocks with locked options cannot be copied or reparented",
       );
-    if (block.slot !== undefined && typeof block.slot !== "string")
+    if (block.slot !== undefined && !isString(block.slot))
       fail("A slot must be a string");
     if (source && !source.editable && !block.preserve)
       fail("This block is locked; preserve it or edit its source code");
