@@ -1,6 +1,19 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { isDeepStrictEqual } = require("node:util");
+const { isRecord, isString } = require("./guards.js");
+
+/** @typedef {string | MessageTree[] | { [key: string]: MessageTree }} MessageTree */
+
+/**
+ * @param {unknown} value
+ * @returns {value is MessageTree}
+ */
+function isMessageTree(value) {
+  if (isString(value)) return true;
+  if (Array.isArray(value)) return value.every(isMessageTree);
+  return isRecord(value) && Object.values(value).every(isMessageTree);
+}
 
 const frontend = path.resolve(__dirname, "../frontend-vue");
 const app = path.join(frontend, "app");
@@ -31,11 +44,28 @@ const PAGE_TITLE_COMPONENTS = [
 ];
 const PAGE_TITLE_THROUGH_LOCALE = /displayText\(\s*\(?(patch|draft|session)/;
 
+/** @param {string} relative */
 function readText(relative) {
   return fs.readFileSync(path.join(frontend, relative), "utf8");
 }
 
+/** @param {string} relative */
+function readCatalog(relative) {
+  /** @type {unknown} */
+  const catalog = JSON.parse(readText(relative));
+  if (!isMessageTree(catalog)) {
+    throw new Error(`${relative} is not a message catalog`);
+  }
+  return catalog;
+}
+
+/**
+ * @param {MessageTree} messages
+ * @param {string} [prefix]
+ * @returns {Map<string, string>}
+ */
 function flatten(messages, prefix = "") {
+  /** @type {Map<string, string>} */
   const entries = new Map();
   for (const [key, value] of Object.entries(messages)) {
     const name = prefix ? `${prefix}.${key}` : key;
@@ -50,6 +80,7 @@ function flatten(messages, prefix = "") {
   return entries;
 }
 
+/** @param {string} message */
 function placeholders(message) {
   return [
     ...new Set([...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1])),
@@ -67,6 +98,7 @@ function sources() {
 }
 
 /** A template's text, its tags, comments and interpolations taken out. */
+/** @param {string} source */
 function templateText(source) {
   const template = source.match(/<template>([\s\S]*)<\/template>/)?.[1] ?? "";
   return template
@@ -78,8 +110,8 @@ function templateText(source) {
 const namespace = NAMESPACE_DECLARATION.exec(
   readText("app/runtime/i18n.ts"),
 )?.[1];
-const english = JSON.parse(readText("i18n/locales/builder-en-GB.json"));
-const french = JSON.parse(readText("i18n/locales/builder-fr-FR.json"));
+const english = readCatalog("i18n/locales/builder-en-GB.json");
+const french = readCatalog("i18n/locales/builder-fr-FR.json");
 const en = flatten(english);
 const fr = flatten(french);
 
@@ -88,14 +120,14 @@ function catalogsUseTheNamespace() {
     return ["app/runtime/i18n.ts declares no I18N_NAMESPACE literal"];
   }
   return [
-    ["builder-en-GB.json", english],
-    ["builder-fr-FR.json", french],
+    { file: "builder-en-GB.json", catalog: english },
+    { file: "builder-fr-FR.json", catalog: french },
   ]
     .filter(
-      ([, catalog]) => !isDeepStrictEqual(Object.keys(catalog), [namespace]),
+      ({ catalog }) => !isDeepStrictEqual(Object.keys(catalog), [namespace]),
     )
     .map(
-      ([file, catalog]) =>
+      ({ file, catalog }) =>
         `${file} holds ${JSON.stringify(Object.keys(catalog))}, not only ${namespace}`,
     );
 }

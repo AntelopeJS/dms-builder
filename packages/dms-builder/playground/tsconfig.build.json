@@ -3,6 +3,8 @@
   "compilerOptions": {
     "module": "commonjs",
     "moduleResolution": "bundler",
-    "noEmit": false
-  }
+    "noEmit": false,
+    "rootDir": "src"
+  },
+  "include": ["./src/**/*.ts"]
 }

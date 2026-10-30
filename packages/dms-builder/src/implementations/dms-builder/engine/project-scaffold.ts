@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ts } from "ts-morph";
+import { isString } from "./scalar-guards";
 import { DEFAULT_COMPILER_OPTIONS, resolveProjectRoot } from "./project";
+import { isPlainObject } from "./value";
 
 const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
 /**
@@ -40,28 +42,59 @@ export interface Scaffold {
   source: LocalSource;
 }
 
+type Versions = Record<string, string> | null | never[];
+
 interface PackageManifest {
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  packageManager?: string;
+  dependencies?: Versions;
+  devDependencies?: Versions;
+  packageManager?: string | null;
 }
 
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
-
 interface TsConfig {
-  compilerOptions?: Record<string, JsonValue>;
+  compilerOptions?: object | null;
 }
 
 class ScaffoldRefusal extends Error {}
 
+function isVersions(value: unknown): value is Versions {
+  if (value === null || Array.isArray(value)) {
+    return true;
+  }
+  return isPlainObject(value) && Object.values(value).every(isString);
+}
+
+function isOptions(value: unknown): value is object | null {
+  return (
+    value === null ||
+    (Array.isArray(value) && value.length === 0) ||
+    isPlainObject(value)
+  );
+}
+
+function isPackageManifest(value: unknown): value is PackageManifest {
+  return (
+    isPlainObject(value) &&
+    (value.dependencies === undefined || isVersions(value.dependencies)) &&
+    (value.devDependencies === undefined ||
+      isVersions(value.devDependencies)) &&
+    (value.packageManager === undefined ||
+      value.packageManager === null ||
+      isString(value.packageManager))
+  );
+}
+
+function isTsConfig(value: unknown): value is TsConfig {
+  return (
+    isPlainObject(value) &&
+    (value.compilerOptions === undefined || isOptions(value.compilerOptions))
+  );
+}
+
 /** A JSON file of the project, read as TypeScript reads one: comments and trailing commas allowed. */
-function readJson<T>(file: string): T | undefined {
+function readJson<T>(
+  file: string,
+  isReadable: (value: unknown) => value is T,
+): T | undefined {
   if (!fs.existsSync(file)) {
     return undefined;
   }
@@ -74,12 +107,16 @@ function readJson<T>(file: string): T | undefined {
       `${path.basename(file)} cannot be read: ${ts.flattenDiagnosticMessageText(read.error.messageText, " ")}`,
     );
   }
-  // SAFETY: the file's own shape is its owner's; only the fields typed here are read.
-  return read.config as T;
+  if (!isReadable(read.config)) {
+    throw new ScaffoldRefusal(
+      `${path.basename(file)} cannot be read: its fields are not of the types the builder reads`,
+    );
+  }
+  return read.config;
 }
 
 function picked(
-  versions: Record<string, string> | undefined,
+  versions: Record<string, string> | never[] | undefined,
   keep: (name: string) => boolean,
 ): Record<string, string> {
   return Object.fromEntries(
@@ -97,7 +134,7 @@ function manifestText(
   connection: string | undefined,
   defaultOptions: boolean,
 ): string {
-  const all = { ...project.devDependencies, ...project.dependencies };
+  const all = Object.assign({}, project.devDependencies, project.dependencies);
   const tooling = picked(
     all,
     (name) =>
@@ -126,12 +163,11 @@ function manifestText(
 
 /** The project's compiler options, so the module compiles as the project does. */
 function tsconfigText(project: TsConfig): string {
-  const compilerOptions = {
-    ...project.compilerOptions,
+  const compilerOptions = Object.assign({}, project.compilerOptions, {
     rootDir: "src",
     outDir: "dist",
     tsBuildInfoFile: undefined,
-  };
+  });
   return `${JSON.stringify({ compilerOptions, include: ["src/**/*.ts"] }, null, 2)}\n`;
 }
 
@@ -151,8 +187,8 @@ export function scaffoldLocalModule(
     throw new ScaffoldRefusal(`module path "${relativePath}" already exists`);
   }
   const project =
-    readJson<PackageManifest>(path.join(projectRoot, "package.json")) ?? {};
-  const own = readJson<TsConfig>(path.join(projectRoot, "tsconfig.json"));
+    readJson(path.join(projectRoot, "package.json"), isPackageManifest) ?? {};
+  const own = readJson(path.join(projectRoot, "tsconfig.json"), isTsConfig);
   const tsconfig = own ?? { compilerOptions: DEFAULT_COMPILER_OPTIONS };
   return {
     id,

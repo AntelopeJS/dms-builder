@@ -95,7 +95,7 @@ export function createCategory(
   if (findCategoryRecord(ref)) {
     return duplicate<{ ref: CategoryRef }>(input.name, "category");
   }
-  const misplaced = moduleError<{ ref: CategoryRef }>(
+  const misplaced = moduleError(
     input.module,
     parent?.importModule,
     `category "${input.parent}"`,

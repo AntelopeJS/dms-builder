@@ -1,5 +1,4 @@
 const assert = require("node:assert/strict");
-const path = require("node:path");
 const { test } = require("node:test");
 const { Project } = require("ts-morph");
 
@@ -8,15 +7,10 @@ const { Project } = require("ts-morph");
  * loads; loading it is what must fill the registry, or `ListQueryTemplates`
  * comes back empty and every `AddQuery` is rejected.
  */
-const builder = require(
-  path.resolve(__dirname, "../dist/implementations/dms-builder/index.js"),
-);
-const { compileQuery } = require(
-  path.resolve(
-    __dirname,
-    "../dist/implementations/dms-builder/engine/query-ops.js",
-  ),
-);
+const builder = require("../dist/implementations/dms-builder/index.js");
+const {
+  compileQuery,
+} = require("../dist/implementations/dms-builder/engine/query-ops.js");
 
 /** A resource record with no fields: enough for templates without params. */
 function emptyResource() {
@@ -32,7 +26,7 @@ function emptyResource() {
   };
 }
 
-test("lists the count, aggregate and series templates", async () => {
+void test("lists the count, aggregate and series templates", async () => {
   const ids = (await builder.ListQueryTemplates()).map(
     (template) => template.id,
   );
@@ -41,14 +35,14 @@ test("lists the count, aggregate and series templates", async () => {
   assert.ok(ids.includes("series"));
 });
 
-test("filters the templates by resource type", async () => {
+void test("filters the templates by resource type", async () => {
   const ids = (await builder.ListQueryTemplates("database-table")).map(
     (template) => template.id,
   );
   assert.deepEqual(ids.sort(), ["aggregate", "count", "series"]);
 });
 
-test("resolves a registered template when compiling a query", () => {
+void test("resolves a registered template when compiling a query", () => {
   const compiled = compileQuery(
     { name: "orderCount", resource: "orders", template: "count" },
     emptyResource(),
@@ -58,12 +52,14 @@ test("resolves a registered template when compiling a query", () => {
   assert.equal(compiled.chain.body, "{\n  return this.table.count();\n}");
 });
 
-test("still rejects an unknown template", () => {
+void test("still rejects an unknown template", () => {
   const compiled = compileQuery(
     { name: "orderCount", resource: "orders", template: "nope" },
     emptyResource(),
   );
   assert.equal(compiled.ok, false);
+  assert.ok("error" in compiled);
+  assert.ok(compiled.error.code === "invalid_config");
   assert.match(
     compiled.error.issues[0].message,
     /unknown query template "nope"/,
