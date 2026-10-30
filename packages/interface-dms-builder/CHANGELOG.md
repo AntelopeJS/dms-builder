@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.2.5
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.2.4...v0.2.5)
+
+### 🚀 Enhancements
+
+- **database:** Connect, edit and remove external databases end to end ([#65](https://github.com/AntelopeJS/dms-builder/pull/65))
+- Map MongoDB and RethinkDB databases ([#66](https://github.com/AntelopeJS/dms-builder/pull/66))
+- **frontend:** Enforce the backend boundary in production builds ([#74](https://github.com/AntelopeJS/dms-builder/pull/74))
+- The guided connection flow, from Connect to the fork ([#78](https://github.com/AntelopeJS/dms-builder/pull/78))
+
+### 💅 Refactors
+
+- Replace comments with TSDoc or remove them ([#70](https://github.com/AntelopeJS/dms-builder/pull/70))
+- Tighten engine and spec types, remove avoidable assertions ([#76](https://github.com/AntelopeJS/dms-builder/pull/76))
+- Split the oversize frontend files ([#77](https://github.com/AntelopeJS/dms-builder/pull/77))
+
+### 📖 Documentation
+
+- **changelog:** Upgrade notes of dms-builder 0.6.1 ([#61](https://github.com/AntelopeJS/dms-builder/pull/61))
+
+### 📦 Build
+
+- Run on @antelopejs/dms 0.11 and @antelopejs/dms-frontend 0.9 ([#60](https://github.com/AntelopeJS/dms-builder/pull/60))
+- Upgrade the guardrail pack to 0.2.11 ([#68](https://github.com/AntelopeJS/dms-builder/pull/68))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/dms-builder v0.6.1 ([1372e17](https://github.com/AntelopeJS/dms-builder/commit/1372e17))
+- Adopt the guardrail pack from tooling-configs 0.2.0 ([#63](https://github.com/AntelopeJS/dms-builder/pull/63))
+- Configure Renovate with the shared preset ([#64](https://github.com/AntelopeJS/dms-builder/pull/64))
+
+### ✅ Tests
+
+- **skills:** Add eval cases for dms-builder ([#67](https://github.com/AntelopeJS/dms-builder/pull/67))
+- Move file reads and manifest invariants out of the test suites ([#69](https://github.com/AntelopeJS/dms-builder/pull/69))
+
+### ❤️ Contributors
+
+- Thomas ([@Thomasims](http://github.com/Thomasims))
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.2.4
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.2.3...v0.2.4)
