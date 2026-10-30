@@ -8,7 +8,10 @@
  * into the text the other produces.
  */
 
-import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
+import type {
+  QueryPoint,
+  ResourceFieldStructure,
+} from "@antelopejs/interface-dms-builder";
 import type {
   PlanFilter,
   PlanGroup,
@@ -39,6 +42,12 @@ export interface PlanRow {
   key(field: string): PlanValue;
 }
 
+/** One point per group once awaited, in the order the stream holds them. */
+export interface PlanPoints extends PromiseLike<QueryPoint[]> {
+  orderBy(index: string, direction?: "asc" | "desc"): PlanPoints;
+  slice(offset: number, count?: number): PlanPoints;
+}
+
 /** The stream surface the executor drives, named for what the plan needs of it. */
 export interface PlanStream {
   filter(predicate: (row: PlanRow) => PlanValue): PlanStream;
@@ -46,14 +55,12 @@ export interface PlanStream {
   group(
     index: string,
     mapper: (rows: PlanStream, group: PlanValue) => GroupedPoint,
-  ): PlanStream;
-  orderBy(index: string, direction?: "asc" | "desc"): PlanStream;
-  slice(offset: number, count?: number): PlanStream;
-  count(field?: string): unknown;
-  sum(field?: string): unknown;
-  avg(field?: string): unknown;
-  min(field?: string): unknown;
-  max(field?: string): unknown;
+  ): PlanPoints;
+  count(field?: string): PromiseLike<number>;
+  sum(field?: string): PromiseLike<number>;
+  avg(field?: string): PromiseLike<number>;
+  min(field?: string): PromiseLike<number>;
+  max(field?: string): PromiseLike<number>;
 }
 
 /** Values the route would supply per request, by the name the route exposes. */
@@ -157,7 +164,7 @@ function measureOver(
   rows: PlanStream,
   measure: PlanMeasure,
   over: string,
-): unknown {
+): PromiseLike<number> {
   if (measure.kind === "count") {
     return rows.count();
   }
@@ -184,14 +191,14 @@ export interface BucketMembers {
 /** One group as the mapper hands it back: the group itself and what was measured over its rows. */
 export interface GroupedPoint {
   x: PlanValue;
-  y: unknown;
+  y: PromiseLike<number>;
 }
 
 function applyGroup(
   stream: PlanStream,
   plan: QueryPlan,
   group: PlanGroup,
-): PlanStream {
+): PlanPoints {
   const bucketed = group.bucket !== undefined;
   const projected = bucketed
     ? stream.map((row) => {
@@ -237,7 +244,7 @@ export function executePlan(
   plan: QueryPlan,
   fields: ResourceFieldStructure[],
   args: PlanArguments = {},
-): unknown {
+): PromiseLike<number | QueryPoint[]> {
   const narrowed = applyFilters(table, resolveFilters(plan, fields, args));
   if (plan.group) {
     return applyGroup(narrowed, plan, plan.group);

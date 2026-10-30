@@ -9,11 +9,15 @@ import {
   executePlan,
   type GroupedPoint,
   type PlanArguments,
+  type PlanPoints,
   type PlanRow,
   type PlanStream,
   type PlanValue,
 } from "../implementations/dms-builder/engine/query-plan-execute";
-import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
+import type {
+  QueryPoint,
+  ResourceFieldStructure,
+} from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
   return { name, dataType: { $dataType: dataType } };
@@ -38,6 +42,19 @@ function carriesText(node: unknown): node is Transcript {
     "text" in node &&
     typeof node.text === "string"
   );
+}
+
+/** What awaiting a transcript answers: it holds the calls, not the rows, so nothing came back. */
+function nothingBack<Result>(answer: Result): PromiseLike<Result> {
+  return {
+    then: (onfulfilled, onrejected) =>
+      Promise.resolve(answer).then(onfulfilled, onrejected),
+  };
+}
+
+/** A measure, written down rather than computed. */
+function measure(text: string): PromiseLike<number> & Transcript {
+  return { text, ...nothingBack(0) };
 }
 
 /** A value, written down rather than computed. */
@@ -106,22 +123,30 @@ function stream(text: string): PlanStream & Transcript {
     map: (mapper) =>
       stream(`${text}.map((row) => (${members(mapper(row("row")))}))`),
     group: (index, mapper) =>
-      stream(
+      points(
         `${text}.group(${JSON.stringify(index)}, (rows, group) => (${members(
           mapper(stream("rows"), value("group")),
         )}))`,
       ),
+    count: () => measure(`${text}.count()`),
+    sum: (over?: string) => measure(`${text}.sum(${JSON.stringify(over)})`),
+    avg: (over?: string) => measure(`${text}.avg(${JSON.stringify(over)})`),
+    min: (over?: string) => measure(`${text}.min(${JSON.stringify(over)})`),
+    max: (over?: string) => measure(`${text}.max(${JSON.stringify(over)})`),
+  };
+}
+
+/** The groups a transcribed stream made, written down the same way. */
+function points(text: string): PlanPoints & Transcript {
+  return {
+    text,
+    ...nothingBack<QueryPoint[]>([]),
     orderBy: (index: string, direction?: "asc" | "desc") =>
-      stream(
+      points(
         `${text}.orderBy(${JSON.stringify(index)}, ${JSON.stringify(direction)})`,
       ),
     slice: (offset: number, count?: number) =>
-      stream(`${text}.slice(${offset}, ${count})`),
-    count: () => value(`${text}.count()`),
-    sum: (over?: string) => value(`${text}.sum(${JSON.stringify(over)})`),
-    avg: (over?: string) => value(`${text}.avg(${JSON.stringify(over)})`),
-    min: (over?: string) => value(`${text}.min(${JSON.stringify(over)})`),
-    max: (over?: string) => value(`${text}.max(${JSON.stringify(over)})`),
+      points(`${text}.slice(${offset}, ${count})`),
   };
 }
 

@@ -4,9 +4,15 @@ import {
   previewRequestFromSearch,
   runPlanPreview,
 } from "../implementations/dms-builder/engine/query-preview";
-import type { PlanStream } from "../implementations/dms-builder/engine/query-plan-execute";
+import type {
+  PlanPoints,
+  PlanStream,
+} from "../implementations/dms-builder/engine/query-plan-execute";
 import { registerBuiltinQueryTemplates } from "../implementations/dms-builder/engine/query-template-emit";
-import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
+import type {
+  QueryPoint,
+  ResourceFieldStructure,
+} from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
   return { name, dataType: { $dataType: dataType } };
@@ -19,41 +25,66 @@ const FIELDS = [
 ];
 
 /** What a table answers once awaited: a number for a scalar plan, one point per group for a grouped one. */
-type Answer = number | { x: number; y: number }[];
+type Answer = number | QueryPoint[];
 
-/** The awaitable half of a table handle, whose outcome a test decides. */
-interface Settling {
-  then(resolve: (answer: Answer) => void, reject: (error: Error) => void): void;
+/** How awaiting a handle settles, as the test decided. */
+type Outcome<Result> = (
+  resolve: (answer: Result) => void,
+  reject: (error: Error) => void,
+) => void;
+
+function awaitable<Result>(outcome: Outcome<Result>): PromiseLike<Result> {
+  return {
+    then: (onfulfilled, onrejected) =>
+      new Promise<Result>(outcome).then(onfulfilled, onrejected),
+  };
 }
 
 /**
  * A table without a database. Every call the plan makes returns the same handle,
- * and awaiting it settles as the test decided.
+ * a measure over it settles as `total` decided and the groups it makes settle as
+ * `groups` decided.
  */
-function tableSettling(then: Settling["then"]): PlanStream {
-  const handle: PlanStream & Settling = {
-    then,
+function tableSettling(
+  total: Outcome<number>,
+  groups: Outcome<QueryPoint[]>,
+): PlanStream {
+  const grouped: PlanPoints = {
+    ...awaitable(groups),
+    orderBy: () => grouped,
+    slice: () => grouped,
+  };
+  const handle: PlanStream = {
     filter: () => handle,
     map: () => handle,
-    group: () => handle,
-    orderBy: () => handle,
-    slice: () => handle,
-    count: () => handle,
-    sum: () => handle,
-    avg: () => handle,
-    min: () => handle,
-    max: () => handle,
+    group: () => grouped,
+    count: () => awaitable(total),
+    sum: () => awaitable(total),
+    avg: () => awaitable(total),
+    min: () => awaitable(total),
+    max: () => awaitable(total),
   };
   return handle;
 }
 
+function unasked(kind: string): Outcome<never> {
+  return (_resolve, reject) =>
+    reject(
+      new Error(`the table was awaited for ${kind}, which it was not given`),
+    );
+}
+
 /** A table that answers whatever the test decided. */
 function tableAnswering(rows: Answer): PlanStream {
-  return tableSettling((resolve) => resolve(rows));
+  return Array.isArray(rows)
+    ? tableSettling(unasked("a figure"), (resolve) => resolve(rows))
+    : tableSettling((resolve) => resolve(rows), unasked("points"));
 }
 
 function failingTable(message: string): PlanStream {
-  return tableSettling((_resolve, reject) => reject(new Error(message)));
+  const refusal: Outcome<never> = (_resolve, reject) =>
+    reject(new Error(message));
+  return tableSettling(refusal, refusal);
 }
 
 const COUNT_QUERY = {

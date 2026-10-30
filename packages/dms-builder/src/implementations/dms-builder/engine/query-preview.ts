@@ -88,8 +88,7 @@ function openTable(
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
-  const table: unknown = instance.table(tableName);
-  return table as PlanStream;
+  return instance.table(tableName) as PlanStream;
 }
 
 /**
@@ -112,12 +111,12 @@ interface ReadRows {
   truncated: boolean;
 }
 
-function readRows(rows: unknown): ReadRows {
+function readRows(rows: number | QueryPoint[]): ReadRows {
   if (!Array.isArray(rows)) {
     return { value: Number(rows), truncated: false };
   }
   return {
-    points: (rows as QueryPoint[]).slice(0, PREVIEW_LIMIT),
+    points: rows.slice(0, PREVIEW_LIMIT),
     truncated: rows.length > PREVIEW_LIMIT,
   };
 }
