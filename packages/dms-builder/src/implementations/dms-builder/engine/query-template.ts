@@ -278,10 +278,15 @@ export function checkParamConflicts(
   const seen = new Map<string, ParamBindingInfo>();
   const issues: ValidationIssue[] = [];
   where.forEach((raw, index) => {
-    const param = paramBindingOf(raw, fields);
-    if (!param) {
+    if (!isPlainObject(raw) || !isParamBinding(raw.value)) {
       return;
     }
+    const resolved = checkField(fields, raw.field, "");
+    const param: ParamBindingInfo = {
+      name: raw.value.$param.name,
+      type: "ts" in resolved ? resolved.ts : "string",
+      in: raw.value.$param.in ?? "query",
+    };
     const previous = seen.get(param.name);
     if (!previous) {
       seen.set(param.name, param);
@@ -297,21 +302,6 @@ export function checkParamConflicts(
     }
   });
   return issues;
-}
-
-function paramBindingOf(
-  raw: unknown,
-  fields: ResourceFieldStructure[],
-): ParamBindingInfo | undefined {
-  if (!isPlainObject(raw) || !isParamBinding(raw.value)) {
-    return undefined;
-  }
-  const resolved = checkField(fields, raw.field, "");
-  return {
-    name: raw.value.$param.name,
-    type: "ts" in resolved ? resolved.ts : "string",
-    in: raw.value.$param.in ?? "query",
-  };
 }
 
 export function checkFilter(
