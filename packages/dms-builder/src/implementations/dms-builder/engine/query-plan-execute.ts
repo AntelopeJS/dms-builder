@@ -85,7 +85,7 @@ function coerce(value: unknown, ts: string): unknown {
     return Number(value);
   }
   if (ts === "Date") {
-    return value instanceof Date ? value : new Date(value as string | number);
+    return value instanceof Date ? value : Reflect.construct(Date, [value]);
   }
   if (ts === "boolean") {
     return value === true || value === "true";
