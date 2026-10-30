@@ -48,7 +48,7 @@ function fallbackWarning(field: FieldSpec, dbType: DbType): OpWarning[] {
 }
 
 export function decoratorImport(name: string): ImportRef {
-  return { name, module: DECORATOR_IMPORTS[name] };
+  return { name, module: DECORATOR_IMPORTS.get(name) };
 }
 
 interface CollectedImport {
@@ -60,12 +60,12 @@ interface CollectedImport {
 class ImportSet {
   private readonly refs: CollectedImport[] = [];
 
-  public add(name: string, module: string): void {
+  public add(name: string, module: string | undefined): void {
     this.refs.push({ name: name.split(".")[0], module });
   }
 
   public addSymbol(name: string): void {
-    this.add(name, DECORATOR_IMPORTS[name]);
+    this.add(name, DECORATOR_IMPORTS.get(name));
   }
 
   public addRef(ref: ImportRef): void {

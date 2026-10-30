@@ -23,21 +23,21 @@ const ID_COLUMN = "_id";
 const READ_ROUTES: ResourceRoute[] = ["list", "get", "select", "export"];
 
 /** The DataType a TableView column shows for each declaration; others stay off the TableView. */
-const DATA_TYPES: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  date: "date",
-};
+const DATA_TYPES = new Map([
+  ["string", "string"],
+  ["number", "number"],
+  ["boolean", "boolean"],
+  ["date", "date"],
+]);
 
-const TS_TYPES: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  date: "Date",
-  object: "Record<string, unknown>",
-  any: "unknown",
-};
+const TS_TYPES = new Map([
+  ["string", "string"],
+  ["number", "number"],
+  ["boolean", "boolean"],
+  ["date", "Date"],
+  ["object", "Record<string, unknown>"],
+  ["any", "unknown"],
+]);
 
 /** A mapped relation refused, with the reason the caller is told. */
 export class MappingRefusal extends Error {}
@@ -96,7 +96,7 @@ function tsType(declared: string): string {
   if (declared.endsWith("[]")) {
     return `${tsType(declared.slice(0, -2))}[]`;
   }
-  return TS_TYPES[declared] ?? "unknown";
+  return TS_TYPES.get(declared) ?? "unknown";
 }
 
 function namesFor(
@@ -221,7 +221,7 @@ function chosenFields(
 function tableField(field: MappedField, declared: string): FieldSpec {
   return {
     name: field.column,
-    dataType: { $dataType: DATA_TYPES[declared] ?? "string" },
+    dataType: { $dataType: DATA_TYPES.get(declared) ?? "string" },
     dbField: { field: JSON.stringify(declared), ts: tsType(declared) },
   };
 }
@@ -333,7 +333,10 @@ function controllerField(
     };
   }
   const target = referenceTarget(targets, description, field);
-  if (!target && !DATA_TYPES[declared]) {
+  const scalar = DATA_TYPES.get(declared);
+  const source =
+    target ?? (scalar === undefined ? undefined : { $dataType: scalar });
+  if (!source) {
     return {
       reason: `a ${declared} field is not shown in a TableView in this version`,
     };
@@ -344,9 +347,8 @@ function controllerField(
     spec: {
       name: field.column,
       label: field.label ?? humanized(field.column),
-      dataType: target
-        ? relationDataType(target, field.column)
-        : { $dataType: DATA_TYPES[declared] },
+      dataType:
+        "$dataType" in source ? source : relationDataType(source, field.column),
       listable: field.listable ?? true,
       filterable: field.filterable ?? false,
       sortable: field.sortable ?? false,
