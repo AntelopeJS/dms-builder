@@ -107,9 +107,8 @@ function pageMemberNames(pageClass: ClassDeclaration): Set<string> {
     if ("isStatic" in member && member.isStatic()) {
       continue;
     }
-    const name = "getName" in member ? member.getName() : undefined;
-    if (typeof name === "string") {
-      names.add(name);
+    if ("getName" in member) {
+      names.add(member.getName());
     }
   }
   return names;
