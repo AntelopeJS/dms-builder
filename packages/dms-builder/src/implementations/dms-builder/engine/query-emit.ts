@@ -13,6 +13,7 @@ import {
 import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
 import { words } from "./emit";
+import { isString } from "./scalar-guards";
 
 /**
  * The prefix new query endpoints default to. Only a default — `AddQueryInput.endpoint`
@@ -75,7 +76,7 @@ export function seriesNaming(
   fields: ResourceFieldStructure[],
   resource: string,
 ): SeriesNaming {
-  const measure = (params.op as string | undefined) ?? COUNT_MEASURE;
+  const measure = isString(params.op) ? params.op : COUNT_MEASURE;
   if (measure === COUNT_MEASURE) {
     return { measure, label: resource };
   }

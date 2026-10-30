@@ -9,7 +9,7 @@ import type {
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
 import type { MethodDeclaration } from "ts-morph";
-import type { QueryPlan } from "./query-plan";
+import type { PlanMeasure, QueryPlan } from "./query-plan";
 import { isIdentifier } from "./paths";
 import { FILTER_OPS, filterOpNamed } from "./query-chain";
 import { describeValue } from "./describe-value";
@@ -117,6 +117,28 @@ const UNORDERED_DATA_TYPES = new Set(["select", "boolean"]);
 
 export function issue(pointer: string, message: string): ValidationIssue {
   return { pointer, message };
+}
+
+/** What a plan reports when it is asked for a parameter `validate` never passed. */
+export function unvalidatedParam(name: string): Error {
+  return new Error(
+    `query parameter "${name}" was planned before it was validated`,
+  );
+}
+
+/** The aggregate a validated `op` and `field` describe. */
+export function aggregateMeasure(params: {
+  op?: unknown;
+  field?: unknown;
+}): Extract<PlanMeasure, { kind: "aggregate" }> {
+  const { op, field } = params;
+  if (!isString(op)) {
+    throw unvalidatedParam("op");
+  }
+  if (!isString(field)) {
+    throw unvalidatedParam("field");
+  }
+  return { kind: "aggregate", op, field };
 }
 
 export function isParamBinding(value: unknown): value is QueryParamBinding {

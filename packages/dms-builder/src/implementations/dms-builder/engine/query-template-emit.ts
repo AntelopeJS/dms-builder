@@ -15,6 +15,7 @@ import { describeValue } from "./describe-value";
 import { isString } from "./scalar-guards";
 import {
   AGGREGATE_OPS,
+  aggregateMeasure,
   checkField,
   issue,
   QueryTemplate,
@@ -101,11 +102,7 @@ function aggregateTemplate(): QueryTemplate {
     },
     plan: (params) => ({
       filters: planFilters(params.where),
-      measure: {
-        kind: "aggregate",
-        op: params.op as string,
-        field: params.field as string,
-      },
+      measure: aggregateMeasure(params),
     }),
     parse: (method) => {
       const chain = readChain(method);
