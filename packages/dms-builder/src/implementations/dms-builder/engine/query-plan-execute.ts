@@ -28,10 +28,10 @@ export interface PlanValue {
   year(timezone?: string): PlanValue;
   month(timezone?: string): PlanValue;
   day(timezone?: string): PlanValue;
-  mul(value: unknown): PlanValue;
-  div(value: unknown): PlanValue;
-  add(value: unknown): PlanValue;
-  sub(value: unknown): PlanValue;
+  mul(value: number | PlanValue): PlanValue;
+  div(value: number | PlanValue): PlanValue;
+  add(value: number | PlanValue): PlanValue;
+  sub(value: number | PlanValue): PlanValue;
   floor(): PlanValue;
 }
 
@@ -41,11 +41,11 @@ export interface PlanRow {
 
 /** The stream surface the executor drives, named for what the plan needs of it. */
 export interface PlanStream {
-  filter(predicate: (row: PlanRow) => unknown): PlanStream;
-  map(mapper: (row: PlanRow) => unknown): PlanStream;
+  filter(predicate: (row: PlanRow) => PlanValue): PlanStream;
+  map(mapper: (row: PlanRow) => BucketMembers): PlanStream;
   group(
     index: string,
-    mapper: (rows: PlanStream, group: unknown) => unknown,
+    mapper: (rows: PlanStream, group: PlanValue) => GroupedPoint,
   ): PlanStream;
   orderBy(index: string, direction?: "asc" | "desc"): PlanStream;
   slice(offset: number, count?: number): PlanStream;
@@ -75,13 +75,13 @@ class MissingArgument extends Error {
  */
 function coerce(value: unknown, ts: string): unknown {
   if (ts === "number") {
-    return typeof value === "number" ? value : Number(value);
+    return Number(value);
   }
   if (ts === "Date") {
     return value instanceof Date ? value : new Date(value as string | number);
   }
   if (ts === "boolean") {
-    return typeof value === "boolean" ? value : value === "true";
+    return value === true || value === "true";
   }
   return value;
 }
@@ -161,13 +161,30 @@ function measureOver(
   if (measure.kind === "count") {
     return rows.count();
   }
-  const aggregate = measure.op as "sum" | "avg" | "min" | "max";
-  return rows[aggregate](over);
+  switch (measure.op) {
+    case "sum":
+      return rows.sum(over);
+    case "avg":
+      return rows.avg(over);
+    case "min":
+      return rows.min(over);
+    case "max":
+      return rows.max(over);
+    default:
+      throw new TypeError(`no aggregate named "${measure.op}"`);
+  }
 }
 
-interface BucketMembers {
+/** What a bucketed plan projects each row to before grouping on it. */
+export interface BucketMembers {
   bucket: PlanValue;
   value?: PlanValue;
+}
+
+/** One group as the mapper hands it back: the group itself and what was measured over its rows. */
+export interface GroupedPoint {
+  x: PlanValue;
+  y: unknown;
 }
 
 function applyGroup(

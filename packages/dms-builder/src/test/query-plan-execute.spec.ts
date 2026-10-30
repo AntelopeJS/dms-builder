@@ -5,7 +5,9 @@ import {
   type QueryPlan,
 } from "../implementations/dms-builder/engine/query-plan";
 import {
+  type BucketMembers,
   executePlan,
+  type GroupedPoint,
   type PlanArguments,
   type PlanRow,
   type PlanStream,
@@ -77,8 +79,8 @@ function literal(input: unknown): string {
   return JSON.stringify(input);
 }
 
-function members(fields: unknown): string {
-  const entries = Object.entries(fields ?? {}).map(
+function members(fields: BucketMembers | GroupedPoint): string {
+  const entries = Object.entries(fields).map(
     ([key, member]) => `${key}: ${textOf(member)}`,
   );
   return `{ ${entries.join(", ")} }`;
