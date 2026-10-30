@@ -17,14 +17,16 @@ import {
 import { isPlainObject } from "./value";
 import { issue, scanForExpr } from "./query-template";
 
-/** Walk a config value alongside the schema that describes it. */
+/** Walk a config value alongside the schema that describes it, visiting each string in it. */
 function walkOptions(
   schema: OptionSchema,
   value: unknown,
   pointer: string,
-  visit: (schema: OptionSchema, value: unknown, pointer: string) => void,
+  visit: (schema: OptionSchema, value: string, pointer: string) => void,
 ): void {
-  visit(schema, value, pointer);
+  if (isString(value)) {
+    visit(schema, value, pointer);
+  }
   if (schema.properties && isPlainObject(value)) {
     for (const [key, nested] of Object.entries(schema.properties)) {
       if (key in value) {
@@ -70,7 +72,7 @@ function checkFieldAspects(
       `${pointer}/config/${key}`,
       (node, value, at) => {
         const declared = node.ui?.fieldAspect;
-        if (!declared || !isString(value)) {
+        if (!declared) {
           return;
         }
         const aspects: FieldAspect[] = Array.isArray(declared)
