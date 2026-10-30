@@ -131,7 +131,7 @@ function resolveResourceBaseDir(
         `unknown category "${location.category}"`,
       );
     }
-    const misplaced = moduleError<CreateData>(
+    const misplaced = moduleError(
       module,
       category.importModule,
       `category "${location.category}"`,
@@ -147,7 +147,7 @@ function resolveResourceBaseDir(
   if (!page) {
     return invalidConfig<CreateData>(`unknown page "${location.page}"`);
   }
-  const misplaced = moduleError<CreateData>(
+  const misplaced = moduleError(
     module,
     page.filepath,
     `page "${location.page}"`,
@@ -162,7 +162,7 @@ function resolveResourcePlacement(
   project: Project,
   input: CreateResourceInput,
 ): ResolvedPlacement | OpResult<CreateData> {
-  const unknownModule = moduleError<CreateData>(input.module, undefined, "");
+  const unknownModule = moduleError(input.module, undefined, "");
   if (unknownModule) {
     return unknownModule;
   }

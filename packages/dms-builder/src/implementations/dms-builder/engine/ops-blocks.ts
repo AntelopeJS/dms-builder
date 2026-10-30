@@ -353,7 +353,7 @@ export function createPage(
   if (findPageRecord(ref)) {
     return duplicate<{ ref: PageRef; filepath: string }>(input.name, "page");
   }
-  const misplaced = moduleError<{ ref: PageRef; filepath: string }>(
+  const misplaced = moduleError(
     input.module,
     category.importModule,
     `category "${input.category}"`,
