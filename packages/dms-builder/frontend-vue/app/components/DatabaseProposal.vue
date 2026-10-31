@@ -20,7 +20,6 @@ import {
 	purposeText,
 	remapInput,
 	type ResourceDraft,
-	ruleSentence,
 	settledInput,
 	storedMappedDrafts,
 	storedMappingDraft,
@@ -29,6 +28,7 @@ import {
 	unanswered,
 	unsavedRelations,
 } from '../runtime/database'
+import { ruleSentence } from '../runtime/database-rules'
 import type {
 	AnalysisState,
 	MappedRelation,

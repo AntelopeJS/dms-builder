@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { ruleSentence, type FieldDraft, type ResourceDraft } from '../runtime/database'
+import { type FieldDraft, type ResourceDraft } from '../runtime/database'
+import { ruleSentence } from '../runtime/database-rules'
 import type {
 	OpenItem,
 	Proposed,
