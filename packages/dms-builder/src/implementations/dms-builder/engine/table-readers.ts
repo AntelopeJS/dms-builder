@@ -51,13 +51,14 @@ function walk(blocks: BlockNode[], visit: (block: BlockNode) => void): void {
  */
 export function tableReaders(): Record<string, TableReader[]> {
   const resources = listResourceRecords();
-  const readers: Record<string, Map<string, TableReader>> = {};
+  const readers = new Map<string, Map<string, TableReader>>();
   const count = (
     table: string,
     page: { ref: string; displayName: string },
     kind: "blocks" | "queries",
   ): void => {
-    const pages = (readers[table] ??= new Map());
+    const pages = readers.get(table) ?? new Map<string, TableReader>();
+    readers.set(table, pages);
     const entry = pages.get(page.ref) ?? {
       page: page.ref,
       displayName: page.displayName,
@@ -98,10 +99,7 @@ export function tableReaders(): Record<string, TableReader[]> {
     }
   }
   return Object.fromEntries(
-    Object.entries(readers).map(([table, pages]) => [
-      table,
-      [...pages.values()],
-    ]),
+    [...readers].map(([table, pages]) => [table, [...pages.values()]]),
   );
 }
 
