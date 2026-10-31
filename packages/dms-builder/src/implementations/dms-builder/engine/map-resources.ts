@@ -12,11 +12,11 @@ import { catalogOf } from "./catalog-connection";
 import { ensureNamedImport } from "./emit";
 import {
   type BatchTarget,
-  MappingRefusal,
   type MappingPlan,
   type PlannedResource,
   planMapping,
 } from "./map-resources-plan";
+import { MappingRefusal } from "./mapping-refusal";
 import { markMapped } from "./mapped-modules";
 import { moduleOfFile, targetModule } from "./modules";
 import { changesModule, watchReloadOf } from "./module-reload";

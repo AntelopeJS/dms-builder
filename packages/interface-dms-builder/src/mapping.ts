@@ -3,6 +3,38 @@ import type { CategoryRef, PageRef } from "./addressing";
 import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
 
+/** The semantic tones of the dashboard, which a status pill and a tab are drawn in. */
+export type DisplayTone =
+  | "neutral"
+  | "primary"
+  | "secondary"
+  | "success"
+  | "warning"
+  | "error"
+  | "info";
+
+/** One value of a badge column: the value the database holds, its label and the tone it is drawn in. */
+export interface BadgeItem {
+  value: string;
+  label: string;
+  tone: DisplayTone;
+}
+
+/**
+ * How a column is drawn beyond its declaration. A `badge` is a string column of few values, drawn
+ * as a status pill and filtered by a list of those values; a `price` is a number column drawn as an
+ * amount, in the DataType's default currency.
+ */
+export type ColumnDisplay =
+  | { kind: "badge"; items: BadgeItem[] }
+  | { kind: "price" };
+
+/** Tabs above a TableView: "All", then one tab per value of the column's badge. */
+export interface TabsChoice {
+  /** A column of the relation whose `display` is a badge, and which is `filterable`. */
+  column: string;
+}
+
 /** One column of a mapped relation, as the integrator chose to show it. */
 export interface MappedField {
   column: string;
@@ -13,6 +45,11 @@ export interface MappedField {
   filterable?: boolean;
   sortable?: boolean;
   searchable?: boolean;
+  /**
+   * A badge needs a `string` declaration and a price a `number` one. Left out or null, the column
+   * is plain: a mapping that does not send the display it read back loses it.
+   */
+  display?: ColumnDisplay | null;
   /**
    * `"schema.name"` of another mapped relation this column refers to, by that relation's
    * single-column key: the column becomes a relation column showing the target's `label`.
@@ -39,6 +76,11 @@ export interface MappedResource {
   writable: boolean;
   /** The columns to declare; key columns are added when left out. */
   fields: MappedField[];
+  /**
+   * Tabs on the TableView's rows by a badge column. Written to the page's TableView when set, over
+   * any `tabs` it holds; left out or null, a page already mapped keeps the tabs it has.
+   */
+  tabs?: TabsChoice | null;
 }
 
 /** A relation the integrator decided not to map, so an analysis does not propose it again. */

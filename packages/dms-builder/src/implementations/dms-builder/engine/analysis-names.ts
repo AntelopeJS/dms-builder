@@ -1,4 +1,4 @@
-import { humanized } from "./map-resources-plan";
+import { humanized } from "./name-words";
 
 /** Tables a framework or a migration tool keeps, which hold nothing an integrator lists (R4). */
 const TECHNICAL_TABLES: readonly RegExp[] = [

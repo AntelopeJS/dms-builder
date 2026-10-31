@@ -17,6 +17,9 @@ import { pascalCase } from "./emit";
 import type { ResourceNames } from "./resource-emit";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
 import { MixedTypeDeclarations } from "./mixed-types";
+import { type TabConfig, fieldDataType, plannedTabs } from "./column-display";
+import { refuse } from "./mapping-refusal";
+import { humanized, singular, words } from "./name-words";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 const ID_COLUMN = "_id";
@@ -39,13 +42,6 @@ const TS_TYPES: Record<string, string> = {
   any: "unknown",
 };
 
-/** A mapped relation refused, with the reason the caller is told. */
-export class MappingRefusal extends Error {}
-
-function refuse(message: string): never {
-  throw new MappingRefusal(message);
-}
-
 /** One relation, planned: names, the table's fields, and the controller's when it has a TableView. */
 export interface PlannedResource {
   relation: string;
@@ -60,36 +56,12 @@ export interface PlannedResource {
   routes?: ResourceRoute[];
   label?: string;
   displayName: string;
+  tabs?: TabConfig[];
 }
 
 export interface MappingPlan {
   resources: PlannedResource[];
   leftOut: LeftOutColumn[];
-}
-
-function words(value: string): string[] {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .split(/[^A-Za-z0-9]+/)
-    .filter((part) => part.length > 0)
-    .map((part) => part.toLowerCase());
-}
-
-/** A relation name's singular, as class names take it: `accounts` → `account`. */
-export function singular(name: string): string {
-  if (name.endsWith("ies")) {
-    return `${name.slice(0, -3)}y`;
-  }
-  if (/(ss|us|is)$/.test(name)) {
-    return name;
-  }
-  return name.endsWith("s") ? name.slice(0, -1) : name;
-}
-
-/** A database name as a person reads it: `ordered_at` → `Ordered at`. */
-export function humanized(name: string): string {
-  const spaced = words(name).join(" ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function tsType(declared: string): string {
@@ -333,6 +305,11 @@ function controllerField(
     };
   }
   const target = referenceTarget(targets, description, field);
+  if (target && field.display) {
+    refuse(
+      `${relationName(description)}.${field.column} is a relation column, which takes no display`,
+    );
+  }
   if (!target && !DATA_TYPES[declared]) {
     return {
       reason: `a ${declared} field is not shown in a TableView in this version`,
@@ -346,7 +323,12 @@ function controllerField(
       label: field.label ?? humanized(field.column),
       dataType: target
         ? relationDataType(target, field.column)
-        : { $dataType: DATA_TYPES[declared] },
+        : fieldDataType(
+            field,
+            declared,
+            { $dataType: DATA_TYPES[declared] },
+            `${relationName(description)}.${field.column}`,
+          ),
       listable: field.listable ?? true,
       filterable: field.filterable ?? false,
       sortable: field.sortable ?? false,
@@ -449,7 +431,7 @@ function RoutesOf(resource: MappedResource): ResourceRoute[] | undefined {
 
 /**
  * Checks every choice against the catalog's descriptions and plans what each relation becomes.
- * Throws a {@link MappingRefusal} naming the first choice it cannot honour.
+ * Throws a `MappingRefusal` naming the first choice it cannot honour.
  */
 export function planMapping(
   input: MapResourcesInput,
@@ -489,6 +471,7 @@ export function planMapping(
       routes: RoutesOf(target.resource),
       label: target.resource.label,
       displayName: target.resource.title ?? humanized(description.name),
+      tabs: plannedTabs(target.resource, relationName(description), apiFields),
     };
   });
   return { resources, leftOut };

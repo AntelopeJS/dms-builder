@@ -19,8 +19,11 @@ import {
   type RelationFacts,
   columnProfile,
   hasTrait,
+  profiledRowsOf,
 } from "./analysis-input";
 import { isSecretColumn, titleOf } from "./analysis-names";
+import { proposeDisplay } from "./column-display";
+import { humanized, singular } from "./name-words";
 
 /** Text at most this long on average is listable. */
 const LISTABLE_TEXT_LENGTH = 80;
@@ -42,6 +45,8 @@ export interface ReferenceTarget {
   keyAccepts: string[];
   /** The kind of value the key holds, when it is one column, as `nativeKind` reads it. */
   keyKind?: string;
+  /** The relation's title, which a column pointing at it is labelled with in singular (D3). */
+  title: string;
 }
 
 export function referenceTarget(
@@ -58,6 +63,7 @@ export function referenceTarget(
     key,
     keyAccepts: keyColumn?.accepts.map((entry) => entry.declared) ?? [],
     keyKind: keyColumn && nativeKind(keyColumn.native),
+    title: titleOf(description.comment, description.name),
   };
 }
 
@@ -317,6 +323,22 @@ function profileSummary(profile: ColumnProfile): ProposedColumnProfile {
   return summary;
 }
 
+/**
+ * A column's title: a relation column pointing at a relation with a TableView is labelled with
+ * that relation's title in singular (D3), unless the database commented the column (L2).
+ */
+function labelOf(
+  column: ColumnDescription,
+  choice: RelationChoice,
+  context: FieldContext,
+): Proposed<string> {
+  const title = titleOf(column.comment, column.name);
+  const target = choice.relation && context.targets.get(choice.relation.value);
+  return target && title === humanized(column.name)
+    ? byDefault(singular(target.title), "D3")
+    : byDefault(title, "L2");
+}
+
 function proposedField(
   facts: RelationFacts,
   column: ColumnDescription,
@@ -337,7 +359,7 @@ function proposedField(
     native: column.native,
     accepts: column.accepts.map((entry) => entry.declared),
     declared: { ...fact(declared, "F3"), lossy: reading.lossy },
-    label: byDefault(titleOf(column.comment, column.name), "L2"),
+    label: labelOf(column, choice, context),
     listable: byDefault(flags.listable, "FL"),
     filterable: byDefault(flags.filterable, "FL"),
     sortable: byDefault(flags.sortable, "FL"),
@@ -349,6 +371,18 @@ function proposedField(
   const profile = columnProfile(facts, column.name);
   if (profile) {
     field.profile = profileSummary(profile);
+  }
+  const display = proposeDisplay({
+    column: column.name,
+    declared,
+    isRelation: choice.relation !== undefined,
+    enumLike: hasTrait(facts, column.name, "enum-like"),
+    categories: field.profile?.categories,
+    nulls: field.profile?.nulls ?? 0,
+    rows: profiledRowsOf(facts),
+  });
+  if (display) {
+    field.display = byDefault(display.display, display.rule);
   }
   return field;
 }

@@ -7,6 +7,7 @@ import type {
   OpResult,
   OpWarning,
 } from "@antelopejs/interface-dms-builder";
+import type { TabConfig } from "./column-display";
 import { getStringProperty } from "./literals";
 import type { MappingPlan, PlannedResource } from "./map-resources-plan";
 import { addBlock, configureBlock } from "./ops";
@@ -16,7 +17,8 @@ import { deletePage } from "./page-delete";
 import { joinSlug } from "./scan";
 import { findCategoryRecord, findPageRecord } from "./source-index";
 
-const TABLE_BLOCK = "table";
+/** The name of the TableView block a mapped relation's page holds. */
+export const TABLE_BLOCK = "table";
 
 /** A refusal in words, for a warning a person reads. */
 function errorText(error: BuilderError): string {
@@ -43,13 +45,20 @@ function errorText(error: BuilderError): string {
 type TableConfig = {
   caption: string;
   labelKey?: string;
+  tabs?: TabConfig[];
 };
 
-/** The table block's caption and, when the relation has one, the label its rows are named by. */
+/**
+ * The table block's caption and, when the relation has them, the label its rows are named by and
+ * its tabs. A relation without tabs leaves the `tabs` a page holds as they are.
+ */
 function tableConfig(resource: PlannedResource): TableConfig {
   const config: TableConfig = { caption: resource.displayName };
   if (resource.label) {
     config.labelKey = resource.label;
+  }
+  if (resource.tabs) {
+    config.tabs = resource.tabs;
   }
   return config;
 }

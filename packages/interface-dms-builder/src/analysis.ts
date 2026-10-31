@@ -1,4 +1,5 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
+import type { ColumnDisplay, TabsChoice } from "./mapping";
 import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
 
@@ -57,6 +58,8 @@ export interface ProposedField {
   filterable: Proposed<boolean>;
   sortable: Proposed<boolean>;
   searchable: Proposed<boolean>;
+  /** How the column is drawn (D1, D2); absent when it is plain. */
+  display?: Proposed<ColumnDisplay>;
   /** `"schema.name"` of the relation this column refers to, when it becomes a relation column. */
   relation?: ProposedRelationColumn;
   profile?: ProposedColumnProfile;
@@ -85,6 +88,8 @@ export interface ProposedResource {
   /** The column relation columns pointing here show; null when no column is one. */
   label: Proposed<string | null>;
   title: Proposed<string>;
+  /** The tabs of its TableView (T1); absent when no column suits them. */
+  tabs?: Proposed<TabsChoice>;
   fields: ProposedField[];
   leftOut: ProposedLeftOut[];
   writes: ProposedWrites;
