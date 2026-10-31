@@ -158,7 +158,7 @@ export function isParamBinding(value: unknown): value is QueryParamBinding {
  * raw expression would put uncheckable code inside a model body or a page.
  */
 export function scanForExpr(
-  value: unknown,
+  value: ConfigValue,
   within: string,
   pointer = "",
 ): ValidationIssue[] {
