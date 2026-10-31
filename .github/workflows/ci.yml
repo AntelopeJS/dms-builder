@@ -24,7 +24,7 @@ jobs:
   # format, knip, the node, Vue unit and component suites, size, ratchet and
   # sync.
   ci:
-    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1
+    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1-campaign
     with:
       docs-files: |
         README.md

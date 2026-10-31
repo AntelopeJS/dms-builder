@@ -69,7 +69,7 @@ The interface declares this peer dependency:
 
 <!-- antelopejs-docs-compat:end -->
 
-The 0.2 interface is implemented by `@antelopejs/dms-builder` 0.4, used with DMS 0.9. These implementation versions are not peer dependencies of the interface package. The implementation runs in development only, unless its [`api.enabled`](https://dms.antelopejs.com/docs/modules/builder/configuration) option forces it.
+The 0.2 interface line is implemented by the `@antelopejs/dms-builder` releases whose interface range admits it; the compatibility block of the [module README](../dms-builder/README.md#compatibility) lists the range of that module release. The implementation is not a peer dependency of the interface package. The implementation runs in development only, unless its [`api.enabled`](https://dms.antelopejs.com/docs/modules/builder/configuration) option forces it.
 
 ## Documentation
 
