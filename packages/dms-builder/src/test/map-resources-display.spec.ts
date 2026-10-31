@@ -1,22 +1,10 @@
-import path from "node:path";
 import { expect } from "chai";
 import type {
-  ColumnDisplay,
   MappedField,
   MappedRelation,
   MappedResource,
-  MapResourcesInput,
 } from "@antelopejs/interface-dms-builder";
-import type {
-  ColumnDescription,
-  RelationDescription,
-} from "@antelopejs/interface-database-catalog";
-import {
-  ConfigureBlock,
-  GetMapping,
-  ListPages,
-  MapResources,
-} from "../implementations/dms-builder";
+import { GetMapping, MapResources } from "../implementations/dms-builder";
 import { setCatalogConnectionsForTests } from "../implementations/dms-builder/engine/catalog-connection";
 import { setModuleReloadForTests } from "../implementations/dms-builder/engine/module-reload";
 import {
@@ -25,130 +13,24 @@ import {
   expectOk,
   type Fixture,
 } from "./harness";
-import { fileText } from "./helpers/file-text";
+import {
+  ordersInput,
+  SHOP,
+  STATUS,
+  handEditedTabs,
+  pageText,
+} from "./helpers/shop-orders";
 import { projectFile } from "./helpers/project-files";
 import { MODULE, OP_TIMEOUT } from "./mapped-database";
 import { reloadedAtOnce } from "./reload-stub";
+import path from "node:path";
 
 let app: Fixture;
-
-function Column(
-  name: string,
-  declared: string,
-  extra: Partial<ColumnDescription> = {},
-): ColumnDescription {
-  return {
-    name,
-    native: declared,
-    nullable: true,
-    hasDefault: false,
-    generated: false,
-    identity: null,
-    accepts: [{ declared }],
-    comment: null,
-    ...extra,
-  };
-}
-
-function Relation(
-  name: string,
-  columns: ColumnDescription[],
-  references: RelationDescription["references"] = [],
-): RelationDescription {
-  return {
-    schema: "shop",
-    name,
-    kind: "table",
-    key: { columns: ["id"], source: "primary" },
-    writes: { insert: true, update: true, delete: true },
-    estimatedRows: null,
-    estimate: null,
-    comment: null,
-    columns,
-    indexes: [],
-    references,
-    referencedBy: [],
-  };
-}
-
-const SHOP: RelationDescription[] = [
-  Relation("customers", [
-    Column("id", "string", { nullable: false }),
-    Column("name", "string"),
-  ]),
-  Relation(
-    "orders",
-    [
-      Column("id", "string", { nullable: false }),
-      Column("reference", "string"),
-      Column("customer_id", "string"),
-      Column("status", "string"),
-      Column("total", "number"),
-    ],
-    [
-      {
-        name: "orders_customer_id_fkey",
-        from: { relation: "shop.orders", columns: ["customer_id"] },
-        to: { relation: "shop.customers", columns: ["id"] },
-      },
-    ],
-  ),
-];
-
-const STATUS: ColumnDisplay = {
-  kind: "badge",
-  items: [
-    { value: "paid", label: "Paid", tone: "success" },
-    { value: "pending", label: "Pending", tone: "warning" },
-    { value: "cancelled", label: "Cancelled", tone: "error" },
-  ],
-};
-
-const FIELDS: MappedField[] = [
-  { column: "reference" },
-  { column: "customer_id", relation: "shop.customers", label: "Customer" },
-  { column: "status", filterable: true, display: STATUS },
-  { column: "total", display: { kind: "price" } },
-];
-
-function ordersInput(
-  overrides: Partial<MappedResource> = {},
-): MapResourcesInput {
-  return {
-    module: MODULE,
-    connection: "shop",
-    resources: [
-      {
-        relation: "shop.customers",
-        label: "name",
-        tableView: true,
-        writable: false,
-        fields: [{ column: "name" }],
-      },
-      {
-        relation: "shop.orders",
-        label: "reference",
-        tableView: true,
-        writable: false,
-        fields: FIELDS,
-        tabs: { column: "status" },
-        ...overrides,
-      },
-    ],
-  };
-}
 
 function moduleFile(relative: string): string {
   return projectFile(app.root, path.join("modules", MODULE, "src", relative));
 }
 
-async function pageText(): Promise<string> {
-  const page = (await ListPages()).find((entry) => entry.id === "shop-orders");
-  expect(page, "the orders page").to.not.equal(undefined);
-  return fileText(page!.filepath);
-}
-
-/** What the workspace sends to map a relation again from what `GetMapping` read back. */
 function echoed(entry: MappedRelation): MappedResource {
   const { resource } = entry;
   const mapped: MappedResource = {
@@ -198,24 +80,6 @@ async function ordersMapped(): Promise<MappedRelation> {
 }
 
 /** The orders mapped with tabs, then the page's tabs replaced the way a person editing the page would. */
-async function handEditedTabs(): Promise<void> {
-  expectOk(await MapResources(ordersInput()), "MapResources");
-  const page = (await ListPages()).find((entry) => entry.id === "shop-orders");
-  expectOk(
-    await ConfigureBlock(`${page!.ref}#table`, {
-      tabs: [
-        { id: "all", label: "Everything" },
-        {
-          id: "late",
-          label: "Late",
-          filter: { accessorKey: "status", value: "pending", mode: "is" },
-        },
-      ],
-    }),
-    "ConfigureBlock",
-  );
-}
-
 describe("mapping columns with a display and a TableView with tabs", function () {
   this.timeout(OP_TIMEOUT);
 
