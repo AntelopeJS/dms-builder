@@ -9,6 +9,7 @@
  */
 
 import type {
+  ConfigValue,
   QueryPoint,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
@@ -20,14 +21,17 @@ import type {
 } from "./query-plan";
 import { checkField, isParamBinding } from "./query-template";
 
+/** What a comparison takes: a filter literal, a request argument, or the Date one is coerced to. */
+export type PlanOperand = ConfigValue | Date;
+
 /** A value in a query, as the database's proxy exposes it. */
 export interface PlanValue {
-  eq(value: unknown): PlanValue;
-  ne(value: unknown): PlanValue;
-  gt(value: unknown): PlanValue;
-  ge(value: unknown): PlanValue;
-  lt(value: unknown): PlanValue;
-  le(value: unknown): PlanValue;
+  eq(value: PlanOperand): PlanValue;
+  ne(value: PlanOperand): PlanValue;
+  gt(value: PlanOperand): PlanValue;
+  ge(value: PlanOperand): PlanValue;
+  lt(value: PlanOperand): PlanValue;
+  le(value: PlanOperand): PlanValue;
   year(timezone?: string): PlanValue;
   month(timezone?: string): PlanValue;
   day(timezone?: string): PlanValue;
@@ -64,7 +68,7 @@ export interface PlanStream {
 }
 
 /** Values the route would supply per request, by the name the route exposes. */
-export type PlanArguments = Record<string, unknown>;
+export type PlanArguments = Record<string, PlanOperand>;
 
 class MissingArgument extends Error {
   constructor(name: string) {
@@ -80,12 +84,16 @@ class MissingArgument extends Error {
  * same query string has to do the same, or it compares a string where the route
  * compares a number and answers something else entirely.
  */
-function coerce(value: unknown, ts: string): unknown {
+function coerce(value: PlanOperand, ts: string): PlanOperand {
   if (ts === "number") {
     return Number(value);
   }
   if (ts === "Date") {
-    return value instanceof Date ? value : Reflect.construct(Date, [value]);
+    if (value instanceof Date) {
+      return value;
+    }
+    const made: unknown = Reflect.construct(Date, [value]);
+    return made instanceof Date ? made : value;
   }
   if (ts === "boolean") {
     return value === true || value === "true";
@@ -96,7 +104,7 @@ function coerce(value: unknown, ts: string): unknown {
 interface ResolvedFilter {
   field: string;
   op: PlanFilter["op"];
-  value: unknown;
+  value: PlanOperand;
 }
 
 /**

@@ -123,7 +123,7 @@ export const PreviewQuery =
 export interface QueryPreviewRequest {
   query: AddQueryInput;
   /** Values the route would receive, by the name it exposes them under. */
-  args?: Record<string, unknown>;
+  args?: ConfigObject;
   /** The tenant whose rows to read, for a resource in a per-tenant schema. */
   tenant?: string;
 }

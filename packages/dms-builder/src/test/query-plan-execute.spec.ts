@@ -9,6 +9,7 @@ import {
   executePlan,
   type GroupedPoint,
   type PlanArguments,
+  type PlanOperand,
   type PlanPoints,
   type PlanRow,
   type PlanStream,
@@ -35,7 +36,14 @@ interface Transcript {
   text: string;
 }
 
-function carriesText(node: unknown): node is Transcript {
+/** Everything the stand-ins are asked to write down: an operand, a value, a measure. */
+type Rendered =
+  | PlanOperand
+  | PlanValue
+  | PromiseLike<number>
+  | PromiseLike<number | QueryPoint[]>;
+
+function carriesText(node: Rendered): node is Rendered & Transcript {
   return (
     typeof node === "object" &&
     node !== null &&
@@ -60,8 +68,8 @@ function measure(text: string): PromiseLike<number> & Transcript {
 /** A value, written down rather than computed. */
 function value(text: string): PlanValue & Transcript {
   const call =
-    (name: string): PlanValue["eq"] =>
-    (argument) =>
+    (name: string) =>
+    (argument?: PlanOperand | PlanValue): PlanValue =>
       value(
         argument === undefined
           ? `${text}.${name}()`
@@ -86,7 +94,7 @@ function value(text: string): PlanValue & Transcript {
   };
 }
 
-function literal(input: unknown): string {
+function literal(input: Rendered): string {
   if (input instanceof Date) {
     return `new Date(${JSON.stringify(input.toISOString())})`;
   }
@@ -97,13 +105,13 @@ function literal(input: unknown): string {
 }
 
 function members(fields: BucketMembers | GroupedPoint): string {
-  const entries = Object.entries(fields).map(
+  const entries = Object.entries({ ...fields }).map(
     ([key, member]) => `${key}: ${textOf(member)}`,
   );
   return `{ ${entries.join(", ")} }`;
 }
 
-function textOf(node: unknown): string {
+function textOf(node: Rendered): string {
   return carriesText(node) ? node.text : literal(node);
 }
 

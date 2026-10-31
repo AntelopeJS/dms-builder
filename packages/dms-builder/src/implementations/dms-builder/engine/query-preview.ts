@@ -16,6 +16,7 @@ import {
 } from "@antelopejs/interface-dms/base/query-response";
 import type {
   AddQueryInput,
+  ConfigObject,
   OpResult,
   QueryOutputKind,
   QueryPoint,
@@ -32,11 +33,7 @@ import {
   seriesNaming,
   type SeriesNaming,
 } from "./query-emit";
-import {
-  executePlan,
-  type PlanArguments,
-  type PlanStream,
-} from "./query-plan-execute";
+import { executePlan, type PlanStream } from "./query-plan-execute";
 import type { QueryPlan } from "./query-plan";
 import { getQueryTemplate, isParamBinding } from "./query-template";
 import { findResourceRecord } from "./resource-index";
@@ -49,7 +46,7 @@ const PREVIEW_LIMIT = 500;
 export interface PreviewRequest {
   query: AddQueryInput;
   /** Values the route would receive, by the name it exposes them under. */
-  args?: PlanArguments;
+  args?: ConfigObject;
   /**
    * The tenant whose rows to read. A resource in a per-tenant schema has one
    * table per tenant, and reading the wrong one is worse than reading none.
@@ -174,8 +171,8 @@ function arrange(
 function precedingArguments(
   plan: QueryPlan,
   fields: ResourceFieldStructure[],
-  args: PlanArguments,
-): PlanArguments | undefined {
+  args: ConfigObject,
+): ConfigObject | undefined {
   const dates = new Set(
     fields
       .filter((field) => field.dataType?.$dataType === "date")
@@ -193,7 +190,7 @@ function precedingArguments(
   if (bounds.length !== COMPARISON_PARAMETERS.length) {
     return undefined;
   }
-  const preceding: PlanArguments = { ...args };
+  const preceding: ConfigObject = { ...args };
   for (const [at, name] of bounds.entries()) {
     const value = args[COMPARISON_PARAMETERS[at]];
     if (value === undefined) {
@@ -293,7 +290,7 @@ export function previewRequestFromSearch(
       `"${queryParameter}" must be a query as JSON, naming its resource and template`,
     );
   }
-  const args: PlanArguments = {};
+  const args: ConfigObject = {};
   for (const [name, value] of search) {
     if (name !== queryParameter) {
       args[name] = value;

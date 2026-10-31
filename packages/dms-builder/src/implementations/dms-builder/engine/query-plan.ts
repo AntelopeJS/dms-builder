@@ -9,6 +9,7 @@
  */
 
 import type {
+  ConfigValue,
   FilterOp,
   OpWarning,
   QueryParamBinding,
@@ -32,7 +33,7 @@ export interface PlanFilter {
   field: string;
   op: FilterOp;
   /** A literal baked into the chain, or a value the route supplies per request. */
-  value: unknown;
+  value: ConfigValue;
 }
 
 /** What the plan computes over the rows it selected. */
@@ -85,31 +86,25 @@ export interface QueryPlan {
   limit?: number;
 }
 
-function isPlanFilter(raw: unknown): raw is PlanFilter {
-  return (
-    isPlainObject(raw) &&
-    isString(raw.field) &&
-    isString(raw.op) &&
-    filterOpNamed(raw.op) !== undefined &&
-    "value" in raw
-  );
-}
-
 /**
  * Read a template's `where` parameter as the plan's filters. A template plans
  * only after its `validate` passed, so an entry that is not a filter is a plan
  * asked for before that, and refuses like the other plan readers do.
  */
-export function planFilters(where: unknown): PlanFilter[] {
+export function planFilters(where: ConfigValue): PlanFilter[] {
   if (!Array.isArray(where)) {
     return [];
   }
-  const entries: unknown[] = where;
+  const entries: ConfigValue[] = where;
   return entries.map((raw) => {
-    if (!isPlanFilter(raw)) {
+    if (!isPlainObject(raw) || !isString(raw.field) || !("value" in raw)) {
       throw unvalidatedParam("where");
     }
-    return { field: raw.field, op: raw.op, value: raw.value };
+    const op = isString(raw.op) ? filterOpNamed(raw.op) : undefined;
+    if (op === undefined) {
+      throw unvalidatedParam("where");
+    }
+    return { field: raw.field, op, value: raw.value };
   });
 }
 
