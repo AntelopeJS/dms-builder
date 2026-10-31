@@ -150,6 +150,30 @@ describe("the page draft", () => {
       expect(preview.degraded).to.deep.equal([]);
     });
 
+    it("keeps a __proto__ key of a block's config as an own key of its options", async function () {
+      this.timeout(OP_TIMEOUT);
+      const extra: unknown = JSON.parse(
+        '{"__proto__":{"inherited":1},"own":2}',
+      );
+      const preview = expectOk(
+        await PreviewLayout(PAGE, {
+          blocks: [
+            {
+              name: "note",
+              type: "Placeholder",
+              config: { label: "p", extra },
+            },
+          ],
+        }),
+        "PreviewLayout",
+      );
+
+      expect(preview.degraded).to.deep.equal([]);
+      expect(JSON.stringify(preview.components.note.options?.extra)).to.equal(
+        '{"__proto__":{"inherited":1},"own":2}',
+      );
+    });
+
     it("previews a form without the field the author has only just added", async function () {
       this.timeout(OP_TIMEOUT);
       const email = {
