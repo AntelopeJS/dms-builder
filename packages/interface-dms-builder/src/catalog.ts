@@ -167,7 +167,6 @@ export interface OptionSchema {
    * `dataApiController`. Its value is a `$ref` to a resource.
    */
   "x-controller"?: boolean;
-  [key: string]: unknown;
 }
 
 /**
