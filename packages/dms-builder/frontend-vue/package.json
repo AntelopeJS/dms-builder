@@ -23,6 +23,11 @@
 		"@antelopejs/core": "1.17.1",
 		"@antelopejs/dms": ">=0.11.0 <1.0.0",
 		"@antelopejs/dms-frontend": ">=0.9.1 <1.0.0",
+		"@antelopejs/interface-api": "file:../../../.campaign/tgz/antelopejs-interface-api-f206be7.tgz",
+		"@antelopejs/interface-api-util": "file:../../../.campaign/tgz/antelopejs-interface-api-util-cc740f8.tgz",
+		"@antelopejs/interface-data-api": "file:../../../.campaign/tgz/antelopejs-interface-data-api-4352b2c.tgz",
+		"@antelopejs/interface-database": "file:../../../.campaign/tgz/antelopejs-interface-database-8261536.tgz",
+		"@antelopejs/interface-database-decorators": "file:../../../.campaign/tgz/antelopejs-interface-database-decorators-fcb0a29.tgz",
 		"@eslint/js": "^9.0.0",
 		"eslint": "^9.0.0",
 		"eslint-plugin-vue": "^10.0.0",
@@ -31,5 +36,16 @@
 		"typescript-eslint": "^8.0.0",
 		"vitest": "^4.1.8",
 		"vue-tsc": "^3.1.1"
+	},
+	"pnpm": {
+		"overrides": {
+			"@antelopejs/interface-api": "file:../../../.campaign/tgz/antelopejs-interface-api-f206be7.tgz",
+			"@antelopejs/interface-api-util": "file:../../../.campaign/tgz/antelopejs-interface-api-util-cc740f8.tgz",
+			"@antelopejs/interface-database": "file:../../../.campaign/tgz/antelopejs-interface-database-8261536.tgz",
+			"@antelopejs/interface-database-decorators": "file:../../../.campaign/tgz/antelopejs-interface-database-decorators-fcb0a29.tgz",
+			"@antelopejs/interface-data-api": "file:../../../.campaign/tgz/antelopejs-interface-data-api-4352b2c.tgz",
+			"@antelopejs/interface-dms": "file:../../../.campaign/tgz/antelopejs-interface-dms-50e3adc.tgz",
+			"@antelopejs/dms": "file:../../../.campaign/tgz/antelopejs-dms-50e3adc.tgz"
+		}
 	}
 }

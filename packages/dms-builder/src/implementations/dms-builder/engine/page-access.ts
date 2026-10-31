@@ -229,10 +229,11 @@ async function readRoles(
   tenant: string | undefined,
   prefixes: string[],
 ): Promise<RoleAccess[] | null> {
-  if (!tenant) {
+  const { schemaName } = RoleModel;
+  if (!tenant || schemaName === undefined) {
     return null;
   }
-  const schema = Schema.get(RoleModel.schemaName);
+  const schema = Schema.get(schemaName);
   if (!schema) {
     return null;
   }
