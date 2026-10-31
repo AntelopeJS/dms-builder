@@ -29,6 +29,7 @@ describe("the pages reading a table", () => {
       ["board", "Board"],
       ["intake", "Intake"],
       ["quiet", "Quiet"],
+      ["odd", "Odd"],
     ] as const) {
       expectOk(
         await CreatePage({ name, displayName, category: "pages.shop" }),
@@ -162,5 +163,44 @@ describe("the pages reading a table", () => {
       page: "/shop/intake",
       displayName: "Intake",
     });
+  });
+  it("counts the pages reading a table named like an Object.prototype member", async function () {
+    this.timeout(120_000);
+    const names = ["constructor"];
+    for (const name of names) {
+      expectOk(
+        await CreateResource({
+          name,
+          fields: [{ name: "title", dataType: { $dataType: "string" } }],
+        }),
+        `CreateResource ${name}`,
+      );
+    }
+    const odd = expectOk(await GetPageStructure("/shop/odd"), "odd");
+    expectOk(
+      await SetPageBlocks(
+        "/shop/odd",
+        {
+          blocks: names.map((name) => ({
+            name: `${name}View`,
+            type: "TableView",
+            controller: name,
+            config: {},
+          })),
+        },
+        { expectedVersion: odd.version },
+      ),
+      "SetPageBlocks odd",
+    );
+
+    const readers = tableReaders();
+    for (const name of names) {
+      expect(
+        Object.getOwnPropertyDescriptor(readers, name)?.value,
+        name,
+      ).to.deep.equal([
+        { page: "/shop/odd", displayName: "Odd", blocks: 1, queries: 0 },
+      ]);
+    }
   });
 });
