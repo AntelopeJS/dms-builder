@@ -330,5 +330,33 @@ describe("running a plan", () => {
       ).to.throw(/"cap"/);
       expect(built, "no call was built before it refused").to.equal(false);
     });
+
+    for (const name of [
+      "constructor",
+      "toString",
+      "hasOwnProperty",
+      "valueOf",
+      "__proto__",
+    ]) {
+      it(`refuses a parameter named ${name} the request did not supply`, () => {
+        const named: QueryPlan = {
+          filters: [{ field: "amount", op: "ge", value: { $param: { name } } }],
+          measure: COUNT,
+        };
+        expect(() => ran(named)).to.throw(
+          `no value supplied for the "${name}" parameter`,
+        );
+      });
+
+      it(`takes a parameter named ${name} the request supplied`, () => {
+        const named: QueryPlan = {
+          filters: [{ field: "amount", op: "ge", value: { $param: { name } } }],
+          measure: COUNT,
+        };
+        expect(ran(named, Object.fromEntries([[name, 7]]))).to.contain(
+          'row.key("amount").ge(7)',
+        );
+      });
+    }
   });
 });
