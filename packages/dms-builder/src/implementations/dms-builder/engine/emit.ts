@@ -1,5 +1,8 @@
 import path from "node:path";
-import type { ImportRef } from "@antelopejs/interface-dms-builder";
+import type {
+  ConfigObject,
+  ImportRef,
+} from "@antelopejs/interface-dms-builder";
 import type { ImportDeclaration, SourceFile } from "ts-morph";
 import { propertyKey } from "./paths";
 import { indentationText, resolveProjectRoot } from "./project";
@@ -185,7 +188,7 @@ export function relativeModule(fromFile: string, toFile: string): string {
   return rel.startsWith(".") ? rel : `./${rel}`;
 }
 
-function objectText(config: Record<string, unknown>, ctx: EmitContext): string {
+function objectText(config: ConfigObject, ctx: EmitContext): string {
   const entries = Object.entries(config).filter(
     ([, value]) => value !== undefined,
   );
@@ -203,7 +206,7 @@ function objectText(config: Record<string, unknown>, ctx: EmitContext): string {
 
 export function blockCallText(
   type: string,
-  config: Record<string, unknown>,
+  config: ConfigObject,
   ctx: EmitContext,
   controllerText?: string,
 ): string {
@@ -221,7 +224,7 @@ export function childArgText(
   valueText: string,
   ctx: EmitContext,
   slot?: string,
-  meta?: Record<string, unknown>,
+  meta?: ConfigObject,
 ): string {
   const entries = slot === undefined ? {} : { slot };
   const metaText = objectText({ ...entries, ...meta }, ctx);

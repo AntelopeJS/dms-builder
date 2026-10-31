@@ -11,6 +11,7 @@ import type {
   PageStructure,
   PageSummary,
 } from "./structure";
+import type { ConfigObject } from "./values";
 
 /** Reconcile scope for `RefreshSourceIndex`. Omit to reconcile everything. */
 export interface RefreshScope {
@@ -66,10 +67,10 @@ export interface AddBlockInput {
    * Child metadata emitted alongside `slot` in the third argument of `.child()`
    * — `{ colSpan: 2 }` for a grid child. Ignored for a top-level block.
    */
-  meta?: Record<string, unknown>;
+  meta?: ConfigObject;
   /** A block type from the catalog. */
   type: string;
-  config: Record<string, unknown>;
+  config: ConfigObject;
   /**
    * Required for controller-leading block types (catalog `controllerArg: true`,
    * e.g. `TableView`): the resource whose DataAPI class is the leading argument.
@@ -95,7 +96,7 @@ export interface ConfigureBlockOpts extends MutationOpts {
    * to `undefined` is removed. Rejected on a top-level block, which has no
    * `.child()` call to carry it.
    */
-  meta?: Record<string, unknown>;
+  meta?: ConfigObject;
 }
 
 export const ListPages = InterfaceFunction<() => Promise<PageSummary[]>>();
@@ -170,7 +171,7 @@ export const ConfigureBlock =
   InterfaceFunction<
     (
       path: BlockPath,
-      patch: Record<string, unknown>,
+      patch: ConfigObject,
       opts?: ConfigureBlockOpts,
     ) => Promise<OpResult>
   >();

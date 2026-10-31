@@ -9,6 +9,7 @@
 import type {
   AddQueryInput,
   BlockDraft,
+  ConfigValue,
   OpResult,
   OpWarning,
   QueryStructure,
@@ -50,7 +51,7 @@ interface SyncContext {
  * looking for that URL rather than by trusting the draft to have listed it.
  */
 function configuredStrings(blocks: BlockDraft[], found: Set<string>): void {
-  const walk = (value: unknown): void => {
+  const walk = (value: ConfigValue): void => {
     if (isString(value)) {
       found.add(value);
       return;

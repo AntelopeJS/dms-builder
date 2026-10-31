@@ -12,7 +12,9 @@ import type {
   BlockDraft,
   BlockPath,
   ComponentPreview,
+  ConfigObject,
   ConfigSchema,
+  ConfigValue,
   OpResult,
   OptionSchema,
   PageDraft,
@@ -23,6 +25,7 @@ import { notFound } from "./ops";
 import { resolveProjectRoot } from "./project";
 import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
+import { isCallable, isLiteralObject } from "./guards";
 import { isString } from "./scalar-guards";
 import { isPlainObject } from "./value";
 
@@ -84,10 +87,28 @@ const LIST_ROUTE_CAPABILITIES = {
 };
 
 /** The options of a block as the draft holds them, by option name. */
-type BlockOptions = NonNullable<BlockDraft["config"]>;
+type BlockOptions = ConfigObject;
+
+/** A config value once its sentinels are resolved: data, DataType instances, DataAPI classes and nested builders. */
+type RuntimeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | RuntimeValue[]
+  | RuntimeObject
+  | DataType
+  | ControllerClass
+  | PreviewBuilder;
+
+/** An options object whose values are {@link RuntimeValue}s. */
+interface RuntimeObject {
+  [key: string]: RuntimeValue;
+}
 
 /** A config object whose `$dataType` names a DataType. */
-type DataTypeSentinel = { $dataType: string; config?: unknown };
+type DataTypeSentinel = ConfigObject & { $dataType: string };
 
 /** What the preview reads of a table's metadata, never writes. */
 type TableMetadata = Pick<TableViewApi.TableViewMeta, "columns" | "config">;
@@ -119,16 +140,13 @@ class DegradedBlockError extends Error {
   }
 }
 
-function isCallable(value: unknown): value is Function {
-  return typeof value === "function";
+/** What `value` spreads from: itself when an object or a function, else nothing. */
+function spreadable(value: RuntimeValue): object | undefined {
+  return isCallable(value) || isPlainObject(value) ? value : undefined;
 }
 
-function isSpreadable(value: unknown): value is object {
-  return isCallable(value) || isPlainObject(value);
-}
-
-function isDataTypeSentinel(value: unknown): value is DataTypeSentinel {
-  return isPlainObject(value) && isString(value.$dataType);
+function isDataTypeSentinel(value: ConfigObject): value is DataTypeSentinel {
+  return isString(value.$dataType);
 }
 
 function factoryFor(type: string): BlockFactory {
@@ -221,28 +239,28 @@ function referencedController(ref: {
 }
 
 /** Resolves the sentinels a config may carry into the values a factory expects. */
-function materialize(value: unknown): unknown {
+function materialize(value: ConfigValue): RuntimeValue {
   if (Array.isArray(value)) {
     return value.map(materialize);
   }
-  if (!isPlainObject(value)) {
+  if (!isLiteralObject(value)) {
     return value;
   }
   if (isString(value.$expr)) {
     throw new DegradedBlockError("$expr cannot be previewed");
   }
-  if (isPlainObject(value.$ref)) {
+  if (isLiteralObject(value.$ref)) {
     return referencedController(value.$ref);
   }
   if (isDataTypeSentinel(value)) {
     return instantiateDataType(value);
   }
-  if (isPlainObject(value.$block)) {
+  if (isLiteralObject(value.$block)) {
     const { type, config } = value.$block;
     return buildBlock({
       name: "preview",
       type: isString(type) ? type : undefined,
-      config: isPlainObject(config) ? config : {},
+      config: isLiteralObject(config) ? config : {},
     });
   }
   return Object.fromEntries(
@@ -253,8 +271,14 @@ function materialize(value: unknown): unknown {
 /** A value still missing an option its schema requires. */
 const UNFINISHED = Symbol("unfinished");
 
-function isEmpty(value: unknown): value is "" | null | undefined {
+function isEmpty(value: ConfigValue): value is "" | null | undefined {
   return value === undefined || value === null || value === "";
+}
+
+function isFinished(
+  value: ConfigValue | typeof UNFINISHED,
+): value is ConfigValue {
+  return value !== UNFINISHED;
 }
 
 function isRequired(schema: OptionSchema): boolean {
@@ -267,7 +291,10 @@ function isRequired(schema: OptionSchema): boolean {
  * however deep. Hidden options are not the author's to fill, so they are not
  * counted — the same reading the panel's "Waiting on" makes.
  */
-function finished(schema: OptionSchema, value: unknown): unknown {
+function finished(
+  schema: OptionSchema,
+  value: ConfigValue,
+): ConfigValue | typeof UNFINISHED {
   if (isEmpty(value)) {
     return isRequired(schema) ? UNFINISHED : value;
   }
@@ -280,8 +307,8 @@ function finished(schema: OptionSchema, value: unknown): unknown {
     }
     return UNFINISHED;
   }
-  if (schema.properties && isPlainObject(value)) {
-    const kept = { ...value };
+  if (schema.properties && isLiteralObject(value)) {
+    const kept: ConfigObject = { ...value };
     for (const [key, nested] of Object.entries(schema.properties)) {
       if (nested.ui?.hidden) {
         continue;
@@ -298,17 +325,18 @@ function finished(schema: OptionSchema, value: unknown): unknown {
   }
   if (schema.items && Array.isArray(value)) {
     const items = schema.items;
-    return value
-      .map((entry) => finished(items, entry))
-      .filter((entry) => entry !== UNFINISHED);
+    return value.map((entry) => finished(items, entry)).filter(isFinished);
   }
-  if (schema.values && isPlainObject(value)) {
+  if (schema.values && isLiteralObject(value)) {
     const values = schema.values;
-    return Object.fromEntries(
-      Object.entries(value)
-        .map(([key, entry]) => [key, finished(values, entry)] as const)
-        .filter(([, entry]) => entry !== UNFINISHED),
-    );
+    const kept: ConfigObject = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const settled = finished(values, entry);
+      if (isFinished(settled)) {
+        kept[key] = settled;
+      }
+    }
+    return kept;
   }
   return value;
 }
@@ -390,10 +418,11 @@ function buildBlock(block: BlockDraft): PreviewBuilder {
   const config = materialize(
     withoutUnfinishedEntries(descriptor.config, block.config ?? {}),
   );
-  if (!isSpreadable(config)) {
+  const spread = spreadable(config);
+  if (!spread) {
     throw new DegradedBlockError("its options cannot be previewed");
   }
-  const options = { ...descriptor.defaults, ...config };
+  const options: RuntimeObject = { ...descriptor.defaults, ...spread };
   if (descriptor.type === TABLE_VIEW_TYPE) {
     if (!controller) {
       throw new DegradedBlockError(`${label} — needs the running page`);
@@ -444,7 +473,7 @@ function listedColumns(meta: TableMetadata) {
  */
 function tablePreview(
   controller: ControllerClass,
-  options: BlockOptions,
+  options: RuntimeObject,
 ): PreviewBuilder {
   const module = require(TABLE_VIEW_MODULE) as TableViewModule;
   const meta = GetMetadata(controller, module.TableViewMeta);

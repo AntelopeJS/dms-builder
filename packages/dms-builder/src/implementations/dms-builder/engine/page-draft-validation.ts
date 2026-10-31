@@ -2,6 +2,7 @@ import type {
   BlockDraft,
   BlockNode,
   BlockTypeDescriptor,
+  ConfigValue,
   FieldAspect,
   OptionSchema,
   PageDraft,
@@ -20,7 +21,7 @@ import { issue, scanForExpr } from "./query-template";
 /** Walk a config value alongside the schema that describes it, visiting each string in it. */
 function walkOptions(
   schema: OptionSchema,
-  value: unknown,
+  value: ConfigValue,
   pointer: string,
   visit: (schema: OptionSchema, value: string, pointer: string) => void,
 ): void {

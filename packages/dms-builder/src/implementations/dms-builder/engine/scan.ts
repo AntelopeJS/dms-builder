@@ -1,4 +1,5 @@
 import type {
+  ConfigObject,
   PageLive,
   PagePermission,
 } from "@antelopejs/interface-dms-builder";
@@ -88,7 +89,7 @@ export function joinSlug(parentSlug: string, urlSlug: string): string {
 function readObjectOption(
   opts: ObjectLiteralExpression,
   name: string,
-): PagePermission | PageLive | undefined {
+): ConfigObject | undefined {
   const node = getObjectProperty(opts, name);
   if (!node || !Node.isObjectLiteralExpression(node)) {
     return undefined;

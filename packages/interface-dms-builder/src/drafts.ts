@@ -4,6 +4,7 @@ import type { AddQueryInput, QueryPreview } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
+import type { ConfigObject } from "./values";
 
 /**
  * A block as the caller wants it written. The whole tree is declarative: what
@@ -15,12 +16,12 @@ export interface BlockDraft {
   /** A catalog type; informational and checked against source when preserved. */
   type?: string;
   /** Understood options only. Omit locked options; the server retains their source. */
-  config?: Record<string, unknown>;
+  config?: ConfigObject;
   /** Read-only UI hints. The server derives option locks from its own source. */
   lockedOptions?: Record<string, string>;
   slot?: string;
   /** Child metadata emitted with `slot`, e.g. `{ colSpan: 2 }`. */
-  meta?: Record<string, unknown>;
+  meta?: ConfigObject;
   /** Required for a controller-leading block type such as `TableView`. */
   controller?: ResourceRef;
   /** Preserved parents may include their unchanged, recursively preserved children. */

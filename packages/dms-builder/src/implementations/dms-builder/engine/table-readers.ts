@@ -1,6 +1,6 @@
 import { Schema } from "@antelopejs/interface-database";
 import { pageRoutePath } from "@antelopejs/interface-dms/page";
-import type { BlockNode } from "@antelopejs/interface-dms-builder";
+import type { BlockNode, ConfigValue } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
 import { isNumber, isString } from "./scalar-guards";
 import { isPerTenantSchema } from "./query-emit";
@@ -19,7 +19,7 @@ export interface TableReader {
   queries: number;
 }
 
-function stringsIn(value: unknown, found: string[] = []): string[] {
+function stringsIn(value: ConfigValue, found: string[] = []): string[] {
   if (isString(value)) {
     found.push(value);
   } else if (Array.isArray(value)) {

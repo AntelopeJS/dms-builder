@@ -11,6 +11,7 @@ import {
 } from "../implementations/dms-builder";
 import type {
   BlockDraft,
+  ConfigValue,
   PageDraft,
   PageStructure,
 } from "@antelopejs/interface-dms-builder";
@@ -152,9 +153,11 @@ describe("the page draft", () => {
 
     it("keeps a __proto__ key of a block's config as an own key of its options", async function () {
       this.timeout(OP_TIMEOUT);
-      const extra: unknown = JSON.parse(
-        '{"__proto__":{"inherited":1},"own":2}',
-      );
+      const entries: [string, ConfigValue][] = [
+        ["__proto__", { inherited: 1 }],
+        ["own", 2],
+      ];
+      const extra = Object.fromEntries(entries);
       const preview = expectOk(
         await PreviewLayout(PAGE, {
           blocks: [

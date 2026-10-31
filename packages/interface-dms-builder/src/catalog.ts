@@ -1,3 +1,5 @@
+import type { ConfigObject } from "./values";
+
 /**
  * An import the emitter must add: `import { <name> } from "<module>"`. Either a
  * package `module` specifier (fixed, file-independent) or a `targetFile` absolute
@@ -211,7 +213,7 @@ export interface BlockTypeDescriptor {
   dynamicSlots?: DynamicSlots;
   config: ConfigSchema;
   /** Option values the factory applies when the caller omits them. */
-  defaults?: Record<string, unknown>;
+  defaults?: ConfigObject;
   /** Schema of the metadata a child carries, e.g. `{ colSpan }`. */
   childMeta?: ConfigSchema;
   /**
@@ -220,7 +222,7 @@ export interface BlockTypeDescriptor {
    * is unnecessary; a consumer rendering from the descriptor alone merges them
    * in.
    */
-  fixedOptions?: Record<string, unknown>;
+  fixedOptions?: ConfigObject;
   configOrigin: ConfigOrigin;
   description?: string;
   /**
@@ -244,7 +246,7 @@ export interface BlockInitialChild {
   /** The child's block type, a key of the catalog (`LiveToggle`). */
   type: string;
   /** The child's options. */
-  options: Record<string, unknown>;
+  options: ConfigObject;
 }
 
 /** A DataType usable as a Form field's `type`. */
