@@ -8,6 +8,10 @@ import {
 } from "../implementations/dms-builder";
 import type { AddQueryInput } from "@antelopejs/interface-dms-builder";
 import {
+  queryRouteMethodText,
+  type CompiledQuery,
+} from "../implementations/dms-builder/engine/query-emit";
+import {
   createFixture,
   destroyFixture,
   expectOk,
@@ -97,6 +101,35 @@ describe("how a query's answer is arranged", () => {
       "return { series: await model.revenue() };",
     );
   });
+
+  for (const response of ["constructor", "toString", "hasOwnProperty"]) {
+    it(`writes a route for a response named ${response} as the default series`, () => {
+      const spec: CompiledQuery = {
+        name: "revenue",
+        endpoint: "/revenue",
+        template: "series",
+        params: {},
+        chain: { body: "{ return []; }", parameters: [] },
+        naming: { measure: "sum", label: "Amount" },
+        response,
+      };
+      const route = queryRouteMethodText(
+        spec,
+        "Order",
+        "main",
+        "revenue",
+        "BoardPage",
+      );
+
+      expect(route.text).to.contain(
+        "return { series: await model.revenue() };",
+      );
+      expect(
+        route.symbols.map((symbol) => symbol.name),
+        "no helper is imported for it",
+      ).to.not.include(response);
+    });
+  }
 
   it("builds a card's headline figure from the same points", async function () {
     this.timeout(OP_TIMEOUT);
