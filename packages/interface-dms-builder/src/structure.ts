@@ -1,6 +1,7 @@
 import type { BlockPath, CategoryRef, PageRef } from "./addressing";
 import type { QueryStructure } from "./queries";
 import type { ResourceRef } from "./resources";
+import type { ConfigObject } from "./values";
 
 /**
  * A page's permission, mirroring the DMS `MenuOptions.permission`: a partial
@@ -9,14 +10,14 @@ import type { ResourceRef } from "./resources";
  * object rather than data and so has no encoding here; a page declaring one
  * reads its permission back as `undefined`.
  */
-export type PagePermission = Record<string, unknown>;
+export type PagePermission = ConfigObject;
 
 /**
  * A page's Direct / Pause valve over the realtime of its blocks, mirroring the
  * DMS `MenuOptions.live`: `maxRate`, `slowRateAfter`, `rememberKey`. Present,
  * even empty, the page is live; absent, it refetches on every event.
  */
-export type PageLive = Record<string, unknown>;
+export type PageLive = ConfigObject;
 
 /** Page metadata the builder can read. */
 export interface PageMeta {
@@ -63,9 +64,9 @@ export interface BlockNode {
    * `.child()` — `{ colSpan: 2 }` on a grid child, for instance. Nested blocks
    * only; the catalog describes the accepted shape as `childMeta`.
    */
-  meta?: Record<string, unknown>;
+  meta?: ConfigObject;
   /** Present only when editable. */
-  config?: Record<string, unknown>;
+  config?: ConfigObject;
   /** Top-level options retained on the server, with a reason for each lock. */
   lockedOptions?: Record<string, string>;
   /**

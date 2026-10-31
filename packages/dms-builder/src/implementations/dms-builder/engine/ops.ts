@@ -1,6 +1,7 @@
 import type {
   AddBlockInput,
   BlockPath,
+  ConfigObject,
   ConfigureBlock,
   ConfigureBlockOpts,
   DuplicateScope,
@@ -234,7 +235,7 @@ export function optionsPatch(
 
 export function applyPatch(
   obj: ObjectLiteralExpression,
-  patch: Record<string, unknown>,
+  patch: ConfigObject,
   replace: boolean,
   ctx: EmitContext,
 ): void {

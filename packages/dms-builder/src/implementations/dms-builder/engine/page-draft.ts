@@ -1,4 +1,6 @@
 import type {
+  ConfigObject,
+  ConfigValue,
   ImportRef,
   OpWarning,
   BlockNode,
@@ -143,9 +145,9 @@ function constantsIn(options: Node | undefined): ConstantsByPath {
  * builder, and naming it would tie it to a constant it never used.
  */
 function withConstants(
-  options: Record<string, unknown>,
+  options: ConfigObject,
   constants: ConstantsByPath | undefined,
-): Record<string, unknown> {
+): ConfigObject {
   return constants?.size
     ? Object.fromEntries(
         Object.entries(options).map(([key, item]) => [
@@ -157,10 +159,10 @@ function withConstants(
 }
 
 function namedAt(
-  value: unknown,
+  value: ConfigValue,
   path: (string | number)[],
   constants: ConstantsByPath,
-): unknown {
+): ConfigValue {
   const constant = constants.get(JSON.stringify(path));
   if (constant && constant.value === value) {
     return { $expr: constant.name };

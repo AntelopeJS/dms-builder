@@ -1,4 +1,7 @@
-import type { BlockNode } from "@antelopejs/interface-dms-builder";
+import type {
+  BlockNode,
+  ConfigObject,
+} from "@antelopejs/interface-dms-builder";
 import { type Expression, Node, SyntaxKind } from "ts-morph";
 import { isControllerLeadingBlock } from "./catalog";
 import { resolveAndUnwrap } from "./chain";
@@ -10,7 +13,7 @@ import { type EmitContext, serializeValue } from "./value";
 export function patchSourceOptions(
   expr: Expression,
   source: BlockNode,
-  config: Record<string, unknown>,
+  config: ConfigObject,
   children: { expression: Expression; text: string }[],
   ctx: EmitContext,
 ): string {

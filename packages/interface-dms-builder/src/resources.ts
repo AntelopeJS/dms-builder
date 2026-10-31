@@ -1,7 +1,7 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { CategoryRef, PageRef } from "./addressing";
 import type { MutationOpts, OpResult } from "./results";
-import type { DataTypeValue } from "./values";
+import type { ConfigObject, DataTypeValue } from "./values";
 
 /** A resource's stable ref — its `name`, e.g. `"product"`. */
 export type ResourceRef = string;
@@ -77,7 +77,7 @@ export interface FieldAspects {
    * and written again untouched, so configuring a field never silently drops
    * what the builder did not put there.
    */
-  columnExtras?: Record<string, unknown>;
+  columnExtras?: ConfigObject;
 }
 
 /** A field in a `CreateResource`/`AddField` request. */
@@ -142,7 +142,7 @@ export interface CreateResourceInput {
   schema?: string;
   fields: FieldSpec[];
   /** `@Fixture` seed rows; each row must supply its own `_id`. */
-  seeds?: Record<string, unknown>[];
+  seeds?: ConfigObject[];
   /** File placement; omit for `src/<name>/`. */
   location?: ResourceLocation;
   /**
