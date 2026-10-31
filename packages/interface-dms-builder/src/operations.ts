@@ -111,9 +111,7 @@ export const GetCatalog = InterfaceFunction<() => Promise<BlockCatalog>>();
  * caller asking for them wants what is registered now.
  */
 export const ListDataSources =
-  InterfaceFunction<
-    (responseShape?: string) => Promise<DataSourceDescriptor[]>
-  >();
+  InterfaceFunction<(response?: string) => Promise<DataSourceDescriptor[]>>();
 export const GetPageStructure =
   InterfaceFunction<(ref: PageRef) => Promise<OpResult<PageStructure>>>();
 

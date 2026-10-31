@@ -20,8 +20,7 @@ import type {
   QueryOutputKind,
   QueryPoint,
   QueryPreview,
-  QueryResponseBody,
-  QueryResponseShape,
+  QueryArrangement,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import { invalidConfig, notFound, unsupported } from "./ops";
@@ -96,7 +95,7 @@ function openTable(
  * diverge on a rounding, a label or a missing group.
  */
 const RESPONSE_ARRANGERS = new Map<
-  QueryResponseShape,
+  QueryArrangement,
   (points: QueryPoint[], options: SeriesOptions) => object
 >([
   ["card", chartCardData],
@@ -133,7 +132,7 @@ function readRows(rows: number | QueryPoint[]): ReadRows {
 function arrange(
   read: ReadRows,
   output: QueryOutputKind,
-  requested: QueryResponseShape | undefined,
+  requested: QueryArrangement | undefined,
   naming: SeriesNaming,
   previous?: QueryPoint[],
 ): OpResult<QueryPreview> {
@@ -161,7 +160,7 @@ function arrange(
   return preview({
     output,
     response: arrangement,
-    body: arranged(points, options) as QueryResponseBody,
+    body: arranged(points, options),
     truncated: read.truncated,
   });
 }

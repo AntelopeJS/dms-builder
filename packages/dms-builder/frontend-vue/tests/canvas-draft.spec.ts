@@ -139,7 +139,7 @@ describe('a spacer on the canvas', () => {
 			label: 'Spacer',
 			group: 'layout',
 			container: false,
-			shapeSource: 'test',
+			configOrigin: 'test',
 			config: {
 				minSize: { type: 'string', optional: true },
 				maxSize: { type: 'string', optional: true },

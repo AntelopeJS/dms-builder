@@ -172,13 +172,13 @@ export interface OptionSchema {
 
 /**
  * A block's or DataType's options, keyed by option name. Declared schemas
- * (`shapeSource: "annotated"`) carry labels, defaults and widgets; inferred ones
+ * (`configOrigin: "annotated"`) carry labels, defaults and widgets; inferred ones
  * carry only what the TypeScript signature revealed.
  */
 export type ConfigSchema = Record<string, OptionSchema>;
 
 /** How a block type's emit shape was determined. */
-export type ShapeSource = "inferred" | "annotated";
+export type ConfigOrigin = "inferred" | "annotated";
 
 /**
  * The palette section a block type belongs to. The four the DMS ships are
@@ -221,7 +221,7 @@ export interface BlockTypeDescriptor {
    * in.
    */
   fixedOptions?: Record<string, unknown>;
-  shapeSource: ShapeSource;
+  configOrigin: ConfigOrigin;
   description?: string;
   /**
    * True when the factory takes a leading controller-class argument before its

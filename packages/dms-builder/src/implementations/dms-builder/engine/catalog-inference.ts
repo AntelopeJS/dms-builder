@@ -407,7 +407,7 @@ function discoverBlocks(
         import: { name: signature.name, module: BASE_MODULE },
         container: true,
         config: schemaFromTypeNode(signature.optionsType, index, new Set()),
-        shapeSource: "inferred",
+        configOrigin: "inferred",
         controllerArg: signature.controllerArg,
       });
     }

@@ -225,7 +225,7 @@ describe('a chart a card holds', () => {
 					label: 'Line chart',
 					group: 'visualization',
 					container: false,
-					shapeSource: 'test',
+					configOrigin: 'test',
 					config: {
 						fetchUrl: {
 							type: 'string',

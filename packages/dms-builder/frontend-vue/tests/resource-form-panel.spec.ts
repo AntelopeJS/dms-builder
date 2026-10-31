@@ -45,7 +45,7 @@ const RESOURCE_FORM: BlockCatalog['blocks'][number] = {
 	group: 'data',
 	container: false,
 	controllerArg: true,
-	shapeSource: 'test',
+	configOrigin: 'test',
 	config: {
 		mode: {
 			type: 'string',
