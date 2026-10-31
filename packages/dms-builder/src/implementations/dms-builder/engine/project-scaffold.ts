@@ -138,7 +138,8 @@ function manifestText(
   const tooling = picked(
     all,
     (name) =>
-      name in DEFAULT_TOOLING && !(defaultOptions && name === "typescript"),
+      Object.hasOwn(DEFAULT_TOOLING, name) &&
+      !(defaultOptions && name === "typescript"),
   );
   const manifest = {
     name: id,
