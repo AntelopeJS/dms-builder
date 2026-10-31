@@ -7,6 +7,26 @@
  */
 
 /**
+ * A value of a block's configuration: plain data, never a function or a class
+ * instance. `undefined` stands for an absent member, which the builder skips
+ * when it writes. The sentinel objects {@link DataTypeValue}, {@link ExprValue},
+ * {@link RefValue} and {@link BlockValue} are {@link ConfigObject}s.
+ */
+export type ConfigValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | ConfigValue[]
+  | ConfigObject;
+
+/** An object of {@link ConfigValue}s: a block's options, or a child's metadata. */
+export interface ConfigObject {
+  [key: string]: ConfigValue;
+}
+
+/**
  * A DataType value for a Form field's `type` (or a TableView `Column` `type`).
  * Emitted as `new <DataType>(<config>)` with the import auto-added.
  *
