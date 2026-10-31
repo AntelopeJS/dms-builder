@@ -35,7 +35,7 @@ ajs project modules add @antelopejs/dms-builder
 
 The builder edits the project it runs in. When the backend's working directory is not the app's source root, set `projectRoot`:
 
-```ts
+```ts fragment
 // antelope.config.ts
 "dms-builder": {
   source: { type: "package", package: "@antelopejs/dms-builder", version: ">=0.4.0 <1.0.0" },
@@ -49,15 +49,9 @@ Start the backend with `ajs project run -w`, then the frontend with `ajs dms dev
 
 ## Compatibility
 
-| Package | Version |
-| --- | --- |
-| `@antelopejs/dms` | `>=0.11.0 <1.0.0` |
-| `@antelopejs/interface-dms` | `>=0.9.0 <1.0.0` |
-| `@antelopejs/dms-frontend` (renderer) | `>=0.9.0 <0.10.0` |
-| `@antelopejs/interface-dms-builder` | `>=0.2.0 <0.3.0` |
-| API provider | `@antelopejs/api`, for the HTTP routes |
+The module also needs a DMS backend in a release that implements the `@antelopejs/interface-dms` range in the [module README compatibility block](packages/dms-builder/README.md#compatibility), and the `@antelopejs/dms-frontend` renderer in the range its frontend module declares in `engines["@antelopejs/dms-frontend"]` of `packages/dms-builder/frontend-vue/package.json`; the `ajs dms` CLI refuses to build it with a renderer outside that range.
 
-On DMS 0.10 or earlier, use `@antelopejs/dms-builder` 0.6.
+- API provider: `@antelopejs/api`, for the HTTP routes.
 
 ## Packages
 
