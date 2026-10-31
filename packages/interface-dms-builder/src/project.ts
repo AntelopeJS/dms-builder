@@ -1,5 +1,6 @@
 import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { OpResult } from "./results";
+import type { ConfigObject } from "./values";
 
 /** One `importOverrides` entry: a pin when `id` is absent, a named connection when it is set. */
 export interface ImportOverrideInput {
@@ -17,9 +18,9 @@ export interface ImportOverrideInput {
  */
 export interface ModuleEntryInput {
   /** The module's source, as `antelope.config.ts` spells it. */
-  source?: Record<string, unknown>;
+  source?: ConfigObject;
   /** Plain configuration values; merged key by key into an existing entry. */
-  config?: Record<string, unknown>;
+  config?: ConfigObject;
   /** Config path under the module's `config`, e.g. `url`, to the variable that supplies it. */
   env?: Record<string, string>;
   /** Added to the module's own; a pin that contradicts an existing one is refused. */

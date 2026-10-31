@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import type {
+  ConfigValue,
   CreateLocalModuleStep,
   ImportOverrideInput,
   ModuleEntryInput,
@@ -222,7 +223,7 @@ export function setProperty(
   draft: ConfigDraft,
   path: string[],
   key: string,
-  value: unknown,
+  value: ConfigValue,
 ): void {
   const owner =
     objectAt(draft, path) ?? refuse(`could not find ${path.join(".")}`);
@@ -358,9 +359,7 @@ function mergedOverrides(
 }
 
 /** The pins-only spelling when nothing needs more, the array spelling otherwise. */
-function overridesValue(
-  entries: ImportOverrideInput[],
-): Record<string, string | undefined> | ImportOverrideInput[] {
+function overridesValue(entries: ImportOverrideInput[]): ConfigValue {
   if (
     entries.every(
       (entry) => entry.id === undefined && entry.source !== undefined,
