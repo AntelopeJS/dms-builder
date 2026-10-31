@@ -263,9 +263,9 @@ export interface AssistantActions {
 /** The global key dms-ai provides its assistant actions under, the same symbol in every layer. */
 export const ASSISTANT_ACTIONS_KEY = Symbol.for('dms-ai:assistant-actions')
 
-/** The message *Let the assistant finish* prefills: the skill, the connection and its tables module. */
+/** The message *Let the assistant finish* prefills: the skills, the connection and its tables module. */
 export function assistantMessage(connection: string, module: string): string {
-	return `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables and add stats pages.`
+	return `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.`
 }
 
 /** The schemas the question pre-checks: `public`, or else the one with the most tables. */
