@@ -170,6 +170,44 @@ describe("previewing a query", () => {
     }
   });
 
+  for (const response of [
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+    "bogus",
+  ]) {
+    it(`reads a response named ${response} as the default series arrangement`, async () => {
+      const rows = [
+        { x: 202601, y: 150 },
+        { x: 202602, y: 30 },
+      ];
+      const request = previewRequestFromSearch(
+        new URLSearchParams({
+          query: JSON.stringify({ ...MONTHLY, response }),
+        }),
+        "query",
+        undefined,
+      );
+      expect(request.ok).to.equal(true);
+      if (!request.ok) {
+        return;
+      }
+      const result = await runPlanPreview(
+        tableAnswering(rows),
+        request.data,
+        FIELDS,
+      );
+
+      expect(result.ok).to.equal(true);
+      if (result.ok) {
+        expect(result.data.response, "nothing arranged them").to.equal(
+          undefined,
+        );
+        expect(result.data.body).to.deep.equal({ series: rows });
+      }
+    });
+  }
+
   it("answers the period before too, when the card compares against it", async () => {
     const rows = [
       { x: 202601, y: 150 },
