@@ -4,7 +4,7 @@ import type { AddQueryInput, QueryPreview } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
-import type { ConfigObject, ConfigValue } from "./values";
+import type { ConfigObject } from "./values";
 
 /**
  * A block as the caller wants it written. The whole tree is declarative: what
@@ -65,7 +65,7 @@ export type ComponentPreviewChild = {
   id: string;
   slot?: string;
   component: ComponentPreview;
-  [key: string]: ConfigValue;
+  [key: string]: ConfigObject[string];
 };
 
 /** The preview of a page draft, keyed by top-level block name. */
