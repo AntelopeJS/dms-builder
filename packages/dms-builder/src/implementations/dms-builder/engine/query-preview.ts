@@ -95,14 +95,14 @@ function openTable(
  * The helpers the generated route calls, so the preview and the page cannot
  * diverge on a rounding, a label or a missing group.
  */
-const RESPONSE_ARRANGERS: Record<
-  Exclude<QueryResponseShape, "series">,
+const RESPONSE_ARRANGERS = new Map<
+  QueryResponseShape,
   (points: QueryPoint[], options: SeriesOptions) => object
-> = {
-  card: chartCardData,
-  value: kpiCardData,
-  items: topListData,
-};
+>([
+  ["card", chartCardData],
+  ["value", kpiCardData],
+  ["items", topListData],
+]);
 
 /** What the table answered: a figure, or the points, capped where it stopped. */
 interface ReadRows {
@@ -146,7 +146,8 @@ function arrange(
     });
   }
   const arrangement = requested ?? "series";
-  if (arrangement === "series") {
+  const arranged = RESPONSE_ARRANGERS.get(arrangement);
+  if (!arranged) {
     return preview({
       output,
       body: { [RESPONSE_KEYS.series]: points },
@@ -160,7 +161,7 @@ function arrange(
   return preview({
     output,
     response: arrangement,
-    body: RESPONSE_ARRANGERS[arrangement](points, options) as QueryResponseBody,
+    body: arranged(points, options) as QueryResponseBody,
     truncated: read.truncated,
   });
 }
