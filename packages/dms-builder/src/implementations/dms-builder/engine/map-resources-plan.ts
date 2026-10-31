@@ -4,12 +4,14 @@ import type {
   RelationDescription,
 } from "@antelopejs/interface-database-catalog";
 import type {
+  ColumnDisplay,
   DataTypeValue,
   FieldSpec,
   LeftOutColumn,
   MapResourcesInput,
   MappedField,
   MappedResource,
+  OpWarning,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
 import { nativeKind } from "./native-kind";
@@ -17,7 +19,13 @@ import { pascalCase } from "./emit";
 import type { ResourceNames } from "./resource-emit";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
 import { MixedTypeDeclarations } from "./mixed-types";
-import { type TabConfig, fieldDataType, plannedTabs } from "./column-display";
+import {
+  type TabConfig,
+  fieldDataType,
+  plannedTabs,
+  suits,
+} from "./column-display";
+import type { DisplayDefaults } from "./display-defaults";
 import { refuse } from "./mapping-refusal";
 import { humanized, singular, words } from "./name-words";
 
@@ -57,11 +65,14 @@ export interface PlannedResource {
   label?: string;
   displayName: string;
   tabs?: TabConfig[];
+  /** The page's tabs are the ones a mapping wrote, and the call turns tabs off. */
+  clearTabs: boolean;
 }
 
 export interface MappingPlan {
   resources: PlannedResource[];
   leftOut: LeftOutColumn[];
+  warnings: OpWarning[];
 }
 
 function tsType(declared: string): string {
@@ -255,7 +266,27 @@ function referenceTarget(
 
 interface ControllerChoice {
   spec?: FieldSpec;
+  display?: ColumnDisplay;
   reason?: string;
+}
+
+/**
+ * The display of a column: the one sent, none for null, and for a field that left it out the one
+ * its relation held before or the rules propose, when it suits the declaration.
+ */
+function displayOf(
+  defaults: DisplayDefaults | undefined,
+  field: MappedField,
+  declared: string,
+): ColumnDisplay | undefined {
+  if (field.display !== undefined) {
+    return field.display ?? undefined;
+  }
+  const fallback =
+    defaults?.kind === "mapped"
+      ? defaults.displays.get(field.column)
+      : defaults?.propose(field.column, declared);
+  return fallback && suits(fallback, declared) ? fallback : undefined;
 }
 
 /**
@@ -317,14 +348,18 @@ function controllerField(
   }
   const column = columnOf(description, field.column);
   const readOnly = isReadOnly(resource, description, column);
+  const display = target
+    ? undefined
+    : displayOf(plan.defaults, field, declared);
   return {
+    display,
     spec: {
       name: field.column,
       label: field.label ?? humanized(field.column),
       dataType: target
         ? relationDataType(target, field.column)
         : fieldDataType(
-            field,
+            display,
             declared,
             { $dataType: DATA_TYPES[declared] },
             `${relationName(description)}.${field.column}`,
@@ -345,11 +380,38 @@ interface FieldPlan {
   description: RelationDescription;
   targets: Map<string, BatchTarget>;
   leftOut: LeftOutColumn[];
+  defaults?: DisplayDefaults;
 }
 
-function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
+interface PlannedFields {
+  tableFields: FieldSpec[];
+  apiFields: FieldSpec[];
+  /** The display each controller field is drawn with, for the ones with one. */
+  displays: Map<string, ColumnDisplay>;
+  /** A text column left its display out and nothing could tell whether it is a badge. */
+  unproposed: boolean;
+}
+
+/** Whether the rules had no profile to read a text column left without a display by. */
+function isUnproposed(
+  plan: FieldPlan,
+  field: MappedField,
+  declared: string,
+): boolean {
+  return (
+    field.display === undefined &&
+    field.relation === undefined &&
+    declared === "string" &&
+    plan.defaults?.kind === "new" &&
+    plan.defaults.source === "name"
+  );
+}
+
+function plannedFields(plan: FieldPlan): PlannedFields {
   const tableFields: FieldSpec[] = [];
   const apiFields: FieldSpec[] = [];
+  const displays = new Map<string, ColumnDisplay>();
+  let unproposed = false;
   for (const { field, onController } of chosenFields(
     plan.resource,
     plan.description,
@@ -366,8 +428,13 @@ function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
       continue;
     }
     const choice = controllerField(plan, field, declared);
+    unproposed ||=
+      choice.spec !== undefined && isUnproposed(plan, field, declared);
     if (choice.spec) {
       apiFields.push(choice.spec);
+      if (choice.display) {
+        displays.set(choice.spec.name, choice.display);
+      }
     } else {
       plan.leftOut.push({
         relation: relationName(plan.description),
@@ -376,7 +443,7 @@ function plannedFields(plan: FieldPlan): [FieldSpec[], FieldSpec[]] {
       });
     }
   }
-  return [tableFields, apiFields];
+  return { tableFields, apiFields, displays, unproposed };
 }
 
 function targetsOf(
@@ -431,28 +498,38 @@ function RoutesOf(resource: MappedResource): ResourceRoute[] | undefined {
 
 /**
  * Checks every choice against the catalog's descriptions and plans what each relation becomes.
- * Throws a `MappingRefusal` naming the first choice it cannot honour.
+ * A column or tabs left out take what `defaults` holds for their relation. Throws a
+ * `MappingRefusal` naming the first choice it cannot honour.
  */
 export function planMapping(
   input: MapResourcesInput,
   descriptions: RelationDescription[],
   srcRoot: string,
   mapped: BatchTarget[] = [],
+  defaults: ReadonlyMap<string, DisplayDefaults> = new Map(),
 ): MappingPlan {
   const targets = targetsOf(input, descriptions, mapped);
   const leftOut: LeftOutColumn[] = [];
+  const warnings: OpWarning[] = [];
   const batch = input.resources.map((resource) =>
     targets.get(resource.relation)!,
   );
   const resources = batch.map((target) => {
-    const plan = {
+    const relationDefaults = defaults.get(target.resource.relation);
+    const { tableFields, apiFields, displays, unproposed } = plannedFields({
       resource: target.resource,
       description: target.description,
       targets,
       leftOut,
-    };
-    const [tableFields, apiFields] = plannedFields(plan);
+      defaults: relationDefaults,
+    });
     const description = target.description;
+    if (unproposed) {
+      warnings.push({
+        code: "display_not_proposed",
+        message: `${relationName(description)}: the profile could not be read and no analysis was kept, so no text column was proposed a badge; send a display to set one`,
+      });
+    }
     return {
       relation: target.resource.relation,
       description,
@@ -471,8 +548,18 @@ export function planMapping(
       routes: RoutesOf(target.resource),
       label: target.resource.label,
       displayName: target.resource.title ?? humanized(description.name),
-      tabs: plannedTabs(target.resource, relationName(description), apiFields),
+      tabs: plannedTabs(
+        target.resource,
+        relationName(description),
+        apiFields,
+        displays,
+        relationDefaults?.kind === "new",
+      ),
+      clearTabs:
+        target.resource.tabs === null &&
+        relationDefaults?.kind === "mapped" &&
+        relationDefaults.generatedTabs,
     };
   });
-  return { resources, leftOut };
+  return { resources, leftOut, warnings };
 }

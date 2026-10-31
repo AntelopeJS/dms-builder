@@ -37,10 +37,14 @@ function moduleFile(relative: string): string {
 }
 
 const PROFILES = new Map([
-  ["shop.customers", Profiled("shop.customers", 4, {})],
+  [
+    "shop.customers",
+    Profiled("shop.customers", 4, { name: { traits: ["label-candidate"] } }),
+  ],
   [
     "shop.orders",
     Profiled("shop.orders", 10, {
+      reference: { traits: ["label-candidate"] },
       status: {
         traits: ["enum-like"],
         categories: { paid: 5, pending: 3, cancelled: 2 },

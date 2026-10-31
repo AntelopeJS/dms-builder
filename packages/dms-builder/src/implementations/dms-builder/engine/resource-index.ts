@@ -241,6 +241,20 @@ export function listResourceRecords(): ResourceRecord[] {
   return Array.from(getResourceIndex().values());
 }
 
+/** `"schema.name"` of the relation a resource maps. */
+export function relationOf(record: ResourceRecord): string {
+  return `${record.schema}.${record.tableName}`;
+}
+
+/** The resources a module has mapped, by relation. */
+export function mappedRecordsOf(module: string): Map<string, ResourceRecord> {
+  return new Map(
+    listResourceRecords()
+      .filter((record) => moduleOfFile(record.databaseFile)?.id === module)
+      .map((record) => [relationOf(record), record]),
+  );
+}
+
 export function resourceRefResolver(): EmitContext["resolveRef"] {
   return ({ resource, as = "dataApi" }) => {
     const record = findResourceRecord(resource);

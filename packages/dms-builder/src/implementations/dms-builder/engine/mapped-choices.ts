@@ -1,5 +1,3 @@
-import { isDeepStrictEqual } from "node:util";
-import path from "node:path";
 import type {
   ColumnDescription,
   RelationDescription,
@@ -14,31 +12,23 @@ import type {
   TabsChoice,
 } from "@antelopejs/interface-dms-builder";
 import { catalogOf } from "./catalog-connection";
-import { displayOfDataType, tabsOf } from "./column-display";
-import { mappedRecordsOf } from "./map-resources";
-import { TABLE_BLOCK } from "./map-resources-pages";
+import { displayOfDataType } from "./column-display";
 import { humanized } from "./name-words";
+import { pageOf, propertyName, tabsColumnOf } from "./mapped-displays";
 import { mappedConnectionOfFile } from "./mapped-modules";
 import { invalidConfig } from "./ops";
-import type { ResourceRecord } from "./resource-index";
+import { mappedRecordsOf, type ResourceRecord } from "./resource-index";
 import {
   buildResourceStructure,
   tableFieldDeclarations,
 } from "./resource-structure";
-import { type PageRecord, joinSlug } from "./scan";
-import { buildPageStructure } from "./page-structure";
-import { findCategoryRecord, findPageRecord } from "./source-index";
+import type { PageRecord } from "./scan";
 
 /** The rule every choice read back from a mapped module cites: it is what the module holds. */
 const MAPPED_RULE = "mapped";
-const QUOTES = /^["']|["']$/g;
 
 function mapped<T>(value: T): Proposed<T> {
   return { value, rule: MAPPED_RULE, kind: "fact" };
-}
-
-function propertyName(name: string): string {
-  return name.replace(QUOTES, "");
 }
 
 interface RelationTarget {
@@ -94,41 +84,20 @@ function fieldOf(
   return field;
 }
 
-function pageOf(
-  connection: string,
-  record: ResourceRecord,
-): PageRecord | undefined {
-  const folder = path.dirname(record.databaseFile);
-  const name = path
-    .relative(path.dirname(path.dirname(folder)), folder)
-    .split(path.sep)
-    .join("-");
-  const category = findCategoryRecord(`pages.${connection}`);
-  return category && findPageRecord(joinSlug(category.fullSlug, name));
-}
-
-/**
- * The tabs the page's TableView holds, when they are the ones a badge column's items write: tabs
- * edited by hand are not the mapping's, so a mapping sent back does not rewrite them.
- */
+/** The tabs the page's TableView holds, when they are the ones a badge column's items write. */
 function tabsOfPage(
   page: PageRecord | undefined,
   fields: ProposedField[],
 ): TabsChoice | undefined {
-  const structure = page && buildPageStructure(page.ref);
-  const table = structure?.ok
-    ? structure.data.blocks.find((block) => block.name === TABLE_BLOCK)
-    : undefined;
-  const stored = table?.config?.tabs;
-  const field = fields.find(
-    (candidate) =>
-      candidate.display?.value.kind === "badge" &&
-      isDeepStrictEqual(
-        stored,
-        tabsOf(candidate.column, candidate.display.value),
+  const column = tabsColumnOf(
+    page,
+    new Map(
+      fields.flatMap((field) =>
+        field.display ? [[field.column, field.display.value] as const] : [],
       ),
+    ),
   );
-  return field && { column: field.column };
+  return column === undefined ? undefined : { column };
 }
 
 function sourcesOf(

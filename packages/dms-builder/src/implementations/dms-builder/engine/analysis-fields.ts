@@ -22,7 +22,7 @@ import {
   profiledRowsOf,
 } from "./analysis-input";
 import { isSecretColumn, titleOf } from "./analysis-names";
-import { proposeDisplay } from "./column-display";
+import { type DisplayFacts, proposeDisplay } from "./column-display";
 import { humanized, singular } from "./name-words";
 
 /** Text at most this long on average is listable. */
@@ -339,6 +339,26 @@ function labelOf(
     : byDefault(title, "L2");
 }
 
+/** What the display rules read about a column of a relation, from the relation's profile. */
+export function displayFactsOf(
+  facts: RelationFacts,
+  column: string,
+  declared: string,
+  isRelation: boolean,
+): DisplayFacts {
+  const profile = columnProfile(facts, column);
+  const summary = profile && profileSummary(profile);
+  return {
+    column,
+    declared,
+    isRelation,
+    enumLike: hasTrait(facts, column, "enum-like"),
+    categories: summary?.categories,
+    nulls: summary?.nulls ?? 0,
+    rows: profiledRowsOf(facts),
+  };
+}
+
 function proposedField(
   facts: RelationFacts,
   column: ColumnDescription,
@@ -372,15 +392,9 @@ function proposedField(
   if (profile) {
     field.profile = profileSummary(profile);
   }
-  const display = proposeDisplay({
-    column: column.name,
-    declared,
-    isRelation: choice.relation !== undefined,
-    enumLike: hasTrait(facts, column.name, "enum-like"),
-    categories: field.profile?.categories,
-    nulls: field.profile?.nulls ?? 0,
-    rows: profiledRowsOf(facts),
-  });
+  const display = proposeDisplay(
+    displayFactsOf(facts, column.name, declared, choice.relation !== undefined),
+  );
   if (display) {
     field.display = byDefault(display.display, display.rule);
   }

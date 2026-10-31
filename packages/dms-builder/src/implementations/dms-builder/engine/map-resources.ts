@@ -9,6 +9,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import type { Project, SourceFile } from "ts-morph";
 import { catalogOf } from "./catalog-connection";
+import { type DisplayDefaults, displayDefaultsOf } from "./display-defaults";
 import { ensureNamedImport } from "./emit";
 import {
   type BatchTarget,
@@ -18,13 +19,14 @@ import {
 } from "./map-resources-plan";
 import { MappingRefusal } from "./mapping-refusal";
 import { markMapped } from "./mapped-modules";
-import { moduleOfFile, targetModule } from "./modules";
+import { targetModule } from "./modules";
 import { changesModule, watchReloadOf } from "./module-reload";
 import { commit, invalidConfig, unsupported } from "./ops";
 import { addSortedExport, barrelSpecifier, srcDir } from "./placement";
 import { buildDataApiFile, buildDatabaseFile } from "./resource-emit-types";
 import {
-  listResourceRecords,
+  mappedRecordsOf,
+  relationOf,
   type ResourceRecord,
   resourceRefResolver,
 } from "./resource-index";
@@ -195,19 +197,6 @@ function writeAll(
   return { result: commit(transaction, mapped) };
 }
 
-function relationOf(record: ResourceRecord): string {
-  return `${record.schema}.${record.tableName}`;
-}
-
-/** The resources the module has mapped already, by relation. */
-export function mappedRecordsOf(module: string): Map<string, ResourceRecord> {
-  return new Map(
-    listResourceRecords()
-      .filter((record) => moduleOfFile(record.databaseFile)?.id === module)
-      .map((record) => [relationOf(record), record]),
-  );
-}
-
 function labelOf(record: ResourceRecord): string | undefined {
   return record.apiClass
     .getProperties()
@@ -278,6 +267,7 @@ function mappedTargets(
 function planned(
   input: MapResourcesInput,
   descriptions: RelationDescription[],
+  defaults: ReadonlyMap<string, DisplayDefaults>,
 ): MappingPlan | OpResult<MapResourcesResult> {
   const module = targetModule(input.module);
   if (!module || module.isProject) {
@@ -299,6 +289,7 @@ function planned(
       descriptions,
       src,
       mappedTargets(input, descriptions),
+      defaults,
     );
   } catch (error) {
     if (error instanceof MappingRefusal) {
@@ -320,12 +311,14 @@ function recordMapping(input: MapResourcesInput): void {
  * Maps relations described by `descriptions` into a module bound to their database: the tables
  * and controllers in one typechecked transaction, then the connection's category and the
  * relations' TableView pages. A relation mapped before is rewritten, and its page follows.
+ * A display or tabs the input leaves out take `defaults`; with none given, a display left out is written plain.
  */
 export function mapDescribedResources(
   input: MapResourcesInput,
   descriptions: RelationDescription[],
+  defaults: ReadonlyMap<string, DisplayDefaults> = new Map(),
 ): OpResult<MapResourcesResult> {
-  const plan = planned(input, descriptions);
+  const plan = planned(input, descriptions, defaults);
   if ("ok" in plan) {
     return plan;
   }
@@ -345,7 +338,11 @@ export function mapDescribedResources(
     category: pages.category,
   };
   const changes = [...result.changes, ...pages.changes].filter(changed);
-  const warnings = [...(result.warnings ?? []), ...pages.warnings];
+  const warnings = [
+    ...(result.warnings ?? []),
+    ...plan.warnings,
+    ...pages.warnings,
+  ];
   return warnings.length > 0
     ? { ok: true, data, changes, warnings }
     : { ok: true, data, changes };
@@ -374,11 +371,12 @@ function describedRelations(input: MapResourcesInput): string[] {
 async function mapAndAwaitReload(
   input: MapResourcesInput,
   descriptions: RelationDescription[],
+  defaults: ReadonlyMap<string, DisplayDefaults>,
 ): Promise<OpResult<MapResourcesResult>> {
   const reload = watchReloadOf(input.module);
   let result: OpResult<MapResourcesResult>;
   try {
-    result = mapDescribedResources(input, descriptions);
+    result = mapDescribedResources(input, descriptions, defaults);
   } catch (error) {
     reload.cancel();
     throw error;
@@ -409,12 +407,15 @@ export async function mapResources(
   }
   const relations = describedRelations(input);
   if (relations.length === 0) {
-    return mapAndAwaitReload(input, []);
+    return mapAndAwaitReload(input, [], new Map());
   }
   try {
+    const descriptions = await catalog.DescribeRelations(relations);
+    refreshFromDisk(getWritableProject());
     return await mapAndAwaitReload(
       input,
-      await catalog.DescribeRelations(relations),
+      descriptions,
+      await displayDefaultsOf(input, descriptions, catalog),
     );
   } catch (error) {
     return invalidConfig<MapResourcesResult>(

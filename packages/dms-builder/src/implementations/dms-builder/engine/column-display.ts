@@ -4,7 +4,6 @@ import type {
   DataTypeValue,
   DisplayTone,
   FieldSpec,
-  MappedField,
   MappedResource,
   ProposedCategory,
   TabsChoice,
@@ -325,39 +324,61 @@ export function tabsOf(column: string, display: ColumnDisplay): TabConfig[] {
  * declaration; else the declaration's own.
  */
 export function fieldDataType(
-  field: MappedField,
+  display: ColumnDisplay | undefined,
   declared: string,
   plain: DataTypeValue,
   where: string,
 ): DataTypeValue {
-  if (!field.display) {
+  if (!display) {
     return plain;
   }
-  const refusal = displayRefusal(field.display, declared);
+  const refusal = displayRefusal(display, declared);
   if (refusal) {
     refuse(`${where}: ${refusal}`);
   }
-  return displayDataType(field.display);
+  return displayDataType(display);
 }
 
-/** The tabs of a TableView, over a badge column the controller shows and filters. */
+/** Whether a default display may be written on a column of this declaration. */
+export function suits(display: ColumnDisplay, declared: string): boolean {
+  return displayRefusal(display, declared) === undefined;
+}
+
+/**
+ * The tabs of a TableView, over a badge column the controller shows and filters. Tabs left out are
+ * proposed (T1) for a relation not mapped before, from the displays its columns are drawn with;
+ * a relation mapped before keeps its page's tabs. Tabs of null write none.
+ */
 export function plannedTabs(
   resource: MappedResource,
   where: string,
   apiFields: FieldSpec[],
+  displays: ReadonlyMap<string, ColumnDisplay>,
+  proposed: boolean,
 ): TabConfig[] | undefined {
-  const column = resource.tabs?.column;
-  if (column === undefined || !resource.tableView) {
+  if (!resource.tableView || resource.tabs === null) {
     return undefined;
   }
-  const shown = apiFields.find((spec) => spec.name === column);
-  const badge = resource.fields.find(
-    (entry) => entry.column === column,
-  )?.display;
+  const chosen =
+    resource.tabs ??
+    (proposed
+      ? proposeTabs(
+          apiFields.map((spec) => ({
+            column: spec.name,
+            display: displays.get(spec.name),
+            filterable: spec.filterable === true,
+          })),
+        )
+      : undefined);
+  if (chosen === undefined) {
+    return undefined;
+  }
+  const shown = apiFields.find((spec) => spec.name === chosen.column);
+  const badge = displays.get(chosen.column);
   if (!shown?.filterable || badge?.kind !== "badge") {
     refuse(
-      `tabs by ${where}.${column} need a column the TableView shows and filters, with a badge display`,
+      `tabs by ${where}.${chosen.column} need a column the TableView shows and filters, with a badge display`,
     );
   }
-  return tabsOf(column, badge);
+  return tabsOf(chosen.column, badge);
 }

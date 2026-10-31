@@ -46,8 +46,15 @@ export interface MappedField {
   sortable?: boolean;
   searchable?: boolean;
   /**
-   * A badge needs a `string` declaration and a price a `number` one. Left out or null, the column
-   * is plain: a mapping that does not send the display it read back loses it.
+   * How the column is drawn: a badge needs a `string` declaration and a price a `number` one. A
+   * relation column takes none.
+   *
+   * Left out, a column of a relation mapped before keeps the display its controller holds, and a
+   * column of a relation not mapped before takes the one the analysis proposes (D1, D2), read from
+   * the column's profile at map time, else from the connection's last analysis, else from its name
+   * alone, which proposes a price but no badge; a warning `display_not_proposed` says when no
+   * profile or analysis was there. A kept or proposed display the column's declaration does not
+   * suit is dropped, not refused. Null writes the column plain, over any display it had.
    */
   display?: ColumnDisplay | null;
   /**
@@ -77,8 +84,15 @@ export interface MappedResource {
   /** The columns to declare; key columns are added when left out. */
   fields: MappedField[];
   /**
-   * Tabs on the TableView's rows by a badge column. Written to the page's TableView when set, over
-   * any `tabs` it holds; left out or null, a page already mapped keeps the tabs it has.
+   * Tabs on the TableView's rows by a badge column, written to the page's TableView over any
+   * `tabs` it holds. The column must be filterable and drawn as a badge, whether it was sent or
+   * taken as its `display` default.
+   *
+   * Left out, a page already mapped keeps the tabs it has, and a relation not mapped before is
+   * tabbed by the column the analysis proposes (T1) among its filterable badge columns, when one
+   * suits. Null writes none: it adds no tabs to a new relation, and removes from a page already
+   * mapped the tabs a mapping wrote from a badge, as a `display` of null removes the badge. Tabs
+   * edited by hand are kept.
    */
   tabs?: TabsChoice | null;
 }

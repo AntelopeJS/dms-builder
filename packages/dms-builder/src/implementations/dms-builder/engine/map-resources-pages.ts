@@ -45,7 +45,7 @@ function errorText(error: BuilderError): string {
 type TableConfig = {
   caption: string;
   labelKey?: string;
-  tabs?: TabConfig[];
+  tabs?: TabConfig[] | undefined;
 };
 
 /**
@@ -138,10 +138,14 @@ function retitles(ref: string, resource: PlannedResource): boolean {
 
 /**
  * A remapped TableView keeps its page, with the caption and label the new choices give its table
- * and, when they change it, the title.
+ * and, when they change it, the title. Its tabs follow the choices when they set tabs, or turn
+ * the ones the mapping wrote off; tabs left out keep the page's.
  */
 function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
   const patch = tableConfig(resource);
+  if (resource.clearTabs) {
+    patch.tabs = undefined;
+  }
   const configured = configureBlock(`${ref}#${TABLE_BLOCK}`, patch);
   if (!configured.ok || !retitles(ref, resource)) {
     return configured.ok ? { ...configured, data: ref } : configured;

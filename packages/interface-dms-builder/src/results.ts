@@ -43,6 +43,11 @@ export interface OpWarning {
     /** A relation the module maps is no longer in the database, or the role can no longer see it. */
     | "relation_missing"
     /**
+     * A relation was mapped without the `display` of its text columns, and neither a profile nor
+     * an analysis was there to propose a badge from, so those columns were written plain.
+     */
+    | "display_not_proposed"
+    /**
      * The mapping was written, but the module it was written into did not load again afterwards:
      * it was unloaded and did not start within the wait, or the runtime does not report it active.
      * The message names the module; the backend log holds the error.

@@ -230,7 +230,7 @@ describe("mapping columns with a display and a TableView with tabs", function ()
           fields: [
             { column: "reference" },
             { column: "status", filterable: true, display: null },
-            { column: "total" },
+            { column: "total", display: null },
           ],
           tabs: null,
         }),
