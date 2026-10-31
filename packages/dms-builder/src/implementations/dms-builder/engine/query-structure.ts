@@ -1,4 +1,5 @@
 import type {
+  ConfigValue,
   QueryOutputKind,
   QueryStructure,
   ResourceRef,
@@ -519,7 +520,7 @@ function resolveBindings(
       .getParameters()
       .map((parameter, index) => [parameter.getName(), index]),
   );
-  const where: unknown[] = [];
+  const where: ConfigValue[] = [];
   for (const filter of params.where) {
     const name = isPlainObject(filter.value) ? filter.value.$bind : undefined;
     if (name === undefined) {

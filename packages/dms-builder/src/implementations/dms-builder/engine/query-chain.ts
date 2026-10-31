@@ -209,11 +209,11 @@ export function readChain(method: MethodDeclaration): RawChain | undefined {
  * A parsed filter, as a template's `where` params carry it: a literal baked into
  * the chain, or a `$bind` naming the model parameter that supplies the value.
  */
-export interface ParsedFilter {
+export type ParsedFilter = {
   field: string;
   op: FilterOp;
   value: string | number | boolean | null | { $bind: string };
-}
+};
 
 /** The `where` a template's parameters carry once read back. */
 export type ParsedWhere = { where?: ParsedFilter[] };

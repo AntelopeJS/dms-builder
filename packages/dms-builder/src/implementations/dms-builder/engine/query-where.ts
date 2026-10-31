@@ -4,6 +4,7 @@
  */
 
 import type {
+  ConfigValue,
   OptionSchema,
   ResourceFieldStructure,
   ValidationIssue,
@@ -13,7 +14,7 @@ import { checkFilter, checkParamConflicts, issue } from "./query-template";
 
 /** Validates a `where` clause: an optional array of well-typed filters. */
 export function checkFilters(
-  where: unknown,
+  where: ConfigValue,
   fields: ResourceFieldStructure[],
   pointer = "/where",
 ): ValidationIssue[] {

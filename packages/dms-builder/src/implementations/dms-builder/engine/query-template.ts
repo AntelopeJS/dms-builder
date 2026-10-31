@@ -1,5 +1,6 @@
 import type {
   AddQueryInput,
+  ConfigValue,
   FilterOp,
   ImportRef,
   OpWarning,
@@ -229,7 +230,7 @@ export function fallbackTypeWarning(
  */
 export function checkField(
   fields: ResourceFieldStructure[],
-  name: unknown,
+  name: ConfigValue,
   pointer: string,
 ): FieldTypes | ValidationIssue {
   if (!isString(name) || name.length === 0) {
@@ -297,7 +298,7 @@ interface ParamBindingInfo {
 }
 
 export function checkParamConflicts(
-  where: unknown[],
+  where: ConfigValue[],
   fields: ResourceFieldStructure[],
 ): ValidationIssue[] {
   const seen = new Map<string, ParamBindingInfo>();
@@ -330,7 +331,7 @@ export function checkParamConflicts(
 }
 
 export function checkFilter(
-  filter: unknown,
+  filter: ConfigValue,
   fields: ResourceFieldStructure[],
   pointer: string,
 ): ValidationIssue[] {

@@ -5,6 +5,7 @@
 
 import type {
   ConfigSchema,
+  ConfigValue,
   ResourceFieldStructure,
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
@@ -37,15 +38,15 @@ const ORDER_DIRECTIONS = ["asc", "desc"] as const;
 const MAX_LIMIT = 1000;
 
 interface SeriesParams {
-  op?: unknown;
-  field?: unknown;
-  groupBy?: unknown;
-  bucket?: unknown;
-  timezone?: unknown;
-  orderBy?: unknown;
-  direction?: unknown;
-  limit?: unknown;
-  where?: unknown;
+  op?: ConfigValue;
+  field?: ConfigValue;
+  groupBy?: ConfigValue;
+  bucket?: ConfigValue;
+  timezone?: ConfigValue;
+  orderBy?: ConfigValue;
+  direction?: ConfigValue;
+  limit?: ConfigValue;
+  where?: ConfigValue;
 }
 
 function measureOf(params: SeriesParams): PlanMeasure {
