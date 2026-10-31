@@ -1,8 +1,7 @@
 {
   "pack": "0.2.17",
   "rules": {
-    "antelopejs/no-inherited-key-lookup": 4,
-    "anti-slop/no-known-value-widening": 6,
+    "anti-slop/no-known-value-widening": 3,
     "anti-slop/no-shape-in-symbol-names": 15,
     "anti-slop/no-unknown-parameters": 24,
     "anti-slop/no-unknown-returns": 5,

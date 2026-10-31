@@ -42,17 +42,11 @@ interface ResponseEmission {
 }
 
 /** How the helpers are reached from a generated route. */
-const RESPONSE_HELPERS: Record<string, string> = {
-  card: "chartCardData",
-  value: "kpiCardData",
-  items: "topListData",
-};
-
-const RESPONSE_TYPES: Record<string, string> = {
-  card: "ChartCardData",
-  value: "KpiCardData",
-  items: "TopListData",
-};
+const RESPONSE_HELPERS = new Map([
+  ["card", { helper: "chartCardData", type: "ChartCardData" }],
+  ["value", { helper: "kpiCardData", type: "KpiCardData" }],
+  ["items", { helper: "topListData", type: "TopListData" }],
+]);
 
 /** What the series plan measures when no `op` was asked for. */
 const COUNT_MEASURE = "count";
@@ -132,15 +126,16 @@ function responseEmission(
   if (arrangement === "series") {
     return plainResponse("series", SERIES_TYPE);
   }
-  const helper = RESPONSE_HELPERS[arrangement];
-  if (!helper) {
+  const helped = RESPONSE_HELPERS.get(arrangement);
+  if (!helped) {
     return plainResponse("series", SERIES_TYPE);
   }
+  const { helper, type } = helped;
   return {
-    returnType: `Promise<${RESPONSE_TYPES[arrangement]}>`,
+    returnType: `Promise<${type}>`,
     body: (current, previous) =>
       `${helper}(await ${current}${helperOptions(naming, previous)})`,
-    imports: [helper, RESPONSE_TYPES[arrangement]],
+    imports: [helper, type],
   };
 }
 
@@ -193,7 +188,7 @@ export function arrangementForHelper(
   helper: string,
 ): QueryStructure["response"] {
   return HELPED_ARRANGEMENTS.find(
-    (arrangement) => RESPONSE_HELPERS[arrangement] === helper,
+    (arrangement) => RESPONSE_HELPERS.get(arrangement)?.helper === helper,
   );
 }
 
