@@ -46,6 +46,19 @@ describe("scaffolding a module from project files npm, pnpm and tsc accept", () 
     }
   }
 
+  for (const name of ["constructor", "toString", "hasOwnProperty", "valueOf"]) {
+    it(`leaves a project dependency named ${name} out of the module's tooling`, () => {
+      const text = fileOf(
+        {
+          "package.json": `{"dependencies": {"${name}": "^1.0.0", "typescript": "^5.0.0"}}`,
+        },
+        "package.json",
+      );
+      expect(text).to.contain('"typescript"');
+      expect(text).not.to.contain(`"${name}"`);
+    });
+  }
+
   it("carries a null packageManager into the manifest as null", () => {
     const text = fileOf(
       { "package.json": '{"packageManager": null}' },
