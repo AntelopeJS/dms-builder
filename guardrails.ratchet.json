@@ -4,7 +4,7 @@
     "anti-slop/no-shape-in-symbol-names": 1,
     "anti-slop/no-unknown-parameters": 1,
     "anti-slop/no-unknown-returns": 1,
-    "anti-slop/require-safety-comment-for-type-assertion": 13,
+    "anti-slop/require-safety-comment-for-type-assertion": 11,
     "typescript/no-unsafe-return": 1
   },
   "oversizeFiles": {}

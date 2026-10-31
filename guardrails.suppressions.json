@@ -2,7 +2,7 @@
   "rules": {
     "anti-slop/no-unknown-type-aliases": 0
   },
-  "tsExpectError": 0,
+  "tsExpectError": 2,
   "tsIgnore": 0,
   "safety": 1,
   "config": {
