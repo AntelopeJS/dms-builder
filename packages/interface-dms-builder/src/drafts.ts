@@ -4,6 +4,7 @@ import type { AddQueryInput, QueryPreview } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
+import type { ConfigObject, ConfigValue } from "./values";
 
 /**
  * A block as the caller wants it written. The whole tree is declarative: what
@@ -54,18 +55,18 @@ export interface PageDraft {
 }
 
 /** A component tree in the shape the DMS frontend consumes. */
-export interface ComponentPreview {
+export type ComponentPreview = {
   componentName: string;
-  options?: Record<string, unknown>;
+  options?: ConfigObject;
   children?: ComponentPreviewChild[];
-}
+};
 
-export interface ComponentPreviewChild {
+export type ComponentPreviewChild = {
   id: string;
   slot?: string;
   component: ComponentPreview;
-  [key: string]: unknown;
-}
+  [key: string]: ConfigValue;
+};
 
 /** The preview of a page draft, keyed by top-level block name. */
 export interface PageLayoutPreview {
