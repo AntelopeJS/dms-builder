@@ -1,3 +1,4 @@
+import type { ConfigValue } from "@antelopejs/interface-dms-builder";
 import { isPlainObject } from "./value";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
@@ -21,7 +22,7 @@ function isScalar(value: unknown): value is Scalar {
   return typeof value !== "object" || value === null;
 }
 
-function arrayText(items: unknown[], unit: string, base: string): string {
+function arrayText(items: ConfigValue[], unit: string, base: string): string {
   if (items.every(isScalar)) {
     return `[${items.map((item) => literalText(item, unit, base)).join(", ")}]`;
   }
@@ -36,7 +37,11 @@ function arrayText(items: unknown[], unit: string, base: string): string {
  * A JSON-shaped value as a TypeScript literal, for a property whose line starts with `base`:
  * nested lines are indented one `unit` per level from there, and every entry keeps its comma.
  */
-export function literalText(value: unknown, unit: string, base = ""): string {
+export function literalText(
+  value: ConfigValue,
+  unit: string,
+  base = "",
+): string {
   if (Array.isArray(value)) {
     return arrayText(value, unit, base);
   }
