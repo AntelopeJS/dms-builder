@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.7.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.7.0...v0.7.1)
+
+### 🩹 Fixes
+
+- **scaffold:** Keep a scaffolded module's build info in dist ([#110](https://github.com/AntelopeJS/dms-builder/pull/110))
+
+### 📦 Build
+
+- **deps:** Bump @antelopejs/tooling-configs to 0.2.17 ([#79](https://github.com/AntelopeJS/dms-builder/pull/79))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.7.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.6.1...v0.7.0)
