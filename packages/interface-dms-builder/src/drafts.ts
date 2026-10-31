@@ -55,18 +55,18 @@ export interface PageDraft {
 }
 
 /** A component tree in the shape the DMS frontend consumes. */
-export interface ComponentPreview {
+export type ComponentPreview = {
   componentName: string;
-  options?: Record<string, unknown>;
+  options?: ConfigObject;
   children?: ComponentPreviewChild[];
-}
+};
 
-export interface ComponentPreviewChild {
+export type ComponentPreviewChild = {
   id: string;
   slot?: string;
   component: ComponentPreview;
-  [key: string]: unknown;
-}
+  [key: string]: ConfigObject[string];
+};
 
 /** The preview of a page draft, keyed by top-level block name. */
 export interface PageLayoutPreview {
