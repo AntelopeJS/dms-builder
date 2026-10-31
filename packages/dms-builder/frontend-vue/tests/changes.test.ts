@@ -209,7 +209,7 @@ describe('a layout to start from', () => {
 				group: 'data',
 				container: false,
 				config: {},
-				shapeSource: 'test',
+				configOrigin: 'test',
 			})),
 		)
 		builder.applyLayout('dashboard')
@@ -233,7 +233,7 @@ describe('a layout to start from', () => {
 				group: 'data',
 				container: type === 'PageToolbar',
 				config: {},
-				shapeSource: 'test',
+				configOrigin: 'test',
 			})),
 		)
 		builder.applyLayout('dashboard')

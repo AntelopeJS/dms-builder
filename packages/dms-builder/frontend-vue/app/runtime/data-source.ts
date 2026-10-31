@@ -9,7 +9,7 @@ import type {
 	AddQueryInput,
 	PageDraft,
 	PageStructure,
-	QueryResponseShape,
+	QueryArrangement,
 	ResourceFieldStructure,
 } from './types'
 
@@ -36,7 +36,7 @@ export const FILTER_WORDS: Record<string, string> = {
  * The arrangements that can carry the period before: the card's and the
  * figure's helpers take it, a bare series has nowhere to put it.
  */
-export const COMPARED_SHAPES: QueryResponseShape[] = ['card', 'value']
+export const COMPARED_SHAPES: QueryArrangement[] = ['card', 'value']
 
 /** The column types a period is read along. */
 export const DATE_TYPES = ['date']
@@ -47,7 +47,7 @@ export interface SourceQuery {
 	resource?: string
 	template?: string
 	params?: Record<string, unknown>
-	response?: QueryResponseShape
+	response?: QueryArrangement
 	compare?: boolean
 	endpoint?: string
 }

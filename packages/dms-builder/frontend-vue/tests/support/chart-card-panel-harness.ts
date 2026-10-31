@@ -62,7 +62,7 @@ export function chartBlock(type: string, label: string, icon: string, extra: Rec
 		icon,
 		group: 'visualization',
 		container: false,
-		shapeSource: 'test',
+		configOrigin: 'test',
 		config: {
 			title: { type: 'string', optional: true, ui: { label: 'Title', group: 'content' } },
 			fetchUrl: { type: 'string', optional: true, ui: { label: 'Data source', group: 'data', widget: 'dataSource' } },
@@ -83,7 +83,7 @@ export function chartCatalog(catalog: BlockCatalog): BlockCatalog {
 		icon: 'i-ph-chart-line',
 		group: 'visualization',
 		container: false,
-		shapeSource: 'test',
+		configOrigin: 'test',
 		config: {
 			title: { type: 'string', ui: { label: 'Title', group: 'content' } },
 			description: { type: 'string', optional: true, ui: { label: 'Description', group: 'content', widget: 'textarea' } },

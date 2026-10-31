@@ -562,7 +562,7 @@ describe('a block that reads a table', () => {
 					group: 'data',
 					container: false,
 					config: {},
-					shapeSource: 'test',
+					configOrigin: 'test',
 					controllerArg: true,
 				},
 			],

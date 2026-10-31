@@ -82,7 +82,7 @@ describe('a link to another page', () => {
 
 describe('a block placed', () => {
 	function descriptor(type: string, label: string, config: BlockTypeDescriptor['config']) {
-		return { type, label, container: false, shapeSource: 'test', config } as BlockTypeDescriptor
+		return { type, label, container: false, configOrigin: 'test', config } as BlockTypeDescriptor
 	}
 
 	it('is titled and numbered when its title also takes composed text', () => {

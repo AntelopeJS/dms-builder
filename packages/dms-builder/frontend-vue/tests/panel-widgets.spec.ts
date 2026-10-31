@@ -419,7 +419,7 @@ describe('a block nested in an option', () => {
 				fetchUrl: { type: 'string', optional: true, ui: { widget: 'dataSource' } },
 				periodScope: { type: 'string', optional: true },
 			},
-			shapeSource: 'test',
+			configOrigin: 'test',
 		} as never)
 		const written: unknown[] = []
 		const { root } = mount(Option, {

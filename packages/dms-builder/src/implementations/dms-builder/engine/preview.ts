@@ -245,11 +245,9 @@ function materialize(value: unknown): unknown {
       config: isPlainObject(config) ? config : {},
     });
   }
-  const materialized: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    materialized[key] = materialize(entry);
-  }
-  return materialized;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, materialize(entry)]),
+  );
 }
 
 /** A value still missing an option its schema requires. */

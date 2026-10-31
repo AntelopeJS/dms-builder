@@ -142,7 +142,7 @@ export function albumCatalog(): BlockCatalog {
 				container: true,
 				allowedChildren: ['Text'],
 				config: {},
-				shapeSource: 'test',
+				configOrigin: 'test',
 			},
 		],
 	}

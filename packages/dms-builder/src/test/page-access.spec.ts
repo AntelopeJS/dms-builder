@@ -83,6 +83,7 @@ describe("who reaches a page", () => {
     for (const [name, displayName] of [
       ["board", "Board"],
       ["custom", "Custom"],
+      ["ward", "Ward"],
     ] as const) {
       expectOk(
         await CreatePage({ name, displayName, category: "pages.shop" }),
@@ -113,6 +114,24 @@ describe("who reaches a page", () => {
         { expectedVersion: board.version },
       ),
       "SetPageBlocks board",
+    );
+    const ward = expectOk(await GetPageStructure("/shop/ward"), "ward");
+    expectOk(
+      await SetPageBlocks(
+        "/shop/ward",
+        {
+          blocks: [
+            {
+              name: "tickets",
+              type: "TableView",
+              controller: "ticket",
+              config: {},
+            },
+          ],
+        },
+        { expectedVersion: ward.version },
+      ),
+      "SetPageBlocks ward",
     );
   });
 
@@ -178,6 +197,21 @@ describe("who reaches a page", () => {
     expect(access.mode).to.equal("unmanaged");
     expect(access.actions).to.deep.equal({});
   });
+
+  for (const name of ["constructor", "toString", "hasOwnProperty", "valueOf"]) {
+    it(`leaves a page whose permission is named ${name} unmanaged`, async function () {
+      this.timeout(120_000);
+      expectOk(
+        await ConfigurePage("/shop/ward", {
+          permission: { id: name, title: "Ward" },
+        }),
+        "ConfigurePage",
+      );
+      const access = describePageAccess(recordOf("/shop/ward"), {}, null);
+      expect(access.mode).to.equal("unmanaged");
+      expect(access.permission).to.equal(name);
+    });
+  }
 
   it("takes the permission a page names over its own", async function () {
     this.timeout(120_000);

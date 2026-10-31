@@ -86,9 +86,13 @@ function findPermissionNode(
   id: string,
 ): PermissionTree | undefined {
   const [head, ...rest] = id.split(ID_SEPARATOR);
-  let node = head === undefined ? undefined : tree[head];
+  let node =
+    head !== undefined && Object.hasOwn(tree, head) ? tree[head] : undefined;
   for (const part of rest) {
-    node = node?.children[part];
+    node =
+      node && Object.hasOwn(node.children, part)
+        ? node.children[part]
+        : undefined;
   }
   return node;
 }

@@ -125,7 +125,7 @@ function fromDeclared(declared: DeclaredBlockType): BlockTypeDescriptor {
     defaults: declared.defaults,
     fixedOptions: declared.fixedOptions,
     childMeta: declared.childMeta ? mapOptions(declared.childMeta) : undefined,
-    shapeSource: "annotated",
+    configOrigin: "annotated",
     description: declared.meta.description,
     controllerArg: declared.controllerArg,
     initialChildren: declared.initialChildren,

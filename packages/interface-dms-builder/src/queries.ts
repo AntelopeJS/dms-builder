@@ -24,7 +24,7 @@ export type QueryOutputKind = "scalar" | "series";
  * says what the route wraps it in: the points themselves, a headline figure above
  * them, that figure alone, or the points as a ranked list.
  */
-export type QueryResponseShape = "series" | "card" | "value" | "items";
+export type QueryArrangement = "series" | "card" | "value" | "items";
 
 /** The comparison operators a filter may use. */
 export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";
@@ -55,7 +55,7 @@ export interface QueryParamBinding {
  * The alias is deliberate: it documents that a parameter value is data, never an
  * expression, which `QueryParamBinding` relies on.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-type-aliases
+// oxlint-disable-next-line anti-slop/no-unknown-type-aliases -- a filter value is a request body value, typed unknown until the published recursive data value type of the config contract rows exists; the alias documents that it is data, never an expression
 export type QueryParamValue = unknown;
 
 /** One conjunct of a query's `where`. Filters combine with AND. */
@@ -92,7 +92,7 @@ export interface QueryPoint {
  * package deliberately does not depend on, so the body travels as the JSON the
  * route serves it as.
  */
-export type QueryResponseBody = Record<string, unknown>;
+export type QueryResponseBody = object;
 
 /**
  * What a draft query answers when run without being written.
@@ -112,7 +112,7 @@ export interface QueryPreview {
    * How the body is arranged, set only when a helper arranged it — the same
    * condition under which read-back reports it.
    */
-  response?: QueryResponseShape;
+  response?: QueryArrangement;
   body: QueryResponseBody;
   truncated: boolean;
 }
@@ -139,7 +139,7 @@ export interface AddQueryInput {
    * A grouped calculation feeds a bare chart, a card with a headline figure, or
    * a ranked list without being described three times.
    */
-  response?: QueryResponseShape;
+  response?: QueryArrangement;
   /**
    * Answer the preceding period alongside the current one, so a card can show a
    * variation. Only meaningful when the query binds a period.
@@ -167,7 +167,7 @@ export interface AddQueryInput {
 export interface QueryStructure {
   name: string;
   /** How the answer is arranged, when the route wraps the calculation. */
-  response?: QueryResponseShape;
+  response?: QueryArrangement;
   /** The route path relative to the page's slug, as {@link AddQueryInput.endpoint} takes it. */
   endpoint: string;
   resource?: ResourceRef;

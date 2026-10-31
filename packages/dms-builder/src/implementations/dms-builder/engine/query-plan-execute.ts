@@ -122,7 +122,7 @@ function resolveFilters(
       };
     }
     const name = filter.value.$param.name;
-    if (!(name in args)) {
+    if (!Object.hasOwn(args, name)) {
       throw new MissingArgument(name);
     }
     return {

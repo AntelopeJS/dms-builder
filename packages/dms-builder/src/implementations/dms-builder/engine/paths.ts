@@ -26,6 +26,13 @@ export function isIdentifier(name: unknown): name is string {
   return typeof name === "string" && IDENTIFIER.test(name);
 }
 
+/**
+ * An object literal's property name for `key`. `__proto__` is computed: bare or
+ * quoted, it sets the object's prototype instead of defining a property.
+ */
 export function propertyKey(key: string): string {
+  if (key === "__proto__") {
+    return '["__proto__"]';
+  }
   return IDENTIFIER.test(key) ? key : JSON.stringify(key);
 }

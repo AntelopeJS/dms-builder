@@ -1,5 +1,5 @@
 import { FILTER_WORDS, MEASURE_WORDS } from '../runtime/data-source'
-import type { QueryPoint, QueryResponseShape } from '../runtime/types'
+import type { QueryPoint, QueryArrangement } from '../runtime/types'
 
 /** Measures a source can take, in the order someone reaches for them. */
 export const MEASURES = Object.entries(MEASURE_WORDS).map(([value, label]) => ({
@@ -69,7 +69,7 @@ export const PROP = 'fetchUrl'
 export const RANKED_SHAPES = new Set(['items'])
 
 /** The arrangements the engine knows how to build a route for. */
-export const RESPONSE_SHAPES: QueryResponseShape[] = [
+export const RESPONSE_SHAPES: QueryArrangement[] = [
 	'series',
 	'card',
 	'value',

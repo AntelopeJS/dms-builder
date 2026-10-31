@@ -165,10 +165,50 @@ describe("previewing a query", () => {
         result.data.response,
         "the same arrangement read-back reports",
       ).to.equal("card");
-      expect(result.data.body.value).to.equal(180);
-      expect(result.data.body.series).to.not.deep.equal(rows);
+      expect(result.data.body).to.have.property("value", 180);
+      expect(result.data.body)
+        .to.have.property("series")
+        .that.does.not.deep.equal(rows);
     }
   });
+
+  for (const response of [
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+    "bogus",
+  ]) {
+    it(`reads a response named ${response} as the default series arrangement`, async () => {
+      const rows = [
+        { x: 202601, y: 150 },
+        { x: 202602, y: 30 },
+      ];
+      const request = previewRequestFromSearch(
+        new URLSearchParams({
+          query: JSON.stringify({ ...MONTHLY, response }),
+        }),
+        "query",
+        undefined,
+      );
+      expect(request.ok).to.equal(true);
+      if (!request.ok) {
+        return;
+      }
+      const result = await runPlanPreview(
+        tableAnswering(rows),
+        request.data,
+        FIELDS,
+      );
+
+      expect(result.ok).to.equal(true);
+      if (result.ok) {
+        expect(result.data.response, "nothing arranged them").to.equal(
+          undefined,
+        );
+        expect(result.data.body).to.deep.equal({ series: rows });
+      }
+    });
+  }
 
   it("answers the period before too, when the card compares against it", async () => {
     const rows = [
@@ -197,10 +237,12 @@ describe("previewing a query", () => {
     expect(result.ok).to.equal(true);
     if (result.ok) {
       expect(
-        result.data.body.previousValue,
+        result.data.body,
         "the preceding period's headline, as the route would answer it",
-      ).to.equal(180);
-      expect(result.data.body.comparisonSeries).to.not.equal(undefined);
+      ).to.have.property("previousValue", 180);
+      expect(result.data.body)
+        .to.have.property("comparisonSeries")
+        .that.is.an("array");
     }
 
     const alone = await runPlanPreview(
@@ -211,9 +253,9 @@ describe("previewing a query", () => {
     expect(alone.ok).to.equal(true);
     if (alone.ok) {
       expect(
-        alone.data.body.previousValue,
+        alone.data.body,
         "no comparison bounds, no period before to read",
-      ).to.equal(undefined);
+      ).to.not.have.property("previousValue");
     }
   });
 
@@ -230,7 +272,7 @@ describe("previewing a query", () => {
 
     expect(result.ok).to.equal(true);
     if (result.ok) {
-      expect(result.data.body.series).to.have.length(500);
+      expect(result.data.body).to.have.property("series").with.length(500);
       expect(result.data.truncated).to.equal(true);
     }
   });

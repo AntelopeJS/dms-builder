@@ -58,7 +58,7 @@ function figureCatalog(catalog: BlockCatalog): BlockCatalog {
 				type: 'KpiCard',
 				label: 'KPI card',
 				container: false,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				config: {
 					...shared,
 					fetchUrl: source('value'),
@@ -71,7 +71,7 @@ function figureCatalog(catalog: BlockCatalog): BlockCatalog {
 				type: 'TopListCard',
 				label: 'Top list',
 				container: false,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				config: {
 					...shared,
 					fetchUrl: source('items'),
