@@ -1,6 +1,6 @@
 {
   "rules": {
-    "anti-slop/no-unknown-type-aliases": 1
+    "anti-slop/no-unknown-type-aliases": 0
   },
   "tsExpectError": 0,
   "tsIgnore": 0,
