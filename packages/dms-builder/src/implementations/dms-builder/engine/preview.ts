@@ -329,14 +329,12 @@ function finished(
   }
   if (schema.values && isLiteralObject(value)) {
     const values = schema.values;
-    const kept: ConfigObject = {};
-    for (const [key, entry] of Object.entries(value)) {
-      const settled = finished(values, entry);
-      if (isFinished(settled)) {
-        kept[key] = settled;
-      }
-    }
-    return kept;
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, entry]) => {
+        const settled = finished(values, entry);
+        return isFinished(settled) ? [[key, settled] as const] : [];
+      }),
+    );
   }
   return value;
 }
