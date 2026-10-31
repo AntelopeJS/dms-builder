@@ -116,13 +116,17 @@ function manifestText(
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-/** The project's compiler options, so the module compiles as the project does. */
+/**
+ * The project's compiler options, so the module compiles as the project does. An incremental
+ * build keeps its state in `dist`, which the module's build deletes: state left outside would
+ * claim the emit is current once `dist` is gone.
+ */
 function tsconfigText(project: TsConfig): string {
   const compilerOptions = {
     ...project.compilerOptions,
     rootDir: "src",
     outDir: "dist",
-    tsBuildInfoFile: undefined,
+    tsBuildInfoFile: "dist/.tsbuildinfo",
   };
   return `${JSON.stringify({ compilerOptions, include: ["src/**/*.ts"] }, null, 2)}\n`;
 }
