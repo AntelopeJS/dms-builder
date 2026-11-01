@@ -24,7 +24,7 @@ import { findCategoryRecord, findPageRecord } from "./source-index";
 export const TABLE_BLOCK = "table";
 
 /** A refusal in words, for a warning a person reads. */
-function errorText(error: BuilderError): string {
+export function errorText(error: BuilderError): string {
   switch (error.code) {
     case "invalid_config":
       return error.issues.map((issue) => issue.message).join("; ");

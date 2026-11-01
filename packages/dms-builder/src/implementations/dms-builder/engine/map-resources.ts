@@ -8,6 +8,10 @@ import type {
   OpResult,
 } from "@antelopejs/interface-dms-builder";
 import type { Project, SourceFile } from "ts-morph";
+import {
+  generatedModelMethods,
+  restoreModelMethods,
+} from "./model-methods-keep";
 import { catalogOf } from "./catalog-connection";
 import { type DisplayDefaults, displayDefaultsOf } from "./display-defaults";
 import { ensureNamedImport } from "./emit";
@@ -116,7 +120,15 @@ function writeResource(
     fields: resource.tableFields,
     idField: resource.hasKey,
   });
+  const previous = project.getSourceFile(files.database);
+  const kept = previous
+    ? generatedModelMethods(previous, resource.names.modelName)
+    : [];
   writeFile(project, transaction, files.database, database.text);
+  const written = project.getSourceFile(files.database);
+  if (written && kept.length > 0) {
+    restoreModelMethods(written, resource.names.modelName, kept);
+  }
   const dataApi = buildDataApiFile({
     names: resource.names,
     filePath: files.dataApi,

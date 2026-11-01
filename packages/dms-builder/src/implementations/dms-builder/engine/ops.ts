@@ -289,7 +289,7 @@ export function setChildren(target: BlockTarget, argTexts: string[]): void {
   target.chainExpr.replaceWithText(chain);
 }
 
-function staticPropertyNames(cls: ClassDeclaration): string[] {
+export function staticPropertyNames(cls: ClassDeclaration): string[] {
   return cls
     .getStaticProperties()
     .filter((prop) => Node.isPropertyDeclaration(prop))
@@ -438,29 +438,27 @@ function checkControllerArity(
   return undefined;
 }
 
-export function addBlock(
+export interface StagedBlock {
+  path: BlockPath;
+  warnings: OpWarning[];
+}
+
+/**
+ * Writes a block into a page's class inside a transaction the caller owns and
+ * commits, so several blocks can share one typecheck. Refuses before it
+ * mutates anything: a failed call leaves the class as it found it.
+ */
+export function stageBlock(
+  sourceFile: SourceFile,
+  cls: ClassDeclaration,
   input: AddBlockInput,
-  opts?: MutationOpts,
-): OpResult<{ path: BlockPath }> {
+  transaction: Transaction,
+): StagedBlock | OpResult<never> {
   const descriptor = buildCatalog().blocks.find(
     (block) => block.type === input.type,
   );
   if (!descriptor) {
-    return unsupported<{ path: BlockPath }>(
-      `unknown block type "${input.type}"`,
-    );
-  }
-  const context = openPage(input.page);
-  if (isError(context)) {
-    return context;
-  }
-  const stale = checkVersion(context.sourceFile, opts);
-  if (stale) {
-    return stale;
-  }
-  const cls = findPageClass(context.sourceFile, context.page.id);
-  if (!cls) {
-    return notFound<{ path: BlockPath }>(input.page);
+    return unsupported<never>(`unknown block type "${input.type}"`);
   }
   const parent = resolveAddParent(cls, input);
   if (!("target" in parent)) {
@@ -483,37 +481,58 @@ export function addBlock(
     valueText = blockCallText(input.type, input.config, ctx, controllerText);
   } catch (error) {
     if (error instanceof UnknownDataTypeError) {
-      return invalidDataType<{ path: BlockPath }>(error);
+      return invalidDataType<never>(error);
     }
     if (error instanceof UnknownReferenceError) {
-      return invalidReference<{ path: BlockPath }>(error);
+      return invalidReference<never>(error);
     }
     throw error;
   }
-  const transaction = new Transaction(context.sourceFile.getProject());
-  transaction.track(context.sourceFile);
-  applyImportRef(context.sourceFile, descriptor.import);
+  transaction.track(sourceFile);
+  applyImportRef(sourceFile, descriptor.import);
   for (const importRef of imports) {
-    applyImportRef(context.sourceFile, importRef);
+    applyImportRef(sourceFile, importRef);
   }
-  let resultPath: BlockPath;
-  let warnings: OpWarning[] = [];
   if (parentTarget) {
     const args = childArgsOf(parentTarget);
     const clamped = clampIndex(input.index ?? args.length, args.length);
-    warnings = clamped.warnings;
     args.splice(
       clamped.index,
       0,
       childArgText(input.name, valueText, ctx, input.slot, input.meta),
     );
     setChildren(parentTarget, args);
-    resultPath = `${input.parent}/${input.name}`;
-  } else {
-    const staticCount = staticPropertyNames(cls).length;
-    warnings = clampIndex(input.index ?? staticCount, staticCount).warnings;
-    insertStatic(cls, input.name, valueText, input.index);
-    resultPath = `${input.page}#${input.name}`;
+    return {
+      path: `${input.parent}/${input.name}`,
+      warnings: clamped.warnings,
+    };
   }
-  return commit(transaction, { path: resultPath }, warnings);
+  const staticCount = staticPropertyNames(cls).length;
+  const warnings = clampIndex(input.index ?? staticCount, staticCount).warnings;
+  insertStatic(cls, input.name, valueText, input.index);
+  return { path: `${input.page}#${input.name}`, warnings };
+}
+
+export function addBlock(
+  input: AddBlockInput,
+  opts?: MutationOpts,
+): OpResult<{ path: BlockPath }> {
+  const context = openPage(input.page);
+  if (isError(context)) {
+    return context;
+  }
+  const stale = checkVersion(context.sourceFile, opts);
+  if (stale) {
+    return stale;
+  }
+  const cls = findPageClass(context.sourceFile, context.page.id);
+  if (!cls) {
+    return notFound<{ path: BlockPath }>(input.page);
+  }
+  const transaction = new Transaction(context.sourceFile.getProject());
+  const staged = stageBlock(context.sourceFile, cls, input, transaction);
+  if ("ok" in staged) {
+    return staged;
+  }
+  return commit(transaction, { path: staged.path }, staged.warnings);
 }
