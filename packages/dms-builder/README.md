@@ -58,7 +58,7 @@ Start the backend with `ajs project run -w`, then the frontend with `ajs dms dev
 | `@antelopejs/interface-database`         | `>=0.1.11 <1.0.0` | —           |
 | `@antelopejs/interface-database-catalog` | `>=0.0.3 <1.0.0`  | —           |
 | `@antelopejs/interface-dms`              | `>=0.10.0 <1.0.0` | —           |
-| `@antelopejs/interface-dms-builder`      | `>=0.2.2 <0.3.0`  | —           |
+| `@antelopejs/interface-dms-builder`      | `>=0.3.0 <0.4.0`  | —           |
 
 <!-- antelopejs-docs-compat:end -->
 
