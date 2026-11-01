@@ -1,3 +1,4 @@
+import type { DataSourceDefinition } from "@antelopejs/interface-dms/base/data-sources";
 import type {
   BlockCatalog,
   BlockInitialChild,
@@ -36,9 +37,13 @@ interface DeclaredBlockType {
   initialChildren?: BlockInitialChild[];
 }
 
+/** What the installed DMS reports for a declared source: the descriptor, with the kind of response under the DMS's own name. */
+type DeclaredDataSource = Omit<DataSourceDescriptor, "responseKind"> &
+  Pick<DataSourceDefinition, "responseShape">;
+
 interface BlockTypesModule {
   ListBlockTypes: () => DeclaredBlockType[];
-  ListDataSources: (response?: string) => DataSourceDescriptor[];
+  ListDataSources: (response?: string) => DeclaredDataSource[];
 }
 
 let cached: BlockCatalog | undefined;
@@ -56,7 +61,18 @@ function loadDeclaredBlockTypes(): DeclaredBlockType[] {
 export function listDeclaredDataSources(
   response?: string,
 ): DataSourceDescriptor[] {
-  return blockTypesModule().ListDataSources(response);
+  return blockTypesModule()
+    .ListDataSources(response)
+    .map((source) => ({
+      id: source.id,
+      title: source.title,
+      description: source.description,
+      responseKind: source.responseShape,
+      path: source.path,
+      method: source.method,
+      params: source.params,
+      period: source.period,
+    }));
 }
 
 const WIDGET_MARKERS = new Map<OptionWidget, string>([
