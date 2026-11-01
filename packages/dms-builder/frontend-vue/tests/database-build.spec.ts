@@ -272,11 +272,12 @@ describe('the fork and the assistant', () => {
 		unmount = mounted.unmount
 		await tick(10)
 		fire(button(mounted.root, 'Let the assistant finish')!, 'click')
-		expect(entry.started).toEqual([
-			[
-				'Use dms-external-database on connection roaster, module builder-db-roaster-tables. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.',
-				{ mode: 'plan' },
-			],
-		])
+		expect(entry.started).toHaveLength(1)
+		const [message, options] = entry.started[0]!
+		expect(message).toMatch(
+			/^Use dms-external-database on connection roaster, module builder-db-roaster-tables\. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design\./,
+		)
+		expect(message).toContain('Analysis summary (postgresql, role reader):')
+		expect(options).toEqual({ mode: 'plan' })
 	})
 })
