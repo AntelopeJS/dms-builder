@@ -8,16 +8,14 @@ import { expect } from "chai";
  */
 describe("operation map", () => {
   it("holds every operation the interface exports, by the name it is exported under", () => {
-    const exported = Object.keys(Builder).filter(
-      (name) => name !== "Operations",
+    const exported = new Map(
+      Object.entries(Builder).filter(([name]) => name !== "Operations"),
     );
     expect(Object.keys(Builder.Operations).sort()).to.deep.equal(
-      exported.sort(),
+      [...exported.keys()].sort(),
     );
     for (const [name, operation] of Object.entries(Builder.Operations)) {
-      expect(operation, name).to.equal(
-        Object.getOwnPropertyDescriptor(Builder, name)?.value,
-      );
+      expect(operation, name).to.equal(exported.get(name));
     }
   });
 });
