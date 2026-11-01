@@ -15,6 +15,7 @@ import type {
 import type {
 	AddQueryInput,
 	BlockCatalog,
+	BuilderError,
 	CategorySummary,
 	CreateCategoryInput,
 	CreatePageInput,
@@ -44,35 +45,27 @@ interface SaveBody {
 }
 
 /**
- * A request that came back with no answer from the module: the network dropped
- * it, or the server failed before the module could word a refusal.
- *
- * Shaped as the refusal it stands for, so every caller that branches on `ok`
- * shows it the way it shows the module's own — rather than a rejection nobody
- * catches, which leaves a spinner stopped and nothing said.
- */
-function unanswered<T>(error: unknown): OpResult<T> {
-	const reason = error instanceof Error ? error.message : String(error)
-	return {
-		ok: false,
-		error: { code: 'unsupported', detail: `The request failed: ${reason}` },
-	}
-}
-
-/**
  * The typed client over the module's HTTP API. Plain reads answer with their
  * value; writes, and the reads the module answers with an `OpResult`, answer
  * with one the caller branches on — a request that failed outright included.
  */
 export function useBuilderApi() {
 	const { $authFetch } = useAuthFetch()
+	const { presentError, resolveError } = useApiErrorPresenter()
+
+	function failure(error: unknown): Extract<BuilderError, { code: 'unsupported' }> {
+		const options = { fallbackKey: 'error.500.description' }
+		const notice = resolveError(error, options)
+		presentError(error, options)
+		return { code: 'unsupported', detail: notice?.message ?? '' }
+	}
 
 	function get<T>(path: string, query?: Record<string, string>): Promise<T> {
 		return $authFetch<T>(`${API_PREFIX}${path}`, { method: 'GET', query })
 	}
 
 	function answered<T>(request: Promise<OpResult<T>>): Promise<OpResult<T>> {
-		return request.catch((error: unknown) => unanswered<T>(error))
+		return request.catch((error: unknown) => ({ ok: false, error: failure(error) }))
 	}
 
 	function read<T>(
@@ -113,6 +106,7 @@ export function useBuilderApi() {
 	}
 
 	return {
+		failure,
 		catalog: () => get<BlockCatalog>('/catalog'),
 		pages: () => get<PageSummary[]>('/pages'),
 		categories: () => get<CategorySummary[]>('/categories'),

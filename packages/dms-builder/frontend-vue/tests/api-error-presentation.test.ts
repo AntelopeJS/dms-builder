@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useApiErrorPresenter } from '#dms-core/app/composables/useApiErrorPresenter'
+import { useBuilderApi } from '../app/runtime/api'
 import { useBuilder } from '../app/runtime/session'
 import { installFakeHost } from './support/builder-harness'
 
@@ -28,6 +29,22 @@ it('presents a refused category write once with the server key and severity', as
 	expect(backend.notices).toMatchObject([{ title: 'This demo is read-only.', color: 'warning' }])
 	expect(builder.session.value.error).toMatchObject({ detail: 'This demo is read-only.' })
 	builder.close()
+})
+
+it.each([
+	{ status: 403, data: { message: 'error.read_only_demo' }, title: 'This demo is read-only.', color: 'warning' },
+	{ status: 403, data: { message: 'error.read_only_demo', severity: 'info' }, title: 'This demo is read-only.', color: 'info' },
+	{ status: 500, data: { message: 'An internal stack trace' }, title: 'An unexpected error occurred.', color: 'error' },
+	{ status: undefined, data: undefined, title: 'An unexpected error occurred.', color: 'error' },
+])('preserves the failure reason and tone for status $status and $color', async ({ status, data, title, color }) => {
+	const backend = installFakeHost()
+	backend.answers['POST /api/builder/categories'] = Object.assign(new Error('Request failed'), {
+		response: status === undefined ? undefined : new Response(null, { status }),
+		data,
+	})
+	const result = await useBuilderApi().createCategory({ name: 'reports', displayName: 'Reports' })
+	expect(result).toEqual({ ok: false, error: { code: 'unsupported', detail: title } })
+	expect(backend.notices).toMatchObject([{ title, color }])
 })
 
 it.each(['close', 'navigate'])('keeps the unsaved draft after a failed save during %s', async (action) => {
