@@ -379,6 +379,13 @@ function removeEmptyDirectory(dir: string): void {
   } catch {}
 }
 
+let typechecks = 0;
+
+/** How many project typechecks have run in this process; a test reads the difference across an operation. */
+export function typecheckCount(): number {
+  return typechecks;
+}
+
 export class Transaction {
   private readonly touched = new Map<string, TouchedFile>();
 
@@ -406,6 +413,7 @@ export class Transaction {
   }
 
   public typecheckErrors(): TypecheckError[] {
+    typechecks += 1;
     return relevantDiagnostics(this.project);
   }
 

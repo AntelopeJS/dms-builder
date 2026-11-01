@@ -10,7 +10,7 @@ import type {
   QueryRef,
 } from "@antelopejs/interface-dms-builder";
 import { pageRoutePath } from "@antelopejs/interface-dms/page";
-import { type SourceFile, SyntaxKind } from "ts-morph";
+import { type ClassDeclaration, type SourceFile, SyntaxKind } from "ts-morph";
 import { applyImportRef } from "./emit";
 import {
   checkVersion,
@@ -114,26 +114,21 @@ function writeModelMethod(opened: OpenModel, name: string, text: string): void {
   opened.modelClass.addMember(text);
 }
 
-export function addQuery(
+/**
+ * Writes a query's route and model method inside a transaction the caller owns
+ * and commits, so several queries can share one typecheck. Refuses before it
+ * mutates anything.
+ */
+export function stageQuery(
   page: string,
+  sourceFile: SourceFile,
+  pageClass: ClassDeclaration,
   input: AddQueryInput,
-  opts?: MutationOpts,
+  transaction: Transaction,
 ): OpResult<AddQueryData> {
-  const context = openPage(page);
-  if (isError<AddQueryData>(context)) {
-    return context;
-  }
   const record = findResourceRecord(input.resource);
   if (!record) {
     return notFound<AddQueryData>(input.resource);
-  }
-  const stale = checkVersion(context.sourceFile, opts);
-  if (stale) {
-    return stale;
-  }
-  const pageClass = findPageClass(context.sourceFile, context.page.id);
-  if (!pageClass) {
-    return notFound<AddQueryData>(page);
   }
   const opened = openModel(record);
   if (!opened) {
@@ -148,10 +143,9 @@ export function addQuery(
   if (collision) {
     return collision;
   }
-  const transaction = new Transaction(getWritableProject());
   const target = emitQuery({
     pageClass,
-    pageFile: context.sourceFile,
+    pageFile: sourceFile,
     opened,
     spec,
     ref,
@@ -159,14 +153,49 @@ export function addQuery(
     preferred: spec.name,
   });
   if ("ok" in target) {
-    transaction.rollback();
     return target;
   }
-  return commit(
+  return {
+    ok: true,
+    data: { query: ref, route: pageRoutePath(page, spec.endpoint) },
+    changes: [],
+    warnings: spec.chain.warnings ?? [],
+  };
+}
+
+export function addQuery(
+  page: string,
+  input: AddQueryInput,
+  opts?: MutationOpts,
+): OpResult<AddQueryData> {
+  const context = openPage(page);
+  if (isError<AddQueryData>(context)) {
+    return context;
+  }
+  if (!findResourceRecord(input.resource)) {
+    return notFound<AddQueryData>(input.resource);
+  }
+  const stale = checkVersion(context.sourceFile, opts);
+  if (stale) {
+    return stale;
+  }
+  const pageClass = findPageClass(context.sourceFile, context.page.id);
+  if (!pageClass) {
+    return notFound<AddQueryData>(page);
+  }
+  const transaction = new Transaction(getWritableProject());
+  const staged = stageQuery(
+    page,
+    context.sourceFile,
+    pageClass,
+    input,
     transaction,
-    { query: ref, route: pageRoutePath(page, spec.endpoint) },
-    spec.chain.warnings ?? [],
   );
+  if (!staged.ok) {
+    transaction.rollback();
+    return staged;
+  }
+  return commit(transaction, staged.data, staged.warnings);
 }
 
 /**

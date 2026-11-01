@@ -338,25 +338,35 @@ export function slugError<T>(
   );
 }
 
-export function createPage(
+type PageData = { ref: PageRef; filepath: string };
+
+export interface StagedPage {
+  ref: PageRef;
+  filepath: string;
+  sourceFile: SourceFile;
+}
+
+/**
+ * Writes a new page and wires its barrel inside a transaction the caller owns
+ * and commits, so blocks can be added to it before the one typecheck.
+ */
+export function stagePage(
   input: CreatePageInput,
-): OpResult<{ ref: PageRef; filepath: string }> {
-  const invalid = slugError<{ ref: PageRef; filepath: string }>(
-    input.name,
-    "page",
-  );
+  transaction: Transaction,
+): StagedPage | OpResult<PageData> {
+  const invalid = slugError<PageData>(input.name, "page");
   if (invalid) {
     return invalid;
   }
   const category = findCategoryRecord(input.category);
   if (!category) {
-    return notFound<{ ref: PageRef; filepath: string }>(input.category);
+    return notFound<PageData>(input.category);
   }
   const ref = joinSlug(category.fullSlug, input.name);
   if (findPageRecord(ref)) {
-    return duplicate<{ ref: PageRef; filepath: string }>(input.name, "page");
+    return duplicate<PageData>(input.name, "page");
   }
-  const misplaced = moduleError<{ ref: PageRef; filepath: string }>(
+  const misplaced = moduleError<PageData>(
     input.module,
     category.importModule,
     `category "${input.category}"`,
@@ -374,14 +384,13 @@ export function createPage(
     input.module,
   );
   if (!placement) {
-    return unsupported<{ ref: PageRef; filepath: string }>(
+    return unsupported<PageData>(
       "could not resolve a barrel to register the new page",
     );
   }
   if (fs.existsSync(placement.filepath)) {
-    return duplicate<{ ref: PageRef; filepath: string }>(input.name, "page");
+    return duplicate<PageData>(input.name, "page");
   }
-  const transaction = new Transaction(project);
   transaction.track(placement.barrel);
   const sourceFile = project.createSourceFile(
     placement.filepath,
@@ -389,7 +398,18 @@ export function createPage(
   );
   transaction.track(sourceFile, true);
   placement.wire();
-  return commit(transaction, { ref, filepath: placement.filepath });
+  return { ref, filepath: placement.filepath, sourceFile };
+}
+
+export function createPage(
+  input: CreatePageInput,
+): OpResult<{ ref: PageRef; filepath: string }> {
+  const transaction = new Transaction(getWritableProject());
+  const staged = stagePage(input, transaction);
+  if ("ok" in staged) {
+    return staged;
+  }
+  return commit(transaction, { ref: staged.ref, filepath: staged.filepath });
 }
 
 export function configurePage(

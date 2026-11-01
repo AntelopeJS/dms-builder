@@ -17,6 +17,8 @@ import type {
   ProjectConfigStep,
   AddQueryInput,
   BlockCatalog,
+  ComposePageData,
+  ComposePageInput,
   BlockPath,
   CategoryRef,
   CategorySummary,
@@ -62,6 +64,7 @@ import {
   invalidateCatalog,
   listDeclaredDataSources,
 } from "./engine/catalog";
+import { composePage } from "./engine/compose-page";
 import { addBlock, configureBlock } from "./engine/ops";
 import {
   configureCategory,
@@ -371,4 +374,11 @@ export async function ConfigureQuery(
   opts?: MutationOpts,
 ): Promise<OpResult> {
   return configureQuery(query, patch, opts);
+}
+
+export async function ComposePage(
+  input: ComposePageInput,
+  opts?: MutationOpts,
+): Promise<OpResult<ComposePageData>> {
+  return composePage(input, opts);
 }
