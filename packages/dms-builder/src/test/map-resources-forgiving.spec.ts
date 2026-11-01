@@ -73,7 +73,9 @@ function input(
 }
 
 async function pageIds(): Promise<string[]> {
-  return (await ListPages()).map((page) => page.id).sort();
+  return (await ListPages())
+    .map((page) => page.id)
+    .sort((a, b) => a.localeCompare(b));
 }
 
 describe("a mapping forgives what is clear and harmless, and keeps the other relations", function () {
