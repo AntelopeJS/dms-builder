@@ -274,7 +274,7 @@ describe('the fork and the assistant', () => {
 		fire(button(mounted.root, 'Let the assistant finish')!, 'click')
 		expect(entry.started).toEqual([
 			[
-				'Use dms-external-database on connection roaster, module builder-db-roaster-tables. The connection is live and analysed: settle the open items, map the tables and add stats pages.',
+				'Use dms-external-database on connection roaster, module builder-db-roaster-tables. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.',
 				{ mode: 'plan' },
 			],
 		])
