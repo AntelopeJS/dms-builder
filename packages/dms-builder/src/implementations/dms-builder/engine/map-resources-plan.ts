@@ -28,11 +28,12 @@ import {
 } from "./column-display";
 import type { DisplayDefaults } from "./display-defaults";
 import { refuse } from "./mapping-refusal";
+import { RoutesOf } from "./mapped-routes";
+import { type PlannedPage, plannedPage } from "./planned-page";
 import { humanized, singular, words } from "./name-words";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 const ID_COLUMN = "_id";
-const READ_ROUTES: ResourceRoute[] = ["list", "get", "select", "export"];
 
 /** The DataType a TableView column shows for each declaration; others stay off the TableView. */
 const DATA_TYPES: Record<string, string> = {
@@ -65,6 +66,8 @@ export interface PlannedResource {
   routes?: ResourceRoute[];
   label?: string;
   displayName: string;
+  /** The page's own options and the table options the mapping sets. */
+  page: PlannedPage;
   tabs?: TabConfig[];
   /** The page's tabs are the ones a mapping wrote, and the call turns tabs off. */
   clearTabs: boolean;
@@ -486,18 +489,6 @@ function targetsOf(
 }
 
 /**
- * A TableView's routes: all of them when writable, the read ones otherwise. A stats-only relation
- * serves none: its controller exists so queries can name it as a resource, and nothing reaches
- * it over HTTP.
- */
-function RoutesOf(resource: MappedResource): ResourceRoute[] | undefined {
-  if (!resource.tableView) {
-    return [];
-  }
-  return resource.writable ? undefined : READ_ROUTES;
-}
-
-/**
  * Checks every choice against the catalog's descriptions and plans what each relation becomes.
  * A column or tabs left out take what `defaults` holds for their relation. Throws a
  * `MappingRefusal` naming the first choice it cannot honour.
@@ -549,6 +540,7 @@ export function planMapping(
       routes: RoutesOf(target.resource),
       label: target.resource.label,
       displayName: target.resource.title ?? humanized(description.name),
+      page: plannedPage(target.resource),
       tabs: plannedTabs(
         target.resource,
         relationName(description),

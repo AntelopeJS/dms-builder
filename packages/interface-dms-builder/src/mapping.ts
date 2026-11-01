@@ -2,6 +2,7 @@ import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { CategoryRef, PageRef } from "./addressing";
 import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
+import type { TableViewSettings } from "./table-view";
 
 /** The semantic tones of the dashboard, which a status pill and a tab are drawn in. */
 export type DisplayTone =
@@ -84,6 +85,27 @@ export interface MappedResource {
   label?: string;
   /** The page's title and the TableView's caption; the relation's name, humanized, when omitted. */
   title?: string;
+  /**
+   * The icon the menu shows beside the page, an icon name such as `i-ph-shopping-cart`. Left out,
+   * a new page has none and a page mapped before keeps its own.
+   */
+  icon?: string;
+  /** What the page is for, in a sentence. Left out, a new page has none and a page mapped before keeps its own. */
+  description?: string;
+  /**
+   * Where the page sorts among its category's pages, lowest first; pages with the same order sort
+   * by title. Left out, a new page takes 100 and a page mapped before keeps its own. Pages
+   * written by hand or by the assistant leave the order at 0 unless they set one, so a dashboard
+   * created in the connection's category comes before the mapped tables; give a dashboard an
+   * order below 100 to be sure of it.
+   */
+  order?: number;
+  /**
+   * Displays, views and footer figures written to the page's TableView by the same checks as
+   * `ConfigureTableView`: a refused choice is a warning `page_not_written` and the page keeps
+   * what it had. Left out, the page keeps its own. Column names are the ones mapped here.
+   */
+  tableOptions?: TableViewSettings;
   /**
    * False maps the relation for stats only: its controller serves no route, so queries can name
    * it as a resource, and it gets no TableView or page. Forced false without a key.

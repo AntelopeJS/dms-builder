@@ -22,6 +22,8 @@ import type {
   CategorySummary,
   ConfigureBlock as ConfigureBlockContract,
   ConfigureBlockOpts,
+  ConfigureTableViewOpts,
+  TableViewSettings,
   CreateCategoryInput,
   CreatePageInput,
   CreateResourceInput,
@@ -73,6 +75,7 @@ import {
   removeBlock,
 } from "./engine/ops-blocks";
 import { deletePage } from "./engine/page-delete";
+import { configureTableView } from "./engine/table-view-settings";
 import { setPageBlocks } from "./engine/page-draft";
 import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
@@ -283,6 +286,14 @@ export async function CreateResource(
   input: CreateResourceInput,
 ): Promise<OpResult<{ ref: ResourceRef; files: ResourceFiles }>> {
   return createResource(input);
+}
+
+export async function ConfigureTableView(
+  page: PageRef,
+  settings: TableViewSettings,
+  opts?: ConfigureTableViewOpts,
+): Promise<OpResult<{ path: BlockPath }>> {
+  return configureTableView(page, settings, opts);
 }
 
 export async function ConfigureResource(

@@ -9,4 +9,5 @@ export * from "./queries";
 export * from "./resources";
 export * from "./results";
 export * from "./structure";
+export * from "./table-view";
 export * from "./values";

@@ -1,6 +1,7 @@
 import path from "node:path";
 import type {
   BuilderError,
+  EditablePageMeta,
   FileChange,
   MapResourcesInput,
   MappedResult,
@@ -12,6 +13,8 @@ import { getStringProperty } from "./literals";
 import type { MappingPlan, PlannedResource } from "./map-resources-plan";
 import { addBlock, configureBlock } from "./ops";
 import { configurePage, createPage } from "./ops-blocks";
+import { MAPPED_PAGE_ORDER } from "./planned-page";
+import { configureTableView } from "./table-view-settings";
 import { createCategory } from "./ops-categories";
 import { deletePage } from "./page-delete";
 import { joinSlug } from "./scan";
@@ -94,6 +97,9 @@ function addPage(
     displayName: resource.displayName,
     category,
     module: input.module,
+    order: resource.page.order ?? MAPPED_PAGE_ORDER,
+    icon: resource.page.icon,
+    description: resource.page.description,
   });
   if (!page.ok) {
     return page;
@@ -106,13 +112,59 @@ function addPage(
     controller: resource.ref,
     config,
   });
-  return block.ok
-    ? {
-        ok: true,
-        data: page.data.ref,
-        changes: [...page.changes, ...block.changes],
-      }
-    : block;
+  if (!block.ok) {
+    return block;
+  }
+  const options = applyTableOptions(page.data.ref, resource);
+  return written(
+    page.data.ref,
+    [...page.changes, ...block.changes, ...options.changes],
+    options.warnings,
+  );
+}
+
+/** A page written, with the warnings it came with when there are any. */
+function written(
+  ref: string,
+  changes: FileChange[],
+  warnings: OpWarning[],
+): OpResult<string> {
+  const result: OpResult<string> = { ok: true, data: ref, changes };
+  if (warnings.length > 0) {
+    result.warnings = warnings;
+  }
+  return result;
+}
+
+interface OptionsWritten {
+  changes: FileChange[];
+  warnings: OpWarning[];
+}
+
+/** The displays, views and footer the mapping sets on a page; a refusal is a warning, the page keeps what it had. */
+function applyTableOptions(
+  ref: string,
+  resource: PlannedResource,
+): OptionsWritten {
+  if (!resource.page.tableOptions) {
+    return { changes: [], warnings: [] };
+  }
+  const configured = configureTableView(ref, resource.page.tableOptions);
+  if (configured.ok) {
+    return {
+      changes: configured.changes,
+      warnings: configured.warnings ?? [],
+    };
+  }
+  return {
+    changes: [],
+    warnings: [
+      {
+        code: "page_not_written",
+        message: `${resource.relation}: the table options were not written: ${errorText(configured.error)}`,
+      },
+    ],
+  };
 }
 
 interface PagesWritten {
@@ -127,19 +179,43 @@ function pageRefOf(category: string, resource: PlannedResource): string {
 }
 
 /**
- * Whether the page's title is the one the builder wrote and the new choices change: a title
- * written any other way, a constant or a call, is the page's own and left as it is.
+ * What the new choices change in the page's own options. A title written any other way than the
+ * builder's, a constant or a call, is the page's own and left as it is; an icon and a description
+ * change only when sent; the order is sent, else the default of a page that has none.
  */
-function retitles(ref: string, resource: PlannedResource): boolean {
-  const options = findPageRecord(ref)?.optionsNode;
+function pagePatch(
+  ref: string,
+  resource: PlannedResource,
+): Partial<EditablePageMeta> {
+  const record = findPageRecord(ref);
+  const options = record?.optionsNode;
   const title = options && getStringProperty(options, "displayName");
-  return title !== undefined && title !== resource.displayName;
+  const patch: Partial<EditablePageMeta> = {};
+  if (title !== undefined && title !== resource.displayName) {
+    patch.displayName = resource.displayName;
+  }
+  if (resource.page.icon !== undefined && resource.page.icon !== record?.icon) {
+    patch.icon = resource.page.icon;
+  }
+  if (
+    resource.page.description !== undefined &&
+    resource.page.description !== record?.description
+  ) {
+    patch.description = resource.page.description;
+  }
+  const order =
+    resource.page.order ??
+    (record?.order === undefined ? MAPPED_PAGE_ORDER : undefined);
+  if (order !== undefined && order !== record?.order) {
+    patch.order = order;
+  }
+  return patch;
 }
 
 /**
  * A remapped TableView keeps its page, with the caption and label the new choices give its table
- * and, when they change it, the title. Its tabs follow the choices when they set tabs, or turn
- * the ones the mapping wrote off; tabs left out keep the page's.
+ * and, when they change it, the title, icon, description and order. Its tabs follow the choices
+ * when they set tabs, or turn the ones the mapping wrote off; tabs left out keep the page's.
  */
 function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
   const patch = tableConfig(resource);
@@ -147,28 +223,27 @@ function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
     patch.tabs = undefined;
   }
   const configured = configureBlock(`${ref}#${TABLE_BLOCK}`, patch);
-  if (!configured.ok || !retitles(ref, resource)) {
-    return configured.ok ? { ...configured, data: ref } : configured;
+  if (!configured.ok) {
+    return configured;
   }
-  const renamed = configurePage(ref, { displayName: resource.displayName });
-  if (!renamed.ok) {
-    return {
-      ok: true,
-      data: ref,
-      changes: configured.changes,
-      warnings: [
-        {
-          code: "page_not_written",
-          message: `${resource.relation}: the title stays as it was: ${errorText(renamed.error)}`,
-        },
-      ],
-    };
+  const changes = [...configured.changes];
+  const warnings: OpWarning[] = [];
+  const meta = pagePatch(ref, resource);
+  if (Object.keys(meta).length > 0) {
+    const renamed = configurePage(ref, meta);
+    if (renamed.ok) {
+      changes.push(...renamed.changes);
+    } else {
+      warnings.push({
+        code: "page_not_written",
+        message: `${resource.relation}: the page's title, icon, description and order stay as they were: ${errorText(renamed.error)}`,
+      });
+    }
   }
-  return {
-    ok: true,
-    data: ref,
-    changes: [...configured.changes, ...renamed.changes],
-  };
+  const options = applyTableOptions(ref, resource);
+  changes.push(...options.changes);
+  warnings.push(...options.warnings);
+  return written(ref, changes, warnings);
 }
 
 /** The page a relation's choices call for: created, updated, or removed when it lost its TableView. */

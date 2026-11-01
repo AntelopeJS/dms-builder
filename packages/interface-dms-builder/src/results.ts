@@ -52,7 +52,9 @@ export interface OpWarning {
      * it was unloaded and did not start within the wait, or the runtime does not report it active.
      * The message names the module; the backend log holds the error.
      */
-    | "module_not_loaded";
+    | "module_not_loaded"
+    /** A setting the page held no longer holds, because another change removed what it needed. */
+    | "setting_dropped";
   message: string;
 }
 
