@@ -1,3 +1,4 @@
+import { interfaceNamesBuckets } from "./interface-capabilities";
 import type {
   AddQueryInput,
   OpResult,
@@ -333,7 +334,12 @@ export function compileQuery(
     template: input.template,
     params,
     chain,
-    naming: seriesNaming(params, fields, input.resource),
+    naming: seriesNaming(
+      params,
+      fields,
+      input.resource,
+      interfaceNamesBuckets(record.dataApiFile),
+    ),
     response: input.response,
     compare: input.compare,
   };
