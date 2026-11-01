@@ -27,6 +27,7 @@ function emptyResource() {
     "class OrdersApi { model: unknown; }\nclass Orders {}\n",
   );
   return {
+    dataApiFile: sourceFile.getFilePath(),
     apiClass: sourceFile.getClassOrThrow("OrdersApi"),
     tableClass: sourceFile.getClassOrThrow("Orders"),
   };

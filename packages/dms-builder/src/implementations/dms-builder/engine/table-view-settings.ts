@@ -23,8 +23,8 @@ const TABLE_VIEW = "TableView";
 const TABLE: TableDisplayId = "table";
 const CARDS: TableDisplayId = "cards";
 
-type Config = Record<string, unknown>;
-type Patch = Record<string, unknown>;
+type Config = NonNullable<BlockNode["config"]>;
+type Patch = Parameters<typeof configureBlock>[1];
 
 /** The entries of `fields` that are set: an option left out is not written as `undefined`. */
 function present(fields: Config): Config {
@@ -44,56 +44,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function recordOf(value: unknown): Config {
-  return isRecord(value) ? value : {};
+function isString(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 /** The ids of the displays listed in a `displays` option. */
-function listedIds(displays: unknown): string[] {
-  return Array.isArray(displays)
-    ? displays.flatMap((entry) =>
-        isRecord(entry) && typeof entry.id === "string" ? [entry.id] : [],
-      )
-    : [];
+function listedIds(displays: Config[]): string[] {
+  return displays.flatMap((entry) => (isString(entry.id) ? [entry.id] : []));
 }
 
 function viewOption(view: ViewSetting): Config {
-  const option: Config = { id: view.id, label: view.label };
-  if (view.icon) {
-    option.icon = view.icon;
-  }
-  if (view.count !== undefined) {
-    option.count = view.count;
-  }
-  if (view.filters?.length) {
-    option.filters = view.filters.map((filter) =>
-      present({
-        accessorKey: filter.column,
-        value: Array.isArray(filter.value)
-          ? filter.value.join(",")
-          : filter.value,
-        mode: filter.mode ?? "is",
-      }),
-    );
-  }
-  if (view.search) {
-    option.search = view.search;
-  }
-  if (view.sort?.length) {
-    option.sort = view.sort.map((sort) =>
-      present({ field: sort.column, desc: sort.desc }),
-    );
-  }
-  if (view.columns) {
-    option.columns = view.columns;
-  }
-  if (view.display) {
-    option.display = view.display;
-  }
-  if (view.density) {
-    option.density = view.density;
-  }
-  return option;
+  return present({
+    id: view.id,
+    label: view.label,
+    icon: view.icon || undefined,
+    count: view.count,
+    filters: view.filters?.length
+      ? view.filters.map((filter) =>
+          present({
+            accessorKey: filter.column,
+            value: Array.isArray(filter.value)
+              ? filter.value.join(",")
+              : filter.value,
+            mode: filter.mode ?? "is",
+          }),
+        )
+      : undefined,
+    search: view.search || undefined,
+    sort: view.sort?.length
+      ? view.sort.map((sort) =>
+          present({ field: sort.column, desc: sort.desc }),
+        )
+      : undefined,
+    columns: view.columns || undefined,
+    display: view.display || undefined,
+    density: view.density || undefined,
+  });
 }
 
 function viewsOption(check: Check, views: ViewsSetting, offered: Set<string>) {
@@ -119,24 +105,34 @@ function viewsOption(check: Check, views: ViewsSetting, offered: Set<string>) {
 }
 
 function summaryOption(entry: FooterSummarySetting): Config {
-  const option: Config = { label: entry.label, op: entry.op };
-  if (entry.field && entry.op === "sum") {
-    option.field = entry.field;
-  }
-  if (entry.where) {
-    option.where = {
-      field: entry.where.column,
-      [entry.where.op]: entry.where.value,
-    };
-  }
-  return option;
+  return present({
+    label: entry.label,
+    op: entry.op,
+    field: entry.field && entry.op === "sum" ? entry.field : undefined,
+    where: entry.where
+      ? { field: entry.where.column, [entry.where.op]: entry.where.value }
+      : undefined,
+  });
+}
+
+interface OfferedDisplays {
+  displays: Config[] | undefined;
+  offered: Set<string>;
+}
+
+interface SettingsPlan {
+  patch: Patch;
+  issues: ValidationIssue[];
+  warnings: OpWarning[];
+  flags: Check["flags"];
+  summary: boolean;
 }
 
 /** The displays the table offers once the settings are written, in the switcher's order. */
 function offeredAfter(
   current: Config,
   settings: TableViewSettings,
-): { displays: Config[] | undefined; offered: Set<string> } {
+): OfferedDisplays {
   const listed = Array.isArray(current.displays)
     ? current.displays.filter(isRecord)
     : undefined;
@@ -197,7 +193,9 @@ function displayPatch(
   }
   if (settings.cards?.fields) {
     check.cardFields(settings.cards.fields);
-    patch.card = { ...recordOf(current.card), fields: settings.cards.fields };
+    const card: Config = isRecord(current.card) ? { ...current.card } : {};
+    card.fields = settings.cards.fields;
+    patch.card = card;
   }
   const { displays, offered } = offeredAfter(current, settings);
   if (settings.cards !== undefined) {
@@ -214,7 +212,7 @@ function defaultDisplayPatch(
   current: Config,
   settings: TableViewSettings,
   offered: ReadonlySet<string>,
-): Patch {
+) {
   const { defaultDisplay } = settings;
   if (defaultDisplay === null) {
     return { defaultDisplay: undefined };
@@ -229,7 +227,7 @@ function defaultDisplayPatch(
     return { defaultDisplay };
   }
   const kept = current.defaultDisplay;
-  if (typeof kept === "string" && !offered.has(kept)) {
+  if (isString(kept) && !offered.has(kept)) {
     check.warnings.push({
       code: "setting_dropped",
       message: `the ${kept} display is no longer offered, so it is no longer the default`,
@@ -243,7 +241,7 @@ function footerPatch(
   check: Check,
   current: Config,
   settings: TableViewSettings,
-): Patch {
+) {
   if (settings.footer === undefined) {
     return {};
   }
@@ -257,7 +255,9 @@ function footerPatch(
   summary.forEach((entry, index) =>
     check.summary(entry, `/footer/summary/${index}`),
   );
-  const { summary: _previous, ...kept } = recordOf(current.footer);
+  const { summary: _previous, ...kept } = isRecord(current.footer)
+    ? current.footer
+    : {};
   const footer: Config =
     summary.length > 0
       ? { ...kept, summary: summary.map(summaryOption) }
@@ -270,13 +270,7 @@ function planSettings(
   columns: ReadonlyMap<string, Column>,
   current: Config,
   settings: TableViewSettings,
-): {
-  patch: Patch;
-  issues: ValidationIssue[];
-  warnings: OpWarning[];
-  flags: Check["flags"];
-  summary: boolean;
-} {
+): SettingsPlan {
   const check = new Check(columns);
   const patch = displayPatch(check, current, settings);
   if (settings.views !== undefined) {
