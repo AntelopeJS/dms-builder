@@ -10,7 +10,7 @@ overrides:
   '@antelopejs/interface-database': file:../../.campaign/tgz/antelopejs-interface-database-02e0360.tgz
   '@antelopejs/interface-database-decorators': file:../../.campaign/tgz/antelopejs-interface-database-decorators-e79a62b.tgz
   '@antelopejs/interface-data-api': file:../../.campaign/tgz/antelopejs-interface-data-api-26c36e9.tgz
-  '@antelopejs/interface-dms': file:../../.campaign/tgz/antelopejs-interface-dms-3eb021e.tgz
+  '@antelopejs/interface-dms': file:../../.campaign/tgz/antelopejs-interface-dms-e0787e6.tgz
 
 importers:
 
@@ -26,8 +26,8 @@ importers:
         specifier: file:../../.campaign/tgz/antelopejs-interface-database-02e0360.tgz
         version: file:../../.campaign/tgz/antelopejs-interface-database-02e0360.tgz(@antelopejs/interface-core@0.2.4)
       '@antelopejs/interface-dms':
-        specifier: file:../../.campaign/tgz/antelopejs-interface-dms-3eb021e.tgz
-        version: file:../../.campaign/tgz/antelopejs-interface-dms-3eb021e.tgz(251260ee11b76491875b5d9423193229)
+        specifier: file:../../.campaign/tgz/antelopejs-interface-dms-e0787e6.tgz
+        version: file:../../.campaign/tgz/antelopejs-interface-dms-e0787e6.tgz(251260ee11b76491875b5d9423193229)
       '@antelopejs/interface-dms-builder':
         specifier: '>=0.2.2 <0.3.0'
         version: link:../interface-dms-builder
@@ -143,8 +143,8 @@ packages:
     peerDependencies:
       '@antelopejs/interface-core': '>=0.2.4 <1.0.0'
 
-  '@antelopejs/interface-dms@file:../../.campaign/tgz/antelopejs-interface-dms-3eb021e.tgz':
-    resolution: {tarball: file:../../.campaign/tgz/antelopejs-interface-dms-3eb021e.tgz}
+  '@antelopejs/interface-dms@file:../../.campaign/tgz/antelopejs-interface-dms-e0787e6.tgz':
+    resolution: {tarball: file:../../.campaign/tgz/antelopejs-interface-dms-e0787e6.tgz}
     version: 0.12.0
     peerDependencies:
       '@antelopejs/interface-api': '>=0.0.15 <1.0.0'
@@ -2395,7 +2395,7 @@ snapshots:
     dependencies:
       '@antelopejs/interface-core': 0.2.4
 
-  '@antelopejs/interface-dms@file:../../.campaign/tgz/antelopejs-interface-dms-3eb021e.tgz(251260ee11b76491875b5d9423193229)':
+  '@antelopejs/interface-dms@file:../../.campaign/tgz/antelopejs-interface-dms-e0787e6.tgz(251260ee11b76491875b5d9423193229)':
     dependencies:
       '@antelopejs/interface-api': file:../../.campaign/tgz/antelopejs-interface-api-f206be7.tgz(@antelopejs/interface-core@0.2.4)
       '@antelopejs/interface-api-util': file:../../.campaign/tgz/antelopejs-interface-api-util-cc740f8.tgz(@antelopejs/interface-api@file:../../.campaign/tgz/antelopejs-interface-api-f206be7.tgz(@antelopejs/interface-core@0.2.4))(@antelopejs/interface-core@0.2.4)
