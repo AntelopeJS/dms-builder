@@ -102,13 +102,20 @@ export interface ChosenDisplay {
   rule: "D1" | "D2";
 }
 
+/** A code such as a country or currency code (`NL`, `EUR`), which reads as written, not humanized. */
+const CODE_VALUE = /^[A-Z][A-Z0-9_-]*$/;
+
+function badgeLabel(value: string): string {
+  return CODE_VALUE.test(value) ? value : humanized(value) || value;
+}
+
 /** The items of a badge, the values given in the order the tones are dealt. */
 export function badgeItems(values: string[]): BadgeItem[] {
   let cycled = 0;
   return values.map((value) => {
     const known = TONE_OF_WORD.get(value.trim().toLowerCase());
     const tone = known ?? TONE_CYCLE[cycled++ % TONE_CYCLE.length];
-    return { value, label: humanized(value) || value, tone };
+    return { value, label: badgeLabel(value), tone };
   });
 }
 

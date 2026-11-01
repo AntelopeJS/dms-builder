@@ -121,6 +121,15 @@ describe("the display of a column (D1, D2, D3)", () => {
     ]);
   });
 
+  it("keeps an upper-case code as its own label", () => {
+    const orders = propose([Column("country", "string")], {
+      country: { traits: ENUM, categories: { NL: 600, US: 400 } },
+    });
+    expect(
+      badgeOf(fieldOf(orders, "country")).map((item) => item.label),
+    ).to.deep.equal(["NL", "US"]);
+  });
+
   it("cycles primary, secondary, info and neutral over the values no word tones, in category order", () => {
     const orders = propose([Column("tier", "string")], {
       tier: {
