@@ -94,7 +94,9 @@ const RENDERER_LOCKFILES = [
   "frontend-vue/pnpm-lock.yaml",
   "playground/pnpm-lock.yaml",
 ];
-const LOCKED_RENDERER = /^ {2}'@antelopejs\/dms-frontend@([^'(]+)':$/gm;
+const LOCKED_RENDERER =
+  /^ {2}'@antelopejs\/dms-frontend@([^'(]+)':\n((?: {4}.*\n)*)/gm;
+const LOCKED_VERSION = /^ {4}version: (\S+)$/m;
 const ENGINE_RANGE = /^>=(\d+\.\d+\.\d+) <(\d+\.\d+\.\d+)$/;
 const IMPLEMENTED_RANGE = /^>=(0\.(\d+)\.\d+) <(0\.(\d+)\.0)$/;
 const FLEET_RANGE = /^>=\d+\.\d+\.\d+ <1\.0\.0$/;
@@ -148,10 +150,17 @@ function satisfiesEngineRange(version, range) {
   );
 }
 
-/** @param {string} lockfile */
+/**
+ * A tarball row is keyed by its `file:` spec and carries the release it holds
+ * on a `version:` line of its own.
+ *
+ * @param {string} lockfile
+ */
 function lockedRenderers(lockfile) {
   const source = fs.readFileSync(path.join(root, lockfile), "utf8");
-  return [...source.matchAll(LOCKED_RENDERER)].map(([, version]) => version);
+  return [...source.matchAll(LOCKED_RENDERER)].map(([, spec, body]) =>
+    spec.startsWith("file:") ? (LOCKED_VERSION.exec(body)?.[1] ?? spec) : spec,
+  );
 }
 
 function interfaceIsPublishable() {
