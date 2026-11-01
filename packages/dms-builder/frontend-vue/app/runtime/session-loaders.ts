@@ -6,6 +6,7 @@ import type { createDerived } from './session-derived'
 
 export function createLoaders(scope: SessionCore & ReturnType<typeof createDerived>) {
 	const { session, api, viewedAs, newStep, unread } = scope
+	const consumeRefusal = useReadOnlyRefusal()
 
 	/**
 	 * Who reaches the page, read in the background: it only ever adds to what
@@ -55,7 +56,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 			session.value.previewState = 'refused'
 			session.value.previewIssues =
 				result.error.code === 'invalid_config' ? result.error.issues : []
-			session.value.error = result.error
+			if (!result.noticeConsumed) session.value.error = result.error
 			return
 		}
 		// The page builds again, so whatever refusal was on screen is answered.
@@ -77,6 +78,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 			// then shows stale values with no way to correct them.
 			refreshPreview().catch((error: unknown) => {
 				session.value.previewState = 'refused'
+				if (consumeRefusal(error)) return
 				session.value.error = {
 					code: 'unsupported',
 					detail:
@@ -106,7 +108,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 	async function loadStructure(pageRef: string): Promise<boolean> {
 		const result = await api.structure(pageRef)
 		if (!result.ok) {
-			session.value.error = result.error
+			if (!result.noticeConsumed) session.value.error = result.error
 			return false
 		}
 		const draft = structureToDraft(result.data)

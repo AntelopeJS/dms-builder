@@ -13,6 +13,7 @@ import type { ConnectionInfo, DatabaseConnection } from '../runtime/database-typ
  */
 
 const api = useBuilderApi()
+const consumeRefusal = useReadOnlyRefusal()
 const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
@@ -143,6 +144,7 @@ function savedEdit(): void {
 async function readInfo(id: string): Promise<void> {
 	infoProblem.value = ''
 	const read = await api.databaseConnection(id).catch((error: unknown) => {
+		if (consumeRefusal(error)) return null
 		infoProblem.value = connectionProblem(error)
 		return null
 	})

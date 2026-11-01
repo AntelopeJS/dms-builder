@@ -24,6 +24,7 @@ import {
 
 
 const builder = useBuilder()
+const consumeRefusal = useReadOnlyRefusal()
 const { deleting, deletePage } = usePageDelete()
 const session = builder.session
 const router = useDmsRouter()
@@ -180,6 +181,7 @@ async function openPage(route: string): Promise<void> {
 			{
 				devReload,
 				router,
+				consumeRefusal,
 				onWaitFailure: (failure) => {
 					session.value.error = failure
 				},

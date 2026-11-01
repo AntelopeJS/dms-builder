@@ -74,7 +74,7 @@ const status = computed(() =>
 		dirty: builder.dirty.value,
 		changes: builder.unsaved.value.length,
 		problems: builder.problems.value.length,
-		lastSave: session.value.lastSave,
+		lastSave: session.value.lastSave?.noticeConsumed ? null : session.value.lastSave,
 	}),
 )
 

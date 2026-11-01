@@ -22,6 +22,7 @@ export function usePageDelete() {
 	const devReload = useDevReload()
 	const { confirm } = useConfirm()
 	const api = useBuilderApi()
+	const consumeRefusal = useReadOnlyRefusal()
 
 	/**
 	 * What goes with the page and what is left pointing at it, in a sentence
@@ -102,6 +103,7 @@ export function usePageDelete() {
 			{
 				devReload,
 				router,
+				consumeRefusal,
 				onWaitFailure: (failure) => {
 					session.value.error = failure
 				},

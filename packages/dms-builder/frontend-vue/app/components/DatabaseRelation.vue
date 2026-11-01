@@ -56,6 +56,7 @@ const FLAGS: { key: keyof Pick<FieldDraft, 'listable' | 'filterable' | 'sortable
 ]
 
 const api = useBuilderApi()
+const consumeRefusal = useReadOnlyRefusal()
 const sample = ref<RowSample | null>(null)
 const sampling = ref(false)
 const sampleProblem = ref('')
@@ -194,6 +195,7 @@ async function sampleRows(): Promise<void> {
 		const rows = await api.sampleRows(props.connection, relation, SAMPLE_LIMIT)
 		if (resource.value.relation === relation) sample.value = rows
 	} catch (error) {
+		if (consumeRefusal(error)) return
 		if (resource.value.relation === relation) {
 			sampleProblem.value = error instanceof Error ? error.message : String(error)
 		}

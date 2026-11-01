@@ -66,13 +66,17 @@ function unanswered<T>(error: unknown): OpResult<T> {
  */
 export function useBuilderApi() {
 	const { $authFetch } = useAuthFetch()
+	const consumeRefusal = useReadOnlyRefusal()
 
 	function get<T>(path: string, query?: Record<string, string>): Promise<T> {
 		return $authFetch<T>(`${API_PREFIX}${path}`, { method: 'GET', query })
 	}
 
-	function answered<T>(request: Promise<OpResult<T>>): Promise<OpResult<T>> {
-		return request.catch((error: unknown) => unanswered<T>(error))
+	function answered<T>(request: Promise<OpResult<T>>, isBackground = false): Promise<OpResult<T>> {
+		return request.catch((error: unknown) => {
+			const result = unanswered<T>(error)
+			return isBackground || consumeRefusal(error) ? { ...result, noticeConsumed: true } : result
+		})
 	}
 
 	function read<T>(
@@ -85,9 +89,14 @@ export function useBuilderApi() {
 	function post<T>(
 		path: string,
 		body: object,
+		isBackground = false,
 	): Promise<OpResult<T>> {
 		return answered(
-			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, { method: 'POST', body }),
+			$authFetch<OpResult<T>>(`${API_PREFIX}${path}`, {
+				method: 'POST', body,
+				...(isBackground ? { onResponseError: () => undefined } : {}),
+			}),
+			isBackground,
 		)
 	}
 
@@ -175,8 +184,8 @@ export function useBuilderApi() {
 				args: args ?? {},
 			}),
 		databaseConnections: () => get<DatabaseConnection[]>('/database/connections'),
-		analyseDatabase: (connection: string, module: string, schemas?: string[]) =>
-			post<AnalysisState>('/database/analyse', { connection, module, schemas }),
+		analyseDatabase: (connection: string, module: string, schemas?: string[], isBackground = false) =>
+			post<AnalysisState>('/database/analyse', { connection, module, schemas }, isBackground),
 		analysis: (id: string) => read<AnalysisState>('/database/analysis', { id }),
 		/** The connection's latest analysis; a connection never analysed is answered 404. */
 		latestAnalysis: (connection: string) => get<OpResult<AnalysisState>>('/database/analysis', { connection }),

@@ -616,6 +616,6 @@ export function installFakeHost(): FakeBackend {
 		processApiMessage: (message: unknown) => String(message),
 	})
 
-	Object.assign(globalThis, { useAuthFetch, useConfirm, useTranslation })
+	Object.assign(globalThis, { useAuthFetch, useConfirm, useTranslation, useReadOnlyRefusal: () => () => false })
 	return backend
 }

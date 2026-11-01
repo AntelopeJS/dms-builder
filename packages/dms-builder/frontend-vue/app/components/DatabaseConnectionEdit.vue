@@ -55,7 +55,7 @@ async function save(): Promise<void> {
 	)
 	busy.value = false
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		return
 	}
 	fields.value.password = ''

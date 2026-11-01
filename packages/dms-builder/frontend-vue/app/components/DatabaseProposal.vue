@@ -152,7 +152,7 @@ async function loadMapped(sent: Record<string, string> = {}): Promise<void> {
 	const result = await api.mapping(props.connection, props.module)
 	if (disposed) return
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		return
 	}
 	const kept = draftsToKeep(sent)
@@ -173,7 +173,8 @@ async function poll(id: string): Promise<void> {
 	const result = await api.analysis(id)
 	if (disposed) return
 	if (!result.ok) {
-		failed(refusalText(result.error))
+		if (result.noticeConsumed) state.value = null
+		else failed(refusalText(result.error))
 		return
 	}
 	state.value = result.data
@@ -194,7 +195,8 @@ async function analyse(only?: string[]): Promise<void> {
 	const result = await api.analyseDatabase(props.connection, props.module, only)
 	if (disposed) return
 	if (!result.ok) {
-		failed(refusalText(result.error))
+		if (result.noticeConsumed) state.value = null
+		else failed(refusalText(result.error))
 		return
 	}
 	state.value = result.data
@@ -271,7 +273,7 @@ async function apply(): Promise<void> {
 	busy.value = false
 	confirming.value = false
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		return
 	}
 	applied.value = result.data
@@ -295,7 +297,7 @@ async function remap(): Promise<void> {
 	)
 	busy.value = false
 	if (!result.ok) {
-		remapProblem.value = refusalText(result.error)
+		if (!result.noticeConsumed) remapProblem.value = refusalText(result.error)
 		return
 	}
 	remapped.value = {

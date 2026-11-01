@@ -35,6 +35,7 @@ export interface OpenWhenServedContext {
 	devReload: DevReloadWaiter
 	router: RouterLike
 	onWaitFailure: (failure: WaitFailure) => void
+	consumeRefusal?: (error: unknown) => boolean
 	/**
 	 * Asked once the wait is over: `false` when the user has asked for another
 	 * page meanwhile, which a navigation landing seconds later would take them
@@ -61,7 +62,7 @@ export async function openWhenServed(
 	try {
 		await ctx.devReload.awaitRoute(route)
 	} catch (error) {
-		ctx.onWaitFailure({
+		if (!ctx.consumeRefusal?.(error)) ctx.onWaitFailure({
 			code: 'unsupported',
 			detail: error instanceof Error ? error.message : String(error),
 		})

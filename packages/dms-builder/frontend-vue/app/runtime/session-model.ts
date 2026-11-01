@@ -193,7 +193,7 @@ export interface BuilderSession {
 	/** When the draft last went from saved to holding changes; null while saved. */
 	dirtySince: number | null
 	/** How the last save went, until the draft is edited again. */
-	lastSave: { outcome: 'saved' | 'failed'; at: number } | null
+	lastSave: { outcome: 'saved' | 'failed'; at: number; noticeConsumed?: boolean } | null
 	/**
 	 * The layout a page just created starts from, laid on it once the editor
 	 * opens there — the page is written empty, the layout is the first edit.

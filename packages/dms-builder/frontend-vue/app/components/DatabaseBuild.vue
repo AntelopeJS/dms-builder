@@ -43,6 +43,7 @@ const problem = ref('')
 let reloadingSince: number | undefined
 let announced = false
 let starting = false
+let analysisRefused = false
 /** Counts the poll loops started; a loop that is no longer the latest stops at its next turn. */
 let generation = 0
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -56,13 +57,15 @@ function letAssistantFinish(): void {
 	assistant?.startConversation(assistantMessage(props.connection, props.module), { mode: 'plan' })
 }
 
-async function startAnalysis(schemas?: string[]): Promise<void> {
+async function startAnalysis(schemas?: string[], isBackground = false): Promise<void> {
 	starting = true
+	analysisRefused = false
 	problem.value = ''
-	const result = await api.analyseDatabase(props.connection, props.module, schemas)
+	const result = await api.analyseDatabase(props.connection, props.module, schemas, isBackground)
 	starting = false
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		analysisRefused = true
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 	}
 }
 
@@ -84,8 +87,8 @@ async function poll(loop: number): Promise<void> {
 		announced = true
 		emit('connected')
 	}
-	if (next.needsAnalysis && !starting && !problem.value) {
-		await startAnalysis()
+	if (next.needsAnalysis && !starting && !analysisRefused) {
+		await startAnalysis(undefined, true)
 	}
 	if (!disposed && loop === generation && !settled.value) {
 		timer = setTimeout(() => void poll(loop), POLL_MS)

@@ -32,6 +32,7 @@ import type { FileChange } from '../runtime/types'
 const emit = defineEmits<{ cancel: []; written: [connection: string, module: string] }>()
 
 const api = useBuilderApi()
+const consumeRefusal = useReadOnlyRefusal()
 
 const ENGINE_ITEMS = Object.entries(ENGINES).map(([value, spec]) => ({ label: spec.label, value }))
 
@@ -59,6 +60,7 @@ async function readProject(): Promise<void> {
 	try {
 		project.value = await api.projectModules()
 	} catch (error) {
+		if (consumeRefusal(error)) return
 		const message = (error as { data?: { message?: string } }).data?.message
 		projectProblem.value = `The project's modules could not be read: ${message ?? (error instanceof Error ? error.message : String(error))}`
 	}
@@ -140,7 +142,7 @@ async function showDiff(): Promise<void> {
 	busy.value = false
 	if (asked !== edits) return
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		preview.value = null
 		return
 	}
@@ -154,7 +156,7 @@ async function write(): Promise<void> {
 	const result = await api.configureProject(connectSteps(form, project.value), false, connectVariables(form))
 	busy.value = false
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		return
 	}
 	form.fields.password = ''

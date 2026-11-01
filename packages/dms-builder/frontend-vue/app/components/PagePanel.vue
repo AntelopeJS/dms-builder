@@ -18,6 +18,7 @@ const router = useDmsRouter()
 // scans; neither is part of the frontend-module SDK.
 const devReload = useDevReload()
 const { confirm } = useConfirm()
+const consumeRefusal = useReadOnlyRefusal()
 
 // What marks a setting written at once rather than with Save.
 const NOW = {
@@ -149,6 +150,7 @@ async function move(category: string): Promise<void> {
 				{
 					devReload,
 					router,
+					consumeRefusal,
 					onWaitFailure: (failure) => {
 						session.value.error = failure
 					},

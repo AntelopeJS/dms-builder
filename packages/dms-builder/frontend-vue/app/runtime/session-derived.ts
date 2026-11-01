@@ -50,6 +50,7 @@ export interface FollowedBlocks {
 
 export function createDerived(scope: SessionCore) {
 	const { session } = scope
+	const consumeRefusal = useReadOnlyRefusal()
 
 	const dirty = computed(
 		() =>
@@ -455,6 +456,7 @@ export function createDerived(scope: SessionCore) {
 	 * itself would go unseen and leave the panel quietly empty.
 	 */
 	function unread(what: string, error: unknown): void {
+		if (consumeRefusal(error)) return
 		session.value.error = {
 			code: 'unsupported',
 			detail: `${what} could not be read: ${error instanceof Error ? error.message : String(error)}`,

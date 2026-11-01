@@ -10,6 +10,7 @@ import type { createBlocks } from './session-blocks'
 
 export function createLifecycle(scope: SessionCore & ReturnType<typeof createDerived> & ReturnType<typeof createHistory> & ReturnType<typeof createLoaders> & ReturnType<typeof createNavigation> & ReturnType<typeof createBlocks>) {
 	const { session, api, dirty, gaps, noteDirty, newStep, keepDraft, notify, mutate, cancel, loadAccess, refreshPreview, schedulePreview, loadServedLayout, loadStructure, loadTableUsage, loadSiteTree, select, applyLayout } = scope
+	const consumeRefusal = useReadOnlyRefusal()
 
 	async function open(pageRef: string): Promise<void> {
 		const start =
@@ -38,6 +39,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
 			}
 		} catch (error) {
+			if (consumeRefusal(error)) return
 			session.value.error = {
 				code: 'unsupported',
 				detail: error instanceof Error ? error.message : String(error),
@@ -79,7 +81,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 			await save()
 			// A save the module — or the panel — turned down leaves the editor
 			// open on the very thing it refused.
-			if (session.value.error) {
+			if (session.value.error || session.value.lastSave?.outcome === 'failed') {
 				session.value.pendingClose = false
 				return
 			}
@@ -123,7 +125,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 		}
 		const result = await api.structure(pageRef)
 		if (!result.ok) {
-			session.value.error = result.error
+			if (!result.noticeConsumed) session.value.error = result.error
 			return
 		}
 		session.value.structure = result.data
@@ -165,7 +167,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 		}
 		if (keep) {
 			await save()
-			if (session.value.error) {
+			if (session.value.error || session.value.lastSave?.outcome === 'failed') {
 				return
 			}
 		} else if (session.value.pageRef) {
@@ -219,7 +221,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 		}
 		const result = await api.structure(pageRef)
 		if (!result.ok) {
-			session.value.error = result.error
+			if (!result.noticeConsumed) session.value.error = result.error
 			return
 		}
 		session.value.structure = result.data
@@ -281,9 +283,9 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 				expectedVersion: version ?? undefined,
 			})
 			if (!result.ok) {
-				session.value.error = result.error
+				if (!result.noticeConsumed) session.value.error = result.error
 				session.value.conflict = result.error.code === 'stale'
-				session.value.lastSave = { outcome: 'failed', at: Date.now() }
+				session.value.lastSave = { outcome: 'failed', at: Date.now(), noticeConsumed: result.noticeConsumed }
 				return
 			}
 			session.value.version = result.data.version
@@ -319,7 +321,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 		applied?: { title: string; scope?: string },
 	): boolean {
 		if (!result.ok) {
-			session.value.error = result.error
+			if (!result.noticeConsumed) session.value.error = result.error
 			return false
 		}
 		if (applied) {

@@ -35,7 +35,7 @@ async function plan(): Promise<void> {
 	})
 	busy.value = false
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		preview.value = null
 		return
 	}
@@ -50,7 +50,7 @@ async function remove(): Promise<void> {
 	})
 	busy.value = false
 	if (!result.ok) {
-		problem.value = refusalText(result.error)
+		if (!result.noticeConsumed) problem.value = refusalText(result.error)
 		return
 	}
 	removed.value = true

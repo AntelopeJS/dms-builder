@@ -287,7 +287,7 @@ export interface OpWarning {
 
 export type OpResult<T> =
 	| { ok: true; data: T; changes: FileChange[]; warnings?: OpWarning[] }
-	| { ok: false; error: BuilderError }
+	| { ok: false; error: BuilderError; noticeConsumed?: boolean }
 
 export interface PageSummary {
 	ref: string
