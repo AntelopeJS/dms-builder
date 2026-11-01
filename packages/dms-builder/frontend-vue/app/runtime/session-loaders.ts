@@ -77,13 +77,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 			// then shows stale values with no way to correct them.
 			refreshPreview().catch((error: unknown) => {
 				session.value.previewState = 'refused'
-				session.value.error = {
-					code: 'unsupported',
-					detail:
-						error instanceof Error
-							? `the preview could not be built: ${error.message}`
-							: 'the preview could not be built',
-				}
+				session.value.error = api.failure(error)
 			})
 		}, PREVIEW_DEBOUNCE_MS)
 	}
@@ -169,7 +163,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 			const templates = await api.queryTemplates()
 			session.value.queryTemplates = templates
 		} catch (error) {
-			unread('The query templates', error)
+			unread(error)
 		}
 	}
 
@@ -190,7 +184,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 		try {
 			session.value.resources = await api.resources()
 		} catch (error) {
-			unread('The tables', error)
+			unread(error)
 		}
 		void loadTableUsage()
 	}
@@ -205,7 +199,7 @@ export function createLoaders(scope: SessionCore & ReturnType<typeof createDeriv
 			session.value.pages = pages
 			session.value.categories = categories
 		} catch (error) {
-			unread('The pages', error)
+			unread(error)
 		}
 	}
 	return {

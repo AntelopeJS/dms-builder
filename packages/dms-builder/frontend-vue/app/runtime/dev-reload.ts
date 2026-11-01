@@ -25,16 +25,10 @@ interface RouterLike {
 	push: (route: string) => unknown
 }
 
-/** A wait that could not answer at all, shaped as a builder session error. */
-export interface WaitFailure {
-	code: 'unsupported'
-	detail: string
-}
-
 export interface OpenWhenServedContext {
 	devReload: DevReloadWaiter
 	router: RouterLike
-	onWaitFailure: (failure: WaitFailure) => void
+	onWaitFailure: (error: unknown) => void
 	/**
 	 * Asked once the wait is over: `false` when the user has asked for another
 	 * page meanwhile, which a navigation landing seconds later would take them
@@ -61,10 +55,7 @@ export async function openWhenServed(
 	try {
 		await ctx.devReload.awaitRoute(route)
 	} catch (error) {
-		ctx.onWaitFailure({
-			code: 'unsupported',
-			detail: error instanceof Error ? error.message : String(error),
-		})
+		ctx.onWaitFailure(error)
 	}
 	if (ctx.stillWanted && !ctx.stillWanted()) {
 		return

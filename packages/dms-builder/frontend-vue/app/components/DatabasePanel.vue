@@ -31,15 +31,6 @@ const infoProblem = ref('')
 /** Whether the open connection's wiring was read, so its mapping opens on the module it holds its tables in. */
 const infoRead = ref(false)
 
-function connectionProblem(error: unknown): string {
-	const data = (error as { data?: { message?: string; code?: string } }).data
-	if (data?.message) {
-		return `Edit and Remove are unavailable: ${data.message}`
-	}
-	return data?.code === 'not_found'
-		? 'This connection is no longer in the configuration: restart the project to finish.'
-		: 'Edit and Remove are unavailable: the connection could not be read.'
-}
 /** What the section beside the list shows for the open connection. */
 const view = ref<'mapping' | 'edit' | 'remove' | 'build'>('mapping')
 /** Where closing Edit or Remove goes back to: the build screen they were opened from, or the mapping. */
@@ -143,7 +134,7 @@ function savedEdit(): void {
 async function readInfo(id: string): Promise<void> {
 	infoProblem.value = ''
 	const read = await api.databaseConnection(id).catch((error: unknown) => {
-		infoProblem.value = connectionProblem(error)
+		infoProblem.value = api.failure(error).detail
 		return null
 	})
 	if (selected.value !== id) return

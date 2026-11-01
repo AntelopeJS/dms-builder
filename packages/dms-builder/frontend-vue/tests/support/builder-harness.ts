@@ -6,6 +6,8 @@
  * below `useAuthFetch` is the module's own wire format, so a recorded fake of
  * it exercises the real `useBuilder()` controller without a server.
  */
+import { useApiErrorPresenter } from '#dms-core/app/composables/useApiErrorPresenter'
+import { useDmsApp, useDmsState } from '../stubs/frontend-module'
 import type {
 	BlockCatalog,
 	ComponentPreview,
@@ -25,6 +27,7 @@ export interface RecordedCall {
 
 export interface FakeBackend {
 	calls: RecordedCall[]
+	notices: Array<{ title: string; color: string }>
 	catalog: BlockCatalog
 	structure: PageStructure
 	/** What `GET /dms/pagelayout` answers: the layout the DMS is serving. */
@@ -514,6 +517,7 @@ export function withWrappers(catalog: BlockCatalog = testCatalog()): BlockCatalo
 export function installFakeHost(): FakeBackend {
 	const backend: FakeBackend = {
 		calls: [],
+		notices: [],
 		catalog: testCatalog(),
 		structure: testStructure(),
 		layout: { components: {} },
@@ -616,6 +620,26 @@ export function installFakeHost(): FakeBackend {
 		processApiMessage: (message: unknown) => String(message),
 	})
 
-	Object.assign(globalThis, { useAuthFetch, useConfirm, useTranslation })
+	const coreMessages: Record<string, string> = {
+		'error.read_only_demo': 'This demo is read-only.',
+		'error.500.description': 'An unexpected error occurred.',
+	}
+	const getPluginI18n = () => ({
+		i18n: {
+			tm: (key: string) => {
+				if (Object.hasOwn(coreMessages, key)) return coreMessages[key]
+				const translated = useDmsApp().$i18n.t(key)
+				return translated === key ? undefined : translated
+			},
+			rt: (message: string) => message,
+		},
+	})
+	const useToast = () => ({
+		add: (notice: FakeBackend['notices'][number]) => {
+			backend.notices.push(notice)
+			return { id: backend.notices.length }
+		},
+	})
+	Object.assign(globalThis, { useAuthFetch, useConfirm, useTranslation, useApiErrorPresenter, useDmsState, getPluginI18n, useToast })
 	return backend
 }
