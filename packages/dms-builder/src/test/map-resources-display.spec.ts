@@ -135,47 +135,6 @@ describe("mapping columns with a display and a TableView with tabs", function ()
     );
   });
 
-  it("refuses a badge on a number column, a price on a text one, and a tone the dashboard lacks", async () => {
-    const pink = Object.assign(
-      { value: "paid", label: "Paid", tone: "success" as const },
-      { tone: "pink" },
-    );
-    const fields: MappedField[] = [
-      { column: "total", display: STATUS },
-      { column: "status", display: { kind: "price" } },
-      { column: "status", display: { kind: "badge", items: [pink] } },
-    ];
-    const refusals = await Promise.all(
-      fields.map((field) =>
-        MapResources(
-          ordersInput({ fields: [{ column: "reference" }, field], tabs: null }),
-        ),
-      ),
-    );
-    for (const refused of refusals) {
-      expect(refused.ok).to.equal(false);
-    }
-    expect(JSON.stringify(refusals[0])).to.include("shop.orders.total");
-    expect(JSON.stringify(refusals[2])).to.include("pink");
-  });
-
-  it("refuses tabs by a column that is not a filterable badge", async () => {
-    const plain = await MapResources(
-      ordersInput({ tabs: { column: "total" } }),
-    );
-    expect(plain.ok).to.equal(false);
-    const unfiltered = await MapResources(
-      ordersInput({
-        fields: [
-          { column: "reference" },
-          { column: "status", display: STATUS },
-        ],
-      }),
-    );
-    expect(unfiltered.ok).to.equal(false);
-    expect(JSON.stringify(unfiltered)).to.include("shop.orders.status");
-  });
-
   it("reads the display and the tabs back, and a remap that sends them back changes nothing", async () => {
     expectOk(await MapResources(ordersInput()), "MapResources");
     const read = await ordersMapped();

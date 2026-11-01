@@ -2,6 +2,7 @@ import type {
   BlockNode,
   BlockPath,
   ConfigureTableViewOpts,
+  FileChange,
   FooterSummarySetting,
   OpResult,
   OpWarning,
@@ -12,6 +13,7 @@ import type {
   ViewsSetting,
 } from "@antelopejs/interface-dms-builder";
 import { configureBlock, invalidConfig, unsupported } from "./ops";
+import { configureField } from "./resource-ops-delete";
 import { Check, type Column, columnOf } from "./table-view-checks";
 import { buildPageStructure } from "./page-structure";
 import { mountSummaryRoute } from "./resource-summary-route";
@@ -272,6 +274,7 @@ function planSettings(
   patch: Patch;
   issues: ValidationIssue[];
   warnings: OpWarning[];
+  flags: Check["flags"];
   summary: boolean;
 } {
   const check = new Check(columns);
@@ -288,6 +291,7 @@ function planSettings(
     patch,
     issues: check.issues,
     warnings: check.warnings,
+    flags: check.flags,
     summary: (settings.footer?.summary?.length ?? 0) > 0,
   };
 }
@@ -312,6 +316,48 @@ function targetBlock(
     );
   }
   return named[0];
+}
+
+/** Marks the columns the settings filter or sort on, which the builder wrote the controller to allow. */
+function markFlags(
+  controller: string,
+  flags: Check["flags"],
+): OpResult<undefined> | undefined {
+  const changes: FileChange[] = [];
+  for (const flag of ["filterable", "sortable"] as const) {
+    for (const name of flags[flag]) {
+      const marked = configureField(`${controller}#${name}`, {
+        [flag]: true,
+      });
+      if (!marked.ok) {
+        return marked;
+      }
+      changes.push(...marked.changes);
+    }
+  }
+  return changes.length > 0
+    ? { ok: true, data: undefined, changes }
+    : undefined;
+}
+
+/** The controller's edits the settings call for: the flags they use, and the summary route a figure reads. */
+function prepareController(
+  controller: string,
+  planned: ReturnType<typeof planSettings>,
+): OpResult<undefined> {
+  const flagged = markFlags(controller, planned.flags);
+  if (flagged && !flagged.ok) {
+    return flagged;
+  }
+  const mounted = planned.summary ? mountSummaryRoute(controller) : undefined;
+  if (mounted && !mounted.ok) {
+    return mounted;
+  }
+  return {
+    ok: true,
+    data: undefined,
+    changes: [...(flagged?.changes ?? []), ...(mounted?.changes ?? [])],
+  };
 }
 
 /**
@@ -348,11 +394,9 @@ export function configureTableView(
       error: { code: "invalid_config", issues: planned.issues },
     };
   }
-  const mounted = planned.summary
-    ? mountSummaryRoute(block.controller)
-    : undefined;
-  if (mounted && !mounted.ok) {
-    return mounted;
+  const prepared = prepareController(block.controller, planned);
+  if (!prepared.ok) {
+    return prepared;
   }
   const written =
     Object.keys(planned.patch).length === 0
@@ -367,7 +411,7 @@ export function configureTableView(
   const result: OpResult<{ path: BlockPath }> = {
     ok: true,
     data: { path: block.path },
-    changes: [...(mounted?.changes ?? []), ...written.changes],
+    changes: [...prepared.changes, ...written.changes],
   };
   if (warnings.length > 0) {
     result.warnings = warnings;

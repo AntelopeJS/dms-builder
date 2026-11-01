@@ -39,11 +39,34 @@ export function columnOf(field: ResourceFieldStructure): Column {
 export class Check {
   readonly issues: ValidationIssue[] = [];
   readonly warnings: OpWarning[] = [];
+  /** The columns the settings need filterable or sortable, which the builder marks as such. */
+  readonly flags = {
+    filterable: new Set<string>(),
+    sortable: new Set<string>(),
+  };
 
   constructor(private readonly columns: ReadonlyMap<string, Column>) {}
 
   refuse(pointer: string, message: string): void {
     this.issues.push({ pointer, message });
+  }
+
+  /** Asks for a column to be made filterable or sortable when it is not. */
+  private need(
+    column: Column | undefined,
+    flag: "filterable" | "sortable",
+  ): void {
+    if (
+      column &&
+      column[flag] === false &&
+      !this.flags[flag].has(column.name)
+    ) {
+      this.flags[flag].add(column.name);
+      this.warnings.push({
+        code: "field_flag_set",
+        message: `"${column.name}" was marked ${flag}: the settings use it`,
+      });
+    }
   }
 
   /** The column when the table has it; an unknown one is a refusal naming the columns. */
@@ -80,23 +103,15 @@ export class Check {
     if (!column) {
       return;
     }
-    if (column.sortable === false) {
-      this.refuse(
-        "/grouped/groupBy",
-        `"${groupBy}" is not sortable, and the grouped display sorts the rows on it; ConfigureField it sortable first`,
-      );
-    }
+    this.need(column, "sortable");
     if (by && by !== "value" && column.type !== "date") {
       this.refuse(
         "/grouped/by",
         `grouping by ${by} needs a date column, and "${groupBy}" is ${column.type ?? "not readable by the builder"}`,
       );
     }
-    if (count && column.filterable === false) {
-      this.refuse(
-        "/grouped/count",
-        `counting the groups needs "${groupBy}" filterable, or every group counts every row`,
-      );
+    if (count) {
+      this.need(column, "filterable");
     }
   }
 
@@ -117,7 +132,10 @@ export class Check {
       this.sum(entry, pointer);
     }
     if (entry.where) {
-      this.column(`${pointer}/where/column`, entry.where.column);
+      this.need(
+        this.column(`${pointer}/where/column`, entry.where.column),
+        "filterable",
+      );
       const isList = Array.isArray(entry.where.value);
       if (LIST_OPERATORS.has(entry.where.op) !== isList) {
         this.refuse(
@@ -156,12 +174,7 @@ export class Check {
     this.viewFilters(view, pointer);
     (view.sort ?? []).forEach((sort, at) => {
       const column = this.column(`${pointer}/sort/${at}/column`, sort.column);
-      if (column?.sortable === false) {
-        this.refuse(
-          `${pointer}/sort/${at}/column`,
-          `"${sort.column}" is not sortable`,
-        );
-      }
+      this.need(column, "sortable");
     });
     for (const [key, names] of Object.entries(view.columns ?? {})) {
       for (const name of names ?? []) {
@@ -180,12 +193,7 @@ export class Check {
     (view.filters ?? []).forEach((filter, at) => {
       const where = `${pointer}/filters/${at}`;
       const column = this.column(`${where}/column`, filter.column);
-      if (column?.filterable === false) {
-        this.refuse(
-          `${where}/column`,
-          `"${filter.column}" is not filterable; ConfigureField it filterable first`,
-        );
-      }
+      this.need(column, "filterable");
       const valueless = VALUELESS_MODES.has(filter.mode ?? "is");
       if (!valueless && (filter.value === undefined || filter.value === "")) {
         this.refuse(

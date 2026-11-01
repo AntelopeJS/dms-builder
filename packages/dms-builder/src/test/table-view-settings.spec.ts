@@ -18,6 +18,7 @@ import {
   installShopCatalog,
   ordersControllerPath,
   ordersControllerText,
+  ordersFlag,
   ordersInput,
   ordersPage,
   pageSource,
@@ -73,18 +74,20 @@ describe("setting displays, views and footer figures on a table page", function 
           }),
         ),
       ).to.include("needs a date column");
-      expect(
-        refusal(
-          await ConfigureTableView(page, { grouped: { groupBy: "total" } }),
-        ),
-      ).to.include("not sortable");
-      expect(
-        refusal(
-          await ConfigureTableView(page, {
-            grouped: { groupBy: "created_at", count: true },
-          }),
-        ),
-      ).to.include("filterable");
+    });
+
+    it("marks the grouped column sortable, and filterable when it counts, instead of refusing", async () => {
+      const page = (await ordersPage()).ref;
+      const result = await ConfigureTableView(page, {
+        grouped: { groupBy: "total", count: true },
+      });
+      expectOk(result, "ConfigureTableView");
+      const flags = JSON.stringify(result.ok ? result.warnings : "");
+      expect(flags).to.include("field_flag_set");
+      expect(flags).to.include("sortable");
+      expect(flags).to.include("filterable");
+      expect(await ordersFlag("total", "sortable")).to.equal(true);
+      expect(await ordersFlag("total", "filterable")).to.equal(true);
     });
 
     it("offers cards with chosen fields, and sets the display shown first", async () => {
@@ -180,24 +183,48 @@ describe("setting displays, views and footer figures on a table page", function 
       expect(source).to.include('defaultView: "open"');
     });
 
-    it("refuses a filter on a column that is not filterable, a sort that is not sortable, and a display not offered", async () => {
+    it("marks the columns a view filters or sorts on, and a footer figure compares, instead of refusing", async () => {
+      const page = (await ordersPage()).ref;
+      const result = await ConfigureTableView(page, {
+        views: {
+          items: [
+            {
+              id: "v",
+              label: "V",
+              filters: [{ column: "reference", value: "x" }],
+              sort: [{ column: "total" }],
+            },
+          ],
+        },
+        footer: {
+          summary: [
+            {
+              label: "Web",
+              op: "count",
+              where: { column: "total", op: "equals", value: 5 },
+            },
+          ],
+        },
+      });
+      expectOk(result, "ConfigureTableView");
+      expect(await ordersFlag("reference", "filterable")).to.equal(true);
+      expect(await ordersFlag("total", "sortable")).to.equal(true);
+      expect(await ordersFlag("reference", "filterable")).to.equal(true);
+      expect(JSON.stringify(result.ok ? result.warnings : "")).to.include(
+        "field_flag_set",
+      );
+    });
+
+    it("refuses a view sorting on an unknown column and a display not offered", async () => {
       const page = (await ordersPage()).ref;
       const view = (extra: Partial<ViewSetting>) => ({
         views: { items: [{ id: "v", label: "V", ...extra }] },
       });
       expect(
         refusal(
-          await ConfigureTableView(
-            page,
-            view({ filters: [{ column: "reference", value: "x" }] }),
-          ),
+          await ConfigureTableView(page, view({ sort: [{ column: "nope" }] })),
         ),
-      ).to.include("not filterable");
-      expect(
-        refusal(
-          await ConfigureTableView(page, view({ sort: [{ column: "total" }] })),
-        ),
-      ).to.include("not sortable");
+      ).to.include("no column");
       expect(
         refusal(await ConfigureTableView(page, view({ display: "kanban" }))),
       ).to.include("does not offer");

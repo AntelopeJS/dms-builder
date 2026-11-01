@@ -54,7 +54,15 @@ export interface OpWarning {
      */
     | "module_not_loaded"
     /** A setting the page held no longer holds, because another change removed what it needed. */
-    | "setting_dropped";
+    | "setting_dropped"
+    /** A relation of a batch was left out because one of its choices was refused; the others were written. */
+    | "relation_skipped"
+    /** A column display was not written because it does not suit the column; the column is written plain. */
+    | "display_dropped"
+    /** A column was marked filterable or sortable because a view, footer figure, tab or grouping needs it. */
+    | "field_flag_set"
+    /** A relation's label was changed to one the generated code can read, or dropped when no column offers it. */
+    | "label_changed";
   message: string;
 }
 

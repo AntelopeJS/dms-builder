@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
   ColumnDescription,
   RelationDescription,
@@ -22,15 +21,14 @@ import { RESERVED_FIELD_NAMES } from "./reserved-names";
 import { MixedTypeDeclarations } from "./mixed-types";
 import {
   type TabConfig,
+  displayRefusal,
   fieldDataType,
-  plannedTabs,
   suits,
 } from "./column-display";
 import type { DisplayDefaults } from "./display-defaults";
 import { refuse } from "./mapping-refusal";
-import { RoutesOf } from "./mapped-routes";
-import { type PlannedPage, plannedPage } from "./planned-page";
-import { humanized, singular, words } from "./name-words";
+import type { PlannedPage } from "./planned-page";
+import { singular, words } from "./name-words";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 const ID_COLUMN = "_id";
@@ -77,6 +75,8 @@ export interface MappingPlan {
   resources: PlannedResource[];
   leftOut: LeftOutColumn[];
   warnings: OpWarning[];
+  /** Why each relation left out of the batch was refused. */
+  refused: string[];
 }
 
 function tsType(declared: string): string {
@@ -86,7 +86,7 @@ function tsType(declared: string): string {
   return TS_TYPES[declared] ?? "unknown";
 }
 
-function namesFor(
+export function namesFor(
   input: MapResourcesInput,
   resource: MappedResource,
   description: RelationDescription,
@@ -157,11 +157,11 @@ export interface BatchTarget {
   ref: string;
 }
 
-function relationName(description: RelationDescription): string {
+export function relationName(description: RelationDescription): string {
   return `${description.schema}.${description.name}`;
 }
 
-function describedAs(
+export function describedAs(
   descriptions: RelationDescription[],
   relation: string,
 ): RelationDescription {
@@ -213,17 +213,25 @@ function tableField(field: MappedField, declared: string): FieldSpec {
   };
 }
 
-function relationDataType(target: BatchTarget, column: string): DataTypeValue {
+function relationDataType(
+  target: BatchTarget,
+  column: string,
+  warnings: OpWarning[],
+): DataTypeValue {
   if (!target.resource.label) {
-    refuse(
-      `${column} refers to ${relationName(target.description)}, which has no label to show`,
-    );
+    warnings.push({
+      code: "label_changed",
+      message: `${column} refers to ${relationName(target.description)}, which has no label: the column shows its key`,
+    });
   }
   return {
     $dataType: "relation",
     config: {
       dataApiController: { $ref: { resource: target.ref } },
-      keyMapping: { label: target.resource.label, value: "_id" },
+      keyMapping: {
+        label: target.resource.label ?? ID_COLUMN,
+        value: ID_COLUMN,
+      },
     },
   };
 }
@@ -321,6 +329,35 @@ function isReadOnly(
   );
 }
 
+/**
+ * The display a column is written with. One that does not suit the column, or that sits on the
+ * key, is dropped: the column is written plain and, when the display was sent, a warning says so.
+ */
+function usableDisplay(
+  plan: FieldPlan,
+  field: MappedField,
+  declared: string,
+  display: ColumnDisplay | undefined,
+): ColumnDisplay | undefined {
+  if (!display) {
+    return undefined;
+  }
+  const isKey = (plan.description.key?.columns ?? []).includes(field.column);
+  const reason = isKey
+    ? "it is the primary key, which names a row and is not drawn as a badge or a price"
+    : displayRefusal(display, declared);
+  if (reason === undefined) {
+    return display;
+  }
+  if (field.display) {
+    plan.warnings.push({
+      code: "display_dropped",
+      message: `${relationName(plan.description)}.${field.column}: written plain, ${reason}`,
+    });
+  }
+  return undefined;
+}
+
 /** The controller's field for a column, or why the TableView leaves it out. */
 function controllerField(
   plan: FieldPlan,
@@ -341,9 +378,10 @@ function controllerField(
   }
   const target = referenceTarget(targets, description, field);
   if (target && field.display) {
-    refuse(
-      `${relationName(description)}.${field.column} is a relation column, which takes no display`,
-    );
+    plan.warnings.push({
+      code: "display_dropped",
+      message: `${relationName(description)}.${field.column} is a relation column, which takes no display: written without one`,
+    });
   }
   if (!target && !DATA_TYPES[declared]) {
     return {
@@ -354,14 +392,19 @@ function controllerField(
   const readOnly = isReadOnly(resource, description, column);
   const display = target
     ? undefined
-    : displayOf(plan.defaults, field, declared);
+    : usableDisplay(
+        plan,
+        field,
+        declared,
+        displayOf(plan.defaults, field, declared),
+      );
   return {
     display,
     spec: {
       name: field.column,
       label: columnLabel(plan.defaults, field, column, target),
       dataType: target
-        ? relationDataType(target, field.column)
+        ? relationDataType(target, field.column, plan.warnings)
         : fieldDataType(
             display,
             declared,
@@ -384,6 +427,7 @@ interface FieldPlan {
   description: RelationDescription;
   targets: Map<string, BatchTarget>;
   leftOut: LeftOutColumn[];
+  warnings: OpWarning[];
   defaults?: DisplayDefaults;
 }
 
@@ -411,7 +455,7 @@ function isUnproposed(
   );
 }
 
-function plannedFields(plan: FieldPlan): PlannedFields {
+export function plannedFields(plan: FieldPlan): PlannedFields {
   const tableFields: FieldSpec[] = [];
   const apiFields: FieldSpec[] = [];
   const displays = new Map<string, ColumnDisplay>();
@@ -448,111 +492,4 @@ function plannedFields(plan: FieldPlan): PlannedFields {
     }
   }
   return { tableFields, apiFields, displays, unproposed };
-}
-
-function targetsOf(
-  input: MapResourcesInput,
-  descriptions: RelationDescription[],
-  mapped: BatchTarget[],
-): Map<string, BatchTarget> {
-  const targets = new Map<string, BatchTarget>(
-    mapped.map((target) => [target.resource.relation, target]),
-  );
-  const batch = new Set<string>();
-  for (const resource of input.resources) {
-    const description = describedAs(descriptions, resource.relation);
-    const names = namesFor(input, resource, description);
-    if (batch.has(resource.relation)) {
-      refuse(`${resource.relation} is in the batch twice`);
-    }
-    batch.add(resource.relation);
-    if (
-      [...targets.values()].some(
-        (target) =>
-          target.names.className === names.className &&
-          target.resource.relation !== resource.relation,
-      )
-    ) {
-      refuse(
-        `two relations map to class ${names.className}; give one a className`,
-      );
-    }
-    const tableView = resource.tableView && description.key !== null;
-    targets.set(resource.relation, {
-      resource: { ...resource, tableView },
-      description,
-      names,
-      ref: names.route.replace(/^\/api\//, ""),
-    });
-  }
-  return targets;
-}
-
-/**
- * Checks every choice against the catalog's descriptions and plans what each relation becomes.
- * A column or tabs left out take what `defaults` holds for their relation. Throws a
- * `MappingRefusal` naming the first choice it cannot honour.
- */
-export function planMapping(
-  input: MapResourcesInput,
-  descriptions: RelationDescription[],
-  srcRoot: string,
-  mapped: BatchTarget[] = [],
-  defaults: ReadonlyMap<string, DisplayDefaults> = new Map(),
-): MappingPlan {
-  const targets = targetsOf(input, descriptions, mapped);
-  const leftOut: LeftOutColumn[] = [];
-  const warnings: OpWarning[] = [];
-  const batch = input.resources.map((resource) =>
-    targets.get(resource.relation)!,
-  );
-  const resources = batch.map((target) => {
-    const relationDefaults = defaults.get(target.resource.relation);
-    const { tableFields, apiFields, displays, unproposed } = plannedFields({
-      resource: target.resource,
-      description: target.description,
-      targets,
-      leftOut,
-      defaults: relationDefaults,
-    });
-    const description = target.description;
-    if (unproposed) {
-      warnings.push({
-        code: "display_not_proposed",
-        message: `${relationName(description)}: the profile could not be read and no analysis was kept, so no text column was proposed a badge; send a display to set one`,
-      });
-    }
-    return {
-      relation: target.resource.relation,
-      description,
-      names: target.names,
-      ref: target.ref,
-      folder: path.join(
-        srcRoot,
-        ...[description.schema, description.name].map((part) =>
-          words(part).join("-"),
-        ),
-      ),
-      tableFields,
-      apiFields,
-      hasKey: description.key !== null,
-      tableView: target.resource.tableView,
-      routes: RoutesOf(target.resource),
-      label: target.resource.label,
-      displayName: target.resource.title ?? humanized(description.name),
-      page: plannedPage(target.resource),
-      tabs: plannedTabs(
-        target.resource,
-        relationName(description),
-        apiFields,
-        displays,
-        relationDefaults?.kind === "new",
-      ),
-      clearTabs:
-        target.resource.tabs === null &&
-        relationDefaults?.kind === "mapped" &&
-        relationDefaults.generatedTabs,
-    };
-  });
-  return { resources, leftOut, warnings };
 }

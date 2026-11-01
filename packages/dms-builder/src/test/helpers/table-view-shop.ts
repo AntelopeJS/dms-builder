@@ -9,7 +9,9 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import {
   ConfigureTableView,
+  GetResourceStructure,
   ListPages,
+  ListResources,
 } from "../../implementations/dms-builder";
 import { setCatalogConnectionsForTests } from "../../implementations/dms-builder/engine/catalog-connection";
 import { setModuleReloadForTests } from "../../implementations/dms-builder/engine/module-reload";
@@ -157,4 +159,20 @@ export async function configure(settings: TableViewSettings) {
   const result = await ConfigureTableView(page.ref, settings);
   expectOk(result, "ConfigureTableView");
   return result.ok ? result : { changes: [], warnings: undefined };
+}
+
+/** Whether the orders controller lets the TableView filter or sort on a column. */
+export async function ordersFlag(
+  column: string,
+  flag: "filterable" | "sortable",
+): Promise<boolean | undefined> {
+  const orders = (await ListResources()).find(
+    (resource) => resource.tableName === "orders",
+  );
+  expect(orders, "the orders resource").to.not.equal(undefined);
+  const structure = await GetResourceStructure(orders!.ref);
+  expectOk(structure, "GetResourceStructure");
+  return structure.ok
+    ? structure.data.fields.find((field) => field.name === column)?.[flag]
+    : undefined;
 }

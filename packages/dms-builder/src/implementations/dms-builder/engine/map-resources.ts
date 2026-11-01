@@ -11,11 +11,11 @@ import type { Project, SourceFile } from "ts-morph";
 import { catalogOf } from "./catalog-connection";
 import { type DisplayDefaults, displayDefaultsOf } from "./display-defaults";
 import { ensureNamedImport } from "./emit";
+import { planMapping } from "./map-resources-batch";
 import {
   type BatchTarget,
   type MappingPlan,
   type PlannedResource,
-  planMapping,
 } from "./map-resources-plan";
 import { MappingRefusal } from "./mapping-refusal";
 import { pageOf } from "./mapped-displays";
@@ -304,10 +304,10 @@ function planned(
   }
 }
 
-function recordMapping(input: MapResourcesInput): void {
+function recordMapping(input: MapResourcesInput, plan: MappingPlan): void {
   markMapped(input.module, {
     connection: input.connection,
-    mapped: input.resources.map((resource) => resource.relation),
+    mapped: plan.resources.map((resource) => resource.relation),
     excluded: input.excluded ?? [],
   });
 }
@@ -327,15 +327,18 @@ export function mapDescribedResources(
   if ("ok" in plan) {
     return plan;
   }
+  if (plan.resources.length === 0 && plan.refused.length > 0) {
+    return invalidConfig<MapResourcesResult>(plan.refused.join("; "));
+  }
   if (plan.resources.length === 0) {
-    recordMapping(input);
+    recordMapping(input, plan);
     return { ok: true, data: { resources: [], leftOut: [] }, changes: [] };
   }
   const { result } = writeAll(input, plan);
   if (!result.ok) {
     return result;
   }
-  recordMapping(input);
+  recordMapping(input, plan);
   const pages = writePages(input, plan, result.data);
   const data = {
     resources: result.data,
