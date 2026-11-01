@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.8.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.7.1...v0.8.0)
+
+### 🩹 Fixes
+
+- **playground:** Depend on @antelopejs/dms so dev and build resolve a matching renderer ([#126](https://github.com/AntelopeJS/dms-builder/pull/126))
+- **frontend:** Use DMS core API error presenter ([#127](https://github.com/AntelopeJS/dms-builder/pull/127))
+
+### 📖 Documentation
+
+- **readme:** Link the DMS and fix the interface-dms range ([#116](https://github.com/AntelopeJS/dms-builder/pull/116))
+- **readme:** Use one Discord invite ([#111](https://github.com/AntelopeJS/dms-builder/pull/111))
+
+### 🏡 Chore
+
+- Git-ignore the production frontend workspace ([#62](https://github.com/AntelopeJS/dms-builder/pull/62))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+- Alessandro Aloisio ([@alessaloisio](http://github.com/alessaloisio))
+
 ## v0.7.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.7.0...v0.7.1)
