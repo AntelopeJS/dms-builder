@@ -261,7 +261,7 @@ export function buildState(answers: BuildAnswers, reloadingFor = 0): BuildView {
  */
 export interface AssistantActions {
 	readonly isAvailable: boolean
-	startConversation: (prompt: string, options?: { mode?: 'plan' | 'normal' }) => void
+	startConversation: (prompt: string, options?: { mode?: 'plan' | 'normal'; send?: boolean }) => void
 }
 
 /** The global key dms-ai provides its assistant actions under, the same symbol in every layer. */

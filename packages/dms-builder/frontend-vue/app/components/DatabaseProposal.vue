@@ -41,13 +41,10 @@ import type {
 } from '../runtime/database-types'
 
 /**
- * A connection's mapping, decided in the builder: the analysis runs, its
- * proposal comes back with every choice marked as a catalog fact or a default
- * and the questions it could not decide asked at the relation they are about,
- * the integrator settles it, and
- * Apply sends one `MapResources` once they have read what it writes. The
- * relations the module maps already are listed too, and one changed there is
- * mapped again on its own. Nothing is written before the integrator says so.
+ * A connection's mapping, decided in the builder: the analysis proposes it, each choice marked
+ * a catalog fact or a default, with its open questions at the relation they are about. The
+ * integrator settles it and Apply sends one `MapResources`. Relations the module maps already
+ * are listed, and one changed there is mapped again on its own. Nothing is written before.
  */
 
 /** `job`: an analysis already run, whose state is read instead of analysing again. */
@@ -75,10 +72,8 @@ const applied = ref<MapResourcesResult | null>(null)
 /** The assistant took over after the mapping was applied. */
 const handedOff = ref(false)
 const remapped = ref<{ titles: string[]; page?: string; relabelled: string[]; warnings: string[] } | null>(null)
-/** What Apply warned about: a page it could not write. */
 const appliedWarnings = ref<string[]>([])
 const remapProblem = ref('')
-/** What reading the mapping warned about: a mapped relation the database no longer has. */
 const mappedWarnings = ref<string[]>([])
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
@@ -287,11 +282,11 @@ async function apply(): Promise<void> {
 	await loadMapped()
 }
 
-/** Starts the assistant on the dashboard and the pages' details, once. */
+/** Starts the assistant on the dashboard, once. */
 function handOff(): void {
 	if (handedOff.value || !assistant?.isAvailable) return
 	handedOff.value = true
-	assistant.startConversation(assistantDashboardMessage(props.connection, props.module), { mode: 'plan' })
+	assistant.startConversation(assistantDashboardMessage(props.connection, props.module), { mode: 'plan', send: true })
 }
 
 async function remap(): Promise<void> {
@@ -358,23 +353,15 @@ async function remap(): Promise<void> {
 		</div>
 		<p v-else-if="state?.status === 'failed'" class="text-xs text-error">The analysis failed: {{ state.error }}</p>
 
-		<div
+		<DmsBuilderDatabaseApplied
 			v-if="applied"
-			class="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-toned"
-		>
-			<b class="font-semibold text-highlighted">Applied.</b>
-			{{ applied.resources.length }} tables added. Their pages appear in the menu under
-			{{ connection.toUpperCase() }} within a few seconds.
-			<p v-for="warning in appliedWarnings" :key="warning" class="text-warning">{{ warning }}</p>
-			<p v-if="handedOff" data-handoff>The assistant is building the dashboard and the pages' details.</p>
-			<UButton
-				v-else-if="job && assistant?.isAvailable"
-				class="mt-2"
-				label="Let the assistant build the dashboard"
-				size="xs"
-				@click="handOff"
-			/>
-		</div>
+			:tables="applied.resources.length"
+			:connection="connection"
+			:warnings="appliedWarnings"
+			:handed-off="handedOff"
+			:can-hand-off="!!job && !!assistant?.isAvailable"
+			@hand-off="handOff"
+		/>
 
 		<section
 			v-if="proposal && draft && !applied && schemasItem"

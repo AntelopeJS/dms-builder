@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import DatabaseProposal from '../app/components/DatabaseProposal.vue'
 import DatabaseRelation from '../app/components/DatabaseRelation.vue'
+import DatabaseApplied from '../app/components/DatabaseApplied.vue'
 import { ASSISTANT_ACTIONS_KEY, type AssistantActions } from '../app/runtime/database-build'
 import type {
 	AnalysisState,
@@ -83,6 +84,7 @@ const COMPONENTS = {
 	USwitch: stub('USwitch'),
 	DmsEyebrow: stub('DmsEyebrow'),
 	DmsBuilderDatabaseRelation: DatabaseRelation,
+	DmsBuilderDatabaseApplied: DatabaseApplied,
 	DmsBuilderDiffView: stub('DmsBuilderDiffView'),
 }
 
@@ -484,7 +486,7 @@ describe('after Review it myself is applied', () => {
 		const [message, options] = entry.started[0] as [string, unknown]
 		expect(message).toContain('connection erp, module erp-tables')
 		expect(message).toContain('dashboard first')
-		expect(options).toEqual({ mode: 'plan' })
+		expect(options).toEqual({ mode: 'plan', send: true })
 		expect(textOf(root)).toContain('The assistant is building the dashboard')
 	})
 
