@@ -284,7 +284,7 @@ export interface DataSourceDescriptor {
   title: string;
   description?: string;
   /** The shape it answers with, matched against what a block can read. */
-  responseShape: string;
+  responseKind: string;
   /** The path a block fetches, as declared. */
   path: string;
   method?: string;
