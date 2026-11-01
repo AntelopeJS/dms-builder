@@ -12,7 +12,7 @@ import { latestAnalysis } from "./analysis-job";
 import { displayFactsOf } from "./analysis-fields";
 import type { CatalogConnection } from "./catalog-connection";
 import { proposeDisplay } from "./column-display";
-import { currentDisplays, pageOf, tabsColumnOf } from "./mapped-displays";
+import { currentColumns, pageOf, tabsColumnOf } from "./mapped-displays";
 import { mappedRecordsOf } from "./resource-index";
 
 /** Where the displays proposed for a relation not mapped before come from. */
@@ -20,13 +20,16 @@ export type ProposalSource = "profile" | "analysis" | "name";
 
 /**
  * What a field left without a `display` takes, by what the relation was before the call: a
- * relation mapped before keeps what its controller draws each column with; a relation not mapped
- * before takes what the rules D1 and D2 propose for the column, as far as `source` lets them see.
+ * relation mapped before keeps what its controller draws each column with, and the labels of its
+ * relation columns; a relation not mapped before takes what the rules D1 and D2 propose for the
+ * column, as far as `source` lets them see.
  */
 export type DisplayDefaults =
   | {
       kind: "mapped";
       displays: ReadonlyMap<string, ColumnDisplay>;
+      /** The label each column of the controller shows. */
+      labels: ReadonlyMap<string, string>;
       /** Whether the page's tabs are the ones the mapping wrote from a badge. */
       generatedTabs: boolean;
     }
@@ -135,10 +138,11 @@ export async function displayDefaultsOf(
   for (const resource of input.resources) {
     const record = mapped.get(resource.relation);
     if (record) {
-      const displays = currentDisplays(record);
+      const { displays, labels } = currentColumns(record);
       defaults.set(resource.relation, {
         kind: "mapped",
         displays,
+        labels,
         generatedTabs:
           tabsColumnOf(pageOf(input.connection, record), displays) !==
           undefined,

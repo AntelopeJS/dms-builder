@@ -14,6 +14,7 @@ import type {
   OpWarning,
   ResourceRoute,
 } from "@antelopejs/interface-dms-builder";
+import { columnLabel } from "./column-label";
 import { nativeKind } from "./native-kind";
 import { pascalCase } from "./emit";
 import type { ResourceNames } from "./resource-emit";
@@ -355,7 +356,7 @@ function controllerField(
     display,
     spec: {
       name: field.column,
-      label: field.label ?? humanized(field.column),
+      label: columnLabel(plan.defaults, field, column, target),
       dataType: target
         ? relationDataType(target, field.column)
         : fieldDataType(

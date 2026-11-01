@@ -40,6 +40,16 @@ export interface MappedField {
   column: string;
   /** One of the column's `accepts`; the first when omitted. */
   declared?: string;
+  /**
+   * The column's header. Sent, it is written as sent.
+   *
+   * Left out, a plain column takes its name, humanized. A relation column takes the label its
+   * controller holds when its relation was mapped before and held the column, and otherwise the
+   * title of the relation it points at, in singular ("Customer", not "Customer id", D3), unless
+   * the database commented the column with a short first sentence, which titles it instead (L2).
+   * The target's title is the `title` it is mapped with, else its page's title when it was mapped
+   * before, else its name humanized.
+   */
   label?: string;
   listable?: boolean;
   filterable?: boolean;

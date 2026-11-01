@@ -1,4 +1,4 @@
-import { humanized } from "./name-words";
+import { humanized, singular } from "./name-words";
 
 /** Tables a framework or a migration tool keeps, which hold nothing an integrator lists (R4). */
 const TECHNICAL_TABLES: readonly RegExp[] = [
@@ -97,4 +97,19 @@ export function titleOf(comment: string | null, name: string): string {
     return sentence;
   }
   return humanized(name);
+}
+
+/**
+ * The title of a column pointing at a relation: the relation's title in singular (D3), unless the
+ * database commented the column with a short first sentence, which outranks it (L2).
+ */
+export function relationColumnTitle(
+  comment: string | null,
+  name: string,
+  targetTitle: string,
+): { value: string; rule: "D3" | "L2" } {
+  const title = titleOf(comment, name);
+  return title === humanized(name)
+    ? { value: singular(targetTitle), rule: "D3" }
+    : { value: title, rule: "L2" };
 }

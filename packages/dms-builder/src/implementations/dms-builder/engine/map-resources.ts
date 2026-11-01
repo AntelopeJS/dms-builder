@@ -18,6 +18,7 @@ import {
   planMapping,
 } from "./map-resources-plan";
 import { MappingRefusal } from "./mapping-refusal";
+import { pageOf } from "./mapped-displays";
 import { markMapped } from "./mapped-modules";
 import { targetModule } from "./modules";
 import { changesModule, watchReloadOf } from "./module-reload";
@@ -210,6 +211,7 @@ function labelOf(record: ResourceRecord): string | undefined {
 
 /** A relation the module mapped before, as a target relation columns of this batch may point at. */
 function mappedTarget(
+  connection: string,
   record: ResourceRecord,
   description: RelationDescription,
 ): BatchTarget {
@@ -217,6 +219,7 @@ function mappedTarget(
     resource: {
       relation: relationOf(record),
       label: labelOf(record),
+      title: pageOf(connection, record)?.displayName,
       tableView: record.routes === undefined || record.routes.length > 0,
       writable: false,
       fields: [],
@@ -260,7 +263,9 @@ function mappedTargets(
     const description = descriptions.find(
       (candidate) => `${candidate.schema}.${candidate.name}` === relation,
     );
-    return record && description ? [mappedTarget(record, description)] : [];
+    return record && description
+      ? [mappedTarget(input.connection, record, description)]
+      : [];
   });
 }
 

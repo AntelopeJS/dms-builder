@@ -30,19 +30,28 @@ export function pageOf(
   return category && findPageRecord(joinSlug(category.fullSlug, name));
 }
 
-/** The display each column of a mapped relation's controller is drawn with, for the ones with one. */
-export function currentDisplays(
-  record: ResourceRecord,
-): Map<string, ColumnDisplay> {
+/** What a mapped relation's controller holds for each column: how it is drawn, and its label. */
+export interface CurrentColumns {
+  displays: Map<string, ColumnDisplay>;
+  labels: Map<string, string>;
+}
+
+/** The display of each column of a mapped relation's controller that has one, and every label. */
+export function currentColumns(record: ResourceRecord): CurrentColumns {
   const structure = buildResourceStructure(record.ref);
   const displays = new Map<string, ColumnDisplay>();
+  const labels = new Map<string, string>();
   for (const field of structure.ok ? structure.data.fields : []) {
+    const name = propertyName(field.name);
+    if (field.label !== undefined) {
+      labels.set(name, field.label);
+    }
     const display = displayOfDataType(field.dataType);
     if (display) {
-      displays.set(propertyName(field.name), display);
+      displays.set(name, display);
     }
   }
-  return displays;
+  return { displays, labels };
 }
 
 /**

@@ -21,9 +21,8 @@ import {
   hasTrait,
   profiledRowsOf,
 } from "./analysis-input";
-import { isSecretColumn, titleOf } from "./analysis-names";
+import { isSecretColumn, relationColumnTitle, titleOf } from "./analysis-names";
 import { type DisplayFacts, proposeDisplay } from "./column-display";
-import { humanized, singular } from "./name-words";
 
 /** Text at most this long on average is listable. */
 const LISTABLE_TEXT_LENGTH = 80;
@@ -332,11 +331,16 @@ function labelOf(
   choice: RelationChoice,
   context: FieldContext,
 ): Proposed<string> {
-  const title = titleOf(column.comment, column.name);
   const target = choice.relation && context.targets.get(choice.relation.value);
-  return target && title === humanized(column.name)
-    ? byDefault(singular(target.title), "D3")
-    : byDefault(title, "L2");
+  if (target) {
+    const { value, rule } = relationColumnTitle(
+      column.comment,
+      column.name,
+      target.title,
+    );
+    return byDefault(value, rule);
+  }
+  return byDefault(titleOf(column.comment, column.name), "L2");
 }
 
 /** What the display rules read about a column of a relation, from the relation's profile. */
