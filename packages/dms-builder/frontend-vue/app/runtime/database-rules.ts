@@ -9,7 +9,7 @@ const RULE_SENTENCES: Record<string, string> = {
 	R7: 'Other tables point at it but no column names a row: a page, its rows named by their key.',
 	R8: 'Dated rows and nothing that names a row: events or a log, for stats only.',
 	R9: 'Nothing in the data says what it holds.',
-	L1: 'The column whose name best fits a row name, then the first such column.',
+	L1: "A column named like a person's or a thing's name, then the column whose name best fits a row name, then the first such column.",
 	L2: "From the database's comment when it is short, otherwise from the name.",
 	F1: 'No column type can read it.',
 	F2: 'Named like a secret.',

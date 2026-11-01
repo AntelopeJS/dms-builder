@@ -22,13 +22,20 @@ const SECRET_COLUMNS: readonly RegExp[] = [
   /^api_key$/,
 ];
 
-/** Label candidates by name, the first found winning (L1). */
-const PREFERRED_LABELS: readonly string[] = [
+/** Columns that name a row for a person: a person's or a thing's name, a title. */
+const HUMAN_LABELS: readonly string[] = [
   "name",
+  "full_name",
+  "fullname",
+  "display_name",
+  "displayname",
   "title",
   "label",
-  "display_name",
-  "full_name",
+];
+
+/** Label candidates by name, the first found winning (L1): what a person reads before a code. */
+const PREFERRED_LABELS: readonly string[] = [
+  ...HUMAN_LABELS,
   "code",
   "reference",
 ];
@@ -45,6 +52,14 @@ const SENTENCE_END = /[.\n]/;
 
 export function isTechnicalTable(name: string): boolean {
   return TECHNICAL_TABLES.some((pattern) => pattern.test(name.toLowerCase()));
+}
+
+/**
+ * Whether a text column is named like a human name. Such a column labels a row though its values
+ * repeat (two customers can share a name), which the profile's near-unique test would refuse.
+ */
+export function isHumanLabelName(name: string): boolean {
+  return HUMAN_LABELS.includes(name.toLowerCase());
 }
 
 export function isSecretColumn(name: string): boolean {
