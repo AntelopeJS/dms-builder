@@ -37,13 +37,16 @@ export type PlanMeasure =
   | { kind: "aggregate"; op: string; field: string };
 
 /**
- * The periods a date field is bucketed into before grouping.
- *
- * No week: neither adapter exposes an ISO week, and deriving one from the day of
- * the year puts the first days of January in a week that belongs to the previous
- * year. A wrong week is worse than a missing one.
+ * The periods a date field is bucketed into before grouping. A week runs Monday to
+ * Sunday, as an ISO week does, and is named by its Monday.
  */
-export const PLAN_BUCKETS = ["day", "month", "quarter", "year"] as const;
+export const PLAN_BUCKETS = [
+  "day",
+  "week",
+  "month",
+  "quarter",
+  "year",
+] as const;
 export type PlanBucket = (typeof PLAN_BUCKETS)[number];
 
 /** How the rows are grouped: by a field's value, or by a period of a date field. */
@@ -234,22 +237,50 @@ function zoneArgument(group: PlanGroup): string {
   return group.timezone ? JSON.stringify(group.timezone) : "";
 }
 
+/** The days from 0001-01-01 to the Unix epoch, in the proleptic Gregorian calendar. */
+export const DAYS_TO_UNIX_EPOCH = 719162;
+export const DAYS_PER_YEAR = 365;
+export const LEAP_CYCLES = [4, 100, 400] as const;
+
+/**
+ * The Monday of a row's ISO week as a count of days since 1970-01-01. The count comes
+ * from the year, the day of the year and the day of the week alone, so it needs no
+ * condition and a week that straddles New Year stays one week: the stamp is that
+ * Monday's, whichever year the row falls in.
+ */
+function weekExpression(
+  year: string,
+  dayOfYear: string,
+  dayOfWeek: string,
+): string {
+  const before = `${year}.sub(1)`;
+  const leapDays = LEAP_CYCLES.map((cycle, index) => {
+    const whole = `${before}.div(${cycle}).floor()`;
+    return `.${index === 1 ? "sub" : "add"}(${whole})`;
+  }).join("");
+  return `${before}.mul(${DAYS_PER_YEAR})${leapDays}.add(${dayOfYear}).sub(${dayOfWeek}).sub(${DAYS_TO_UNIX_EPOCH})`;
+}
+
 /**
  * A date field reduced to one ordered number per period: `2026` for a year,
- * `202601` for a month, `20260114` for a day.
+ * `202601` for a month, `20260114` for a day, and for a week the days since 1970-01-01
+ * of its Monday.
  *
  * A number rather than a label, because the group is also what the series is
  * ordered by — and because a label belongs to the response, which knows the
  * viewer's locale, not to a chain compiled into the source. The response envelope
  * turns it back into a date.
  */
-function bucketExpression(group: PlanGroup, row: string): string {
+export function bucketExpression(group: PlanGroup, row: string): string {
   const zone = zoneArgument(group);
   const part = (name: string) =>
     `${row}.key(${JSON.stringify(group.field)}).${name}(${zone})`;
   const year = part("year");
   if (group.bucket === "year") {
     return year;
+  }
+  if (group.bucket === "week") {
+    return weekExpression(year, part("dayofyear"), part("dayofweek"));
   }
   if (group.bucket === "quarter") {
     return `${year}.mul(10).add(${part("month")}.sub(1).div(3).floor().add(1))`;

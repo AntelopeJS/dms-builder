@@ -320,6 +320,16 @@ export function compileQuery(
     })),
     ...template.validate(params, fields),
   ];
+  if (
+    params.bucket === "week" &&
+    !interfaceNamesBuckets(record.dataApiFile, "week")
+  ) {
+    issues.push({
+      pointer: "/bucket",
+      message:
+        "the installed @antelopejs/interface-dms cannot name a week for a reader; bucket by day or month, or update it",
+    });
+  }
   if (issues.length > 0) {
     return invalidIssues<never>(issues);
   }

@@ -71,6 +71,18 @@ describe("naming the periods of a bucketed series", () => {
     ).to.equal(false);
   });
 
+  it("names a week only when the declared periods list one", () => {
+    const withoutWeek = interfaceWith(
+      'interface SeriesOptions { bucket?: "day" | "month" }',
+    );
+    const withWeek = interfaceWith(
+      'interface SeriesOptions { bucket?: "day" | "week" | "month" }',
+    );
+    expect(interfaceNamesBuckets(withoutWeek, "month")).to.equal(true);
+    expect(interfaceNamesBuckets(withoutWeek, "week")).to.equal(false);
+    expect(interfaceNamesBuckets(withWeek, "week")).to.equal(true);
+  });
+
   it("takes an interface it cannot find for one that does not", () => {
     expect(
       interfaceNamesBuckets("/nonexistent/src/orders/data-api.ts"),
