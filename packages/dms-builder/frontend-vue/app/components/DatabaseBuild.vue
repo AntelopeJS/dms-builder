@@ -53,7 +53,7 @@ const settled = computed(() => !!view.value?.fork || !!view.value?.empty || !!vi
 const canHandOff = computed(() => !!assistant?.isAvailable)
 
 function letAssistantFinish(): void {
-	assistant?.startConversation(assistantMessage(props.connection, props.module), { mode: 'plan' })
+	assistant?.startConversation(assistantMessage(props.connection, props.module, view.value?.proposal), { mode: 'plan' })
 }
 
 async function startAnalysis(schemas?: string[]): Promise<void> {

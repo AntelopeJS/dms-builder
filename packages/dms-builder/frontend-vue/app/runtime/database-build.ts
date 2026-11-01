@@ -4,6 +4,7 @@
  * connection's latest analysis. A closed tab or a reload of the project resumes where things stand.
  */
 import type { useBuilderApi } from './api'
+import { analysisSummary } from './analysis-summary'
 import type { AnalysisState, DatabaseConnection, MappingProposal, OpenItem } from './database-types'
 
 /** How long the screen waits for the project to come back before it says how to restart by hand. */
@@ -64,6 +65,8 @@ export interface BuildView {
 	/** The analysis job the fork and *Review it myself* stand on. */
 	job?: string
 	fork?: ForkSummary
+	/** The finished analysis, for the hand-off to the assistant. */
+	proposal?: MappingProposal
 }
 
 interface FetchFailure {
@@ -248,6 +251,7 @@ export function buildState(answers: BuildAnswers, reloadingFor = 0): BuildView {
 		analysisFailed: !!analysis && analysis.status !== 'running' && !analysis.proposal,
 		job: analysis?.id,
 		fork: summary && summary.tables > 0 ? summary : undefined,
+		proposal: summary && summary.tables > 0 ? proposal : undefined,
 	}
 }
 
@@ -264,8 +268,10 @@ export interface AssistantActions {
 export const ASSISTANT_ACTIONS_KEY = Symbol.for('dms-ai:assistant-actions')
 
 /** The message *Let the assistant finish* prefills: the skills, the connection and its tables module. */
-export function assistantMessage(connection: string, module: string): string {
-	return `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.`
+export function assistantMessage(connection: string, module: string, proposal?: MappingProposal): string {
+	const head = `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.`
+	if (!proposal) return head
+	return `${head} The summary below is the analysis; plan from it and probe only what it leaves out, instead of reading the proposal again table by table.\n\n${analysisSummary(proposal)}`
 }
 
 /**
