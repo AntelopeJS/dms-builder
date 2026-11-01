@@ -10,6 +10,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { refuse } from "./mapping-refusal";
 import { humanized, words } from "./name-words";
+import { isCurrencyCode } from "./price-currency";
 
 const BADGE_MIN_VALUES = 2;
 const BADGE_MAX_VALUES = 10;
@@ -94,6 +95,8 @@ export interface DisplayFacts {
   nulls?: number;
   /** The rows the profile was measured on. */
   rows?: number;
+  /** The ISO 4217 code the database states for an amount column, when it does. */
+  currency?: string;
 }
 
 /** A display a rule chose, and the rule. */
@@ -161,6 +164,10 @@ export function isMoneyName(column: string): boolean {
   return last !== undefined && MONEY_WORDS.has(last);
 }
 
+function priceDisplay(currency: string | undefined): ColumnDisplay {
+  return currency ? { kind: PRICE, currency } : { kind: PRICE };
+}
+
 /** The display the data calls for: a badge (D1) or a price (D2), else none. */
 export function proposeDisplay(facts: DisplayFacts): ChosenDisplay | undefined {
   const badge = proposeBadge(facts);
@@ -170,7 +177,7 @@ export function proposeDisplay(facts: DisplayFacts): ChosenDisplay | undefined {
   return facts.declared === PRICE_DECLARATION &&
     !facts.isRelation &&
     isMoneyName(facts.column)
-    ? { display: { kind: PRICE }, rule: "D2" }
+    ? { display: priceDisplay(facts.currency), rule: "D2" }
     : undefined;
 }
 
@@ -213,6 +220,9 @@ export function displayRefusal(
   declared: string,
 ): string | undefined {
   if (display.kind === PRICE) {
+    if (display.currency !== undefined && !isCurrencyCode(display.currency)) {
+      return `the price currency ${JSON.stringify(display.currency)} is not an ISO 4217 code such as USD`;
+    }
     return declared === PRICE_DECLARATION
       ? undefined
       : `a price display needs a ${PRICE_DECLARATION} column, not ${declared}`;
@@ -245,7 +255,9 @@ export function displayRefusal(
 /** The DataType a display writes on the controller's field. */
 export function displayDataType(display: ColumnDisplay): DataTypeValue {
   if (display.kind === PRICE) {
-    return { $dataType: PRICE };
+    return display.currency
+      ? { $dataType: PRICE, config: { currency: display.currency } }
+      : { $dataType: PRICE };
   }
   return {
     $dataType: SELECT,
@@ -282,7 +294,8 @@ export function displayOfDataType(
   dataType: DataTypeValue | undefined,
 ): ColumnDisplay | undefined {
   if (dataType?.$dataType === PRICE) {
-    return { kind: PRICE };
+    const currency: unknown = dataType.config?.currency;
+    return priceDisplay(isCurrencyCode(currency) ? currency : undefined);
   }
   const items: unknown = dataType?.config?.items;
   if (dataType?.$dataType !== SELECT || !Array.isArray(items)) {

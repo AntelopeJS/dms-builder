@@ -23,6 +23,7 @@ import {
 } from "./analysis-input";
 import { isSecretColumn, relationColumnTitle, titleOf } from "./analysis-names";
 import { type DisplayFacts, proposeDisplay } from "./column-display";
+import { currencyOfColumn } from "./price-currency";
 
 /** Text at most this long on average is listable. */
 const LISTABLE_TEXT_LENGTH = 80;
@@ -31,6 +32,7 @@ const OPEN_CONTAINMENT = 0.95;
 const FULL_CONTAINMENT = 1;
 const PERCENT = 100;
 const ID_COLUMN = "_id";
+const NUMBER_DECLARATION = "number";
 
 const LISTED_TYPES: readonly string[] = ["boolean", "date", "number"];
 const FILTERED_TYPES: readonly string[] = ["boolean", "date"];
@@ -360,6 +362,15 @@ export function displayFactsOf(
     categories: summary?.categories,
     nulls: summary?.nulls ?? 0,
     rows: profiledRowsOf(facts),
+    currency:
+      declared === NUMBER_DECLARATION
+        ? currencyOfColumn(
+            facts.description,
+            facts.profile,
+            profiledRowsOf(facts),
+            column,
+          )
+        : undefined,
   };
 }
 

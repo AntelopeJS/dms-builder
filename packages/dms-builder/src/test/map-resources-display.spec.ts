@@ -21,6 +21,7 @@ import {
   pageText,
 } from "./helpers/shop-orders";
 import { projectFile } from "./helpers/project-files";
+import { installedPriceTypeHasCurrency } from "./helpers/installed-interface";
 import { MODULE, OP_TIMEOUT } from "./mapped-database";
 import { reloadedAtOnce } from "./reload-stub";
 import path from "node:path";
@@ -121,6 +122,38 @@ describe("mapping columns with a display and a TableView with tabs", function ()
     expect(moduleFile("shop/orders/database.ts")).to.include(
       '@Field("string") declare status: string;',
     );
+  });
+
+  it("writes a price with its currency, reads it back, and writes it plain with a warning when the code is not one", async function () {
+    if (!installedPriceTypeHasCurrency()) {
+      this.skip();
+    }
+    const fields = (currency: string) => [
+      { column: "reference" },
+      { column: "status", filterable: true, display: STATUS },
+      { column: "total", display: { kind: "price" as const, currency } },
+    ];
+    expectOk(
+      await MapResources(ordersInput({ fields: fields("USD") })),
+      "MapResources",
+    );
+    expect(moduleFile("shop/orders/data-api.ts")).to.include(
+      'new DefaultDataTypes.PriceType({ currency: "USD" })',
+    );
+    const read = await ordersMapped();
+    expect(
+      read.resource.fields.find((field) => field.column === "total")?.display
+        ?.value,
+    ).to.deep.equal({ kind: "price", currency: "USD" });
+
+    const refused = await MapResources(
+      ordersInput({ fields: fields("dollars") }),
+    );
+    expectOk(refused, "MapResources with a bad currency");
+    expect(
+      refused.ok && refused.warnings?.map((warning) => warning.code),
+    ).to.include("display_dropped");
+    expect(moduleFile("shop/orders/data-api.ts")).to.not.include("currency:");
   });
 
   it("writes the tabs: All, then a tab per value in the badge's order, in its tone", async () => {

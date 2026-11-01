@@ -12,6 +12,7 @@ import { latestAnalysis } from "./analysis-job";
 import { displayFactsOf } from "./analysis-fields";
 import type { CatalogConnection } from "./catalog-connection";
 import { proposeDisplay } from "./column-display";
+import { currencyOfComment } from "./price-currency";
 import { currentColumns, pageOf, tabsColumnOf } from "./mapped-displays";
 import { mappedRecordsOf } from "./resource-index";
 
@@ -84,7 +85,7 @@ function proposedBy(
   };
 }
 
-function proposedByName(): DisplayDefaults {
+function proposedByName(description?: RelationDescription): DisplayDefaults {
   return {
     kind: "new",
     source: "name",
@@ -94,6 +95,13 @@ function proposedByName(): DisplayDefaults {
         declared,
         isRelation: false,
         enumLike: false,
+        currency:
+          description && declared === "number"
+            ? currencyOfComment(
+                description.columns.find((entry) => entry.name === column)
+                  ?.comment,
+              )
+            : undefined,
       })?.display,
   };
 }
@@ -105,7 +113,7 @@ async function newRelation(
   catalog: CatalogConnection,
 ): Promise<DisplayDefaults> {
   if (!description || !resource.fields.some(takesDefault)) {
-    return proposedByName();
+    return proposedByName(description);
   }
   const profile = await profileOf(catalog, resource.relation);
   if (profile) {
@@ -120,7 +128,7 @@ async function newRelation(
           analysed.fields.find((field) => field.column === column)?.display
             ?.value,
       }
-    : proposedByName();
+    : proposedByName(description);
 }
 
 /**

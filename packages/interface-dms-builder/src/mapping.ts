@@ -24,11 +24,12 @@ export interface BadgeItem {
 /**
  * How a column is drawn beyond its declaration. A `badge` is a string column of few values, drawn
  * as a status pill and filtered by a list of those values; a `price` is a number column drawn as an
- * amount, in the DataType's default currency.
+ * amount, in `currency` (an ISO 4217 code such as `USD`) and in the DataType's default currency,
+ * euros, when it states none.
  */
 export type ColumnDisplay =
   | { kind: "badge"; items: BadgeItem[] }
-  | { kind: "price" };
+  | { kind: "price"; currency?: string };
 
 /** Tabs above a TableView: "All", then one tab per value of the column's badge. */
 export interface TabsChoice {

@@ -214,6 +214,61 @@ describe("the display of a column (D1, D2, D3)", () => {
     }
   });
 
+  it("gives a price the currency its comment states, and none when the comment names two", () => {
+    const orders = propose(
+      [
+        Column("total", "number", { comment: "Total (USD)" }),
+        Column("total_amount", "number", { comment: "Amount in EUR or USD" }),
+        Column("subtotal", "number", { comment: "Before tax" }),
+      ],
+      {},
+    );
+    expect(fieldOf(orders, "total").display?.value).to.deep.equal({
+      kind: "price",
+      currency: "USD",
+    });
+    expect(fieldOf(orders, "total_amount").display?.value).to.deep.equal({
+      kind: "price",
+    });
+    expect(fieldOf(orders, "subtotal").display?.value).to.deep.equal({
+      kind: "price",
+    });
+  });
+
+  it("gives a price the one currency a sibling currency column holds in every row", () => {
+    const orders = propose(
+      [Column("total", "number"), Column("currency", "string")],
+      {
+        currency: { traits: ENUM, categories: { GBP: 1000 } },
+      },
+    );
+    expect(fieldOf(orders, "total").display?.value).to.deep.equal({
+      kind: "price",
+      currency: "GBP",
+    });
+  });
+
+  it("leaves a price in the default currency when its currency column holds several, or is partly empty", () => {
+    const mixed = propose(
+      [Column("total", "number"), Column("currency", "string")],
+      {
+        currency: { traits: ENUM, categories: { GBP: 600, USD: 400 } },
+      },
+    );
+    expect(fieldOf(mixed, "total").display?.value).to.deep.equal({
+      kind: "price",
+    });
+    const partial = propose(
+      [Column("total", "number"), Column("currency", "string")],
+      {
+        currency: { traits: ENUM, categories: { GBP: 700 } },
+      },
+    );
+    expect(fieldOf(partial, "total").display?.value).to.deep.equal({
+      kind: "price",
+    });
+  });
+
   it("leaves a number column that only starts with a money word, and a string named like money, plain (D2)", () => {
     const orders = propose(
       [
