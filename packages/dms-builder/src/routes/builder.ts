@@ -366,7 +366,7 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.dataSources)
   async dataSources(
     @AuthTenantOwner() _user: User,
-    @Parameter("responseShape", "query") response?: string,
+    @Parameter("responseKind", "query") response?: string,
   ) {
     return engine.ListDataSources(response);
   }
