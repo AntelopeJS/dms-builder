@@ -268,6 +268,14 @@ export function assistantMessage(connection: string, module: string): string {
 	return `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.`
 }
 
+/**
+ * The message *Review it myself* hands the assistant once the person has applied the mapping: the
+ * tables and their pages exist, so what is left is the analytics dashboard and the pages' details.
+ */
+export function assistantDashboardMessage(connection: string, module: string): string {
+	return `Use dms-external-database and dms-page-design on connection ${connection}, module ${module}. The person has reviewed and applied the mapping: the tables and their pages exist, keep the mapping as it is. Build the analytics dashboard first in the connection's menu category, then give every page a clear name, an icon and a description, and set the displays, views, footer summaries and KPI cards the data suits.`
+}
+
 /** The schemas the question pre-checks: `public`, or else the one with the most tables. */
 export function preferredSchemas(item: OpenItem): string[] {
 	const values = item.options.map((option) => String(option.value))

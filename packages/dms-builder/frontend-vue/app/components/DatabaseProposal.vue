@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
+import { ASSISTANT_ACTIONS_KEY, type AssistantActions, assistantDashboardMessage } from '../runtime/database-build'
 import { refusalText } from '../runtime/database-connect'
 import { relabelledBy } from '../runtime/database-remap'
 import {
@@ -58,6 +59,7 @@ const POLL_MS = 1000
 type Selection = { kind: 'proposed' | 'mapped'; relation: string }
 
 const api = useBuilderApi()
+const assistant = inject<AssistantActions | null>(ASSISTANT_ACTIONS_KEY, null)
 const state = ref<AnalysisState | null>(null)
 const draft = ref<MappingDraft | null>(null)
 const mapped = ref<MappedRelation[]>([])
@@ -70,6 +72,8 @@ const problem = ref('')
 const busy = ref(false)
 const confirming = ref(false)
 const applied = ref<MapResourcesResult | null>(null)
+/** The assistant took over after the mapping was applied. */
+const handedOff = ref(false)
 const remapped = ref<{ titles: string[]; page?: string; relabelled: string[]; warnings: string[] } | null>(null)
 /** What Apply warned about: a page it could not write. */
 const appliedWarnings = ref<string[]>([])
@@ -277,7 +281,17 @@ async function apply(): Promise<void> {
 	applied.value = result.data
 	appliedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
 	forgetMappingDraft(props.connection, props.module)
+	if (props.job && !result.warnings?.some((warning) => warning.code === 'module_not_loaded')) {
+		handOff()
+	}
 	await loadMapped()
+}
+
+/** Starts the assistant on the dashboard and the pages' details, once. */
+function handOff(): void {
+	if (handedOff.value || !assistant?.isAvailable) return
+	handedOff.value = true
+	assistant.startConversation(assistantDashboardMessage(props.connection, props.module), { mode: 'plan' })
 }
 
 async function remap(): Promise<void> {
@@ -352,6 +366,14 @@ async function remap(): Promise<void> {
 			{{ applied.resources.length }} tables added. Their pages appear in the menu under
 			{{ connection.toUpperCase() }} within a few seconds.
 			<p v-for="warning in appliedWarnings" :key="warning" class="text-warning">{{ warning }}</p>
+			<p v-if="handedOff" data-handoff>The assistant is building the dashboard and the pages' details.</p>
+			<UButton
+				v-else-if="job && assistant?.isAvailable"
+				class="mt-2"
+				label="Let the assistant build the dashboard"
+				size="xs"
+				@click="handOff"
+			/>
 		</div>
 
 		<section

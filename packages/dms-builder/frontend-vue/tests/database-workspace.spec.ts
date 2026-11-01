@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import DatabaseProposal from '../app/components/DatabaseProposal.vue'
 import DatabaseRelation from '../app/components/DatabaseRelation.vue'
+import { ASSISTANT_ACTIONS_KEY, type AssistantActions } from '../app/runtime/database-build'
 import type {
 	AnalysisState,
 	MappingProposal,
@@ -449,5 +450,72 @@ describe('the mapping opened on an analysis the build screen ran', () => {
 		expect(read?.query).toEqual({ id: 'job-1' })
 		expect(button(mounted.root, 'Analyse again')).toBeDefined()
 		expect(textOf(mounted.root)).toContain('erp.customers')
+	})
+})
+
+describe('after Review it myself is applied', () => {
+	function assistant(isAvailable: boolean): AssistantActions & { started: unknown[][] } {
+		const started: unknown[][] = []
+		return { isAvailable, started, startConversation: (...args: unknown[]) => started.push(args) }
+	}
+
+	async function applyReviewed(entry: AssistantActions | undefined, job: string | null = 'job-1'): Promise<TestNode> {
+		const mounted = mount(DatabaseProposal, {
+			props: { connection: 'erp', module: 'erp-tables', job: job ?? undefined },
+			components: COMPONENTS,
+			provide: entry ? [[ASSISTANT_ACTIONS_KEY, entry]] : [],
+		})
+		unmount = mounted.unmount
+		if (job === null) {
+			fire(button(mounted.root, 'Analyse'), 'click')
+		}
+		await settle()
+		fire(button(mounted.root, 'Apply'), 'click')
+		await settle()
+		fire(button(mounted.root, 'Confirm'), 'click')
+		await settle()
+		return mounted.root
+	}
+
+	it('starts the assistant on the dashboard and the pages details, once, when dms-ai runs', async () => {
+		const entry = assistant(true)
+		const root = await applyReviewed(entry)
+		expect(entry.started).toHaveLength(1)
+		const [message, options] = entry.started[0] as [string, unknown]
+		expect(message).toContain('connection erp, module erp-tables')
+		expect(message).toContain('dashboard first')
+		expect(options).toEqual({ mode: 'plan' })
+		expect(textOf(root)).toContain('The assistant is building the dashboard')
+	})
+
+	it('does nothing more than today when dms-ai is absent or does not run in the tab', async () => {
+		const absent = await applyReviewed(undefined)
+		expect(textOf(absent)).toContain('Applied.')
+		expect(textOf(absent)).not.toContain('assistant')
+		unmount?.()
+		const idle = assistant(false)
+		const root = await applyReviewed(idle)
+		expect(idle.started).toEqual([])
+		expect(textOf(root)).not.toContain('assistant')
+	})
+
+	it('leaves a mapping applied from the workspace without a review to the person', async () => {
+		const entry = assistant(true)
+		await applyReviewed(entry, null)
+		expect(entry.started).toEqual([])
+	})
+
+	it('keeps the person in charge when the module did not load: it offers the button instead', async () => {
+		backend.answers['POST /api/builder/database/map'] = {
+			ok: true,
+			data: { resources: [], leftOut: [] },
+			changes: [],
+			warnings: [{ code: 'module_not_loaded', message: 'erp-tables did not load' }],
+		}
+		const entry = assistant(true)
+		const root = await applyReviewed(entry)
+		expect(entry.started).toEqual([])
+		fire(button(root, 'Let the assistant build the dashboard'), 'click')
+		expect(entry.started).toHaveLength(1)
 	})
 })
