@@ -18,6 +18,22 @@ export interface ProposedColumnProfile {
 	categories?: { value: string | number | boolean; rows: number }[]
 }
 
+export type DisplayTone = 'neutral' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
+
+export interface BadgeItem {
+	value: string
+	label: string
+	tone: DisplayTone
+}
+
+/** How a column is drawn: a badge of toned values, or a price. */
+export type ColumnDisplay = { kind: 'badge'; items: BadgeItem[] } | { kind: 'price' }
+
+/** Tabs above a TableView, by the values of a badge column. */
+export interface TabsChoice {
+	column: string
+}
+
 export interface ProposedField {
 	column: string
 	native: string
@@ -28,6 +44,7 @@ export interface ProposedField {
 	filterable: Proposed<boolean>
 	sortable: Proposed<boolean>
 	searchable: Proposed<boolean>
+	display?: Proposed<ColumnDisplay>
 	relation?: Proposed<string> & { implied: boolean }
 	profile?: ProposedColumnProfile
 }
@@ -50,6 +67,7 @@ export interface ProposedResource {
 	writable: Proposed<boolean>
 	label: Proposed<string | null>
 	title: Proposed<string>
+	tabs?: Proposed<TabsChoice>
 	fields: ProposedField[]
 	leftOut: ProposedLeftOut[]
 	writes: ProposedWrites
@@ -125,6 +143,7 @@ export interface MappedField {
 	filterable?: boolean
 	sortable?: boolean
 	searchable?: boolean
+	display?: ColumnDisplay | null
 	relation?: string
 }
 
@@ -135,6 +154,7 @@ export interface MappedResource {
 	tableView: boolean
 	writable: boolean
 	fields: MappedField[]
+	tabs?: TabsChoice | null
 }
 
 export interface MapResourcesInput {

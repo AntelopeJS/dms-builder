@@ -19,8 +19,11 @@ import {
   type RelationFacts,
   columnProfile,
   hasTrait,
+  profiledRowsOf,
 } from "./analysis-input";
-import { isSecretColumn, titleOf } from "./analysis-names";
+import { isSecretColumn, relationColumnTitle, titleOf } from "./analysis-names";
+import { type DisplayFacts, proposeDisplay } from "./column-display";
+import { currencyOfColumn } from "./price-currency";
 
 /** Text at most this long on average is listable. */
 const LISTABLE_TEXT_LENGTH = 80;
@@ -29,6 +32,7 @@ const OPEN_CONTAINMENT = 0.95;
 const FULL_CONTAINMENT = 1;
 const PERCENT = 100;
 const ID_COLUMN = "_id";
+const NUMBER_DECLARATION = "number";
 
 const LISTED_TYPES: readonly string[] = ["boolean", "date", "number"];
 const FILTERED_TYPES: readonly string[] = ["boolean", "date"];
@@ -42,6 +46,8 @@ export interface ReferenceTarget {
   keyAccepts: string[];
   /** The kind of value the key holds, when it is one column, as `nativeKind` reads it. */
   keyKind?: string;
+  /** The relation's title, which a column pointing at it is labelled with in singular (D3). */
+  title: string;
 }
 
 export function referenceTarget(
@@ -58,6 +64,7 @@ export function referenceTarget(
     key,
     keyAccepts: keyColumn?.accepts.map((entry) => entry.declared) ?? [],
     keyKind: keyColumn && nativeKind(keyColumn.native),
+    title: titleOf(description.comment, description.name),
   };
 }
 
@@ -317,6 +324,56 @@ function profileSummary(profile: ColumnProfile): ProposedColumnProfile {
   return summary;
 }
 
+/**
+ * A column's title: a relation column pointing at a relation with a TableView is labelled with
+ * that relation's title in singular (D3), unless the database commented the column (L2).
+ */
+function labelOf(
+  column: ColumnDescription,
+  choice: RelationChoice,
+  context: FieldContext,
+): Proposed<string> {
+  const target = choice.relation && context.targets.get(choice.relation.value);
+  if (target) {
+    const { value, rule } = relationColumnTitle(
+      column.comment,
+      column.name,
+      target.title,
+    );
+    return byDefault(value, rule);
+  }
+  return byDefault(titleOf(column.comment, column.name), "L2");
+}
+
+/** What the display rules read about a column of a relation, from the relation's profile. */
+export function displayFactsOf(
+  facts: RelationFacts,
+  column: string,
+  declared: string,
+  isRelation: boolean,
+): DisplayFacts {
+  const profile = columnProfile(facts, column);
+  const summary = profile && profileSummary(profile);
+  return {
+    column,
+    declared,
+    isRelation,
+    enumLike: hasTrait(facts, column, "enum-like"),
+    categories: summary?.categories,
+    nulls: summary?.nulls ?? 0,
+    rows: profiledRowsOf(facts),
+    currency:
+      declared === NUMBER_DECLARATION
+        ? currencyOfColumn(
+            facts.description,
+            facts.profile,
+            profiledRowsOf(facts),
+            column,
+          )
+        : undefined,
+  };
+}
+
 function proposedField(
   facts: RelationFacts,
   column: ColumnDescription,
@@ -337,7 +394,7 @@ function proposedField(
     native: column.native,
     accepts: column.accepts.map((entry) => entry.declared),
     declared: { ...fact(declared, "F3"), lossy: reading.lossy },
-    label: byDefault(titleOf(column.comment, column.name), "L2"),
+    label: labelOf(column, choice, context),
     listable: byDefault(flags.listable, "FL"),
     filterable: byDefault(flags.filterable, "FL"),
     sortable: byDefault(flags.sortable, "FL"),
@@ -349,6 +406,12 @@ function proposedField(
   const profile = columnProfile(facts, column.name);
   if (profile) {
     field.profile = profileSummary(profile);
+  }
+  const display = proposeDisplay(
+    displayFactsOf(facts, column.name, declared, choice.relation !== undefined),
+  );
+  if (display) {
+    field.display = byDefault(display.display, display.rule);
   }
   return field;
 }

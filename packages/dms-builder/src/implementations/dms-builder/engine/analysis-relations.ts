@@ -1,3 +1,4 @@
+import type { ColumnDescription } from "@antelopejs/interface-database-catalog";
 import type {
   OpenItem,
   Proposed,
@@ -6,6 +7,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { type RelationFacts, hasTrait } from "./analysis-input";
 import {
+  isHumanLabelName,
   isSecretColumn,
   isTechnicalTable,
   preferredLabel,
@@ -58,10 +60,22 @@ function statsOnly(rule: string, kind: ProposedKind): RelationVerdict {
   };
 }
 
+/** Text columns named like a human name, however much their values repeat. */
+function isHumanLabelColumn(column: ColumnDescription): boolean {
+  return (
+    isHumanLabelName(column.name) &&
+    column.accepts.some((reading) => reading.declared === "string")
+  );
+}
+
 function labelCandidates(facts: RelationFacts): string[] {
   return facts.description.columns
-    .map((column) => column.name)
-    .filter((column) => hasTrait(facts, column, "label-candidate"));
+    .filter(
+      (column) =>
+        isHumanLabelColumn(column) ||
+        hasTrait(facts, column.name, "label-candidate"),
+    )
+    .map((column) => column.name);
 }
 
 function hasTimeAxis(facts: RelationFacts): boolean {

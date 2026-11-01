@@ -286,7 +286,7 @@ export function seriesTemplate(): QueryTemplate {
       resourceType: "database-table",
       title: "Series",
       description:
-        "Measures rows per group — by a field's value, or by day, month, quarter or year of a date field — and answers one point per group.",
+        "Measures rows per group — by a field's value, or by day, week (Monday to Sunday), month, quarter or year of a date field — and answers one point per group.",
       output: "series",
       params: seriesParamsSchema(),
     },

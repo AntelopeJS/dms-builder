@@ -16,10 +16,10 @@ import { impliedReferenceChecks, proposeMapping } from "./analysis";
 import { type ReferenceTarget, referenceTarget } from "./analysis-fields";
 import { type ImpliedReference, relationName } from "./analysis-input";
 import { type CatalogConnection, catalogOf } from "./catalog-connection";
-import { mappedRecordsOf } from "./map-resources";
 import { excludedRelationsOf } from "./mapped-modules";
 import { targetModule } from "./modules";
 import { invalidConfig, notFound } from "./ops";
+import { mappedRecordsOf } from "./resource-index";
 
 const DESCRIBE_BATCH = 20;
 /** Above this many relations to profile, the analysis asks which schemas matter first. */
