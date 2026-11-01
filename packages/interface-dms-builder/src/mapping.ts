@@ -72,8 +72,12 @@ export interface MappedField {
   /**
    * `"schema.name"` of another mapped relation this column refers to, by that relation's
    * single-column key: the column becomes a relation column showing the target's `label`.
+   *
+   * Left out, a column the database declares a foreign key onto a relation of this call or one
+   * mapped before, with a TableView and a single-column key that the foreign key uses, becomes a
+   * relation column onto it. Null writes the column plain, as its own value.
    */
-  relation?: string;
+  relation?: string | null;
 }
 
 /** One relation to map, as the integrator chose to show it. */

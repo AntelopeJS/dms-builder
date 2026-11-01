@@ -157,7 +157,7 @@ export function dependents(
     for (const resource of input.resources) {
       const gone = resource.fields.find(
         (field) =>
-          field.relation !== undefined &&
+          field.relation != null &&
           refused.has(field.relation) &&
           !refused.has(resource.relation),
       );

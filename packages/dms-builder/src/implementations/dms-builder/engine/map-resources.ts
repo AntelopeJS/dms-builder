@@ -17,6 +17,10 @@ import {
   type MappingPlan,
   type PlannedResource,
 } from "./map-resources-plan";
+import {
+  declaredTargetsOutside,
+  withDeclaredRelations,
+} from "./map-resources-references";
 import { MappingRefusal } from "./mapping-refusal";
 import { pageOf } from "./mapped-displays";
 import { markMapped } from "./mapped-modules";
@@ -246,7 +250,7 @@ function referencedOutside(input: MapResourcesInput): string[] {
           .map((field) => field.relation)
           .filter(
             (relation): relation is string =>
-              relation !== undefined && !batch.has(relation),
+              relation != null && !batch.has(relation),
           ),
       ),
     ),
@@ -289,11 +293,12 @@ function planned(
     );
   }
   try {
+    const chosen = withDeclaredRelations(input, descriptions);
     return planMapping(
-      input,
+      chosen,
       descriptions,
       src,
-      mappedTargets(input, descriptions),
+      mappedTargets(chosen, descriptions),
       defaults,
     );
   } catch (error) {
@@ -418,7 +423,12 @@ export async function mapResources(
     return mapAndAwaitReload(input, [], new Map());
   }
   try {
-    const descriptions = await catalog.DescribeRelations(relations);
+    const own = await catalog.DescribeRelations(relations);
+    const outside = declaredTargetsOutside(input, own);
+    const descriptions =
+      outside.length > 0
+        ? [...own, ...(await catalog.DescribeRelations(outside))]
+        : own;
     refreshFromDisk(getWritableProject());
     return await mapAndAwaitReload(
       input,
