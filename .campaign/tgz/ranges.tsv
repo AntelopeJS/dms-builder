@@ -40,3 +40,16 @@
 @antelopejs/dms-frontend	packages/dms-builder/playground/package.json	devDependencies	>=0.9.1 <0.10.0
 @antelopejs/dms-frontend	packages/dms-builder/frontend-vue/package.json	pnpm.overrides	
 @antelopejs/dms-frontend	packages/dms-builder/playground/package.json	pnpm.overrides	
+@antelopejs/interface-core	packages/dms-builder/package.json	dependencies	>=0.2.4 <1.0.0
+@antelopejs/interface-core	packages/dms-builder/playground/package.json	dependencies	>=0.2.4 <1.0.0
+@antelopejs/interface-core	packages/interface-dms-builder/package.json	devDependencies	>=0.2.4 <1.0.0
+@antelopejs/interface-core	packages/dms-builder/frontend-vue/package.json	pnpm.overrides	
+@antelopejs/interface-core	packages/dms-builder/playground/package.json	pnpm.overrides	
+@antelopejs/interface-core	packages/dms-builder/package.json	pnpm.overrides	
+@antelopejs/interface-core	packages/interface-dms-builder/package.json	pnpm.overrides	
+@antelopejs/interface-core	packages/dms-builder/frontend-vue/package.json	devDependencies	(added)
+@antelopejs/core	packages/dms-builder/package.json	devDependencies	>=1.17.1 <2
+@antelopejs/core	packages/dms-builder/playground/package.json	devDependencies	>=1.17.1 <2
+@antelopejs/core	packages/dms-builder/frontend-vue/package.json	pnpm.overrides	
+@antelopejs/core	packages/dms-builder/playground/package.json	pnpm.overrides	
+@antelopejs/core	packages/dms-builder/package.json	pnpm.overrides	
