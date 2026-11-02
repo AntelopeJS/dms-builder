@@ -84,6 +84,7 @@ function openTable(
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
+  // SAFETY: the table of a schema with no model is a Table<any>, and PlanStream names the filter, map, group and aggregate calls the executor makes on it; TypeScript cannot prove the assignment because PlanOperand is wider than the operands of ValueProxy, which the table accepts at run time.
   return instance.table(tableName) as PlanStream;
 }
 
@@ -298,6 +299,7 @@ export function previewRequestFromSearch(
   }
   return {
     ok: true,
+    // SAFETY: namesResourceAndTemplate has checked resource and template, the fields every preview needs; name is the only other required field of AddQueryInput and a preview never reads it, and runPlanPreview validates params through the template before use.
     data: { query: query as AddQueryInput, args, tenant },
     changes: [],
   };
