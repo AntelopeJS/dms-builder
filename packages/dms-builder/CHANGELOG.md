@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.9.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.8.0...v0.9.0)
+
+### 🚀 Enhancements
+
+- **dms-builder:** Set displays, views and footer figures on table pages, and hand a reviewed mapping to the assistant ([#118](https://github.com/AntelopeJS/dms-builder/pull/118))
+- **dms-builder:** Compose a whole page, queries and blocks, in one call ([#122](https://github.com/AntelopeJS/dms-builder/pull/122))
+
+### 🩹 Fixes
+
+- **deps:** Require the builder interface that carries compose-page ([#129](https://github.com/AntelopeJS/dms-builder/pull/129))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.3.0 ([af51fb0](https://github.com/AntelopeJS/dms-builder/commit/af51fb0))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.8.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.7.1...v0.8.0)
