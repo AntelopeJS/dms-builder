@@ -106,6 +106,7 @@
 			"copied_block": "Bloc copié en JSON",
 			"configuration_applied": "Configuration appliquée",
 			"copied": "Copié dans le presse-papiers",
+			"copy_failed": "Impossible de copier dans le presse-papiers",
 			"tab_duplicated": "Onglet dupliqué",
 			"tab_deleted": "Onglet supprimé",
 			"locked": "Ce réglage ou cet emplacement est géré dans le code et ne peut pas être modifié ici",

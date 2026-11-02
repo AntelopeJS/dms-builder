@@ -357,6 +357,7 @@ async function remap(): Promise<void> {
 			v-if="applied"
 			:tables="applied.resources.length"
 			:connection="connection"
+			:module="module"
 			:warnings="appliedWarnings"
 			:handed-off="handedOff"
 			:can-hand-off="!!job && !!assistant?.isAvailable"

@@ -267,7 +267,7 @@ export interface AssistantActions {
 /** The global key dms-ai provides its assistant actions under, the same symbol in every layer. */
 export const ASSISTANT_ACTIONS_KEY = Symbol.for('dms-ai:assistant-actions')
 
-/** The message *Let the assistant finish* prefills: the skills, the connection and its tables module. */
+/** The message *Let the assistant finish* sends, and *Copy prompt* copies: the skills, the connection and its tables module. */
 export function assistantMessage(connection: string, module: string, proposal?: MappingProposal): string {
 	const head = `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.`
 	if (!proposal) return head

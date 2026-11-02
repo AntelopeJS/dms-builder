@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import DatabaseBuild from '../app/components/DatabaseBuild.vue'
+import DatabasePromptCopy from '../app/components/DatabasePromptCopy.vue'
+import { useBuilder } from '../app/runtime/session'
 import { ASSISTANT_ACTIONS_KEY, type AssistantActions } from '../app/runtime/database-build'
 import type { AnalysisState, ConnectionInfo, MappingProposal } from '../app/runtime/database-types'
 import { installFakeHost, type FakeBackend } from './support/builder-harness'
-import { findAll, fire, installDocumentStub, mount, textOf, type TestNode } from './support/render'
+import { findAll, fire, installDocumentStub, mount, stub, textOf, type TestNode } from './support/render'
 
 /**
  * The build screen of a connection just written: it follows the reload through
@@ -15,6 +17,8 @@ let backend: FakeBackend
 let unmount: (() => void) | undefined
 
 installDocumentStub()
+
+const COMPONENTS = { UPopover: stub('UPopover'), DmsBuilderDatabasePromptCopy: DatabasePromptCopy }
 
 const CONNECTION = 'GET /api/builder/database/connection'
 const CONNECTIONS = 'GET /api/builder/database/connections'
@@ -244,7 +248,10 @@ describe('the fork and the assistant', () => {
 
 	it('offers no assistant button when dms-ai provides no entry', async () => {
 		atTheFork()
-		const mounted = mount(DatabaseBuild, { props: { connection: 'roaster', module: 'builder-db-roaster-tables' } })
+		const mounted = mount(DatabaseBuild, {
+			props: { connection: 'roaster', module: 'builder-db-roaster-tables' },
+			components: COMPONENTS,
+		})
 		unmount = mounted.unmount
 		await tick(10)
 		expect(button(mounted.root, 'Review it myself')).toBeDefined()
@@ -255,6 +262,7 @@ describe('the fork and the assistant', () => {
 		atTheFork()
 		const mounted = mount(DatabaseBuild, {
 			props: { connection: 'roaster', module: 'builder-db-roaster-tables' },
+			components: COMPONENTS,
 			provide: [[ASSISTANT_ACTIONS_KEY, assistant(false)]],
 		})
 		unmount = mounted.unmount
@@ -267,6 +275,7 @@ describe('the fork and the assistant', () => {
 		const entry = assistant(true)
 		const mounted = mount(DatabaseBuild, {
 			props: { connection: 'roaster', module: 'builder-db-roaster-tables' },
+			components: COMPONENTS,
 			provide: [[ASSISTANT_ACTIONS_KEY, entry]],
 		})
 		unmount = mounted.unmount
@@ -278,6 +287,81 @@ describe('the fork and the assistant', () => {
 			/^Use dms-external-database on connection roaster, module builder-db-roaster-tables\. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design\./,
 		)
 		expect(message).toContain('Analysis summary (postgresql, role reader):')
-		expect(options).toEqual({ mode: 'plan' })
+		expect(options).toEqual({ mode: 'plan', send: true })
+	})
+
+	describe('Copy prompt', () => {
+		const writes: string[] = []
+
+		function clipboard(write: (text: string) => Promise<void>): void {
+			vi.stubGlobal('navigator', { clipboard: { writeText: write } })
+		}
+
+		beforeEach(() => {
+			writes.length = 0
+			useBuilder().session.value.toast = null
+		})
+
+		afterEach(() => {
+			vi.unstubAllGlobals()
+		})
+
+		async function atTheForkWith(provide: Array<[symbol, unknown]>): Promise<TestNode> {
+			atTheFork()
+			const mounted = mount(DatabaseBuild, {
+				props: { connection: 'roaster', module: 'builder-db-roaster-tables' },
+				components: COMPONENTS,
+				provide,
+			})
+			unmount = mounted.unmount
+			await tick(10)
+			return mounted.root
+		}
+
+		it('shows without dms-ai, where the assistant button does not', async () => {
+			const root = await atTheForkWith([])
+			expect(button(root, 'Copy prompt')).toBeDefined()
+			expect(button(root, 'Let the assistant finish')).toBeUndefined()
+		})
+
+		it('copies exactly the message the assistant button sends, and says so', async () => {
+			clipboard((text) => {
+				writes.push(text)
+				return Promise.resolve()
+			})
+			const entry = assistant(true)
+			const root = await atTheForkWith([[ASSISTANT_ACTIONS_KEY, entry]])
+			fire(button(root, 'Copy prompt')!, 'click')
+			await tick(10)
+			fire(button(root, 'Let the assistant finish')!, 'click')
+			expect(writes).toEqual([entry.started[0]![0]])
+			expect(writes[0]).toContain('Analysis summary')
+			expect(useBuilder().session.value.toast).toBe('Copied to the clipboard')
+		})
+
+		it('says so when the browser refuses the clipboard', async () => {
+			clipboard(() => Promise.reject(new Error('denied')))
+			const root = await atTheForkWith([])
+			fire(button(root, 'Copy prompt')!, 'click')
+			await tick(10)
+			expect(useBuilder().session.value.toast).toBe('Could not copy to the clipboard')
+		})
+
+		it('says so when the page has no clipboard at all', async () => {
+			vi.stubGlobal('navigator', {})
+			const root = await atTheForkWith([])
+			fire(button(root, 'Copy prompt')!, 'click')
+			await tick(10)
+			expect(useBuilder().session.value.toast).toBe('Could not copy to the clipboard')
+		})
+
+		it('points the popover at the plugin, its commands and the docs', async () => {
+			const root = await atTheForkWith([])
+			const info = textOf(findAll(root, (node) => node.props['data-copy-prompt-info'] !== undefined)[0]!)
+			expect(info).toContain('claude plugin install antelopejs@antelopejs')
+			expect(info).toContain('codex plugin add antelopejs@antelopejs')
+			const link = findAll(root, (node) => node.tag === 'a')[0]
+			expect(link?.props.href).toBe('https://dms.antelopejs.com/docs/ai-and-claude-code/overview')
+		})
 	})
 })

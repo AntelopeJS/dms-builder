@@ -51,9 +51,10 @@ let disposed = false
 const steps = computed<BuildStep[]>(() => view.value?.steps ?? [])
 const settled = computed(() => !!view.value?.fork || !!view.value?.empty || !!view.value?.analysisFailed)
 const canHandOff = computed(() => !!assistant?.isAvailable)
+const handOffPrompt = computed(() => assistantMessage(props.connection, props.module, view.value?.proposal))
 
 function letAssistantFinish(): void {
-	assistant?.startConversation(assistantMessage(props.connection, props.module, view.value?.proposal), { mode: 'plan' })
+	assistant?.startConversation(handOffPrompt.value, { mode: 'plan', send: true })
 }
 
 async function startAnalysis(schemas?: string[]): Promise<void> {
@@ -187,6 +188,7 @@ onBeforeUnmount(() => {
 			<div class="flex gap-2">
 				<UButton v-if="canHandOff" label="Let the assistant finish" @click="letAssistantFinish" />
 				<UButton label="Review it myself" variant="soft" @click="emit('review', view.job)" />
+				<DmsBuilderDatabasePromptCopy :prompt="handOffPrompt" />
 			</div>
 		</section>
 	</div>
