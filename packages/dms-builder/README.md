@@ -54,7 +54,7 @@ Start the backend with `ajs project run -w`, then the frontend with `ajs dms dev
 | Package                                  | Supported                                                        | Tested with |
 | ---------------------------------------- | ---------------------------------------------------------------- | ----------- |
 | `@antelopejs/interface-api`              | `>=0.0.15 <1.0.0`                                                | —           |
-| `@antelopejs/interface-core`             | `file:../../.campaign/tgz/antelopejs-interface-core-52413a9.tgz` | —           |
+| `@antelopejs/interface-core`             | `file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz` | —           |
 | `@antelopejs/interface-database`         | `>=0.1.11 <1.0.0`                                                | —           |
 | `@antelopejs/interface-database-catalog` | `>=0.0.3 <1.0.0`                                                 | —           |
 | `@antelopejs/interface-dms`              | `>=0.10.0 <1.0.0`                                                | —           |
