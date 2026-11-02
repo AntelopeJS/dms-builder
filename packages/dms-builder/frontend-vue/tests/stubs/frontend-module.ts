@@ -6,6 +6,7 @@
  */
 import { ref, type Ref } from 'vue'
 import englishMessages from '../../i18n/locales/builder-en-GB.json'
+import frenchMessages from '../../i18n/locales/builder-fr-FR.json'
 
 export interface DmsModuleOptions {
   public: Record<string, unknown>
@@ -73,17 +74,29 @@ function pluralForm(message: string, count: number | undefined): string {
   return forms[index] ?? message
 }
 
+export type TestLocale = 'en-GB' | 'fr-FR'
+
+let locale: TestLocale = 'en-GB'
+
+/** Switches the locale `translate` reads; a test restores `en-GB` when it is done. */
+export function setTestLocale(next: TestLocale): void {
+  locale = next
+}
+
 /**
- * The application composer, reading the module's English catalog: a test
- * asserts the texts an English-speaking author sees, and a key the catalog
- * lacks comes back as itself, as vue-i18n returns it.
+ * The application composer, reading the module's catalog in the test locale,
+ * English unless a test switches it: a test asserts the texts an
+ * English-speaking author sees, and a key the catalog lacks comes back as
+ * itself, as vue-i18n returns it.
  */
 function translate(
   key: string,
   params: Record<string, unknown> = {},
   count?: number,
 ): string {
-  const message = lookup(englishMessages as Messages, key)
+  const message =
+    lookup((locale === 'fr-FR' ? frenchMessages : englishMessages) as Messages, key) ??
+    lookup(englishMessages as Messages, key)
   if (message === undefined) {
     return key
   }

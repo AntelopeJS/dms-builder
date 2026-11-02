@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { type FieldDraft, type ResourceDraft } from '../runtime/database'
 import { ruleSentence } from '../runtime/database-rules'
+import { lossyText, questionText, traitText } from '../runtime/database-server-text'
+import { t } from '../runtime/i18n'
 import type {
 	OpenItem,
 	Proposed,
@@ -37,23 +39,13 @@ const resource = defineModel<ResourceDraft>('resource', { required: true })
 const SAMPLE_LIMIT = 20
 const PREVIEW_ROWS = 5
 const PERCENT = 100
-const TYPE_NAMES: Record<string, string> = {
-	string: 'Text',
-	number: 'Number',
-	date: 'Date',
-	boolean: 'Boolean',
-	object: 'Object',
-}
-const PURPOSE_CHOICES: { value: string; label: string; help: string }[] = [
-	{ value: 'tableView', label: 'A page to list and edit its rows', help: 'A page listed in the menu.' },
-	{ value: 'statsOnly', label: 'Counted in stats, no page', help: 'Stats pages can count and chart it.' },
-	{ value: 'excluded', label: 'Left out', help: 'Not mapped, and not proposed again.' },
-]
-const FLAGS: { key: keyof Pick<FieldDraft, 'listable' | 'filterable' | 'sortable' | 'searchable'>; label: string }[] = [
-	{ key: 'listable', label: 'List' },
-	{ key: 'filterable', label: 'Filter' },
-	{ key: 'sortable', label: 'Sort' },
-	{ key: 'searchable', label: 'Search' },
+const TYPE_NAMES: ReadonlySet<string> = new Set(['string', 'number', 'date', 'boolean', 'object'])
+const PURPOSE_CHOICES = ['tableView', 'statsOnly', 'excluded'] as const
+const FLAGS: { key: keyof Pick<FieldDraft, 'listable' | 'filterable' | 'sortable' | 'searchable'> }[] = [
+	{ key: 'listable' },
+	{ key: 'filterable' },
+	{ key: 'sortable' },
+	{ key: 'searchable' },
 ]
 
 const api = useBuilderApi()
@@ -100,11 +92,13 @@ function counts(column: string): string {
 	const profile = proposedFields.value.get(column)?.profile
 	const rows = props.proposed?.profiledRows
 	const parts: string[] = []
-	if (keyColumns.value.has(column)) parts.push('the key')
+	if (keyColumns.value.has(column)) parts.push(t('database.relation.the_key'))
 	if (profile?.nulls !== undefined && rows !== undefined && rows > 0 && profile.nulls <= rows) {
-		parts.push(`${Math.round(((rows - profile.nulls) / rows) * PERCENT)}% filled`)
+		parts.push(
+			t('database.relation.percent_filled', { percent: Math.round(((rows - profile.nulls) / rows) * PERCENT) }),
+		)
 	}
-	if (profile?.distinct !== undefined) parts.push(`${profile.distinct} values`)
+	if (profile?.distinct !== undefined) parts.push(t('database.relation.values', {}, profile.distinct))
 	return parts.join(' · ')
 }
 
@@ -116,8 +110,8 @@ const labelOptions = computed(() =>
 )
 
 const labelHelp = computed(() => {
-	const where = ['first in its list', ...(props.pointing ?? [])]
-	return `The column a row is named by. It shows ${where.join(', ')}.`
+	const where = [t('database.relation.first_in_list'), ...(props.pointing ?? [])]
+	return t('database.relation.label_help', { where: where.join(', ') })
 })
 
 const labelPreview = computed(() => {
@@ -150,24 +144,25 @@ const writes = computed(() => {
 	const proposed = props.proposed?.writes
 	if (!proposed) return ''
 	const allowed = (['insert', 'update', 'delete'] as const).filter((kind) => proposed[kind])
-	const verbs = { insert: 'add', update: 'change', delete: 'delete' }
 	return allowed.length
-		? `The database login can ${allowed.map((kind) => verbs[kind]).join(', ')} rows`
-		: 'The database login cannot change rows'
+		? t('database.relation.writes_can', {
+				verbs: allowed.map((kind) => t(`database.relation.verb.${kind}`)).join(', '),
+			})
+		: t('database.relation.writes_cannot')
 })
 
 function accepts(column: string): { label: string; value: string }[] {
 	return (proposedFields.value.get(column)?.accepts ?? []).map((declared) => ({
-		label: TYPE_NAMES[declared] ?? declared,
+		label: TYPE_NAMES.has(declared) ? t(`database.relation.type.${declared}`) : declared,
 		value: declared,
 	}))
 }
 
 function measured(profile: ProposedColumnProfile | undefined): string {
 	if (!profile) return ''
-	const parts = [...profile.traits]
-	if (profile.nulls !== undefined) parts.push(`${profile.nulls} null`)
-	if (profile.distinct !== undefined) parts.push(`${profile.distinct} distinct`)
+	const parts = profile.traits.map(traitText)
+	if (profile.nulls !== undefined) parts.push(t('database.relation.nulls', {}, profile.nulls))
+	if (profile.distinct !== undefined) parts.push(t('database.relation.distinct', {}, profile.distinct))
 	if (profile.range) parts.push(`${profile.range.min} → ${profile.range.max}`)
 	if (profile.categories?.length) {
 		parts.push(profile.categories.map((category) => `${category.value} (${category.rows})`).join(', '))
@@ -177,14 +172,16 @@ function measured(profile: ProposedColumnProfile | undefined): string {
 
 function shown(value: SampledValue | undefined): string {
 	if (value === null || value === undefined) return '∅'
-	if ('bytes' in value) return `${value.bytes} bytes`
+	if ('bytes' in value) return t('database.relation.bytes', {}, value.bytes)
 	return value.truncated ? `${value.text}…` : value.text
 }
 
 /** Why a choice is what it is, as the badge beside it says on hover. */
 function why(choice: Proposed<unknown> | undefined): string {
 	if (!choice) return ''
-	return choice.kind === 'default' ? `Suggested: ${ruleSentence(choice.rule)}` : ruleSentence(choice.rule)
+	return choice.kind === 'default'
+		? t('database.relation.why_suggested', { rule: ruleSentence(choice.rule) })
+		: ruleSentence(choice.rule)
 }
 
 async function sampleRows(): Promise<void> {
@@ -208,15 +205,15 @@ async function sampleRows(): Promise<void> {
 	<div class="flex flex-col gap-4">
 		<header class="flex flex-wrap items-center gap-3">
 			<UTooltip :text="why(proposed?.title)">
-				<UInput v-model="resource.title" aria-label="Title" class="min-w-60" />
+				<UInput v-model="resource.title" :aria-label="t('database.relation.title_aria')" class="min-w-60" />
 			</UTooltip>
 			<span class="font-mono text-xs text-muted">{{ resource.relation }}</span>
 			<template v-if="!purposeItem">
 				<UTooltip :text="why(proposed?.tableView)">
-					<USwitch v-model="resource.tableView" label="Has a page" />
+					<USwitch v-model="resource.tableView" :label="t('database.relation.has_page')" />
 				</UTooltip>
 				<UTooltip :text="why(proposed?.writable)">
-					<USwitch v-model="resource.writable" :disabled="!resource.tableView" label="Rows can be edited" />
+					<USwitch v-model="resource.writable" :disabled="!resource.tableView" :label="t('database.relation.rows_editable')" />
 				</UTooltip>
 			</template>
 			<span class="text-xs text-muted">{{ writes }}</span>
@@ -226,36 +223,40 @@ async function sampleRows(): Promise<void> {
 			v-if="purposeItem"
 			class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
 		>
-			<p class="text-toned"><UBadge color="warning" variant="subtle" size="sm">To decide</UBadge> {{ purposeItem.question }}</p>
+			<p class="text-toned"><UBadge color="warning" variant="subtle" size="sm">{{ t('database.relation.to_decide') }}</UBadge> {{ questionText(purposeItem) }}</p>
 			<div class="flex flex-wrap gap-2">
-				<UTooltip v-for="choice in PURPOSE_CHOICES" :key="choice.value" :text="choice.help">
+				<UTooltip
+					v-for="choice in PURPOSE_CHOICES"
+					:key="choice"
+					:text="t(`database.relation.purpose.${choice}.help`)"
+				>
 					<UButton
-						:label="choice.label"
+						:label="t(`database.relation.purpose.${choice}.label`)"
 						size="xs"
 						color="neutral"
 						variant="outline"
-						@click="emit('answer', purposeItem, choice.value)"
+						@click="emit('answer', purposeItem, choice)"
 					/>
 				</UTooltip>
 			</div>
 		</section>
 
-		<UFormField label="Label" :help="`${labelHelp} ${why(proposed?.label)}`">
+		<UFormField :label="t('database.relation.label_field')" :help="`${labelHelp} ${why(proposed?.label)}`">
 			<div class="flex flex-col gap-2">
 				<p v-if="labelItem" class="text-xs text-toned">
-					<UBadge color="warning" variant="subtle" size="sm">To decide</UBadge> {{ labelItem.question }}
+					<UBadge color="warning" variant="subtle" size="sm">{{ t('database.relation.to_decide') }}</UBadge> {{ questionText(labelItem) }}
 				</p>
 				<div class="flex flex-wrap items-center gap-2">
 					<USelect
 						:model-value="resource.label ?? undefined"
 						:items="labelOptions"
-						placeholder="No label"
+						:placeholder="t('database.relation.label_placeholder')"
 						class="w-80"
 						@update:model-value="chooseLabel($event as string | undefined)"
 					/>
 					<UButton
 						v-if="labelItem"
-						:label="resource.label ? `Keep ${resource.label}` : 'Keep no label'"
+						:label="resource.label ? t('database.relation.keep_label', { label: resource.label }) : t('database.relation.keep_no_label')"
 						size="xs"
 						variant="soft"
 						@click="emit('answer', labelItem, resource.label)"
@@ -263,11 +264,11 @@ async function sampleRows(): Promise<void> {
 				</div>
 				<div v-if="labelPreview" class="text-xs text-muted">
 					<p>
-						Sampled rows read:
+						{{ t('database.relation.sampled_read') }}
 						<span v-for="(value, index) in labelPreview.values" :key="index" class="mr-2 font-mono text-toned">{{ value }}</span>
 					</p>
 					<p v-if="labelPreview.empty" class="text-warning">
-						{{ labelPreview.empty }} of {{ labelPreview.rows }} sampled rows have nothing to show here.
+						{{ t('database.relation.sampled_empty', { empty: labelPreview.empty, rows: labelPreview.rows }, labelPreview.empty) }}
 					</p>
 				</div>
 			</div>
@@ -276,11 +277,11 @@ async function sampleRows(): Promise<void> {
 		<table class="w-full text-left text-xs">
 			<thead class="text-muted">
 				<tr>
-					<th class="py-1 pr-2">Column</th>
-					<th class="py-1 pr-2">Type</th>
-					<th class="py-1 pr-2">Column title</th>
-					<th v-for="flag in FLAGS" :key="flag.key" class="py-1 pr-2">{{ flag.label }}</th>
-					<th class="py-1">In the data</th>
+					<th class="py-1 pr-2">{{ t('database.relation.col_column') }}</th>
+					<th class="py-1 pr-2">{{ t('database.relation.col_type') }}</th>
+					<th class="py-1 pr-2">{{ t('database.relation.col_title') }}</th>
+					<th v-for="flag in FLAGS" :key="flag.key" class="py-1 pr-2">{{ t(`database.relation.flag.${flag.key}`) }}</th>
+					<th class="py-1">{{ t('database.relation.col_data') }}</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -289,8 +290,8 @@ async function sampleRows(): Promise<void> {
 						<UCheckbox v-model="field.include" :label="field.column" />
 						<div v-if="referenceItems.get(field.column)" class="mt-1 flex flex-col gap-1 text-[11px]">
 							<p class="text-toned">
-								<UBadge color="warning" variant="subtle" size="sm">To decide</UBadge>
-								{{ referenceItems.get(field.column)!.question }}
+								<UBadge color="warning" variant="subtle" size="sm">{{ t('database.relation.to_decide') }}</UBadge>
+								{{ questionText(referenceItems.get(field.column)!) }}
 							</p>
 							<div class="flex items-center gap-1">
 								<USelect
@@ -301,7 +302,7 @@ async function sampleRows(): Promise<void> {
 									@update:model-value="chooseReference(referenceItems.get(field.column)!, $event as string)"
 								/>
 								<UButton
-									label="Keep"
+									:label="t('database.relation.keep')"
 									size="xs"
 									variant="soft"
 									@click="keepReference(referenceItems.get(field.column)!, field.column)"
@@ -309,7 +310,7 @@ async function sampleRows(): Promise<void> {
 							</div>
 						</div>
 						<span v-else-if="field.relation" class="block font-mono text-[11px] text-muted">
-							→ {{ field.relation }}<template v-if="proposedFields.get(field.column)?.relation?.implied"> (found in the data: {{ ruleSentence('F5') }})</template>
+							→ {{ field.relation }}<template v-if="proposedFields.get(field.column)?.relation?.implied"> {{ t('database.relation.found_in_data', { rule: ruleSentence('F5') }) }}</template>
 						</span>
 					</td>
 					<td class="py-1.5 pr-2">
@@ -320,7 +321,7 @@ async function sampleRows(): Promise<void> {
 						<span
 							v-if="proposedFields.get(field.column)?.declared.lossy && field.declared === proposedFields.get(field.column)?.declared.value"
 							class="block text-[10.5px] text-warning"
-						>{{ proposedFields.get(field.column)?.declared.lossy }}</span>
+						>{{ lossyText(proposedFields.get(field.column)?.declared.lossy ?? '') }}</span>
 					</td>
 					<td class="py-1.5 pr-2">
 						<UTooltip :text="why(proposedFields.get(field.column)?.label)">
@@ -329,7 +330,7 @@ async function sampleRows(): Promise<void> {
 					</td>
 					<td v-for="flag in FLAGS" :key="flag.key" class="py-1.5 pr-2">
 						<UTooltip :text="why(proposedFields.get(field.column)?.[flag.key])">
-							<UCheckbox v-model="field[flag.key]" :aria-label="`${flag.label} ${field.column}`" />
+							<UCheckbox v-model="field[flag.key]" :aria-label="`${t(`database.relation.flag.${flag.key}`)} ${field.column}`" />
 						</UTooltip>
 					</td>
 					<td class="py-1.5 text-[11px] text-muted">{{ measured(proposedFields.get(field.column)?.profile) }}</td>
@@ -338,21 +339,21 @@ async function sampleRows(): Promise<void> {
 		</table>
 
 		<p v-for="entry in proposed?.leftOut ?? []" :key="entry.column" class="text-xs text-muted">
-			<span class="font-mono">{{ entry.column }}</span> is left out: {{ entry.reason }}.
+			<span class="font-mono">{{ entry.column }}</span> {{ t('database.relation.left_out', { reason: entry.reason }) }}
 		</p>
 
 		<section class="flex flex-col gap-2">
 			<div class="flex items-center gap-2">
 				<UButton
 					icon="i-ph-rows-light"
-					label="Show other rows"
+					:label="t('database.relation.show_rows')"
 					size="sm"
 					variant="soft"
 					:loading="sampling"
 					@click="sampleRows"
 				/>
 				<span class="text-xs text-muted">
-					Up to {{ SAMPLE_LIMIT }} rows, shown here only and never passed on.
+					{{ t('database.relation.sample_note', { limit: SAMPLE_LIMIT }) }}
 				</span>
 			</div>
 			<p v-if="sampleProblem" class="text-xs text-error">{{ sampleProblem }}</p>

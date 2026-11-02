@@ -9,14 +9,33 @@ const NAMESPACE_DECLARATION = /^export const I18N_NAMESPACE = '([\w-]+)'$/m;
 
 /**
  * The surfaces whose every text goes through the catalog: the entry point the
- * DMS header draws, the editor's bar and the strips over the page. A literal
- * written there again would be shown in English whatever the language.
+ * DMS header draws, the editor's bar, the strips over the page and the whole
+ * Database workspace. A literal written there again would be shown in English
+ * whatever the language.
  */
 const TRANSLATED_COMPONENTS = ["components/Bar.vue", "components/Banners.vue"];
 
+/**
+ * The Database workspace's runtime modules, whose texts reach its components.
+ * The prompts sent to an agent live in them too and stay in English: they
+ * interpolate values, which this check does not read as a sentence.
+ */
+const TRANSLATED_RUNTIME = /^runtime\/database[\w-]*\.ts$/;
+
 /** The attributes a person reads or hears: labels, titles, descriptions. */
 const READ_ATTRIBUTES =
-  /(?:^|\s)(label|aria-label|title|description|placeholder|text)="([^"]*)"/g;
+  /(?:^|\s)(label|aria-label|title|description|placeholder|text|help)="([^"]*)"/g;
+
+/** The same attributes bound to an expression. */
+const BOUND_READ_ATTRIBUTES =
+  /(?:^|\s):(label|aria-label|title|description|placeholder|text|help)="([^"]*)"/g;
+
+/** A string literal that reads as a sentence: a capital, then more words. */
+const SENTENCE_LITERAL =
+  /(['"`])[A-Z][a-z]+(?: (?:(?!\1)[\w.,’'"…:;()-])+)+\1/g;
+
+/** A string literal holding a word, in an expression a template draws. */
+const WORD_LITERAL = /(['"`])[^'"`$]*[A-Za-z]{3}[^'"`$]*\1/;
 
 /**
  * The components that read a page's display name for a heading. Each draws it
@@ -31,6 +50,10 @@ const PAGE_TITLE_COMPONENTS = [
 ];
 const PAGE_TITLE_THROUGH_LOCALE = /displayText\(\s*\(?(patch|draft|session)/;
 
+/**
+ * @param {string} relative
+ * @returns {string}
+ */
 function readText(relative) {
   return fs.readFileSync(path.join(frontend, relative), "utf8");
 }
@@ -56,6 +79,7 @@ function placeholders(message) {
   ].sort((a, b) => a.localeCompare(b));
 }
 
+/** @returns {{ name: string, text: string }[]} */
 function sources() {
   return fs
     .readdirSync(app, { recursive: true, encoding: "utf8" })
@@ -67,9 +91,14 @@ function sources() {
 }
 
 /** A template's text, its tags, comments and interpolations taken out. */
+/**
+ * @param {string} source
+ * @returns {string}
+ */
 function templateText(source) {
   const template = source.match(/<template>([\s\S]*)<\/template>/)?.[1] ?? "";
   return template
+    .replace(/<pre[\s\S]*?<\/pre>/g, " ")
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/\{\{[\s\S]*?\}\}/g, " ")
     .replace(/<(?:[^>"']|"[^"]*"|'[^']*')*>/g, " ");
@@ -125,6 +154,22 @@ function catalogsAreInStep() {
   return failures;
 }
 
+/**
+ * A Database workspace sentence left in English in the French catalog: the
+ * same words in both, more than one of them. A single word (a product name,
+ * `Port`, `Module`) may be the same.
+ */
+function databaseSentencesAreTranslated() {
+  return [...en]
+    .filter(
+      ([key, message]) =>
+        key.startsWith(`${namespace}.database.`) &&
+        fr.get(key) === message &&
+        /[A-Za-z]{2,}\W+[A-Za-z]{2,}/.test(message.replace(/\{\w+\}/g, "")),
+    )
+    .map(([key, message]) => `${key} reads the same in French: ${message}`);
+}
+
 /** `@` starts a linked message and breaks the compile of the whole text. */
 function messagesHaveNoLinkSyntax() {
   return [...en, ...fr]
@@ -160,22 +205,75 @@ function toastsAreTranslated() {
   return literal.map((site) => `a toast says a literal at ${site}`);
 }
 
+/**
+ * A source with the catalog keys it reads taken out, so only literal text is left.
+ * @param {string} source
+ * @returns {string}
+ */
+function withoutKeys(source) {
+  return source
+    .replace(/\b(?:t|displayKey)\(\s*(['"])[\w.]+\1/g, "t(")
+    .replace(/\bt\(\s*`[\w.]*\$\{/g, "t(${");
+}
+
+/**
+ * @param {string} source
+ * @returns {string}
+ */
+function withoutComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+/** @returns {string[]} */
+function databaseComponents() {
+  return fs
+    .readdirSync(path.join(app, "components"))
+    .filter((name) => /^Database\w*\.vue$/.test(name))
+    .map((name) => `components/${name}`);
+}
+
 function translatedComponentsHaveNoLiteralText() {
   const failures = [];
-  for (const component of TRANSLATED_COMPONENTS) {
-    const source = fs.readFileSync(path.join(app, component), "utf8");
+  for (const component of [...TRANSLATED_COMPONENTS, ...databaseComponents()]) {
+    const source = readText(`app/${component}`);
     for (const match of source.matchAll(READ_ATTRIBUTES)) {
       if (/[A-Za-z]/.test(match[2])) {
         failures.push(`${component} writes ${match[1]}="${match[2]}"`);
       }
     }
-    for (const text of templateText(source).match(/[A-Za-z][^<]*/g) ?? []) {
+    for (const match of withoutKeys(source).matchAll(BOUND_READ_ATTRIBUTES)) {
+      if (WORD_LITERAL.test(match[2])) {
+        failures.push(`${component} writes :${match[1]}="${match[2]}"`);
+      }
+    }
+    for (const match of withoutKeys(source).matchAll(/\{\{([\s\S]*?)\}\}/g)) {
+      if (WORD_LITERAL.test(match[1])) {
+        failures.push(`${component} writes a literal in {{${match[1]}}}`);
+      }
+    }
+    const script = source.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    for (const match of withoutKeys(withoutComments(script)).matchAll(
+      SENTENCE_LITERAL,
+    )) {
+      failures.push(`${component} writes the sentence ${match[0]}`);
+    }
+    for (const text of templateText(source).match(/[A-Za-z][^\n]*/g) ?? []) {
       failures.push(
         `${component} writes the text ${JSON.stringify(text.trim())}`,
       );
     }
   }
   return failures;
+}
+
+function databaseRuntimeHasNoLiteralText() {
+  return sources()
+    .filter(({ name }) => TRANSLATED_RUNTIME.test(name.replaceAll("\\", "/")))
+    .flatMap(({ name, text }) =>
+      [...withoutComments(text).matchAll(SENTENCE_LITERAL)].map(
+        (match) => `${name} writes the sentence ${match[0]}`,
+      ),
+    );
 }
 
 function editorDrawsPageTitlesThroughTheLocale() {
@@ -192,10 +290,12 @@ function editorDrawsPageTitlesThroughTheLocale() {
 const failures = [
   catalogsUseTheNamespace,
   catalogsAreInStep,
+  databaseSentencesAreTranslated,
   messagesHaveNoLinkSyntax,
   codeReadsOnlyCatalogKeys,
   toastsAreTranslated,
   translatedComponentsHaveNoLiteralText,
+  databaseRuntimeHasNoLiteralText,
   editorDrawsPageTitlesThroughTheLocale,
 ].flatMap((check) => check().map((failure) => `${check.name}: ${failure}`));
 
