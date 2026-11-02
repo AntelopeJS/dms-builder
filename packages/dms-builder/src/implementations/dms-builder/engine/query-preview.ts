@@ -7,7 +7,6 @@
  * saved page will answer.
  */
 
-import { Schema } from "@antelopejs/interface-database";
 import {
   chartCardData,
   kpiCardData,
@@ -36,7 +35,8 @@ import {
 import { executePlan, type PlanStream } from "./query-plan-execute";
 import type { QueryPlan } from "./query-plan";
 import { getQueryTemplate, isParamBinding } from "./query-template";
-import { findResourceRecord } from "./resource-index";
+import { findResourceRecord, type ResourceRecord } from "./resource-index";
+import { resourceSchema } from "./resource-schema";
 import { buildResourceStructure } from "./resource-structure";
 import { isPlainObject } from "./value";
 
@@ -70,22 +70,21 @@ export function previewInstance(
 }
 
 /**
- * The table a resource's rows live in, through the same schema handle the
- * generated model would resolve — no model class is involved, because the class
- * a draft describes does not exist on disk yet.
+ * The table a resource's rows live in, through the schema its own module
+ * resolves, the one the generated model registers in. No model class is
+ * involved, because the class a draft describes does not exist on disk yet.
  */
 function openTable(
-  schemaId: string,
-  tableName: string,
+  record: ResourceRecord,
   tenant: string | undefined,
 ): PlanStream | undefined {
-  const schema = Schema.get(schemaId);
+  const schema = resourceSchema(record);
   if (!schema) {
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
   // SAFETY: the table of a schema with no model is a Table<any>, and PlanStream names the filter, map, group and aggregate calls the executor makes on it; TypeScript cannot prove the assignment because PlanOperand is wider than the operands of ValueProxy, which the table accepts at run time.
-  return instance.table(tableName) as PlanStream;
+  return instance.table(record.tableName) as PlanStream;
 }
 
 /**
@@ -329,8 +328,7 @@ export async function runQueryPreview(
     return structure;
   }
   const table = openTable(
-    record.schema,
-    record.tableName,
+    record,
     previewInstance(record.schema, request.tenant),
   );
   if (!table) {

@@ -1,6 +1,10 @@
 import { expect } from "chai";
-import { emitPlan } from "../implementations/dms-builder/engine/query-plan";
-import type { QueryPlan } from "../implementations/dms-builder/engine/query-plan";
+import {
+  bucketExpression,
+  emitPlan,
+  readBucketExpression,
+  type QueryPlan,
+} from "../implementations/dms-builder/engine/query-plan";
 import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
@@ -83,7 +87,7 @@ describe("a grouped query plan", () => {
   });
 
   it("renders each period as one ordered number", () => {
-    const at = (bucket: "day" | "month" | "quarter" | "year") =>
+    const at = (bucket: "day" | "week" | "month" | "quarter" | "year") =>
       body({
         filters: [],
         measure: COUNT,
@@ -96,6 +100,9 @@ describe("a grouped query plan", () => {
     expect(at("month"), "202601").to.contain(".year().mul(100).add(");
     expect(at("day"), "20260114").to.contain(
       '.mul(100).add(row.key("createdAt").day())',
+    );
+    expect(at("week"), "days of its Monday").to.contain(
+      'row.key("createdAt").dayofweek()',
     );
     expect(at("quarter"), "20261").to.contain(
       '.year().mul(10).add(row.key("createdAt").month().sub(1).div(3).floor().add(1))',
@@ -162,5 +169,15 @@ describe("a grouped query plan", () => {
       "to",
     ]);
     expect(chain.body).to.contain("minCreatedAt");
+  });
+});
+
+describe("the week bucket text", () => {
+  it("reads back from the text it was written as", () => {
+    const text = bucketExpression(
+      { field: "createdAt", bucket: "week" },
+      "row",
+    );
+    expect(readBucketExpression(text, "row", "createdAt")).to.equal("week");
   });
 });

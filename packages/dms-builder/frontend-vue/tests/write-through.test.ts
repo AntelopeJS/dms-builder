@@ -106,7 +106,7 @@ describe('a request that gets no answer', () => {
 		expect(builder.session.value.saving).toBe(false)
 		expect(builder.session.value.error).toEqual({
 			code: 'unsupported',
-			detail: 'The request failed: 500 Internal Server Error',
+			detail: 'An unexpected error occurred.',
 		})
 		expect(builder.dirty.value).toBe(true)
 	})
@@ -135,7 +135,7 @@ describe('a request that gets no answer', () => {
 
 		expect(builder.session.value.error).toEqual({
 			code: 'unsupported',
-			detail: 'The pages could not be read: Failed to fetch',
+			detail: 'An unexpected error occurred.',
 		})
 	})
 })

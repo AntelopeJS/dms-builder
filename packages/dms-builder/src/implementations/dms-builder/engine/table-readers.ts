@@ -1,4 +1,3 @@
-import { Schema } from "@antelopejs/interface-database";
 import { pageRoutePath } from "@antelopejs/interface-dms/page";
 import type { BlockNode, ConfigValue } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
@@ -6,6 +5,7 @@ import { isNumber, isString } from "./scalar-guards";
 import { isPerTenantSchema } from "./query-emit";
 import { routeModelBinding, findQueryRoutes } from "./query-structure";
 import { listResourceRecords } from "./resource-index";
+import { resourceSchema } from "./resource-schema";
 import { listPageRecords } from "./source-index";
 import { isPlainObject } from "./value";
 
@@ -114,11 +114,11 @@ export async function tableRowCounts(
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   for (const record of listResourceRecords()) {
-    const schema = Schema.get(record.schema);
-    if (!schema) {
-      continue;
-    }
     try {
+      const schema = resourceSchema(record);
+      if (!schema) {
+        continue;
+      }
       const instance =
         tenant && isPerTenantSchema(record.schema)
           ? schema.instance(tenant)

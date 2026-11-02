@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
-import { ruleSentence, type FieldDraft, type ResourceDraft } from '../runtime/database'
+import { type FieldDraft, type ResourceDraft } from '../runtime/database'
+import { ruleSentence } from '../runtime/database-rules'
 import type {
 	OpenItem,
 	Proposed,
@@ -195,7 +196,7 @@ async function sampleRows(): Promise<void> {
 		if (resource.value.relation === relation) sample.value = rows
 	} catch (error) {
 		if (resource.value.relation === relation) {
-			sampleProblem.value = error instanceof Error ? error.message : String(error)
+			sampleProblem.value = api.failure(error).detail
 		}
 	} finally {
 		sampling.value = false

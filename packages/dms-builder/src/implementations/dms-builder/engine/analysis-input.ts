@@ -66,6 +66,18 @@ function rowsOf(
   return counted?.status === "ok" ? counted.value.rows : summary.estimatedRows;
 }
 
+/**
+ * The rows the relation's column profiles were measured on: the sample's, when the profile
+ * sampled the relation, else its rows.
+ */
+export function profiledRowsOf(facts: RelationFacts): number | undefined {
+  const counted = facts.profile?.rows;
+  return (
+    facts.profile?.sample?.rows ??
+    (counted?.status === "ok" ? counted.value.rows : undefined)
+  );
+}
+
 export function factsOf(input: AnalysisInput): RelationFacts[] {
   return input.descriptions.map((description) => {
     const relation = relationName(description);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
+import { ASSISTANT_ACTIONS_KEY, type AssistantActions, assistantDashboardMessage } from '../runtime/database-build'
 import { refusalText } from '../runtime/database-connect'
 import { relabelledBy } from '../runtime/database-remap'
 import {
@@ -20,7 +21,6 @@ import {
 	purposeText,
 	remapInput,
 	type ResourceDraft,
-	ruleSentence,
 	settledInput,
 	storedMappedDrafts,
 	storedMappingDraft,
@@ -29,6 +29,7 @@ import {
 	unanswered,
 	unsavedRelations,
 } from '../runtime/database'
+import { ruleSentence } from '../runtime/database-rules'
 import type {
 	AnalysisState,
 	MappedRelation,
@@ -40,13 +41,10 @@ import type {
 } from '../runtime/database-types'
 
 /**
- * A connection's mapping, decided in the builder: the analysis runs, its
- * proposal comes back with every choice marked as a catalog fact or a default
- * and the questions it could not decide asked at the relation they are about,
- * the integrator settles it, and
- * Apply sends one `MapResources` once they have read what it writes. The
- * relations the module maps already are listed too, and one changed there is
- * mapped again on its own. Nothing is written before the integrator says so.
+ * A connection's mapping, decided in the builder: the analysis proposes it, each choice marked
+ * a catalog fact or a default, with its open questions at the relation they are about. The
+ * integrator settles it and Apply sends one `MapResources`. Relations the module maps already
+ * are listed, and one changed there is mapped again on its own. Nothing is written before.
  */
 
 /** `job`: an analysis already run, whose state is read instead of analysing again. */
@@ -58,6 +56,7 @@ const POLL_MS = 1000
 type Selection = { kind: 'proposed' | 'mapped'; relation: string }
 
 const api = useBuilderApi()
+const assistant = inject<AssistantActions | null>(ASSISTANT_ACTIONS_KEY, null)
 const state = ref<AnalysisState | null>(null)
 const draft = ref<MappingDraft | null>(null)
 const mapped = ref<MappedRelation[]>([])
@@ -70,11 +69,11 @@ const problem = ref('')
 const busy = ref(false)
 const confirming = ref(false)
 const applied = ref<MapResourcesResult | null>(null)
+/** The assistant took over after the mapping was applied. */
+const handedOff = ref(false)
 const remapped = ref<{ titles: string[]; page?: string; relabelled: string[]; warnings: string[] } | null>(null)
-/** What Apply warned about: a page it could not write. */
 const appliedWarnings = ref<string[]>([])
 const remapProblem = ref('')
-/** What reading the mapping warned about: a mapped relation the database no longer has. */
 const mappedWarnings = ref<string[]>([])
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
@@ -277,7 +276,17 @@ async function apply(): Promise<void> {
 	applied.value = result.data
 	appliedWarnings.value = (result.warnings ?? []).map((warning) => warning.message)
 	forgetMappingDraft(props.connection, props.module)
+	if (props.job && !result.warnings?.some((warning) => warning.code === 'module_not_loaded')) {
+		handOff()
+	}
 	await loadMapped()
+}
+
+/** Starts the assistant on the dashboard, once. */
+function handOff(): void {
+	if (handedOff.value || !assistant?.isAvailable) return
+	handedOff.value = true
+	assistant.startConversation(assistantDashboardMessage(props.connection, props.module), { mode: 'plan', send: true })
 }
 
 async function remap(): Promise<void> {
@@ -344,15 +353,15 @@ async function remap(): Promise<void> {
 		</div>
 		<p v-else-if="state?.status === 'failed'" class="text-xs text-error">The analysis failed: {{ state.error }}</p>
 
-		<div
+		<DmsBuilderDatabaseApplied
 			v-if="applied"
-			class="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-toned"
-		>
-			<b class="font-semibold text-highlighted">Applied.</b>
-			{{ applied.resources.length }} tables added. Their pages appear in the menu under
-			{{ connection.toUpperCase() }} within a few seconds.
-			<p v-for="warning in appliedWarnings" :key="warning" class="text-warning">{{ warning }}</p>
-		</div>
+			:tables="applied.resources.length"
+			:connection="connection"
+			:warnings="appliedWarnings"
+			:handed-off="handedOff"
+			:can-hand-off="!!job && !!assistant?.isAvailable"
+			@hand-off="handOff"
+		/>
 
 		<section
 			v-if="proposal && draft && !applied && schemasItem"

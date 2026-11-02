@@ -234,6 +234,7 @@ describe("an analysis job", function () {
       excluded: [{ relation: "erp.customers", reason: "not needed" }],
     });
     expectOk(mapped, "MapResources");
+    calls.length = 0;
     const proposal = (await analysed()).proposal!;
     expect(
       proposal.resources.map((resource) => resource.relation),

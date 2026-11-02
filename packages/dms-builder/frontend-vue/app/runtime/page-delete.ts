@@ -103,7 +103,7 @@ export function usePageDelete() {
 				devReload,
 				router,
 				onWaitFailure: (failure) => {
-					session.value.error = failure
+					session.value.error = api.failure(failure)
 				},
 			},
 			next.ref,

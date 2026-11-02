@@ -18,7 +18,7 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 
 ## Config
 
-`projectRoot` (absolute source root, default the working directory), `api.enabled` (default: the core's dev flag). `factoring` was removed in 0.3. It needs `@antelopejs/dms` 0.11 (`interface-dms` 0.9) and `@antelopejs/dms-frontend` 0.9.
+`projectRoot` (absolute source root, default the working directory), `api.enabled` (default: the core's dev flag). It needs `@antelopejs/dms` 0.13.1 or newer and `@antelopejs/dms-frontend` 0.9.2 or newer within the ranges in the package manifests.
 
 ## Gotchas
 
@@ -27,6 +27,6 @@ The builder has no store of its own: pages are `PageController` classes, blocks 
 - The period selector and Live / Pause switch the editor places go into the page's top-level `PageToolbar`, made at the top when missing (children `period` / `live`, ids and options read from the catalog's `PageToolbar.initialChildren`, as `pageToolbar()` sets them, with no override of the editor's). A page with its own top-level selector or switch, or a toolbar the editor cannot rewrite (a `pageToolbar()` call is not factory grammar), gets the control beside it instead.
 - A block's permission is named after its position: moving or renaming it drops role grants; the change list warns.
 - A type error anywhere in the project blocks every write: fix it first.
-- A query `AddQuery` writes is a page route served at `/dms/pages<pageRef><endpoint>` (DMS 0.9); a block's `fetchUrl` must use that address (`pageRoutePath` from `@antelopejs/interface-dms/page`).
+- A query `AddQuery` writes is a page route served at `/dms/pages<pageRef><endpoint>`; a block's `fetchUrl` must use that address (`pageRoutePath` from `@antelopejs/interface-dms/page`).
 - Editor texts live in `frontend-vue/i18n/locales/builder-{en-GB,fr-FR}.json` (namespace `dms_builder`, English fallback); the header button's label is the key `$dms_builder.action.edit_page`. The entry point, bar, strips and toasts are translated; the panels are still English. App display strings written as `$` keys (page titles, category names, block headings) are drawn through `displayText()` (`app/runtime/i18n.ts`); edit fields keep the raw key.
 - Page content rules (blocks backend-side, custom only for a missing block, `.meta()` on custom blocks) come from `dms-best-practices`.

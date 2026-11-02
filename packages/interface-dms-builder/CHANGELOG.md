@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.3.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.2.5...v0.3.0)
+
+### 🚀 Enhancements
+
+- **dms-builder:** Set displays, views and footer figures on table pages, and hand a reviewed mapping to the assistant ([#118](https://github.com/AntelopeJS/dms-builder/pull/118))
+- **dms-builder:** Compose a whole page, queries and blocks, in one call ([#122](https://github.com/AntelopeJS/dms-builder/pull/122))
+
+### 🩹 Fixes
+
+- **scaffold:** Keep a scaffolded module's build info in dist ([#110](https://github.com/AntelopeJS/dms-builder/pull/110))
+- **playground:** Depend on @antelopejs/dms so dev and build resolve a matching renderer ([#126](https://github.com/AntelopeJS/dms-builder/pull/126))
+- **frontend:** Use DMS core API error presenter ([#127](https://github.com/AntelopeJS/dms-builder/pull/127))
+
+### 📖 Documentation
+
+- **readme:** Link the DMS and fix the interface-dms range ([#116](https://github.com/AntelopeJS/dms-builder/pull/116))
+- **readme:** Use one Discord invite ([#111](https://github.com/AntelopeJS/dms-builder/pull/111))
+
+### 📦 Build
+
+- **deps:** Bump @antelopejs/tooling-configs to 0.2.17 ([#79](https://github.com/AntelopeJS/dms-builder/pull/79))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/dms-builder v0.7.0 ([0a1c88c](https://github.com/AntelopeJS/dms-builder/commit/0a1c88c))
+- **release:** @antelopejs/dms-builder v0.7.1 ([801521d](https://github.com/AntelopeJS/dms-builder/commit/801521d))
+- Git-ignore the production frontend workspace ([#62](https://github.com/AntelopeJS/dms-builder/pull/62))
+- **release:** @antelopejs/dms-builder v0.8.0 ([c0ca9b4](https://github.com/AntelopeJS/dms-builder/commit/c0ca9b4))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+- Alessandro Aloisio ([@alessaloisio](http://github.com/alessaloisio))
+
 ## v0.2.5
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.2.4...v0.2.5)

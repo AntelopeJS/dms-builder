@@ -20,6 +20,7 @@ export function answerFieldType(resource: ResourceDraft, item: OpenItem, value: 
 		filterable: false,
 		sortable: false,
 		searchable: false,
+		display: null,
 		relation: null,
 	})
 }

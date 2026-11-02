@@ -38,10 +38,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
 			}
 		} catch (error) {
-			session.value.error = {
-				code: 'unsupported',
-				detail: error instanceof Error ? error.message : String(error),
-			}
+			session.value.error = api.failure(error)
 		} finally {
 			session.value.loading = false
 		}

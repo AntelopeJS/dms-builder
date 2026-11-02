@@ -10,7 +10,7 @@
 	},
 	"scripts": {
 		"typecheck": "ajs dms verify-source --layer \"$PWD/node_modules/@antelopejs/dms/frontend-vue\" --module \"$PWD\"",
-		"lint": "eslint .",
+		"lint": "eslint . && node node_modules/@antelopejs/dms/frontend-vue/scripts/check-api-error-presentation.mjs app",
 		"lint:fix": "eslint . --fix",
 		"test": "vitest run",
 		"test:components": "vitest run --config tests/components.config.ts"
@@ -21,7 +21,7 @@
 	},
 	"devDependencies": {
 		"@antelopejs/core": "1.17.1",
-		"@antelopejs/dms": ">=0.11.0 <1.0.0",
+		"@antelopejs/dms": ">=0.13.1 <1.0.0",
 		"@antelopejs/dms-frontend": ">=0.10.0 <1.0.0",
 		"@antelopejs/interface-api": "file:../../../.campaign/tgz/antelopejs-interface-api-f2a99b5.tgz",
 		"@antelopejs/interface-api-util": "file:../../../.campaign/tgz/antelopejs-interface-api-util-639f38b.tgz",
