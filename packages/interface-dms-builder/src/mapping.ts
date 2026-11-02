@@ -180,6 +180,15 @@ export interface MapResourcesResult {
   category?: CategoryRef;
 }
 
+/** What `MapResources` would remove for the same input, answered by `PreviewMapResources`. */
+export interface MapResourcesPreview {
+  /**
+   * The pages of relations already mapped with a TableView that the input maps with `tableView`
+   * false, which `MapResources` removes. Empty when the call removes no page.
+   */
+  pagesToRemove: PageRef[];
+}
+
 /**
  * Writes table classes, models, DataAPI controllers and TableView pages over relations of a
  * database the project does not own, into a module bound to it. Names are the database's own,
@@ -193,4 +202,14 @@ export interface MapResourcesResult {
 export const MapResources =
   InterfaceFunction<
     (input: MapResourcesInput) => Promise<OpResult<MapResourcesResult>>
+  >();
+
+/**
+ * Answers which pages `MapResources` would remove for `input`, and writes nothing. It plans the
+ * mapping as `MapResources` does and refuses what that refuses, so a caller can ask a person
+ * before a mapping that removes a page.
+ */
+export const PreviewMapResources =
+  InterfaceFunction<
+    (input: MapResourcesInput) => Promise<OpResult<MapResourcesPreview>>
   >();

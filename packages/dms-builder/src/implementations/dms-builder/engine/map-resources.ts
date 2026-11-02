@@ -3,6 +3,7 @@ import type { RelationDescription } from "@antelopejs/interface-database-catalog
 import type {
   FileChange,
   MapResourcesInput,
+  MapResourcesPreview,
   MapResourcesResult,
   MappedResult,
   OpResult,
@@ -43,7 +44,7 @@ import {
   relabelPointingColumns,
   unlabelledTargetRefusal,
 } from "./relabel-columns";
-import { writePages } from "./map-resources-pages";
+import { pagesToRemove, writePages } from "./map-resources-pages";
 import { type EmitContext, UnknownReferenceError } from "./value";
 import {
   getWritableProject,
@@ -418,21 +419,25 @@ async function mapAndAwaitReload(
 }
 
 /**
- * Reads the descriptions of the relations through the builder's catalog connection, then maps
- * them with {@link mapAndAwaitReload}.
+ * Reads the descriptions of the relations through the builder's catalog connection, and hands
+ * them with the display defaults to `run`.
  */
-export async function mapResources(
+async function withDescriptions<T>(
   input: MapResourcesInput,
-): Promise<OpResult<MapResourcesResult>> {
+  run: (
+    descriptions: RelationDescription[],
+    defaults: ReadonlyMap<string, DisplayDefaults>,
+  ) => OpResult<T> | Promise<OpResult<T>>,
+): Promise<OpResult<T>> {
   const catalog = catalogOf(input.connection);
   if (!catalog) {
-    return invalidConfig<MapResourcesResult>(
+    return invalidConfig<T>(
       `dms-builder has no catalog connection "${input.connection}"; declare one in its importOverrides`,
     );
   }
   const relations = describedRelations(input);
   if (relations.length === 0) {
-    return mapAndAwaitReload(input, [], new Map());
+    return run([], new Map());
   }
   try {
     const own = await catalog.DescribeRelations(relations);
@@ -442,14 +447,42 @@ export async function mapResources(
         ? [...own, ...(await catalog.DescribeRelations(outside))]
         : own;
     refreshFromDisk(getWritableProject());
-    return await mapAndAwaitReload(
-      input,
+    return await run(
       descriptions,
       await displayDefaultsOf(input, descriptions, catalog),
     );
   } catch (error) {
-    return invalidConfig<MapResourcesResult>(
+    return invalidConfig<T>(
       `the catalog of "${input.connection}" refused: ${(error as Error).message}`,
     );
   }
+}
+
+/** Maps with {@link mapAndAwaitReload}, once the relations are described. */
+export function mapResources(
+  input: MapResourcesInput,
+): Promise<OpResult<MapResourcesResult>> {
+  return withDescriptions(input, (descriptions, defaults) =>
+    mapAndAwaitReload(input, descriptions, defaults),
+  );
+}
+
+/** The pages {@link mapResources} would remove for `input`, planned the same way and written nowhere. */
+export function previewMapResources(
+  input: MapResourcesInput,
+): Promise<OpResult<MapResourcesPreview>> {
+  return withDescriptions(input, (descriptions, defaults) => {
+    const plan = planned(input, descriptions, defaults);
+    if ("ok" in plan) {
+      return plan.ok ? { ...plan, data: { pagesToRemove: [] } } : plan;
+    }
+    if (plan.resources.length === 0 && plan.refused.length > 0) {
+      return invalidConfig<MapResourcesPreview>(plan.refused.join("; "));
+    }
+    return {
+      ok: true,
+      data: { pagesToRemove: pagesToRemove(input, plan) },
+      changes: [],
+    };
+  });
 }
