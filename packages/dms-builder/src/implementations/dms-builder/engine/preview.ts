@@ -154,6 +154,7 @@ function factoryFor(type: string): BlockFactory {
   if (!isCallable(factory)) {
     throw new DegradedBlockError(`no runtime factory for block type "${type}"`);
   }
+  // SAFETY: BASE_MODULE exports one factory per block type, each taking the block's options and answering a builder, and isCallable has just checked that this export is a function.
   return factory as BlockFactory;
 }
 
@@ -183,6 +184,7 @@ function loadedController(
     if (!isCallable(exported)) {
       continue;
     }
+    // SAFETY: apiName is the export name of the resource's DataAPI controller class in the module that defines it, and isCallable has checked the export is a function; the location comparison on the next line rejects any other function of that name.
     const controller = exported as ControllerClass;
     if (GetMetadata(controller, ControllerMeta).location === record.route) {
       return controller;
@@ -210,6 +212,7 @@ function instantiateDataType(value: DataTypeSentinel): DataType {
   if (!isCallable(exported)) {
     throw new DegradedBlockError(`dataType "${id}" is not constructible`);
   }
+  // SAFETY: the catalog entry's import names a DataType class export, such as DefaultDataTypes.StringType, and isCallable has checked that this export is a function.
   const Ctor = exported as Class<DataType>;
   return new Ctor(
     value.config === undefined ? undefined : materialize(value.config),
@@ -473,6 +476,7 @@ function tablePreview(
   controller: ControllerClass,
   options: RuntimeObject,
 ): PreviewBuilder {
+  // SAFETY: TableViewModule restates the two exports of `@antelopejs/interface-dms/base/table-view` that the preview drives, typed from that module's own declarations; require returns any.
   const module = require(TABLE_VIEW_MODULE) as TableViewModule;
   const meta = GetMetadata(controller, module.TableViewMeta);
   return module.tableViewFromSource({

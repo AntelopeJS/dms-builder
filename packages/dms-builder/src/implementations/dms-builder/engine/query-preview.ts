@@ -44,7 +44,7 @@ import { isPlainObject } from "./value";
 const PREVIEW_LIMIT = 500;
 
 export interface PreviewRequest {
-  query: AddQueryInput;
+  query: Omit<AddQueryInput, "name">;
   /** Values the route would receive, by the name it exposes them under. */
   args?: ConfigObject;
   /**
@@ -84,6 +84,7 @@ function openTable(
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
+  // SAFETY: the table of a schema with no model is a Table<any>, and PlanStream names the filter, map, group and aggregate calls the executor makes on it; TypeScript cannot prove the assignment because PlanOperand is wider than the operands of ValueProxy, which the table accepts at run time.
   return instance.table(tableName) as PlanStream;
 }
 
@@ -298,7 +299,7 @@ export function previewRequestFromSearch(
   }
   return {
     ok: true,
-    data: { query: query as AddQueryInput, args, tenant },
+    data: { query, args, tenant },
     changes: [],
   };
 }

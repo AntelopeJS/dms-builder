@@ -49,6 +49,7 @@ interface BlockTypesModule {
 let cached: BlockCatalog | undefined;
 
 function blockTypesModule(): BlockTypesModule {
+  // SAFETY: BlockTypesModule restates the two functions `@antelopejs/interface-dms/base/block-types` exports, ListBlockTypes and ListDataSources; require returns any.
   return require(BLOCK_TYPES_MODULE) as BlockTypesModule;
 }
 

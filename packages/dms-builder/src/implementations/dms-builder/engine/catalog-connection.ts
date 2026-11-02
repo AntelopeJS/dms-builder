@@ -23,6 +23,7 @@ function declaredCatalog(id: string): CatalogConnection | undefined {
   const connection = catalogConnections().find(
     (candidate) => candidate.id === id,
   );
+  // SAFETY: connection.path is the module of a provider declared for the catalog interface, and such a module exports the functions of `@antelopejs/interface-database-catalog`, which CatalogConnection names; require returns any.
   return connection
     ? (require(connection.path) as CatalogConnection)
     : undefined;
@@ -51,6 +52,7 @@ export function setCatalogConnectionsForTests(
   listConnectionIds = catalogs
     ? () => Object.keys(catalogs)
     : declaredConnections;
+  // SAFETY: the catalogs of a spec are partial on purpose, and the spec calls only the functions it supplied.
   resolveCatalog = catalogs
     ? (id) =>
         Object.hasOwn(catalogs, id)

@@ -1,10 +1,13 @@
 {
   "rules": {
-    "anti-slop/no-unknown-type-aliases": 0
+    "anti-slop/no-unknown-parameters": 1,
+    "anti-slop/no-unknown-returns": 1,
+    "anti-slop/no-unknown-type-aliases": 0,
+    "typescript/no-unsafe-return": 1
   },
   "tsExpectError": 2,
   "tsIgnore": 0,
-  "safety": 1,
+  "safety": 11,
   "config": {
     "max-lines-per-function for packages/*/src/test/**/*.ts": 1,
     "no-redeclare for packages/dms-builder/frontend-vue/**/*.{ts,vue}": 1,

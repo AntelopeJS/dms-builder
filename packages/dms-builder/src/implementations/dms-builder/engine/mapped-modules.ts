@@ -46,6 +46,7 @@ function readManifest(root: string): MappedManifest {
     return {};
   }
   try {
+    // oxlint-disable-next-line typescript/no-unsafe-return -- JSON.parse is typed `any` by the TypeScript lib and the file is the module's own manifest read from disk; naming MappedManifest through a typed local or a cast would only assert it
     return JSON.parse(
       fs.readFileSync(file, "utf8").replace(BYTE_ORDER_MARK, ""),
     );
