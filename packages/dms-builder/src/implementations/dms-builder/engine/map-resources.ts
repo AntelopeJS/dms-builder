@@ -330,6 +330,18 @@ function recordMapping(input: MapResourcesInput, plan: MappingPlan): void {
   });
 }
 
+/** The pages this plan removes that `input.approvedPageRemovals` does not list; none when the field is left out. */
+function unapprovedRemovals(
+  input: MapResourcesInput,
+  plan: MappingPlan,
+): string[] {
+  if (input.approvedPageRemovals === undefined) {
+    return [];
+  }
+  const approved = new Set(input.approvedPageRemovals);
+  return pagesToRemove(input, plan).filter((page) => !approved.has(page));
+}
+
 /**
  * Maps relations described by `descriptions` into a module bound to their database: the tables
  * and controllers in one typechecked transaction, then the connection's category and the
@@ -351,6 +363,12 @@ export function mapDescribedResources(
   if (plan.resources.length === 0) {
     recordMapping(input, plan);
     return { ok: true, data: { resources: [], leftOut: [] }, changes: [] };
+  }
+  const unapproved = unapprovedRemovals(input, plan);
+  if (unapproved.length > 0) {
+    return invalidConfig<MapResourcesResult>(
+      `pages not approved for removal: ${unapproved.join(", ")}. The mapping would remove them now; nothing was written. Preview the mapping again and ask before removing them.`,
+    );
   }
   const { result } = writeAll(input, plan);
   if (!result.ok) {

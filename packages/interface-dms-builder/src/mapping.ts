@@ -154,6 +154,14 @@ export interface MapResourcesInput {
   resources: MappedResource[];
   /** Relations recorded as left out. Mapping one later removes it from the record. */
   excluded?: ExcludedRelation[];
+  /**
+   * The pages a person approved removing, as `PreviewMapResources` answered them. When present,
+   * `MapResources` plans on the state it finds, writes nothing and refuses with `invalid_config`
+   * naming the pages when that plan removes a page not in this list; an empty list approves none.
+   * Left out, `MapResources` removes the pages the choices no longer call for, as before.
+   * `PreviewMapResources` ignores it.
+   */
+  approvedPageRemovals?: PageRef[];
 }
 
 /** A column a TableView does not show, and why. */
