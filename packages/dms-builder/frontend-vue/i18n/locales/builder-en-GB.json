@@ -101,6 +101,27 @@
 			},
 			"dismiss_warnings": "Dismiss the warnings"
 		},
+		"connect_prompt": {
+			"title": "Start from a database you already run",
+			"description": "Connect it and the builder turns its tables into pages, written as code in your project.",
+			"steps": "Three steps",
+			"connect": {
+				"title": "Connect",
+				"text": "Name a connection and give its URL. The URL is written to your .env, never to the configuration, and only where git ignores that file. A read-only role is enough to start."
+			},
+			"map": {
+				"title": "Map",
+				"text_assistant": "The assistant reads the schema (tables, fields, relations) and aggregates such as counts, ranges and the values of short lists like statuses. Its database tools return no row.",
+				"text_manual": "The builder reads the schema and the same aggregates, then proposes a mapping. You review it yourself, table by table, with a few sample rows shown to you alone, before any page is generated."
+			},
+			"build": {
+				"title": "Build",
+				"text": "A back office as code you own. Pages are written into your project as TypeScript and start read-only."
+			},
+			"later": "You can connect a database later from the Database workspace of the builder.",
+			"accept": "Connect a database",
+			"dismiss": "Not now"
+		},
 		"toasts": {
 			"copied_draft": "Copied the draft as JSON",
 			"copied_block": "Copied the block as JSON",

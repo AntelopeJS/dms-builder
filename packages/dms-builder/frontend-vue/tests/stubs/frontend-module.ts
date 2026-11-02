@@ -4,7 +4,7 @@
  * exercised outside a generated Inertia workspace; only what this package
  * imports from the host is declared.
  */
-import { ref, type Ref } from 'vue'
+import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue'
 import englishMessages from '../../i18n/locales/builder-en-GB.json'
 
 export interface DmsModuleOptions {
@@ -36,8 +36,17 @@ export function useDmsState<T>(key: string, init: () => T): Ref<T> {
   return states.get(key) as Ref<T>
 }
 
+const route = reactive({ path: '/' })
+
 export function useDmsRoute(): { path: string } {
-  return { path: '/' }
+  return route
+}
+
+/** The signed-in state a spec sets and the prompt reads. */
+export const signedIn = ref(false)
+
+export function useDmsUserSession(): { loggedIn: ComputedRef<boolean> } {
+  return { loggedIn: computed(() => signedIn.value) }
 }
 
 /** Every route pushed through `useDmsRouter()`, oldest first. */
