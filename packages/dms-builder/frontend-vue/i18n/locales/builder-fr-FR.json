@@ -107,7 +107,7 @@
 			"steps": "Trois étapes",
 			"connect": {
 				"title": "Connecter",
-				"text": "Nommez une connexion et indiquez son URL. L’URL est écrite dans votre fichier .env, jamais dans la configuration, et seulement si git ignore ce fichier. Un rôle en lecture seule suffit pour commencer."
+				"text": "Nommez une connexion et indiquez son URL. L’URL est écrite dans votre fichier .env, jamais dans la configuration. Dans un projet git, seulement si git ignore ce fichier. Un rôle en lecture seule suffit pour commencer."
 			},
 			"map": {
 				"title": "Cartographier",

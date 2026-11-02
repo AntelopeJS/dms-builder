@@ -107,7 +107,7 @@
 			"steps": "Three steps",
 			"connect": {
 				"title": "Connect",
-				"text": "Name a connection and give its URL. The URL is written to your .env, never to the configuration, and only where git ignores that file. A read-only role is enough to start."
+				"text": "Name a connection and give its URL. The URL is written to your .env, never to the configuration. In a git project, only where git ignores that file. A read-only role is enough to start."
 			},
 			"map": {
 				"title": "Map",
