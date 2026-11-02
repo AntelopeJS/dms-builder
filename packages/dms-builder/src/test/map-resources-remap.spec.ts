@@ -222,26 +222,6 @@ describe("mapping again a database already mapped", function () {
     expect(pages).to.include("sales-countries");
   });
 
-  it("removes the page of a relation mapped again without a TableView, and keeps its resource", async () => {
-    const remapped = await MapResources({
-      module: MODULE,
-      connection: "erp",
-      resources: [
-        {
-          relation: "sales.countries",
-          tableView: false,
-          writable: false,
-          fields: [{ column: "name" }],
-        },
-      ],
-    });
-    expectOk(remapped, "MapResources without a TableView");
-    const pages = (await ListPages()).map((page) => page.id);
-    expect(pages).to.not.include("sales-countries");
-    const refs = (await ListResources()).map((resource) => resource.ref);
-    expect(refs).to.include("erp/sales/countries");
-  });
-
   it("previews the page a remap without a TableView would remove, and writes nothing", async () => {
     const countries = (tableView: boolean) => ({
       module: MODULE,
@@ -284,6 +264,26 @@ describe("mapping again a database already mapped", function () {
       pagesBefore,
     );
     expect(moduleFile("sales/countries/data-api.ts")).to.equal(source);
+  });
+
+  it("removes the page of a relation mapped again without a TableView, and keeps its resource", async () => {
+    const remapped = await MapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [
+        {
+          relation: "sales.countries",
+          tableView: false,
+          writable: false,
+          fields: [{ column: "name" }],
+        },
+      ],
+    });
+    expectOk(remapped, "MapResources without a TableView");
+    const pages = (await ListPages()).map((page) => page.id);
+    expect(pages).to.not.include("sales-countries");
+    const refs = (await ListResources()).map((resource) => resource.ref);
+    expect(refs).to.include("erp/sales/countries");
   });
 
   it("points a relation column at a relation the module mapped before", async () => {
