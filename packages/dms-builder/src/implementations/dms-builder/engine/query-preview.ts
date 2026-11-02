@@ -44,7 +44,7 @@ import { isPlainObject } from "./value";
 const PREVIEW_LIMIT = 500;
 
 export interface PreviewRequest {
-  query: AddQueryInput;
+  query: Omit<AddQueryInput, "name">;
   /** Values the route would receive, by the name it exposes them under. */
   args?: ConfigObject;
   /**
@@ -299,8 +299,7 @@ export function previewRequestFromSearch(
   }
   return {
     ok: true,
-    // SAFETY: namesResourceAndTemplate has checked resource and template, the fields every preview needs; name is the only other required field of AddQueryInput and a preview never reads it, and runPlanPreview validates params through the template before use.
-    data: { query: query as AddQueryInput, args, tenant },
+    data: { query, args, tenant },
     changes: [],
   };
 }
