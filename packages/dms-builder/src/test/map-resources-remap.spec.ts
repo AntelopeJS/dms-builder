@@ -10,6 +10,7 @@ import {
   ListPages,
   ListResources,
   MapResources,
+  PreviewMapResources,
 } from "../implementations/dms-builder";
 import { setCatalogConnectionsForTests } from "../implementations/dms-builder/engine/catalog-connection";
 import {
@@ -219,6 +220,50 @@ describe("mapping again a database already mapped", function () {
     expect(countries).to.not.match(/declare code:/);
     const pages = (await ListPages()).map((page) => page.id);
     expect(pages).to.include("sales-countries");
+  });
+
+  it("previews the page a remap without a TableView would remove, and writes nothing", async () => {
+    const countries = (tableView: boolean) => ({
+      module: MODULE,
+      connection: "erp",
+      resources: [
+        {
+          relation: "sales.countries",
+          tableView,
+          writable: false,
+          fields: [{ column: "name" }],
+        },
+      ],
+    });
+    const pagesBefore = (await ListPages()).map((page) => page.id).sort();
+    const source = moduleFile("sales/countries/data-api.ts");
+    const removing = await PreviewMapResources(countries(false));
+    expectOk(removing, "PreviewMapResources without a TableView");
+    expect(removing.ok && removing.data.pagesToRemove).to.have.length(1);
+    expect(removing.ok && removing.data.pagesToRemove[0]).to.include(
+      "sales-countries",
+    );
+    const keeping = await PreviewMapResources(countries(true));
+    expectOk(keeping, "PreviewMapResources with a TableView");
+    expect(keeping.ok && keeping.data.pagesToRemove).to.deep.equal([]);
+    const unpaged = await PreviewMapResources({
+      module: MODULE,
+      connection: "erp",
+      resources: [
+        {
+          relation: "sales.raw_log",
+          tableView: false,
+          writable: false,
+          fields: [],
+        },
+      ],
+    });
+    expectOk(unpaged, "PreviewMapResources of a relation without a page");
+    expect(unpaged.ok && unpaged.data.pagesToRemove).to.deep.equal([]);
+    expect((await ListPages()).map((page) => page.id).sort()).to.deep.equal(
+      pagesBefore,
+    );
+    expect(moduleFile("sales/countries/data-api.ts")).to.equal(source);
   });
 
   it("removes the page of a relation mapped again without a TableView, and keeps its resource", async () => {
