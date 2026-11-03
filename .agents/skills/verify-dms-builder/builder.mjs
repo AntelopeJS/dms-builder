@@ -17,6 +17,9 @@ export const BUILDER = "/api/builder";
 /** The verification playground's trusted backend calls (`playground/src/fixture.ts`). */
 export const FIXTURE = "/verify-builder";
 
+/** Stands for `undefined` in an operation's arguments, which JSON cannot carry. */
+export const UNSET = { $undefined: true };
+
 /** The page every run starts with, and its address. */
 export const BOARD = "/shop/board";
 
@@ -108,10 +111,10 @@ export function builder(ctx, label, method, path, options = {}) {
  * @param {Ctx} ctx The journey
  * @param {string} label What the call does
  * @param {string} name The operation's exported name
- * @param {unknown} args Its argument
+ * @param {...unknown} args Its arguments, in the order the operation takes them
  * @returns {Promise<OpAnswer>} The answer
  */
-export async function operation(ctx, label, name, args) {
+export async function operation(ctx, label, name, ...args) {
   const answer = await ctx.api(`${name}: ${label}`, { method: "POST", path: `${FIXTURE}/call`, body: { name, args }, as: "anon" });
   const returned = pick(answer.body, "returned");
   const threw = pick(answer.body, "threw");
@@ -271,4 +274,26 @@ export async function member(ctx, name, permissions) {
   ctx.addAccount(name, { email, password, userId });
   await ctx.verify(`${name} is a member`, [check("the signup answers a session", signup.status === 200 && userId !== "", signup.status)], { critical: true });
   return { roleId: text(invite.body, "roleId"), userId };
+}
+
+/**
+ * A check that an operation failed with a given error code.
+ *
+ * @param {string} name What is checked
+ * @param {OpAnswer} answer The operation's answer
+ * @param {string} code The error code wanted
+ * @returns {Check} The check
+ */
+export function failsWith(name, answer, code) {
+  return check(name, !answer.ok && text(answer.error, "code") === code, answer.raw);
+}
+
+/**
+ * The codes of the warnings an operation answered.
+ *
+ * @param {OpAnswer} answer The operation's answer
+ * @returns {string[]} The codes
+ */
+export function warningCodes(answer) {
+  return answer.warnings.map((warning) => text(warning, "code"));
 }

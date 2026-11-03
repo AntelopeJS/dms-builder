@@ -26,6 +26,16 @@ function strings(value: unknown): string[] {
     : [];
 }
 
+/** JSON cannot carry `undefined`, which the operations read as "remove this key": `{ "$undefined": true }` stands for it. */
+function revive(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(revive);
+  if (!isRecord(value)) return value;
+  if (value.$undefined === true) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, revive(item)]),
+  );
+}
+
 /** The ids of the permissions a role holds, with every id its grants sit under, as the DMS roles editor stores them. */
 function withAncestors(permissions: string[]): string[] {
   return [
@@ -46,17 +56,16 @@ function withAncestors(permissions: string[]): string[] {
  * with a role. Only the verification playground serves them.
  */
 export class VerifyFixtureController extends Controller("/verify-builder") {
-  /** `{ name, args }`: the operation `name` of `@antelopejs/interface-dms-builder`, called with `args`. */
+  /** `{ name, args }`: the operation `name` of `@antelopejs/interface-dms-builder`, called with the array `args` as its arguments. */
   @Post("/call")
   async call(@JSONBody() body: unknown) {
     if (!isRecord(body) || !isOperationName(body.name)) {
       return { ok: false, error: { code: "fixture_unknown_operation" } };
     }
     const operation = Operations[body.name];
+    const args: unknown[] = Array.isArray(body.args) ? body.args.map(revive) : [];
     try {
-      const answer: unknown = await Reflect.apply(operation, undefined, [
-        body.args,
-      ]);
+      const answer: unknown = await Reflect.apply(operation, undefined, args);
       return { returned: answer ?? null };
     } catch (error) {
       return {
