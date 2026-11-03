@@ -92,9 +92,10 @@ $C doors "$PWD/.agents/skills/verify-dms-builder/seeded-doors/data.patch"
 - Every dashboard page renders on the server and hydrates after `load`; a click that lands first does nothing. `openBuilder` clicks the hammer until the editor bar shows.
 - The page files the builder writes are not served until the project is compiled and the backend restarted, which `ajs project dev -w` does on its own; journeys that need the rendered page call `rebuild`.
 - A frontend is built once: the dashboard keeps its builder button after the backend turns the builder off, so the button's absence is Not driven; the routes' 404 is driven.
+- The docs name the change list's undo control "Put this one back"; the UI button reads "Revert: <edit>" (dms-builder#151).
 - `CreatePage` places a page at `<category-folder>/<name>/page.ts` when a barrel sits beside the category's file, and at `src/<name>.ts` otherwise; journeys create a category first when they need the folder form.
 - `ResourceSummary.fieldCount` counts the generated `_id`.
-- Known findings at the integration head, each a failing journey with an issue draft: `resources/an-exported-field-is-written-with-its-import` (the `@Exported` import is missing), `queries/preview-validates-parameters-as-add-query-does` (PreviewQuery accepts an undeclared parameter), `tables/delete-the-table-removes-it-and-its-files-at-once` (the backend serves no `DELETE /api/builder/resource`).
+- Known findings at the integration head, each a failing journey with an issue draft: `resources/an-exported-field-is-written-with-its-import` (the `@Exported` import is missing, dms-builder#149), `queries/preview-validates-parameters-as-add-query-does` (PreviewQuery accepts an undeclared parameter, dms-builder#150), `tables/delete-the-table-removes-it-and-its-files-at-once` (the backend serves no `DELETE /api/builder/resource`, dms-builder#148).
 
 ## Not driven
 
