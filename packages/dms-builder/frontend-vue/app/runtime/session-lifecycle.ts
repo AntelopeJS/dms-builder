@@ -1,23 +1,26 @@
 import { forgetDraft, storedDraft, type StoredDraft } from './draft-store'
 import { cloneDraft } from './draft'
 import type { OpResult } from './types'
-import { emptySession, sessionState, type SessionCore } from './session-model'
+import { emptySession, sessionState, type BuilderSession, type SessionCore } from './session-model'
 import type { createDerived } from './session-derived'
 import type { createHistory } from './session-history'
 import type { createLoaders } from './session-loaders'
 import type { createNavigation } from './session-navigation'
 import type { createBlocks } from './session-blocks'
 
-export function createLifecycle(scope: SessionCore & ReturnType<typeof createDerived> & ReturnType<typeof createHistory> & ReturnType<typeof createLoaders> & ReturnType<typeof createNavigation> & ReturnType<typeof createBlocks>) {
-	const { session, api, dirty, gaps, noteDirty, newStep, keepDraft, notify, mutate, cancel, loadAccess, refreshPreview, schedulePreview, loadServedLayout, loadStructure, loadTableUsage, loadSiteTree, select, applyLayout } = scope
+/** Where a session opens when it is not on the page: a workspace, and what it is asked to show. */
+type Entry = Partial<Pick<BuilderSession, 'workspace' | 'connectRequest'>>
 
-	async function open(pageRef: string): Promise<void> {
+export function createLifecycle(scope: SessionCore & ReturnType<typeof createDerived> & ReturnType<typeof createHistory> & ReturnType<typeof createLoaders> & ReturnType<typeof createNavigation> & ReturnType<typeof createBlocks>) {
+	const { session, api, setWorkspace, dirty, gaps, noteDirty, newStep, keepDraft, notify, mutate, cancel, loadAccess, refreshPreview, schedulePreview, loadServedLayout, loadStructure, loadTableUsage, loadSiteTree, select, applyLayout } = scope
+
+	async function open(pageRef: string, entry: Entry = {}): Promise<void> {
 		const start =
 			session.value.startLayout?.ref === pageRef
 				? session.value.startLayout.layout
 				: undefined
 		const kept = storedDraft(pageRef)
-		session.value = { ...emptySession(), active: true, loading: true, pageRef }
+		session.value = { ...emptySession(), ...entry, active: true, loading: true, pageRef }
 		try {
 			const [catalog, resources] = await Promise.all([
 				api.catalog(),
@@ -36,12 +39,23 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 				restoreKept(kept)
 				void loadAccess()
 				await Promise.all([refreshPreview(), loadServedLayout(pageRef)])
+			} else if (entry.workspace) {
+				session.value.error = null
 			}
 		} catch (error) {
 			session.value.error = api.failure(error)
 		} finally {
 			session.value.loading = false
 		}
+	}
+
+	async function connectDatabase(pageRef: string): Promise<void> {
+		if (session.value.active) {
+			session.value.connectRequest = true
+			setWorkspace('database')
+			return
+		}
+		await open(pageRef, { workspace: 'database', connectRequest: true })
 	}
 
 	function close(): void {
@@ -337,6 +351,7 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 	}
 	return {
 		open,
+		connectDatabase,
 		close,
 		leave,
 		resolveClose,

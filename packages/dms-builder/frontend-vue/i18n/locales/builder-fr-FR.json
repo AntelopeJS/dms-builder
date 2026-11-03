@@ -101,6 +101,27 @@
 			},
 			"dismiss_warnings": "Fermer les avertissements"
 		},
+		"connect_prompt": {
+			"title": "Partez d’une base de données que vous utilisez déjà",
+			"description": "Connectez-la et le builder transforme ses tables en pages, écrites en code dans votre projet.",
+			"steps": "Trois étapes",
+			"connect": {
+				"title": "Connecter",
+				"text": "Nommez une connexion et indiquez son URL. L’URL est écrite dans votre fichier .env, jamais dans la configuration. Dans un projet git, seulement si git ignore ce fichier. Un rôle en lecture seule suffit pour commencer."
+			},
+			"map": {
+				"title": "Cartographier",
+				"text_assistant": "L’assistant lit le schéma (tables, champs, relations) et des agrégats : comptages, plages de valeurs et valeurs des petites listes comme les statuts. Ses outils de base de données ne renvoient aucune ligne.",
+				"text_manual": "Le builder lit le schéma et les mêmes agrégats, puis propose une cartographie. Vous la relisez vous-même, table par table, avec quelques lignes d’exemple visibles de vous seul, avant qu’une page soit générée."
+			},
+			"build": {
+				"title": "Construire",
+				"text": "Un back-office en code, qui vous appartient. Les pages sont écrites dans votre projet en TypeScript et démarrent en lecture seule."
+			},
+			"later": "Vous pourrez connecter une base plus tard depuis l’espace de travail Base de données du builder.",
+			"accept": "Connecter une base de données",
+			"dismiss": "Pas maintenant"
+		},
 		"toasts": {
 			"copied_draft": "Brouillon copié en JSON",
 			"copied_block": "Bloc copié en JSON",

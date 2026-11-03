@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
+import { useBuilder } from '../runtime/session'
 import { DATABASE_ICON } from '../runtime/constants'
 import { defaultNames } from '../runtime/database-connect'
 import type { ConnectionInfo, DatabaseConnection } from '../runtime/database-types'
@@ -14,9 +15,25 @@ import { t } from '../runtime/i18n'
  */
 
 const api = useBuilderApi()
+const session = useBuilder().session
 const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
+
+/**
+ * A request to show the connect form, from outside the workspace. Taken at
+ * once, on setup, so the form is the first thing drawn when the workspace was
+ * opened for it, and again whenever one arrives while the workspace is open.
+ */
+watch(
+	() => session.value.connectRequest,
+	(requested) => {
+		if (!requested) return
+		session.value.connectRequest = false
+		connecting.value = true
+	},
+	{ immediate: true },
+)
 const module = ref('')
 /** The module field as typed; the mapping follows it once the field is left. */
 const moduleInput = ref('')
@@ -39,12 +56,22 @@ let returnTo: 'mapping' | 'build' = 'mapping'
 /** The analysis *Review it myself* opens the mapping on, so it is not run again. */
 const reviewJob = ref<string | undefined>()
 
-async function load(): Promise<void> {
-	connections.value = await api.databaseConnections().catch(() => [])
-	const first = connections.value.find((entry) => !removed.value.includes(entry.id))
-	if (!selected.value && first) {
+function openFirst(): void {
+	const first = connections.value?.find((entry) => !removed.value.includes(entry.id))
+	if (!selected.value && !connecting.value && first) {
 		void open(first.id)
 	}
+}
+
+async function load(): Promise<void> {
+	connections.value = await api.databaseConnections().catch(() => [])
+	openFirst()
+}
+
+/** Closing a form that was opened over the list lands on its first connection, as opening the workspace does. */
+function cancelConnecting(): void {
+	connecting.value = false
+	openFirst()
 }
 
 /** A connection written to the configuration: listed as pending until the builder lists it, and built. */
@@ -272,7 +299,7 @@ onMounted(load)
 		<section class="flex min-h-0 min-w-0 flex-col overflow-y-auto">
 			<DmsBuilderDatabaseConnect
 				v-if="connecting || (connections && !connections.length && !pending.length)"
-				@cancel="connecting = false"
+				@cancel="cancelConnecting"
 				@written="wrote"
 			/>
 			<DmsBuilderDatabaseBuild

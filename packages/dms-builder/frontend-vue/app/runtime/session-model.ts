@@ -143,6 +143,11 @@ export interface BuilderSession {
 	future: PageDraft[]
 	selection: string | null
 	workspace: Workspace
+	/**
+	 * A request for the Database workspace to open on its connect form. The
+	 * workspace takes it when it appears, whether or not it was mounted yet.
+	 */
+	connectRequest: boolean
 	leftTab: LeftTab
 	inspector: InspectorView
 	/** The table the Tables view has open; null is the list of every table. */
@@ -245,6 +250,7 @@ export function emptySession(): BuilderSession {
 		future: [],
 		selection: null,
 		workspace: 'page',
+		connectRequest: false,
 		leftTab: 'add',
 		inspector: 'block',
 		table: null,
@@ -295,6 +301,12 @@ export interface BuilderController {
 	/** The container a click in the palette adds to; `null` is the page. */
 	paletteTarget: ComputedRef<string | null>
 	open: (pageRef: string) => Promise<void>
+	/**
+	 * Open the builder on the Database workspace with the connect form showing.
+	 * A page the builder cannot read does not stop it: the workspace serves the
+	 * project, not the page, so the page's own error is not said.
+	 */
+	connectDatabase: (pageRef: string) => Promise<void>
 	close: () => void
 	leave: () => void
 	resolveClose: (keep: boolean, onDevice?: boolean) => Promise<void>

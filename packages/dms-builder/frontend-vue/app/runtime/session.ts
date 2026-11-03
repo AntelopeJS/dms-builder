@@ -27,7 +27,7 @@ export function useBuilder(): BuilderController {
 	const blocks = createBlocks({ ...core, ...derived, ...loaders, ...history, ...navigation })
 	const lifecycle = createLifecycle({ ...core, ...derived, ...loaders, ...history, ...navigation, ...blocks })
 	const site = createSite({ ...core, ...derived, ...loaders, ...history, ...navigation, ...blocks, ...lifecycle })
-	const { dirty, blockCount, problems, gaps, selected, selectedDescriptor, paletteTarget, open, close, reload, followRoute, resolvePending, leave, resolveClose, stayOpen, select, setView, setWorkspace, openTable, back, openRegion, openMenu, closeMenu, mutate, addBlock, remove, duplicate, move, nudge, patchConfig, setDraftQuery, removeDraftQuery, previewQuery, patchMeta, setController, setSlot, patchPage, setLive, setDraft, undo, redo, cancel, save, notify, unsaved, readersOf, accessWarnings, pagePermission, viewedAs, veils, setViewAs, loadAccess, revert, stayOnPage, applyLayout, addNextTo, grouped, restoreAnyway, dropRestored, keepMine, loadResourceFields, loadResource, loadQueryTemplates, createResource, deleteResource, addField, configureCategory, moveCategory, movePage, loadSiteTree, createPage, createCategory, deletePage, deleteCategory, configureField, configureResource, removeField, beginDrag, endDrag, aimAt, aimAtPage, aimInto, regionOf, drop, dropAt, hover, refusalAt } = { ...derived, ...loaders, ...history, ...navigation, ...blocks, ...lifecycle, ...site }
+	const { dirty, blockCount, problems, gaps, selected, selectedDescriptor, paletteTarget, open, connectDatabase, close, reload, followRoute, resolvePending, leave, resolveClose, stayOpen, select, setView, setWorkspace, openTable, back, openRegion, openMenu, closeMenu, mutate, addBlock, remove, duplicate, move, nudge, patchConfig, setDraftQuery, removeDraftQuery, previewQuery, patchMeta, setController, setSlot, patchPage, setLive, setDraft, undo, redo, cancel, save, notify, unsaved, readersOf, accessWarnings, pagePermission, viewedAs, veils, setViewAs, loadAccess, revert, stayOnPage, applyLayout, addNextTo, grouped, restoreAnyway, dropRestored, keepMine, loadResourceFields, loadResource, loadQueryTemplates, createResource, deleteResource, addField, configureCategory, moveCategory, movePage, loadSiteTree, createPage, createCategory, deletePage, deleteCategory, configureField, configureResource, removeField, beginDrag, endDrag, aimAt, aimAtPage, aimInto, regionOf, drop, dropAt, hover, refusalAt } = { ...derived, ...loaders, ...history, ...navigation, ...blocks, ...lifecycle, ...site }
 
 	return {
 		session,
@@ -39,6 +39,7 @@ export function useBuilder(): BuilderController {
 		selectedDescriptor,
 		paletteTarget,
 		open,
+		connectDatabase,
 		close,
 		reload,
 		followRoute,
