@@ -1,13 +1,13 @@
 <div align="center">
 
-# @antelopejs/dms-builder
+# `@antelopejs/dms-builder`
 
-<a href="https://www.npmjs.com/package/@antelopejs/dms-builder"><img alt="npm" src="https://img.shields.io/npm/v/@antelopejs/dms-builder?style=for-the-badge&labelColor=000000&color=000000"></a>
-<a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@antelopejs/dms-builder?style=for-the-badge&labelColor=000000&color=000000"></a>
-<a href="https://discord.gg/sjK28QHrA7"><img alt="Discord" src="https://img.shields.io/badge/Discord-18181B?logo=discord&style=for-the-badge&color=000000"></a>
-<a href="https://dms.antelopejs.com/docs/modules/builder"><img alt="Documentation" src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000"></a>
+<a href="https://www.npmjs.com/package/@antelopejs/dms-builder"><img alt="npm" src="https://img.shields.io/npm/v/@antelopejs/dms-builder?style=for-the-badge&labelColor=000000&color=000000" data-illustration></a>
+<a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@antelopejs/dms-builder?style=for-the-badge&labelColor=000000&color=000000" data-illustration></a>
+<a href="https://discord.gg/sjK28QHrA7"><img alt="Discord" src="https://img.shields.io/badge/Discord-18181B?logo=discord&style=for-the-badge&color=000000" data-illustration></a>
+<a href="https://dms.antelopejs.com/docs/modules/builder"><img alt="Documentation" src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000" data-illustration></a>
 
-Visual and programmatic editing of an AntelopeJS DMS project's own source code.
+**Edit the pages, tables and data sources of an AntelopeJS DMS project from the dashboard, as TypeScript that compiles.**
 
 </div>
 
@@ -15,13 +15,13 @@ Visual and programmatic editing of an AntelopeJS DMS project's own source code.
 
 ## What it does
 
-- Turns any DMS page into an editor (**Edit this page**, `Ctrl` `B`): add blocks from a catalog, arrange them, configure them and bind them to data.
+- Turns any DMS page into an editor, opened with the hammer button in the page header or `Ctrl` `B`. In the editor you add blocks from a catalog, arrange them, configure them and bind them to data.
 - Writes each edit into the project's TypeScript as an AST rewrite, typechecks it in memory, and writes only if it compiles.
 - Creates pages from a layout, arranges the menu, and generates tables with their fields and API.
 - Gives a chart or a KPI its numbers from a query, without hand-writing a route.
 - Exposes the same operations to other modules through [`@antelopejs/interface-dms-builder`](./packages/interface-dms-builder) and to agents through an HTTP API under `/api/builder`.
 
-The builder runs in development only (`ajs project run`), and every route requires a tenant owner.
+By default the builder runs only in development (`ajs project dev`), and every route requires a tenant owner.
 
 ## Install
 
@@ -33,25 +33,25 @@ ajs project modules add @antelopejs/dms-builder
 
 ## Quick start
 
-The builder edits the project it runs in. When the backend's working directory is not the app's source root, set `projectRoot`:
+The builder edits the project it runs in. If the backend's working directory is not the app's source root, set `projectRoot` in the entry that `ajs project modules add` wrote:
 
 ```ts fragment
 // antelope.config.ts
-"dms-builder": {
-  source: { type: "package", package: "@antelopejs/dms-builder", version: ">=0.4.0 <1.0.0" },
+"@antelopejs/dms-builder": {
+  source: { /* … */ },
   config: {
     projectRoot: __dirname,
   },
 },
 ```
 
-Start the backend with `ajs project run -w`, then the frontend with `ajs dms dev`. Open any page and click **Edit this page**, or press `Ctrl` `B` (`⌘` `B` on macOS).
+Start the backend with `ajs project dev -w`, then the frontend with `ajs dms dev`. Open any page and click the hammer button in the page header, or press `Ctrl` `B` (`⌘` `B` on macOS).
 
 ## Compatibility
 
-The module also needs a DMS backend in a release that implements the `@antelopejs/interface-dms` range in the [module README compatibility block](packages/dms-builder/README.md#compatibility), and the `@antelopejs/dms-frontend` renderer in the range its frontend module declares in `engines["@antelopejs/dms-frontend"]` of `packages/dms-builder/frontend-vue/package.json`; the `ajs dms` CLI refuses to build it with a renderer outside that range.
+The [compatibility table of the module README](packages/dms-builder/README.md#compatibility) lists the interface ranges the module supports. The module needs a DMS backend that implements the `@antelopejs/interface-dms` range in that table. Its frontend needs a `@antelopejs/dms-frontend` renderer in the range of `engines["@antelopejs/dms-frontend"]` in `packages/dms-builder/frontend-vue/package.json`. The `ajs dms` CLI refuses to build the frontend with a renderer outside that range.
 
-- API provider: `@antelopejs/api`, for the HTTP routes.
+The HTTP routes need an API provider, such as `@antelopejs/api`.
 
 ## Packages
 
@@ -69,7 +69,7 @@ The module also needs a DMS backend in a release that implements the `@antelopej
 - [Extending](https://dms.antelopejs.com/docs/modules/builder/extending): the interface and the HTTP API
 - [FAQ](https://dms.antelopejs.com/docs/modules/builder/faq)
 
-The guide's sources live in [`packages/dms-builder/docs`](./packages/dms-builder/docs); the interface reference lives in [`packages/interface-dms-builder/docs`](./packages/interface-dms-builder/docs). The module ships the `dms-builder` Claude Code skill in [`packages/dms-builder/skills`](./packages/dms-builder/skills), declared under `antelopeJs.skills`.
+The guide's sources live in [`packages/dms-builder/docs`](./packages/dms-builder/docs). The interface reference lives in [`packages/interface-dms-builder/docs`](./packages/interface-dms-builder/docs). The module ships the `dms-builder` Claude Code skill in [`packages/dms-builder/skills`](./packages/dms-builder/skills), declared under `antelopeJs.skills`.
 
 ## Contributing
 
@@ -83,14 +83,14 @@ pnpm typecheck
 pnpm test
 ```
 
-The playground (`packages/dms-builder/playground`) loads the builder with a demo `order` table and a **Board** page holding a chart to configure. From that directory, run `pnpm install --ignore-workspace`, then `pnpm dev` and `pnpm frontend:dev`.
+The playground (`packages/dms-builder/playground`) loads the builder with a demo `orders` table and a **Board** page that holds a chart to configure. From that directory, run `pnpm install --ignore-workspace`, then `pnpm dev` and `pnpm frontend:dev`.
 
 <details>
 <summary>Repository notes</summary>
 
-- `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the client plugin at priority 100, only when the backend's manifest entry carries `dmsBuilder.enabled === true`. Check it with `pnpm --dir packages/dms-builder/frontend-vue typecheck` and `lint`.
-- The module implements the interface, so it depends on it through `>=<interface version> <0.<minor + 1>.0`: a breaking interface minor never reaches a module that does not implement it. Inside the workspace pnpm resolves that range to the sibling package.
-- Each package releases on its own: `release-interface.yml` publishes `@antelopejs/interface-dms-builder`, then `release.yml` publishes `@antelopejs/dms-builder` and refuses to run until the interface version its range is floored at is on npm.
+- The backend registers the builder's frontend module at priority 100, and only when the builder is on. `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the client plugin only when the backend's manifest entry carries `dmsBuilder.enabled === true`. Check that layer with `pnpm --dir packages/dms-builder/frontend-vue typecheck` and `lint`.
+- The module implements the interface, so its dependency range on the interface is `>=<interface version> <0.<minor + 1>.0`. A breaking interface minor never reaches a module that does not implement it. Inside the workspace, pnpm resolves that range to the sibling package.
+- Each package releases on its own. `release-interface.yml` publishes `@antelopejs/interface-dms-builder`. `release.yml` then publishes `@antelopejs/dms-builder`, and refuses to run until the interface version in `packages/interface-dms-builder/package.json` is on npm.
 
 </details>
 
