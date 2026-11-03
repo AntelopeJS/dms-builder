@@ -82,13 +82,14 @@ export const journeys = guarded([
       const version = text((await operation(ctx, "read", "GetPageStructure", "/reports/revenue")).data, "version");
       await operation(ctx, "hand edit through another write", "ConfigurePage", "/reports/revenue", { order: 11 });
       const stale = await operation(ctx, "stale write", "ConfigurePage", "/reports/revenue", { order: 12 }, { expectedVersion: version });
+      const afterStale = readProject(ctx, "page.ts", "src/revenue/page.ts").text;
       const fresh = text((await operation(ctx, "read", "GetPageStructure", "/reports/revenue")).data, "version");
       const accepted = await operation(ctx, "current version", "ConfigurePage", "/reports/revenue", { order: 13 }, { expectedVersion: fresh });
       await ctx.verify("refusals", [
         failsWith("an unknown category is not_found", unknownCategory, "not_found"),
         failsWith("an unknown page is not_found", unknownPage, "not_found"),
         failsWith("a stale expectedVersion is stale", stale, "stale"),
-        check("the stale write changed nothing", /order: 11/.test(readProject(ctx, "page.ts", "src/revenue/page.ts").text), "page.ts"),
+        check("the stale write changed nothing", /order: 11/.test(afterStale), "page.ts"),
         check("the current version is accepted", accepted.ok, accepted.raw),
       ]);
     },

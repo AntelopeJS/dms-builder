@@ -17,7 +17,7 @@ export const journeys = guarded([
         displayName: "Product",
         fields: [
           { name: "title", dataType: STRING, label: "Title", required: true, searchable: true, sortable: true },
-          { name: "price", dataType: NUMBER, sortable: true, filterable: true, exported: true },
+          { name: "price", dataType: NUMBER, sortable: true, filterable: true },
         ],
       });
       await ctx.verify("the resource is created", [
@@ -30,7 +30,6 @@ export const journeys = guarded([
         check("Product table class, ProductModel, products table", /class Product extends Table/.test(database) && /class ProductModel/.test(database) && /"products"/.test(database), database),
         check("productDataAPI on /api/product", /class productDataAPI/.test(dataApi) && dataApi.includes('"/api/product"'), dataApi),
         check("title is searchable and sortable with its label", /@Searchable\(\)/.test(dataApi) && /label|name: "Title"/.test(dataApi), dataApi),
-        check("price is exported", /@Exported\(\)/.test(dataApi), dataApi),
         check("title is required, price optional", dataApi.split("@Optional()").length === 2, dataApi),
       ]);
       const listed = await operation(ctx, "list", "ListResources");
@@ -41,7 +40,7 @@ export const journeys = guarded([
         check("summary names", text(entry, "className") === "Product" && text(entry, "tableName") === "products" && text(entry, "route") === "/api/product" && entry?.fieldCount === 2, entry),
         check("fields in declaration order, without _id and model", fields.map((field) => text(field, "name")).join() === "title,price", fields),
         check("title aspects", fields[0]?.required === true && fields[0]?.searchable === true && fields[0]?.sortable === true, fields[0]),
-        check("price aspects", fields[1]?.filterable === true && fields[1]?.exported === true, fields[1]),
+        check("price aspects", fields[1]?.filterable === true, fields[1]),
         check("a full set of routes is not listed", pick(structure.data, "routes") === undefined && text(structure.data, "version") !== "", structure.data),
       ]);
       const subset = await operation(ctx, "singleton", "CreateResource", { name: "site-settings", fields: [{ name: "title", dataType: STRING }], routes: ["get", "edit"] });
@@ -59,6 +58,21 @@ export const journeys = guarded([
         failsWith("a duplicate is duplicate_name", duplicate, "duplicate_name"),
         failsWith("a reserved field name is invalid_config", reserved, "invalid_config"),
         check("nothing written for the refusals", !projectHas(ctx, "src/bad/database.ts") && !projectHas(ctx, "src/none/database.ts"), "files"),
+      ]);
+    },
+  },
+  {
+    id: "an-exported-field-is-written-with-its-import",
+    title: "A field with exported: true is written as @Exported with its import, and the resource compiles (known finding: the import is missing and the write fails typecheck)",
+    entryPoint: "CreateResource with exported",
+    async run(/** @type {Ctx} */ ctx) {
+      const made = await operation(ctx, "exported title", "CreateResource", { name: "report", fields: [{ name: "title", dataType: STRING, exported: true }] });
+      await ctx.verify("the resource with an exported field is created", [check("ok", made.ok, made.raw)], { critical: true });
+      const dataApi = readProject(ctx, "data-api.ts", "src/report/data-api.ts").text;
+      await ctx.verify("the decorator and its import", [
+        check("@Exported() on title", /@Exported\(\)/.test(dataApi), dataApi),
+        check("Exported is imported", /import \{[^}]*\bExported\b[^}]*\} from/.test(dataApi), dataApi),
+        check("the structure reads exported back", list((await operation(ctx, "read", "GetResourceStructure", "report")).data, "fields")[0]?.exported === true, "fields"),
       ]);
     },
   },
