@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "module": "esnext",
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false
+  },
+  "include": ["./**/*.ts"]
+}

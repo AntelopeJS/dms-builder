@@ -15,5 +15,6 @@
     "no-unused-vars for packages/dms-builder/frontend-vue/**/*.{ts,vue}": 1,
     "unicorn/no-thenable for packages/*/src/test/**/*.ts": 1,
     "vue/multi-word-component-names for packages/dms-builder/frontend-vue/**/*.{ts,vue}": 1
-  }
+  },
+  "agentFiles": true
 }
