@@ -24,7 +24,6 @@ export const journeys = guarded([
         check("three files named after the table", ["data-api.ts", "database.ts", "index.ts"].every((name) => files.some((file) => file.endsWith(name))), files),
         check("one field, Title", list(structure.data, "fields").length === 1, list(structure.data, "fields")),
       ], { critical: true });
-      await tab.page.getByRole("button", { name: /^invoice/ }).click();
       await tab.visible({ role: "tab", name: "Settings" }, { timeoutMs: 20_000 });
       await tab.page.getByRole("tab", { name: "Settings" }).click();
       const confirm = tab.page.getByRole("textbox", { name: /to confirm/ });
@@ -105,10 +104,10 @@ export const journeys = guarded([
       await tab.page.waitForTimeout(3000);
       const afterOne = await operation(ctx, "read", "GetResourceStructure", "settings-box");
       await ctx.verify("switching Update off keeps the others", [check("routes are get only", JSON.stringify(pick(afterOne.data, "routes")) === '["get"]', afterOne.data)]);
-      await read.first().click();
-      await tab.page.waitForTimeout(2500);
-      const afterTwo = await operation(ctx, "read", "GetResourceStructure", "settings-box");
-      await ctx.verify("the last served route stays on", [check("routes are still get", JSON.stringify(pick(afterTwo.data, "routes")) === '["get"]', afterTwo.data)]);
+      await ctx.verify("the last served route stays on", [
+        check("its switch is disabled", await read.first().isDisabled(), "read"),
+        check("still on", await read.first().isChecked(), "read"),
+      ]);
     },
   },
 ]);

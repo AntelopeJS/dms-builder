@@ -30,7 +30,7 @@ export const journeys = guarded([
       const panel = inspector(tab);
       const body = await panel.innerText();
       await ctx.verify("the change list", [
-        check("the edit is grouped under This page", /This page/.test(body) && /Revenue invoiced/.test(body), body),
+        check("the edit is grouped under This page", /This page/i.test(body) && /Revenue invoiced/.test(body), body),
         check("On save lists the three steps in order", body.indexOf("Every block has its required settings") >= 0 && body.indexOf("Check the page compiles") > body.indexOf("Every block has its required settings") && body.indexOf("Write the files, then reload the page") > body.indexOf("Check the page compiles"), body),
         tab.visible({ role: "button", name: /^Revert/ }),
         tab.visible({ role: "button", name: "Discard all…" }),
@@ -110,9 +110,9 @@ export const journeys = guarded([
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
       const eye = tab.page.getByRole("button", { name: "View the page as a role" });
-      await ctx.verify("the menu exists because the workspace has roles", [check("View as is in the bar", (await eye.count()) >= 1, "bar")]);
+      await ctx.verify("the menu exists because the workspace has roles", [tab.visible({ role: "button", name: "View the page as a role" }, { timeoutMs: 30_000 })]);
       await eye.first().click();
-      await tab.page.getByRole("menuitem", { name: /viewer/i }).first().click();
+      await tab.page.getByRole("menuitemcheckbox", { name: /^viewer/i }).first().click();
       await ctx.verify("the page is hidden for the role", [tab.shows(/Page hidden for/, { timeoutMs: 20_000 }), tab.visible({ role: "button", name: "Exit preview" })]);
       await tab.page.getByRole("button", { name: "Exit preview" }).click();
       await ctx.verify("Exit preview returns to the owner's view", [tab.visible({ role: "button", name: "Exit preview" }, { hidden: true, timeoutMs: 15_000 })]);

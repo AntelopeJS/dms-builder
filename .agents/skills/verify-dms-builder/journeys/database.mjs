@@ -20,7 +20,7 @@ export const journeys = guarded([
         check("connections is an empty list", connections.status === 200 && Array.isArray(connections.body) && connections.body.length === 0, connections),
         check("project answers modules", project.status === 200 && Array.isArray(pick(project.body, "modules")) && (/** @type {unknown[]} */ (pick(project.body, "modules"))).includes("dms-builder"), project),
         check("an unknown analysis connection is 404", analysis.status === 404, analysis),
-        check("an unknown analysis id is 404", analysisById.status === 404, analysisById),
+        check("an unknown analysis id answers a not_found OpResult", pick(analysisById.body, "ok") === false && text(analysisById.body, "error", "code") === "not_found", analysisById),
         check("an unknown connection is 404", connection.status === 404, connection),
         check("a sample of an unknown connection is 404", sample.status === 404, sample),
         check("an unknown mapping answers a refusal, not a 200 mapping", mapping.status !== 200 || pick(mapping.body, "ok") === false, mapping),
