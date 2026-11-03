@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { refusalText } from '../runtime/database-connect'
 import type { ConnectionInfo } from '../runtime/database-types'
+import { t } from '../runtime/i18n'
 import type { FileChange } from '../runtime/types'
 
 /**
@@ -26,6 +27,12 @@ const folders = computed(() =>
 )
 const moduleNames = computed(() => props.info.wiring.modules.map((module) => module.id))
 const kept = computed(() => props.info.wiring.unrecorded.map((module) => module.id))
+const removeModules = computed(() => {
+	const { ownsDriver, driver } = props.info.wiring
+	const modules = moduleNames.value.join(', ')
+	if (ownsDriver && modules) return t('database.remove.driver_and_modules', { driver, modules })
+	return ownsDriver ? t('database.remove.driver', { driver }) : t('database.remove.modules', { modules })
+})
 
 async function plan(): Promise<void> {
 	busy.value = true
@@ -63,38 +70,29 @@ onMounted(plan)
 <template>
 	<div class="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
 		<header>
-			<p class="text-xl font-semibold tracking-tight text-highlighted">Remove {{ connection }}</p>
-			<p class="text-xs text-muted">Takes the database out of the project. The database itself is not touched.</p>
+			<p class="text-xl font-semibold tracking-tight text-highlighted">{{ t('database.remove.title', { connection }) }}</p>
+			<p class="text-xs text-muted">{{ t('database.remove.intro') }}</p>
 		</header>
 
 		<template v-if="!removed">
 			<div class="flex flex-col gap-1.5 text-sm text-default">
-				<p class="font-semibold text-highlighted">Removing will:</p>
+				<p class="font-semibold text-highlighted">{{ t('database.remove.will') }}</p>
 				<ul class="ml-4 list-disc text-xs leading-relaxed">
 					<li v-if="info.wiring.ownsDriver || moduleNames.length">
-						remove
-						<template v-if="info.wiring.ownsDriver">the driver <span class="font-mono">{{ info.wiring.driver }}</span></template>
-						<template v-if="info.wiring.ownsDriver && moduleNames.length"> and </template>
-						<template v-if="moduleNames.length">the module <span class="font-mono">{{ moduleNames.join(', ') }}</span></template>
-						from <span class="font-mono">antelope.config.ts</span><template v-if="moduleNames.length">, so its pages are no longer served</template>;
+						{{ removeModules }}
 					</li>
 					<li v-if="!info.wiring.ownsDriver">
-						keep the driver <span class="font-mono">{{ info.wiring.driver }}</span> and its URL: it is the
-						project's own database, or another module reads through it;
+						{{ t('database.remove.keep_driver', { driver: info.wiring.driver }) }}
 					</li>
 					<li v-if="kept.length">
-						keep <span class="font-mono">{{ kept.join(', ') }}</span>: it reads through the driver but does not
-						record this connection, so it was not made for it;
+						{{ t('database.remove.keep_modules', { modules: kept.join(', ') }) }}
 					</li>
 					<li v-if="folders.length">
-						delete <span class="font-mono">{{ folders.join(', ') }}</span>, with the tables and pages written
-						there;
+						{{ t('database.remove.delete_folders', { folders: folders.join(', ') }) }}
 					</li>
-					<li>remove the <span class="font-mono">{{ connection }}</span> connection of the builder and dms-ai;</li>
+					<li>{{ t('database.remove.remove_connection', { connection }) }}</li>
 					<li v-if="info.wiring.ownsDriver && info.wiring.variables.length">
-						remove <span class="font-mono">{{ info.wiring.variables.join(', ') }}</span> from
-						<span class="font-mono">envOverrides</span>, <span class="font-mono">.env</span> and
-						<span class="font-mono">.env.example</span>.
+						{{ t('database.remove.remove_variables', { variables: info.wiring.variables.join(', ') }) }}
 					</li>
 				</ul>
 			</div>
@@ -103,15 +101,15 @@ onMounted(plan)
 
 			<div class="flex items-center gap-2">
 				<UButton
-					:label="busy ? 'Removing…' : `Remove ${connection}`"
+					:label="busy ? t('database.remove.removing') : t('database.remove.action', { connection })"
 					color="error"
 					:disabled="busy || !preview"
 					@click="remove"
 				/>
-				<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('close')" />
+				<UButton :label="t('database.connect.cancel')" color="neutral" variant="ghost" @click="emit('close')" />
 			</div>
 
-			<DmsBuilderFoldCard v-if="preview" icon="i-ph-file-text" title="The changes" :summary="`${preview.length} files`">
+			<DmsBuilderFoldCard v-if="preview" icon="i-ph-file-text" :title="t('database.remove.changes')" :summary="t('database.remove.files', {}, preview.length)">
 				<DmsBuilderDiffView :changes="preview" />
 			</DmsBuilderFoldCard>
 		</template>
@@ -121,9 +119,9 @@ onMounted(plan)
 			class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-toned"
 			data-connection-removed
 		>
-			<p><b class="font-semibold text-highlighted">Removed. Restart the project.</b></p>
+			<p><b class="font-semibold text-highlighted">{{ t('database.remove.removed') }}</b></p>
 			<div>
-				<UButton label="Done" size="sm" @click="emit('close')" />
+				<UButton :label="t('database.remove.done')" size="sm" @click="emit('close')" />
 			</div>
 		</div>
 	</div>

@@ -27,7 +27,7 @@ async function copy(): Promise<void> {
 <template>
 	<span class="inline-flex items-center gap-1" data-copy-prompt>
 		<UButton
-			label="Copy prompt"
+			:label="t('database.copy.label')"
 			icon="i-ph-copy-light"
 			color="neutral"
 			variant="outline"
@@ -41,17 +41,15 @@ async function copy(): Promise<void> {
 				variant="ghost"
 				:size="size"
 				square
-				aria-label="About copying the prompt"
+				:aria-label="t('database.copy.about')"
 			/>
 			<template #content>
 				<div class="flex w-[26rem] max-w-[90vw] flex-col gap-2 p-3 text-xs text-toned" data-copy-prompt-info>
 					<p>
-						Run this work in your own agent, Claude Code or Codex, instead of the chatbox. The agent needs the
-						AntelopeJS plugin, which syncs the skills your project's modules ship.
+						{{ t('database.copy.agent') }}
 					</p>
 					<p>
-						The prompt names dms-external-database and dms-page-design. They ship with dms-ai, so the project
-						needs that module for the plugin to sync them.
+						{{ t('database.copy.skills') }}
 					</p>
 					<pre class="whitespace-pre-wrap break-all rounded-md bg-elevated p-2 font-mono text-[11px] text-muted">claude plugin marketplace add AntelopeJS/agent-skills
 claude plugin install antelopejs@antelopejs
@@ -63,7 +61,7 @@ codex plugin add antelopejs@antelopejs</pre>
 						rel="noopener noreferrer"
 						class="font-semibold text-primary underline-offset-2 hover:underline"
 					>
-						Read how to set it up
+						{{ t('database.copy.docs') }}
 					</a>
 				</div>
 			</template>

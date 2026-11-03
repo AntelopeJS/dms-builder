@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { ruleSentence } from '../app/runtime/database-rules'
+import { setTestLocale } from './stubs/frontend-module'
 import {
 	answerItem,
 	currentAnswer,
@@ -390,6 +392,18 @@ describe('where a label shows, and what an open question holds meanwhile', () =>
 		expect(PROPOSAL.open.map((item) => currentAnswer(draft, item))).toEqual(['labelled by id', 'a plain column'])
 		answerItem(draft, PROPOSAL.open[1]!, 'erp.invoices')
 		expect(currentAnswer(draft, PROPOSAL.open[1]!)).toBe('a reference to erp.invoices')
+	})
+
+	it('says it in French, rule sentences included, when the DMS is in French', () => {
+		setTestLocale('fr-FR')
+		try {
+			const draft = draftFromProposal(PROPOSAL)
+			expect(PROPOSAL.open.map((item) => currentAnswer(draft, item))).toEqual(['nommée d’après id', 'une colonne simple'])
+			expect(ruleSentence('R3')).toBe('Elle ne contient aucune ligne.')
+			expect(ruleSentence('unknown-rule')).toBe('unknown-rule')
+		} finally {
+			setTestLocale('en-GB')
+		}
 	})
 })
 

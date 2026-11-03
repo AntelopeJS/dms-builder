@@ -3,6 +3,7 @@ import { nextTick } from 'vue'
 import DatabaseProposal from '../app/components/DatabaseProposal.vue'
 import DatabaseRelation from '../app/components/DatabaseRelation.vue'
 import DatabaseApplied from '../app/components/DatabaseApplied.vue'
+import DatabaseApplySummary from '../app/components/DatabaseApplySummary.vue'
 import DatabasePromptCopy from '../app/components/DatabasePromptCopy.vue'
 import { ASSISTANT_ACTIONS_KEY, type AssistantActions } from '../app/runtime/database-build'
 import type {
@@ -24,8 +25,7 @@ import {
 
 /**
  * The Database workspace: the analysis's proposal decided in the builder and
- * applied as one `MapResources`, and a few rows shown to the integrator and
- * kept nowhere.
+ * applied as one `MapResources`, and a few rows shown, kept nowhere.
  */
 
 let backend: FakeBackend
@@ -85,6 +85,7 @@ const COMPONENTS = {
 	USwitch: stub('USwitch'),
 	DmsEyebrow: stub('DmsEyebrow'),
 	DmsBuilderDatabaseRelation: DatabaseRelation,
+	DmsBuilderDatabaseApplySummary: DatabaseApplySummary,
 	DmsBuilderDatabaseApplied: DatabaseApplied,
 	DmsBuilderDatabasePromptCopy: DatabasePromptCopy,
 	UPopover: stub('UPopover'),
