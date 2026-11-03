@@ -4,37 +4,33 @@ import { GetModel } from "@antelopejs/interface-database-decorators";
 import { DEFAULT_TENANT_ID } from "@antelopejs/interface-dms/constants";
 import { RoleModel, UserInviteModel } from "@antelopejs/interface-dms/db";
 import { GetPermissionId } from "@antelopejs/interface-dms/page";
-import {
-  Operations,
-  type OperationName,
-} from "@antelopejs/interface-dms-builder";
+import { Operations } from "@antelopejs/interface-dms-builder";
+import { z } from "zod";
 import { PageShopBoard } from "./board/page";
 
 const INVITE_LIFETIME_MS = 3_600_000;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isOperationName(name: unknown): name is OperationName {
-  return typeof name === "string" && Object.keys(Operations).includes(name);
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
+const operationNames = Object.keys(Operations);
 
 /** JSON cannot carry `undefined`, which the operations read as "remove this key": `{ "$undefined": true }` stands for it. */
-function revive(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(revive);
-  if (!isRecord(value)) return value;
-  if (value.$undefined === true) return undefined;
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, revive(item)]),
-  );
-}
+const reviveSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.object({ $undefined: z.literal(true) }).transform(() => undefined),
+    z.array(reviveSchema),
+    z.record(z.string(), reviveSchema),
+    z.unknown(),
+  ]),
+);
+
+const callSchema = z.object({
+  name: z.string().refine((name) => operationNames.includes(name)),
+  args: z.array(reviveSchema),
+});
+
+const memberSchema = z.object({
+  name: z.string().default("Member"),
+  permissions: z.array(z.string()).default([]),
+});
 
 /** The ids of the permissions a role holds, with every id its grants sit under, as the DMS roles editor stores them. */
 function withAncestors(permissions: string[]): string[] {
@@ -59,13 +55,22 @@ export class VerifyFixtureController extends Controller("/verify-builder") {
   /** `{ name, args }`: the operation `name` of `@antelopejs/interface-dms-builder`, called with the array `args` as its arguments. */
   @Post("/call")
   async call(@JSONBody() body: unknown) {
-    if (!isRecord(body) || !isOperationName(body.name)) {
+    const parsed = callSchema.safeParse(body);
+    if (!parsed.success) {
       return { ok: false, error: { code: "fixture_unknown_operation" } };
     }
-    const operation = Operations[body.name];
-    const args: unknown[] = Array.isArray(body.args) ? body.args.map(revive) : [];
+    const { name, args } = parsed.data;
+    const entry = Object.entries(Operations).find(([key]) => key === name);
+    if (!entry) {
+      return { ok: false, error: { code: "fixture_unknown_operation" } };
+    }
+    const [, operation] = entry;
     try {
-      const answer: unknown = await Reflect.apply(operation, undefined, args);
+      const answer: unknown = await Function.prototype.apply.call(
+        operation,
+        undefined,
+        args,
+      );
       return { returned: answer ?? null };
     } catch (error) {
       return {
@@ -77,8 +82,7 @@ export class VerifyFixtureController extends Controller("/verify-builder") {
   /** `{ name, permissions }`: a role holding the permissions, and an invitation to join with it. */
   @Post("/member")
   async member(@JSONBody() body: unknown) {
-    const name = isRecord(body) && typeof body.name === "string" ? body.name : "Member";
-    const permissions = isRecord(body) ? strings(body.permissions) : [];
+    const { name, permissions } = memberSchema.parse(body);
     const [roleId] = await GetModel(RoleModel, DEFAULT_TENANT_ID).insert({
       name: `${name} ${randomUUID()}`,
       permissions: withAncestors(permissions),

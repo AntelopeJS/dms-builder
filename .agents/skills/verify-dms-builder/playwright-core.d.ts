@@ -32,6 +32,14 @@ declare module "playwright-core" {
     press(key: string, options?: Timeout): Promise<void>;
     focus(options?: Timeout): Promise<void>;
     count(): Promise<number>;
+    filter(options: { hasText?: string | RegExp }): Locator;
+    nth(index: number): Locator;
+    uncheck(options?: Timeout): Promise<void>;
+    hover(options?: Timeout): Promise<void>;
+    isDisabled(options?: Timeout): Promise<boolean>;
+    isChecked(options?: Timeout): Promise<boolean>;
+    innerText(options?: Timeout): Promise<string>;
+    allInnerTexts(): Promise<string[]>;
     isVisible(options?: Timeout): Promise<boolean>;
     isEnabled(options?: Timeout): Promise<boolean>;
     getAttribute(name: string, options?: Timeout): Promise<string | null>;
@@ -85,6 +93,7 @@ declare module "playwright-core" {
     waitForEvent(event: "download", options?: Timeout): Promise<Download>;
     waitForEvent(event: "filechooser", options?: Timeout): Promise<FileChooser>;
     evaluate<R>(callback: () => R): Promise<R>;
+    reload(): Promise<object | null>;
     setViewportSize(size: { width: number; height: number }): Promise<void>;
     context(): BrowserContext;
     keyboard: Keyboard;

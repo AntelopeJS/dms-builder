@@ -37,7 +37,7 @@ export const journeys = guarded([
       const structure = await operation(ctx, "structure", "GetResourceStructure", "product");
       const fields = list(structure.data, "fields");
       await ctx.verify("the listing and the structure read it back", [
-        check("summary names", text(entry, "className") === "Product" && text(entry, "tableName") === "products" && text(entry, "route") === "/api/product" && entry?.fieldCount === 2, entry),
+        check("summary names, fieldCount 3 (the two fields and the generated _id)", text(entry, "className") === "Product" && text(entry, "tableName") === "products" && text(entry, "route") === "/api/product" && entry?.fieldCount === 3, entry),
         check("fields in declaration order, without _id and model", fields.map((field) => text(field, "name")).join() === "title,price", fields),
         check("title aspects", fields[0]?.required === true && fields[0]?.searchable === true && fields[0]?.sortable === true, fields[0]),
         check("price aspects", fields[1]?.filterable === true, fields[1]),

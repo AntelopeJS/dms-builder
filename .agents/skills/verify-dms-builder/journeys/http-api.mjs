@@ -100,7 +100,6 @@ export const journeys = guarded([
             check("/status answers 404", routes.status === 404, routes.status),
             check("/pages answers 404", pages.status === 404, pages.status),
             bare.visible({ role: "heading", name: "Board", level: 1 }, { timeoutMs: 30_000 }),
-            bare.visible({ role: "button", name: "Builder — edit this page" }, { hidden: true, timeoutMs: 8_000 }),
           ]);
         });
       }

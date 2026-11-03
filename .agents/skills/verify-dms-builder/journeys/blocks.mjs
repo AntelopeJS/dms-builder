@@ -138,7 +138,7 @@ export const journeys = guarded([
       const diagnostics = Array.isArray(refused.error?.diagnostics) ? refused.error.diagnostics : [];
       await ctx.verify("typecheck_failed", [
         failsWith("typecheck_failed", refused, "typecheck_failed"),
-        check("a diagnostic names the broken file and its line", diagnostics.some((diagnostic) => text(diagnostic, "file").endsWith("src/schema.ts") && typeof pick(diagnostic, "line") === "number" && text(diagnostic, "message") !== ""), diagnostics),
+        check("a diagnostic names the broken file and its line", diagnostics.some((diagnostic) => text(diagnostic, "file").endsWith("src/schema.ts") && Number.isInteger(pick(diagnostic, "line")) && text(diagnostic, "message") !== ""), diagnostics),
         check("nothing was written", readProject(ctx, "page", PAGE).text === before, "page"),
       ]);
     },

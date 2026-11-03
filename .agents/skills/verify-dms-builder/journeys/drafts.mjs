@@ -1,5 +1,5 @@
 import { guarded } from "../guard.mjs";
-import { check, failsWith, list, operation, pick, readProject, text, warningCodes } from "../builder.mjs";
+import { check, failsWith, list, operation, pick, readProject, text } from "../builder.mjs";
 
 /** @typedef {import("../builder.mjs").Ctx} Ctx */
 
@@ -107,11 +107,11 @@ export const journeys = guarded([
       const before = readProject(ctx, "the board", BOARD_FILE).text;
       const renamed = await operation(ctx, "retitle", "SetPageBlocks", "/shop/board", { page: { displayName: "Sales board" }, blocks: await preserved(ctx) });
       const after = readProject(ctx, "the board", BOARD_FILE).text;
-      const removeHeader = (/** @type {string} */ source) => source.replace(/displayName: "[^"]*"/, "displayName: X");
+
       await ctx.verify("only the display name changed", [
         check("ok", renamed.ok, renamed.raw),
         check("the new name is in the source", after.includes('displayName: "Sales board"'), after),
-        check("everything else is identical", removeHeader(before) === removeHeader(after), "diff"),
+        check("everything else is identical", after.replace('displayName: "Sales board"', 'displayName: "Board"') === before, "diff"),
       ]);
       const retyped = await operation(ctx, "a preserved block with another type", "SetPageBlocks", "/shop/board", { blocks: [{ name: "revenueChart", preserve: true, type: "KpiCard" }] });
       const configured = await operation(ctx, "a preserved block with a config", "SetPageBlocks", "/shop/board", { blocks: [{ name: "revenueChart", preserve: true, config: { title: "x" } }] });

@@ -66,7 +66,7 @@ export const journeys = guarded([
       ]);
       const byStatus = await preview(ctx, "byStatus", "series", { groupBy: "status" });
       const ranked = await preview(ctx, "ranked", "series", { op: "sum", field: "amount", groupBy: "status", orderBy: "measure", direction: "desc", limit: 2 });
-      const points = (/** @type {import("../builder.mjs").OpAnswer} */ answer) => list(answer.data, "body", "series").map((point) => `${point.x}=${point.y}`).join(",");
+      const points = (/** @type {import("../builder.mjs").OpAnswer} */ answer) => list(answer.data, "body", "series").map((point) => `${String(point.x)}=${String(point.y)}`).join(",");
       await ctx.verify("series: grouping, ordering, top N", [
         check("count per status, by group ascending", points(byStatus) === "paid=12,pending=3,refunded=3", points(byStatus)),
         check("a series is output series", pick(byStatus.data, "output") === "series", byStatus.data),
@@ -78,7 +78,6 @@ export const journeys = guarded([
       const unknownField = await preview(ctx, "unknownField", "count", { where: [{ field: "nope", op: "eq", value: 1 }] });
       const stringOrdering = await preview(ctx, "stringOrdering", "count", { where: [{ field: "amount", op: "eq", value: "ten" }] });
       const unknownTemplate = await preview(ctx, "unknownTemplate", "median");
-      const unknownKey = await preview(ctx, "unknownKey", "count", { bogus: 1 });
       const unknownResource = await operation(ctx, "unknown resource", "PreviewQuery", { query: { name: "x", resource: "nope", template: "count" } });
       const unbound = await operation(ctx, "unbound", "PreviewQuery", { query: { name: "x", resource: "order", template: "count", params: { where: [{ field: "amount", op: "lt", value: { $param: { name: "max" } } }] } } });
       const bound = await operation(ctx, "bound", "PreviewQuery", { query: { name: "x", resource: "order", template: "count", params: { where: [{ field: "amount", op: "lt", value: { $param: { name: "max" } } }] } }, args: { max: 100 } });
@@ -89,10 +88,23 @@ export const journeys = guarded([
         failsWith("an unknown field is invalid_config", unknownField, "invalid_config"),
         failsWith("a text value on a number field is invalid_config", stringOrdering, "invalid_config"),
         failsWith("an unknown template is invalid_config", unknownTemplate, "invalid_config"),
-        failsWith("an undeclared parameter is invalid_config", unknownKey, "invalid_config"),
         failsWith("an unknown resource is not_found", unknownResource, "not_found"),
         failsWith("a bound value without an argument is unsupported", unbound, "unsupported"),
         check("a bound value takes its argument (amount < 100: 80, 45, 95, 75, 90, 60, 55)", bodyValue(bound) === 7, bound.raw),
+      ]);
+    },
+  },
+  {
+    id: "preview-validates-parameters-as-add-query-does",
+    title: "PreviewQuery refuses a parameter the template does not declare with invalid_config, as AddQuery does (known finding: the preview runs the query)",
+    entryPoint: "PreviewQuery, AddQuery",
+    async run(/** @type {Ctx} */ ctx) {
+      await operation(ctx, "page", "CreatePage", { name: "lab", displayName: "Lab", category: "pages.shop" });
+      const added = await operation(ctx, "AddQuery with an undeclared parameter", "AddQuery", "/shop/lab", { name: "bogusQuery", resource: "order", template: "count", params: { bogus: 1 } });
+      const previewed = await preview(ctx, "bogusQuery", "count", { bogus: 1 });
+      await ctx.verify("the same refusal", [
+        failsWith("AddQuery refuses it", added, "invalid_config"),
+        failsWith("PreviewQuery refuses it", previewed, "invalid_config"),
       ]);
     },
   },
@@ -144,7 +156,7 @@ export const journeys = guarded([
       ]);
       const bound = await operation(ctx, "a request-time value", "AddQuery", "/shop/lab", { name: "cheaperThan", resource: "order", template: "count", params: { where: [{ field: "amount", op: "lt", value: { $param: { name: "maxPrice" } } }] } });
       const boundSource = readProject(ctx, "page", PAGE).text;
-      await ctx.verify("a bound value is a declared route parameter", [check("@Parameter(\"maxPrice\") and Number(...)", bound.ok && /@Parameter\("maxPrice"\)/.test(boundSource) && /Number\(/.test(boundSource), boundSource)]);
+      await ctx.verify("a bound value is a declared route parameter", [check("the Parameter decorator reads maxPrice from the query and the route converts it with Number", bound.ok && /@Parameter\("maxPrice", "query"\)/.test(boundSource) && /Number\(/.test(boundSource), boundSource)]);
       const removed = await operation(ctx, "remove", "RemoveQuery", "/shop/lab@paidCount");
       const missing = await operation(ctx, "remove again", "RemoveQuery", "/shop/lab@paidCount");
       const left = readProject(ctx, "page", PAGE).text;
