@@ -2,22 +2,82 @@ import { InterfaceFunction } from "@antelopejs/interface-core";
 import type { CategoryRef, PageRef } from "./addressing";
 import type { ResourceRef } from "./resources";
 import type { OpResult } from "./results";
+import type { TableViewSettings } from "./table-view";
+
+/** The semantic tones of the dashboard, which a status pill and a tab are drawn in. */
+export type DisplayTone =
+  | "neutral"
+  | "primary"
+  | "secondary"
+  | "success"
+  | "warning"
+  | "error"
+  | "info";
+
+/** One value of a badge column: the value the database holds, its label and the tone it is drawn in. */
+export interface BadgeItem {
+  value: string;
+  label: string;
+  tone: DisplayTone;
+}
+
+/**
+ * How a column is drawn beyond its declaration. A `badge` is a string column of few values, drawn
+ * as a status pill and filtered by a list of those values; a `price` is a number column drawn as an
+ * amount, in `currency` (an ISO 4217 code such as `USD`) and in the DataType's default currency,
+ * euros, when it states none.
+ */
+export type ColumnDisplay =
+  | { kind: "badge"; items: BadgeItem[] }
+  | { kind: "price"; currency?: string };
+
+/** Tabs above a TableView: "All", then one tab per value of the column's badge. */
+export interface TabsChoice {
+  /** A column of the relation whose `display` is a badge, and which is `filterable`. */
+  column: string;
+}
 
 /** One column of a mapped relation, as the integrator chose to show it. */
 export interface MappedField {
   column: string;
   /** One of the column's `accepts`; the first when omitted. */
   declared?: string;
+  /**
+   * The column's header. Sent, it is written as sent.
+   *
+   * Left out, a plain column takes its name, humanized. A relation column takes the label its
+   * controller holds when its relation was mapped before and held the column, and otherwise the
+   * title of the relation it points at, in singular ("Customer", not "Customer id", D3), unless
+   * the database commented the column with a short first sentence, which titles it instead (L2).
+   * The target's title is the `title` it is mapped with, else its page's title when it was mapped
+   * before, else its name humanized.
+   */
   label?: string;
   listable?: boolean;
   filterable?: boolean;
   sortable?: boolean;
   searchable?: boolean;
   /**
+   * How the column is drawn: a badge needs a `string` declaration and a price a `number` one. A
+   * relation column takes none.
+   *
+   * Left out, a column of a relation mapped before keeps the display its controller holds, and a
+   * column of a relation not mapped before takes the one the analysis proposes (D1, D2), read from
+   * the column's profile at map time, else from the connection's last analysis, else from its name
+   * alone, which proposes a price but no badge; a warning `display_not_proposed` says when no
+   * profile or analysis was there. A kept or proposed display the column's declaration does not
+   * suit is dropped, not refused. Null writes the column plain, over any display it had.
+   */
+  display?: ColumnDisplay | null;
+  /**
    * `"schema.name"` of another mapped relation this column refers to, by that relation's
    * single-column key: the column becomes a relation column showing the target's `label`.
+   *
+   * Left out, a column the database declares a foreign key onto a relation of this call or one
+   * mapped before, with a TableView and a single-column key that the foreign key uses, becomes a
+   * relation column onto it. Null writes the column plain, as its own value.
    */
-  relation?: string;
+  relation?: string | null;
 }
 
 /** One relation to map, as the integrator chose to show it. */
@@ -31,6 +91,27 @@ export interface MappedResource {
   /** The page's title and the TableView's caption; the relation's name, humanized, when omitted. */
   title?: string;
   /**
+   * The icon the menu shows beside the page, an icon name such as `i-ph-shopping-cart`. Left out,
+   * a new page has none and a page mapped before keeps its own.
+   */
+  icon?: string;
+  /** What the page is for, in a sentence. Left out, a new page has none and a page mapped before keeps its own. */
+  description?: string;
+  /**
+   * Where the page sorts among its category's pages, lowest first; pages with the same order sort
+   * by title. Left out, a new page takes 100 and a page mapped before keeps its own. Pages
+   * written by hand or by the assistant leave the order at 0 unless they set one, so a dashboard
+   * created in the connection's category comes before the mapped tables; give a dashboard an
+   * order below 100 to be sure of it.
+   */
+  order?: number;
+  /**
+   * Displays, views and footer figures written to the page's TableView by the same checks as
+   * `ConfigureTableView`: a refused choice is a warning `page_not_written` and the page keeps
+   * what it had. Left out, the page keeps its own. Column names are the ones mapped here.
+   */
+  tableOptions?: TableViewSettings;
+  /**
    * False maps the relation for stats only: its controller serves no route, so queries can name
    * it as a resource, and it gets no TableView or page. Forced false without a key.
    */
@@ -39,6 +120,18 @@ export interface MappedResource {
   writable: boolean;
   /** The columns to declare; key columns are added when left out. */
   fields: MappedField[];
+  /**
+   * Tabs on the TableView's rows by a badge column, written to the page's TableView over any
+   * `tabs` it holds. The column must be filterable and drawn as a badge, whether it was sent or
+   * taken as its `display` default.
+   *
+   * Left out, a page already mapped keeps the tabs it has, and a relation not mapped before is
+   * tabbed by the column the analysis proposes (T1) among its filterable badge columns, when one
+   * suits. Null writes none: it adds no tabs to a new relation, and removes from a page already
+   * mapped the tabs a mapping wrote from a badge, as a `display` of null removes the badge. Tabs
+   * edited by hand are kept.
+   */
+  tabs?: TabsChoice | null;
 }
 
 /** A relation the integrator decided not to map, so an analysis does not propose it again. */

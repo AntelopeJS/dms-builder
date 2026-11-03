@@ -43,11 +43,26 @@ export interface OpWarning {
     /** A relation the module maps is no longer in the database, or the role can no longer see it. */
     | "relation_missing"
     /**
+     * A relation was mapped without the `display` of its text columns, and neither a profile nor
+     * an analysis was there to propose a badge from, so those columns were written plain.
+     */
+    | "display_not_proposed"
+    /**
      * The mapping was written, but the module it was written into did not load again afterwards:
      * it was unloaded and did not start within the wait, or the runtime does not report it active.
      * The message names the module; the backend log holds the error.
      */
-    | "module_not_loaded";
+    | "module_not_loaded"
+    /** A setting the page held no longer holds, because another change removed what it needed. */
+    | "setting_dropped"
+    /** A relation of a batch was left out because one of its choices was refused; the others were written. */
+    | "relation_skipped"
+    /** A column display was not written because it does not suit the column; the column is written plain. */
+    | "display_dropped"
+    /** A column was marked filterable or sortable because a view, footer figure, tab or grouping needs it. */
+    | "field_flag_set"
+    /** A relation's label was changed to one the generated code can read, or dropped when no column offers it. */
+    | "label_changed";
   message: string;
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useDmsRouter } from '#dms/frontend-module'
+import { useBuilderApi } from '../runtime/api'
 import {
 	byCategoryOrder,
 	byMenuOrder,
@@ -24,6 +25,7 @@ import {
 
 
 const builder = useBuilder()
+const api = useBuilderApi()
 const { deleting, deletePage } = usePageDelete()
 const session = builder.session
 const router = useDmsRouter()
@@ -181,7 +183,7 @@ async function openPage(route: string): Promise<void> {
 				devReload,
 				router,
 				onWaitFailure: (failure) => {
-					session.value.error = failure
+					session.value.error = api.failure(failure)
 				},
 				stillWanted: () => opening.value === route,
 			},

@@ -12,6 +12,7 @@ import {
   type MethodParam,
   type QueryParams,
 } from "./query-template";
+import { PLAN_BUCKETS, type PlanBucket } from "./query-plan";
 import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
 import { words } from "./emit";
@@ -55,6 +56,8 @@ const COUNT_MEASURE = "count";
 export interface SeriesNaming {
   measure: SeriesMeasure;
   label: string;
+  /** The period a date field is grouped into: the helper names each period for a reader. */
+  bucket?: PlanBucket;
 }
 
 /**
@@ -71,13 +74,16 @@ export function seriesNaming(
   params: QueryParams,
   fields: ResourceFieldStructure[],
   resource: string,
+  namesBuckets = false,
 ): SeriesNaming {
   const measure = isOneOf(AGGREGATE_OPS, params.op) ? params.op : COUNT_MEASURE;
+  const period = PLAN_BUCKETS.find((option) => option === params.bucket);
+  const bucket = period && namesBuckets ? { bucket: period } : {};
   if (measure === COUNT_MEASURE) {
-    return { measure, label: resource };
+    return { measure, label: resource, ...bucket };
   }
   const field = fields.find((candidate) => candidate.name === params.field);
-  return { measure, label: field?.label ?? field?.name ?? resource };
+  return { measure, label: field?.label ?? field?.name ?? resource, ...bucket };
 }
 
 /** The options a helper is handed: what the series is, and what came before. */
@@ -86,6 +92,9 @@ function helperOptions(naming: SeriesNaming, previous?: string): string {
     `measure: ${JSON.stringify(naming.measure)}`,
     `label: ${JSON.stringify(naming.label)}`,
   ];
+  if (naming.bucket) {
+    parts.push(`bucket: ${JSON.stringify(naming.bucket)}`);
+  }
   if (previous) {
     parts.push(`previous: await ${previous}`);
   }

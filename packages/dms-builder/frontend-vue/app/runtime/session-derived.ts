@@ -49,7 +49,7 @@ export interface FollowedBlocks {
 }
 
 export function createDerived(scope: SessionCore) {
-	const { session } = scope
+	const { session, api } = scope
 
 	const dirty = computed(
 		() =>
@@ -454,11 +454,8 @@ export function createDerived(scope: SessionCore) {
 	 * started from a click or a mount nobody waits on, so a rejection left to
 	 * itself would go unseen and leave the panel quietly empty.
 	 */
-	function unread(what: string, error: unknown): void {
-		session.value.error = {
-			code: 'unsupported',
-			detail: `${what} could not be read: ${error instanceof Error ? error.message : String(error)}`,
-		}
+	function unread(error: unknown): void {
+		session.value.error = api.failure(error)
 	}
 
 	/** A page as the menu names it, else by its address. */

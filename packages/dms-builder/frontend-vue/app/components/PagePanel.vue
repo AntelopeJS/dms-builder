@@ -10,6 +10,7 @@ import type { PermissionChoice } from '../runtime/types'
 import { useBuilder } from '../runtime/session'
 
 const builder = useBuilder()
+const api = useBuilderApi()
 const { advanced } = useBuilderMode()
 const { deleting, deletePage } = usePageDelete()
 const session = builder.session
@@ -90,7 +91,7 @@ const { processI18n } = useTranslation()
 const permissions = ref<PermissionChoice[]>([])
 onMounted(async () => {
 	try {
-		permissions.value = await useBuilderApi().permissions()
+		permissions.value = await api.permissions()
 	} catch {
 		// No list: the id is still typed by hand below.
 	}
@@ -150,7 +151,7 @@ async function move(category: string): Promise<void> {
 					devReload,
 					router,
 					onWaitFailure: (failure) => {
-						session.value.error = failure
+						session.value.error = api.failure(failure)
 					},
 				},
 				ref,

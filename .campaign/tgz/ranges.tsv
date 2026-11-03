@@ -53,6 +53,7 @@
 @antelopejs/core	packages/dms-builder/frontend-vue/package.json	pnpm.overrides	
 @antelopejs/core	packages/dms-builder/playground/package.json	pnpm.overrides	
 @antelopejs/core	packages/dms-builder/package.json	pnpm.overrides	
+@antelopejs/dms	packages/dms-builder/playground/package.json	dependencies	>=0.13.1 <1.0.0
 @antelopejs/tooling-configs	package.json	devDependencies	^0.2.17
 @antelopejs/tooling-configs	packages/dms-builder/package.json	devDependencies	^0.2.11
 @antelopejs/tooling-configs	packages/dms-builder/package.json	pnpm.overrides	

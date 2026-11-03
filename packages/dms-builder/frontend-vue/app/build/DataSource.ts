@@ -9,6 +9,7 @@ export const MEASURES = Object.entries(MEASURE_WORDS).map(([value, label]) => ({
 
 export const BUCKETS = [
 	{ label: 'by Day', value: 'day' },
+	{ label: 'by Week', value: 'week' },
 	{ label: 'by Month', value: 'month' },
 	{ label: 'by Quarter', value: 'quarter' },
 	{ label: 'by Year', value: 'year' },

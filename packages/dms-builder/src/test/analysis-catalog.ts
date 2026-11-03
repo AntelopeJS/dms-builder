@@ -83,10 +83,13 @@ export function Relation(spec: RelationSpec): RelationDescription {
     : description;
 }
 
-/** A column's traits, with a text length when it has one. */
+/** A column's traits, with a text length, nulls and categories when it has them. */
 export interface ColumnTraits {
   traits?: ColumnTrait[];
   avgLength?: number;
+  nulls?: number;
+  /** The categories by value with their rows, as a profile counts them. */
+  categories?: Record<string, number>;
 }
 
 function ColumnProfileOf(name: string, traits: ColumnTraits): ColumnProfile {
@@ -95,6 +98,21 @@ function ColumnProfileOf(name: string, traits: ColumnTraits): ColumnProfile {
     profile.length = {
       status: "ok",
       value: { min: 1, avg: traits.avgLength, max: traits.avgLength },
+    };
+  }
+  if (traits.nulls !== undefined) {
+    profile.nulls = { status: "ok", value: traits.nulls };
+  }
+  if (traits.categories) {
+    profile.categories = {
+      status: "ok",
+      value: {
+        values: Object.entries(traits.categories).map(([value, rows]) => ({
+          value,
+          rows,
+        })),
+        other: 0,
+      },
     };
   }
   return profile;
