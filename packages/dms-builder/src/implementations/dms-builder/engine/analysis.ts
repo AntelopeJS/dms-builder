@@ -19,8 +19,10 @@ import {
   type AnalysisInput,
   type RelationFacts,
   factsOf,
+  profiledRowsOf,
   relationName,
 } from "./analysis-input";
+import { proposeTabs } from "./column-display";
 import { impliedTargetNames, titleOf } from "./analysis-names";
 import {
   type ProposedVerdict,
@@ -172,13 +174,22 @@ function proposedResource(
     leftOut: fields.leftOut,
     writes: description.writes,
   };
+  const tabs = verdict.tableView.value
+    ? proposeTabs(
+        fields.fields.map((field) => ({
+          column: field.column,
+          display: field.display?.value,
+          filterable: field.filterable.value,
+        })),
+      )
+    : undefined;
+  if (tabs) {
+    resource.tabs = { value: tabs, rule: "T1", kind: "default" };
+  }
   if (facts.rows !== null) {
     resource.rows = facts.rows;
   }
-  const counted = facts.profile?.rows;
-  const profiledRows =
-    facts.profile?.sample?.rows ??
-    (counted?.status === "ok" ? counted.value.rows : undefined);
+  const profiledRows = profiledRowsOf(facts);
   if (profiledRows !== undefined) {
     resource.profiledRows = profiledRows;
   }

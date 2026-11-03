@@ -5,6 +5,7 @@
  * profile or a sampled row, so it is safe to keep in the browser.
  */
 import type {
+	ColumnDisplay,
 	MapResourcesInput,
 	MappedField,
 	MappedRelation,
@@ -13,7 +14,9 @@ import type {
 	OpenItem,
 	ProposedField,
 	ProposedResource,
+	TabsChoice,
 } from './database-types'
+import { sentDisplay, sentTabs } from './database-display'
 import { answerFieldType } from './field-type-answer'
 
 const DRAFT_PREFIX = 'dms-builder:database:'
@@ -30,6 +33,8 @@ export interface FieldDraft {
 	filterable: boolean
 	sortable: boolean
 	searchable: boolean
+	/** How the column is drawn; null for a plain column. */
+	display: ColumnDisplay | null
 	relation: string | null
 }
 
@@ -40,6 +45,8 @@ export interface ResourceDraft {
 	writable: boolean
 	label: string | null
 	title: string
+	/** The badge column the TableView is tabbed by; null for no tabs. */
+	tabs: TabsChoice | null
 	fields: FieldDraft[]
 }
 
@@ -63,6 +70,7 @@ function fieldDraft(field: ProposedField): FieldDraft {
 		filterable: field.filterable.value,
 		sortable: field.sortable.value,
 		searchable: field.searchable.value,
+		display: field.display?.value ?? null,
 		relation: field.relation?.value ?? null,
 	}
 }
@@ -75,6 +83,7 @@ function resourceDraft(resource: ProposedResource, include: boolean): ResourceDr
 		writable: resource.writable.value,
 		label: resource.label.value,
 		title: resource.title.value,
+		tabs: resource.tabs?.value ?? null,
 		fields: resource.fields.map(fieldDraft),
 	}
 }
@@ -192,6 +201,7 @@ function mappedField(
 		mapped.relation = relation
 	} else {
 		mapped.declared = field.declared
+		mapped.display = sentDisplay(field)
 	}
 	return mapped
 }
@@ -215,6 +225,7 @@ function mappedResource(
 	if (resource.label) {
 		mapped.label = resource.label
 	}
+	mapped.tabs = resource.tableView ? sentTabs(resource) : null
 	return mapped
 }
 
@@ -597,31 +608,4 @@ export function mappedTableViewsOf(mapped: MappedRelation[]): Set<string> {
 			.filter((entry) => entry.resource.tableView.value)
 			.map((entry) => entry.resource.relation),
 	)
-}
-
-/** What each rule decides, as the workspace says it beside a choice. */
-export const RULE_SENTENCES: Record<string, string> = {
-	R1: 'The database reports this table cannot be read.',
-	R2: 'No key: it can feed stats, not a page.',
-	R3: 'It has no rows.',
-	R4: "A framework's or a migration tool's table.",
-	R5: 'It only links two other tables: for stats only.',
-	R6: 'It has a key, rows and a column that names a row: a page.',
-	R7: 'Other tables point at it but no column names a row: a page, its rows named by their key.',
-	R8: 'Dated rows and nothing that names a row: events or a log, for stats only.',
-	R9: 'Nothing in the data says what it holds.',
-	L1: 'The column whose name best fits a row name, then the first such column.',
-	L2: "From the database's comment when it is short, otherwise from the name.",
-	F1: 'No column type can read it.',
-	F2: 'Named like a secret.',
-	F3: 'The first type the column can be read as.',
-	F4: 'The database declares it points at a table with a page.',
-	F5: 'Every value matches a row of the other table, though the database does not declare it.',
-	FL: 'From what the data looks like.',
-	W1: 'Read-only until you choose otherwise.',
-	mapped: 'As it is saved now.',
-}
-
-export function ruleSentence(rule: string): string {
-	return RULE_SENTENCES[rule] ?? rule
 }

@@ -1,3 +1,4 @@
+import { interfaceNamesBuckets } from "./interface-capabilities";
 import type {
   AddQueryInput,
   OpResult,
@@ -318,6 +319,16 @@ export function compileQuery(
     })),
     ...template.validate(params, fields),
   ];
+  if (
+    params.bucket === "week" &&
+    !interfaceNamesBuckets(record.dataApiFile, "week")
+  ) {
+    issues.push({
+      pointer: "/bucket",
+      message:
+        "the installed @antelopejs/interface-dms cannot name a week for a reader; bucket by day or month, or update it",
+    });
+  }
   if (issues.length > 0) {
     return invalidIssues<never>(issues);
   }
@@ -332,7 +343,12 @@ export function compileQuery(
     template: input.template,
     params,
     chain,
-    naming: seriesNaming(params, fields, input.resource),
+    naming: seriesNaming(
+      params,
+      fields,
+      input.resource,
+      interfaceNamesBuckets(record.dataApiFile),
+    ),
     response: input.response,
     compare: input.compare,
   };

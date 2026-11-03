@@ -18,11 +18,15 @@ import type {
   ProjectConfigStep,
   AddQueryInput,
   BlockCatalog,
+  ComposePageData,
+  ComposePageInput,
   BlockPath,
   CategoryRef,
   CategorySummary,
   ConfigureBlock as ConfigureBlockContract,
   ConfigureBlockOpts,
+  ConfigureTableViewOpts,
+  TableViewSettings,
   CreateCategoryInput,
   CreatePageInput,
   CreateResourceInput,
@@ -61,6 +65,7 @@ import {
   invalidateCatalog,
   listDeclaredDataSources,
 } from "./engine/catalog";
+import { composePage } from "./engine/compose-page";
 import { addBlock, configureBlock } from "./engine/ops";
 import {
   configureCategory,
@@ -74,6 +79,7 @@ import {
   removeBlock,
 } from "./engine/ops-blocks";
 import { deletePage } from "./engine/page-delete";
+import { configureTableView } from "./engine/table-view-settings";
 import { setPageBlocks } from "./engine/page-draft";
 import { buildPageStructure } from "./engine/page-structure";
 import { previewLayout } from "./engine/preview";
@@ -286,6 +292,14 @@ export async function CreateResource(
   return createResource(input);
 }
 
+export async function ConfigureTableView(
+  page: PageRef,
+  settings: TableViewSettings,
+  opts?: ConfigureTableViewOpts,
+): Promise<OpResult<{ path: BlockPath }>> {
+  return configureTableView(page, settings, opts);
+}
+
 export async function ConfigureResource(
   ref: ResourceRef,
   patch: EditableResourceMeta,
@@ -363,6 +377,13 @@ export async function ConfigureQuery(
   return configureQuery(query, patch, opts);
 }
 
+export async function ComposePage(
+  input: ComposePageInput,
+  opts?: MutationOpts,
+): Promise<OpResult<ComposePageData>> {
+  return composePage(input, opts);
+}
+
 /**
  * The map the interface declares next to its flat exports. The core attaches an implementation to every
  * path of the declaration, so each operation is answered here as well, by the same function.
@@ -373,6 +394,7 @@ export const Operations = {
   AddModule,
   AddQuery,
   AnalyseDatabase,
+  ComposePage,
   ConfigureBlock,
   ConfigureCategory,
   ConfigureField,
@@ -381,6 +403,7 @@ export const Operations = {
   ConfigureProject,
   ConfigureQuery,
   ConfigureResource,
+  ConfigureTableView,
   CreateCategory,
   CreateLocalModule,
   CreatePage,

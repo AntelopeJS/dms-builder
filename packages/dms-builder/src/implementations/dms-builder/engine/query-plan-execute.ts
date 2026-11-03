@@ -13,11 +13,14 @@ import type {
   QueryPoint,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
-import type {
-  PlanFilter,
-  PlanGroup,
-  PlanMeasure,
-  QueryPlan,
+import {
+  DAYS_PER_YEAR,
+  DAYS_TO_UNIX_EPOCH,
+  LEAP_CYCLES,
+  type PlanFilter,
+  type PlanGroup,
+  type PlanMeasure,
+  type QueryPlan,
 } from "./query-plan";
 import { checkField, isParamBinding } from "./query-template";
 
@@ -35,6 +38,8 @@ export interface PlanValue {
   year(timezone?: string): PlanValue;
   month(timezone?: string): PlanValue;
   day(timezone?: string): PlanValue;
+  dayofyear(timezone?: string): PlanValue;
+  dayofweek(timezone?: string): PlanValue;
   mul(value: number | PlanValue): PlanValue;
   div(value: number | PlanValue): PlanValue;
   add(value: number | PlanValue): PlanValue;
@@ -155,11 +160,23 @@ function applyFilters(
 /** The same period arithmetic the emitter writes, as calls. */
 function bucketValue(row: PlanRow, group: PlanGroup): PlanValue {
   const zone = group.timezone;
-  const part = (name: "year" | "month" | "day") =>
+  const part = (name: "year" | "month" | "day" | "dayofyear" | "dayofweek") =>
     row.key(group.field)[name](zone);
   const year = part("year");
   if (group.bucket === "year") {
     return year;
+  }
+  if (group.bucket === "week") {
+    const before = year.sub(1);
+    const leapDays = LEAP_CYCLES.map((cycle) => before.div(cycle).floor());
+    return before
+      .mul(DAYS_PER_YEAR)
+      .add(leapDays[0])
+      .sub(leapDays[1])
+      .add(leapDays[2])
+      .add(part("dayofyear"))
+      .sub(part("dayofweek"))
+      .sub(DAYS_TO_UNIX_EPOCH);
   }
   if (group.bucket === "quarter") {
     return year.mul(10).add(part("month").sub(1).div(3).floor().add(1));

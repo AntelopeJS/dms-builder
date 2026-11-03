@@ -59,8 +59,7 @@ async function readProject(): Promise<void> {
 	try {
 		project.value = await api.projectModules()
 	} catch (error) {
-		const message = (error as { data?: { message?: string } }).data?.message
-		projectProblem.value = `The project's modules could not be read: ${message ?? (error instanceof Error ? error.message : String(error))}`
+		projectProblem.value = api.failure(error).detail
 	}
 }
 

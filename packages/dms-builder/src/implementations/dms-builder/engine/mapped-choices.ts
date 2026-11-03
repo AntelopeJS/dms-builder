@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
   ColumnDescription,
   RelationDescription,
@@ -10,32 +9,28 @@ import type {
   ProposedField,
   ProposedResource,
   ResourceFieldStructure,
+  TabsChoice,
 } from "@antelopejs/interface-dms-builder";
 import { catalogOf } from "./catalog-connection";
-import { mappedRecordsOf } from "./map-resources";
-import { humanized } from "./map-resources-plan";
+import { displayOfDataType } from "./column-display";
+import { humanized } from "./name-words";
+import { pageOf, propertyName, tabsColumnOf } from "./mapped-displays";
 import { mappedConnectionOfFile } from "./mapped-modules";
 import { invalidConfig } from "./ops";
+import { mappedRecordsOf, type ResourceRecord } from "./resource-index";
 import { isString } from "./scalar-guards";
-import type { ResourceRecord } from "./resource-index";
 import {
   buildResourceStructure,
   tableFieldDeclarations,
 } from "./resource-structure";
-import { joinSlug } from "./scan";
-import { findCategoryRecord, findPageRecord } from "./source-index";
+import type { PageRecord } from "./scan";
 import { isPlainObject } from "./value";
 
 /** The rule every choice read back from a mapped module cites: it is what the module holds. */
 const MAPPED_RULE = "mapped";
-const QUOTES = /^["']|["']$/g;
 
 function mapped<T>(value: T): Proposed<T> {
   return { value, rule: MAPPED_RULE, kind: "fact" };
-}
-
-function propertyName(name: string): string {
-  return name.replace(QUOTES, "");
 }
 
 interface RelationTarget {
@@ -94,6 +89,10 @@ function fieldOf(
     sortable: mapped(aspects?.sortable ?? false),
     searchable: mapped(aspects?.searchable ?? false),
   };
+  const display = displayOfDataType(aspects?.dataType);
+  if (display) {
+    field.display = mapped(display);
+  }
   const target = targetOf(aspects, sources.relations);
   if (target) {
     field.relation = { ...mapped(target), implied: false };
@@ -101,18 +100,20 @@ function fieldOf(
   return field;
 }
 
-function pageTitle(
-  connection: string,
-  record: ResourceRecord,
-): string | undefined {
-  const folder = path.dirname(record.databaseFile);
-  const name = path
-    .relative(path.dirname(path.dirname(folder)), folder)
-    .split(path.sep)
-    .join("-");
-  const category = findCategoryRecord(`pages.${connection}`);
-  const page = category && findPageRecord(joinSlug(category.fullSlug, name));
-  return page?.displayName;
+/** The tabs the page's TableView holds, when they are the ones a badge column's items write. */
+function tabsOfPage(
+  page: PageRecord | undefined,
+  fields: ProposedField[],
+): TabsChoice | undefined {
+  const column = tabsColumnOf(
+    page,
+    new Map(
+      fields.flatMap((field) =>
+        field.display ? [[field.column, field.display.value] as const] : [],
+      ),
+    ),
+  );
+  return column === undefined ? undefined : { column };
 }
 
 function sourcesOf(
@@ -162,18 +163,24 @@ function relationOf(
     (field) => field.selectable && field.name !== "_id",
   );
   const tableView = record.routes === undefined || record.routes.length > 0;
+  const page = pageOf(connection, record);
+  const fields = inModuleOrder(description, sources).map((column) =>
+    fieldOf(column, sources),
+  );
+  const tabs = tabsOfPage(page, fields);
   const resource: ProposedResource = {
     relation: `${description.schema}.${description.name}`,
     tableView: mapped(tableView),
     writable: mapped(record.routes === undefined),
     label: mapped(label ? propertyName(label.name) : null),
-    title: mapped(pageTitle(connection, record) ?? humanized(description.name)),
-    fields: inModuleOrder(description, sources).map((column) =>
-      fieldOf(column, sources),
-    ),
+    title: mapped(page?.displayName ?? humanized(description.name)),
+    fields,
     leftOut: [],
     writes: description.writes,
   };
+  if (tabs) {
+    resource.tabs = mapped(tabs);
+  }
   const keys = new Set(description.key?.columns ?? []);
   return {
     ref: record.ref,

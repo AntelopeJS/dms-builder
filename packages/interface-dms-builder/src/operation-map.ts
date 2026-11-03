@@ -1,4 +1,5 @@
 import { AnalyseDatabase, GetAnalysis, GetMapping } from "./analysis";
+import { ComposePage } from "./compose";
 import { PreviewLayout, PreviewQuery, SetPageBlocks } from "./drafts";
 import { MapResources } from "./mapping";
 import {
@@ -41,6 +42,7 @@ import {
   ListResources,
   RemoveField,
 } from "./resources";
+import { ConfigureTableView } from "./table-view";
 
 /**
  * Every operation of the builder, by the name it is exported under.
@@ -55,6 +57,7 @@ export const Operations = {
   AddModule,
   AddQuery,
   AnalyseDatabase,
+  ComposePage,
   ConfigureBlock,
   ConfigureCategory,
   ConfigureField,
@@ -63,6 +66,7 @@ export const Operations = {
   ConfigureProject,
   ConfigureQuery,
   ConfigureResource,
+  ConfigureTableView,
   CreateCategory,
   CreateLocalModule,
   CreatePage,

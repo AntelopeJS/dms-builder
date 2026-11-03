@@ -86,6 +86,8 @@ function value(text: string): PlanValue & Transcript {
     year: call("year"),
     month: call("month"),
     day: call("day"),
+    dayofyear: call("dayofyear"),
+    dayofweek: call("dayofweek"),
     mul: call("mul"),
     div: call("div"),
     add: call("add"),
@@ -243,7 +245,7 @@ describe("running a plan", () => {
     expect(executed).to.equal(written);
   });
 
-  for (const bucket of ["day", "month", "quarter", "year"] as const) {
+  for (const bucket of ["day", "week", "month", "quarter", "year"] as const) {
     it(`buckets by ${bucket} the same way`, () => {
       const { executed, written } = renderings({
         filters: [],

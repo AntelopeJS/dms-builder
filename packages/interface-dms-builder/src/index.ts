@@ -1,6 +1,7 @@
 export * from "./addressing";
 export * from "./analysis";
 export * from "./catalog";
+export * from "./compose";
 export * from "./drafts";
 export * from "./mapping";
 export * from "./operation-map";
@@ -10,4 +11,5 @@ export * from "./queries";
 export * from "./resources";
 export * from "./results";
 export * from "./structure";
+export * from "./table-view";
 export * from "./values";

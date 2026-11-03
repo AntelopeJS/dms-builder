@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
 	type DevReloadWaiter,
 	openWhenServed,
-	type WaitFailure,
 } from '../app/runtime/dev-reload'
 
 /**
@@ -80,7 +79,7 @@ describe('openWhenServed', () => {
 
 	it('reports a waiter that throws and still navigates', async () => {
 		const push = vi.fn()
-		const failures: WaitFailure[] = []
+		const failures: unknown[] = []
 		const { waiter, fail } = controlledWaiter()
 		const opened = openWhenServed(
 			{
@@ -91,11 +90,10 @@ describe('openWhenServed', () => {
 			'/reports/broken',
 		)
 
-		fail('/reports/broken', new Error('host unreachable'))
+		const error = new Error('host unreachable')
+		fail('/reports/broken', error)
 		await opened
-		expect(failures).toEqual([
-			{ code: 'unsupported', detail: 'host unreachable' },
-		])
+		expect(failures).toEqual([error])
 		expect(push).toHaveBeenCalledExactlyOnceWith('/reports/broken')
 	})
 
@@ -119,8 +117,8 @@ describe('openWhenServed', () => {
 		expect(push).not.toHaveBeenCalled()
 	})
 
-	it('describes a non-Error rejection without losing it', async () => {
-		const failures: WaitFailure[] = []
+	it('forwards a non-Error rejection without losing it', async () => {
+		const failures: unknown[] = []
 		await openWhenServed(
 			{
 				devReload: { awaitRoute: () => Promise.reject('nope') },
@@ -129,6 +127,6 @@ describe('openWhenServed', () => {
 			},
 			'/reports/odd',
 		)
-		expect(failures).toEqual([{ code: 'unsupported', detail: 'nope' }])
+		expect(failures).toEqual(['nope'])
 	})
 })
