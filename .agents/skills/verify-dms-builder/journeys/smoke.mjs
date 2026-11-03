@@ -35,7 +35,7 @@ export const journeys = guarded([
       await ctx.verify("the source holds the new title", [
         check("the card's title is the new one", after.text.includes('title: "Revenue invoiced"'), "page.ts"),
         check("the old title is gone from the card", !after.text.includes('title: "Revenue",'), "page.ts"),
-        check("the rest of the file is untouched (same number of lines within the card)", Math.abs(after.text.split("\n").length - before.text.split("\n").length) <= 2, `${before.text.split("\n").length} -> ${after.text.split("\n").length}`),
+        check("the other blocks are still in the file", ["Orders by status", "Chart card 3", "New order", "Form 2"].every((title) => after.text.includes(title)), "page.ts"),
       ]);
       const structure = await builder(ctx, "read the page structure", "GET", `/page?ref=${encodeURIComponent(BOARD)}`);
       const blocks = list(structure.body, "data", "blocks");
