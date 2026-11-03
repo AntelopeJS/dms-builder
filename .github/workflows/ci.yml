@@ -28,6 +28,7 @@ jobs:
     with:
       docs-files: |
         README.md
+        docs
         packages/dms-builder/README.md
         packages/dms-builder/docs
         packages/interface-dms-builder/README.md

@@ -11,7 +11,7 @@
 
 </div>
 
-![The builder open on a page, with the block catalog, the canvas and a chart card's settings](./packages/dms-builder/docs/images/editor-selected.png)
+![The builder open on the Helio dashboard, with the block catalog, the canvas and the settings of the Revenue invoiced KPI card](./packages/dms-builder/docs/images/captures/editor-selected.webp)
 
 ## What it does
 
