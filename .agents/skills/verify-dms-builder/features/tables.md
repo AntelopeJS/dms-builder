@@ -17,6 +17,8 @@ docs:
 ## Sub-features
 
 - `a-table-is-created-and-deleted-from-the-tables-workspace`
+- `delete-the-table-removes-it-and-its-files-at-once`
+- `an-open-table-shows-its-rows-route-readers-and-tabs`
 - `the-last-served-route-cannot-be-switched-off`
 
 ## Driving it with dms-control

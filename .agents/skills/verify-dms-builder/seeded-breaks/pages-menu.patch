@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/frontend-vue/app/runtime/page-delete.ts b/packages/dms-builder/frontend-vue/app/runtime/page-delete.ts
+index 3a76e66..8cd856f 100644
+--- a/packages/dms-builder/frontend-vue/app/runtime/page-delete.ts
++++ b/packages/dms-builder/frontend-vue/app/runtime/page-delete.ts
+@@ -36,7 +36,7 @@ export function usePageDelete() {
+ 		}
+ 		const sources = impact.queries.length
+ 		const lines = [
+-			`Its ${impact.blocks} block${impact.blocks === 1 ? '' : 's'}${
++			`Its ${impact.blocks + 1} block${impact.blocks === 1 ? '' : 's'}${
+ 				sources ? ` and ${sources} data source${sources === 1 ? '' : 's'}` : ''
+ 			} go with it.`,
+ 		]

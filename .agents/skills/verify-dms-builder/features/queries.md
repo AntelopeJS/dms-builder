@@ -15,6 +15,7 @@ covers:
   - packages/dms-builder/src/implementations/dms-builder/engine/query-template.ts
   - packages/dms-builder/src/implementations/dms-builder/engine/query-where.ts
   - packages/dms-builder/src/implementations/dms-builder/engine/model-methods-keep.ts
+  - packages/interface-dms-builder/src/queries.ts
 docs:
   - packages/interface-dms-builder/docs/6.queries.md
   - packages/interface-dms-builder/docs/9.drafts-and-preview.md
@@ -24,8 +25,9 @@ docs:
 
 ## Sub-features
 
-- `preview-query-answers-exact-figures-from-the-seeded-orders`: ListQueryTemplates and PreviewQuery.
-- `add-configure-and-remove-a-query-write-a-route-and-a-model-method`: AddQuery, ConfigureQuery, RemoveQuery.
+- `preview-query-answers-exact-figures-from-the-seeded-orders`
+- `preview-validates-parameters-as-add-query-does`
+- `add-configure-and-remove-a-query-write-a-route-and-a-model-method`
 
 ## Driving it with dms-control
 

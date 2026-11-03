@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/src/index.ts b/packages/dms-builder/src/index.ts
+index 8d2ec30..2ad332e 100644
+--- a/packages/dms-builder/src/index.ts
++++ b/packages/dms-builder/src/index.ts
+@@ -22,7 +22,7 @@ export async function construct(config?: DmsBuilderConfig): Promise<void> {
+     await import("@antelopejs/interface-dms-builder"),
+     await import("./implementations/dms-builder"),
+   );
+-  if (await isBuilderEnabled()) {
++  if (!(await isBuilderEnabled())) {
+     await import("./routes");
+   }
+ }

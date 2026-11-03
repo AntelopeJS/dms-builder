@@ -1,0 +1,11 @@
+diff --git a/packages/dms-builder/src/implementations/dms-builder/engine/emit.ts b/packages/dms-builder/src/implementations/dms-builder/engine/emit.ts
+index 9a3e357..a71a679 100644
+--- a/packages/dms-builder/src/implementations/dms-builder/engine/emit.ts
++++ b/packages/dms-builder/src/implementations/dms-builder/engine/emit.ts
+@@ -1,5 +1,6 @@
+ import path from "node:path";
+ import type {
++  ConfigValue as Unused,
+   ConfigObject,
+   ImportRef,
+ } from "@antelopejs/interface-dms-builder";

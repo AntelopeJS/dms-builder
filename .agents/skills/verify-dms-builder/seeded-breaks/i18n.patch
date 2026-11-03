@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/frontend-vue/i18n/locales/builder-fr-FR.json b/packages/dms-builder/frontend-vue/i18n/locales/builder-fr-FR.json
+index de378f2..569d132 100644
+--- a/packages/dms-builder/frontend-vue/i18n/locales/builder-fr-FR.json
++++ b/packages/dms-builder/frontend-vue/i18n/locales/builder-fr-FR.json
+@@ -1,7 +1,7 @@
+ {
+ 	"dms_builder": {
+ 		"action": {
+-			"edit_page": "Builder — modifier cette page"
++			"edit_page_x": "Builder — modifier cette page"
+ 		},
+ 		"bar": {
+ 			"editing": "Édition",

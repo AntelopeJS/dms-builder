@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/src/routes/builder.ts b/packages/dms-builder/src/routes/builder.ts
+index 7f4fa2d..c1cd7dc 100644
+--- a/packages/dms-builder/src/routes/builder.ts
++++ b/packages/dms-builder/src/routes/builder.ts
+@@ -221,7 +221,7 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
+     @Parameter("ref", "query") ref: string,
+   ) {
+     const impact = pageImpact(ref);
+-    return impact ?? new HTTPResult(404, { code: "not_found", ref });
++    return impact ?? new HTTPResult(200, { code: "not_found", ref });
+   }
+ 
+   /**

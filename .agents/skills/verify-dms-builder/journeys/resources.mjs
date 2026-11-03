@@ -136,6 +136,7 @@ export const journeys = guarded([
     entryPoint: "DeleteResource",
     async run(/** @type {Ctx} */ ctx) {
       await operation(ctx, "product", "CreateResource", { name: "product", fields: [{ name: "title", dataType: STRING }] });
+      await operation(ctx, "a neighbour", "CreateResource", { name: "keeper", fields: [{ name: "title", dataType: STRING }] });
       const stale = await operation(ctx, "stale", "DeleteResource", "product", { expectedVersion: "0000" });
       await ctx.verify("a stale version is refused and nothing is deleted", [failsWith("stale", stale, "stale"), check("the files remain", projectHas(ctx, "src/product/database.ts"), "files")]);
       const removed = await operation(ctx, "delete", "DeleteResource", "product");
@@ -143,6 +144,7 @@ export const journeys = guarded([
         check("ok", removed.ok, removed.raw),
         check("no file is left under src/product", projectFiles(ctx, "src/product").length === 0, projectFiles(ctx, "src/product")),
         check("the barrel does not export it", !readProject(ctx, "the barrel", "src/index.ts").text.includes("./product"), "barrel"),
+        check("the neighbouring resource keeps its three files", projectFiles(ctx, "src/keeper").length === 3, projectFiles(ctx, "src/keeper")),
         check("ListResources does not list it", !list((await operation(ctx, "list", "ListResources")).raw).some((row) => text(row, "ref") === "product"), "list"),
       ]);
       const missing = await operation(ctx, "again", "DeleteResource", "product");

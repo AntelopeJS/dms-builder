@@ -16,10 +16,10 @@ docs:
 
 ## Sub-features
 
-- `every-route-needs-a-tenant-owner`: authentication on every route.
-- `lists-answer-their-value-and-mutations-answer-an-op-result`: the answer shapes.
-- `the-builder-follows-api-enabled-and-the-start-mode`: `api.enabled` under `ajs project start`.
-- `project-root-decides-where-the-builder-writes`: `projectRoot`.
+- `every-route-needs-a-tenant-owner`
+- `lists-answer-their-value-and-mutations-answer-an-op-result`
+- `the-builder-follows-api-enabled-and-the-start-mode`
+- `project-root-decides-where-the-builder-writes`
 
 ## Driving it with dms-control
 

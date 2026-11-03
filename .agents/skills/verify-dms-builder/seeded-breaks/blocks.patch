@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/src/implementations/dms-builder/engine/ops-blocks.ts b/packages/dms-builder/src/implementations/dms-builder/engine/ops-blocks.ts
+index c5e6a8b..3df219d 100644
+--- a/packages/dms-builder/src/implementations/dms-builder/engine/ops-blocks.ts
++++ b/packages/dms-builder/src/implementations/dms-builder/engine/ops-blocks.ts
+@@ -176,7 +176,7 @@ export function moveBlock(
+   const [moved] = args.splice(sourceIndex, 1);
+   if (destParsed.segments.join("/") === sourceParentSegments.join("/")) {
+     const { index, warnings } = clampIndex(dest.index, args.length);
+-    args.splice(index, 0, moved);
++    args.splice(sourceIndex, 0, moved);
+     setChildren(source.target, args);
+     return commit(transaction, undefined, warnings);
+   }

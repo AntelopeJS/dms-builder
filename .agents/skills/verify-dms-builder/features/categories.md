@@ -9,8 +9,8 @@ docs:
 
 ## Sub-features
 
-- `a-category-is-written-beside-the-root-barrel`: CreateCategory and ListCategories.
-- `configure-and-delete-follow-the-documented-refusals`: ConfigureCategory and DeleteCategory.
+- `a-category-is-written-beside-the-root-barrel`
+- `configure-and-delete-follow-the-documented-refusals`
 
 ## Driving it with dms-control
 

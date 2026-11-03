@@ -1,0 +1,11 @@
+diff --git a/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts b/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts
+index db64fe3..8e3de36 100644
+--- a/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts
++++ b/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts
+@@ -1,5 +1,5 @@
+ /**
+- * Deleting a page: its class, whatever only the class used, and its file once
++ * Deleting a page: its class, whatever only the class used, and its file when
+  * nothing else is left in it.
+  */
+ 

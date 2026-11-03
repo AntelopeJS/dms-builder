@@ -20,7 +20,7 @@ docs:
 
 ## Sub-features
 
-- `the-catalog-describes-block-types-and-data-types`: GetCatalog, RefreshSourceIndex, ListDataSources.
+- `the-catalog-describes-block-types-and-data-types`
 
 ## Driving it with dms-control
 

@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/src/implementations/dms-builder/engine/resource-structure.ts b/packages/dms-builder/src/implementations/dms-builder/engine/resource-structure.ts
+index b4ceee4..762eb32 100644
+--- a/packages/dms-builder/src/implementations/dms-builder/engine/resource-structure.ts
++++ b/packages/dms-builder/src/implementations/dms-builder/engine/resource-structure.ts
+@@ -273,7 +273,7 @@ export function readDataApiFieldAspects(
+       label: getStringProperty(columnArg, "name") ?? name,
+       listable,
+       selectable,
+-      searchable: prop.getDecorator("Searchable") !== undefined,
++      searchable: prop.getDecorator("Searchable") === undefined,
+       sortable: prop.getDecorator("Sortable") !== undefined,
+       filterable: getBooleanProperty(columnArg, "filterable") ?? false,
+       access: accessMode(prop),

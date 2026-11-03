@@ -1,0 +1,13 @@
+diff --git a/packages/interface-dms-builder/package.json b/packages/interface-dms-builder/package.json
+index 4abd89b..667949a 100644
+--- a/packages/interface-dms-builder/package.json
++++ b/packages/interface-dms-builder/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "@antelopejs/interface-dms-builder",
+   "version": "0.3.0",
+-  "description": "AntelopeJS interface for the DMS builder: create and edit pages, blocks, resources and queries in a DMS project from another module.",
++  "description": "AntelopeJS interface for the DMS builder: create and edit pages, blocks, resources and queries in a DMS project from another module (changed).",
+   "keywords": [
+     "antelopejs",
+     "builder",

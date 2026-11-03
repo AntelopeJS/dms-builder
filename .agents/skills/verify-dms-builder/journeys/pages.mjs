@@ -104,11 +104,13 @@ export const journeys = guarded([
       await operation(ctx, "touch", "ConfigurePage", "/shop/scrap", { order: 2 });
       const stale = await operation(ctx, "stale delete", "DeletePage", "/shop/scrap", { expectedVersion: version });
       await ctx.verify("a stale delete is refused", [failsWith("stale", stale, "stale"), check("the file is still there", projectHas(ctx, "src/scrap.ts"), "file")]);
+      const boardBefore = readProject(ctx, "the board", "src/board/page.ts").text;
       const gone = await operation(ctx, "delete", "DeletePage", "/shop/scrap");
       await ctx.verify("the page is gone", [
         check("ok", gone.ok, gone.raw),
         check("the file is deleted", !projectHas(ctx, "src/scrap.ts"), "file"),
         check("the barrel no longer exports it", !readProject(ctx, "the barrel", "src/index.ts").text.includes("scrap"), "barrel"),
+        check("the neighbouring page file is untouched", readProject(ctx, "the board", "src/board/page.ts").text === boardBefore && projectHas(ctx, "src/board/page.ts"), "board"),
         check("ListPages no longer lists it", !list((await operation(ctx, "list", "ListPages")).raw).some((row) => text(row, "ref") === "/shop/scrap"), "list"),
       ]);
       const again = await operation(ctx, "delete again", "DeletePage", "/shop/scrap");
