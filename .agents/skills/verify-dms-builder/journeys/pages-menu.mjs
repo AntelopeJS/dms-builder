@@ -71,16 +71,17 @@ export const journeys = guarded([
       const categories = await operation(ctx, "list", "ListCategories");
       await ctx.verify("the category is written at once", [check("Reports exists under pages", list(categories.raw).some((row) => text(row, "displayName") === "Reports" && text(row, "parent") === "pages"), categories.raw)]);
       await ctx.verify("only an empty category offers its deletion", [
-        check("Delete Empty shows for the empty category", await tab.page.getByRole("button", { name: "Delete Empty", exact: true }).count() === 1, "buttons"),
+        tab.visible({ role: "button", name: "Delete Empty", exact: true }, { timeoutMs: 20_000 }),
         check("and Delete Shop does not show for the category that holds pages", await tab.page.getByRole("button", { name: "Delete Shop", exact: true }).count() === 0, "shop"),
       ]);
       await tab.page.getByRole("button", { name: "Delete Scrap" }).click();
+      await tab.shows(/cannot undo this/i, { timeoutMs: 20_000 });
       const body = await tab.page.locator("body").innerText();
       await ctx.verify("the confirmation says what leaves with the page", [
         tab.visible({ role: "button", name: "Delete the page", exact: true }),
         tab.visible({ role: "button", name: "Keep it", exact: true }),
-        check("it names the page and counts its blocks", body.includes("Delete Scrap?") && /Its 0 blocks go with it/.test(body), body.slice(0, 200)),
-        check("it says the builder cannot undo it", /cannot undo this/.test(body), body.slice(0, 200)),
+        check("it names the page and counts its blocks", /Delete Scrap\?/i.test(body) && /Its 0 blocks go with it/i.test(body), body.slice(0, 200)),
+        check("it says the builder cannot undo it", /cannot undo this/i.test(body), body.slice(0, 200)),
       ]);
       await tab.page.getByRole("button", { name: "Keep it", exact: true }).click();
       const kept = await operation(ctx, "list", "ListPages");

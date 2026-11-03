@@ -19,7 +19,7 @@ export const journeys = guarded([
       const tab = await ctx.tab();
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
-      await tab.page.getByRole("radio", { name: "Data" }).check();
+      await tab.page.getByRole("radio", { name: "Data", exact: true }).check();
       const before = await tab.page.locator("body").innerText();
       await ctx.verify("the Data workspace reads the source as a sentence", [
         check("it counts one source on this page", /1 on this page/.test(before), before.slice(0, 500)),

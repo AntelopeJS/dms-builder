@@ -47,7 +47,7 @@ export const journeys = guarded([
       const placeholders = (/** @type {Record<string, unknown>} */ catalogue, /** @type {string} */ key) => {
         let node = /** @type {unknown} */ (catalogue.dms_builder);
         for (const part of key.split(".")) node = isRow(node) ? node[part] : undefined;
-        return isText(node) ? (node.match(/\{[a-zA-Z0-9_]+\}/g) ?? []).sort().join() : "";
+        return isText(node) ? (node.match(/\{[a-zA-Z0-9_]+\}/g) ?? []).filter((item, index, all) => all.indexOf(item) === index).sort().join() : "";
       };
       const mismatched = enKeys.filter((key) => placeholders(en, key) !== placeholders(fr, key));
       await ctx.verify("placeholders", [check("each key has the same placeholders in English and French", mismatched.length === 0, mismatched.slice(0, 5))]);

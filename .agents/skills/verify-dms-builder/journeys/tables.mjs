@@ -17,7 +17,7 @@ export const journeys = guarded([
       await tab.page.getByRole("button", { name: "New table" }).click();
       await tab.page.getByRole("textbox", { name: "Name" }).fill("invoice");
       await tab.page.getByRole("button", { name: "Create table" }).click();
-      await tab.page.waitForTimeout(3500);
+      for (let poll = 0; poll < 40 && projectFiles(ctx, "src/invoice").length < 3; poll += 1) await tab.page.waitForTimeout(1000);
       const files = projectFiles(ctx, "src/invoice");
       const structure = await operation(ctx, "read", "GetResourceStructure", "invoice");
       await ctx.verify("the table is written at once", [
@@ -25,6 +25,7 @@ export const journeys = guarded([
         check("one field, Title", list(structure.data, "fields").length === 1, list(structure.data, "fields")),
       ], { critical: true });
       await tab.page.getByRole("button", { name: /^invoice/ }).click();
+      await tab.visible({ role: "tab", name: "Settings" }, { timeoutMs: 20_000 });
       await tab.page.getByRole("tab", { name: "Settings" }).click();
       const confirm = tab.page.getByRole("textbox", { name: /to confirm/ });
       const remove = tab.page.getByRole("button", { name: "Delete the table and its rows" });
@@ -69,7 +70,7 @@ export const journeys = guarded([
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
       await tab.page.getByRole("radio", { name: "Tables" }).check();
-      await ctx.verify("the list line", [tab.visible({ role: "button", name: "order 3 fields · 1 page" }, { timeoutMs: 30_000 }), tab.shows(/1 table/)]);
+      await ctx.verify("the list line", [tab.visible({ role: "button", name: "order 3 fields · 1 page" }, { timeoutMs: 30_000 }), tab.shows(/Table\s*1/i)]);
       await tab.page.getByRole("button", { name: /^order/ }).click();
       await ctx.verify("the open table", [
         tab.shows(/18 rows · served at \/api\/order · read by Board/),
@@ -91,6 +92,7 @@ export const journeys = guarded([
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
       await tab.page.getByRole("radio", { name: "Tables" }).check();
+      await tab.visible({ role: "button", name: /^settings-box/ }, { timeoutMs: 60_000 });
       await tab.page.getByRole("button", { name: /^settings-box/ }).click();
       await tab.page.getByRole("tab", { name: "API" }).click();
       const read = tab.page.getByRole("switch", { name: "Read", exact: true });

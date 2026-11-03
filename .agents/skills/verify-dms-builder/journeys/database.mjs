@@ -1,5 +1,5 @@
 import { guarded } from "../guard.mjs";
-import { builder, check, list, pick, text } from "../builder.mjs";
+import { builder, check, pick, text } from "../builder.mjs";
 
 /** @typedef {import("../builder.mjs").Ctx} Ctx */
 
@@ -18,7 +18,7 @@ export const journeys = guarded([
       const mapping = await builder(ctx, "mapping of an unknown connection", "GET", "/database/mapping?connection=nope&module=nope");
       await ctx.verify("the reads", [
         check("connections is an empty list", connections.status === 200 && Array.isArray(connections.body) && connections.body.length === 0, connections),
-        check("project answers modules", project.status === 200 && Array.isArray(pick(project.body, "modules")) && list(project.body, "modules").length > 0, project),
+        check("project answers modules", project.status === 200 && Array.isArray(pick(project.body, "modules")) && (/** @type {unknown[]} */ (pick(project.body, "modules"))).includes("dms-builder"), project),
         check("an unknown analysis connection is 404", analysis.status === 404, analysis),
         check("an unknown analysis id is 404", analysisById.status === 404, analysisById),
         check("an unknown connection is 404", connection.status === 404, connection),
@@ -46,7 +46,7 @@ export const journeys = guarded([
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
       await tab.page.getByRole("radio", { name: "Database" }).check();
-      await ctx.verify("the workspace opens", [check("it speaks about connecting a database", /connect/i.test(await tab.page.locator("body").innerText()), (await tab.page.locator("body").innerText()).slice(0, 300)), tab.visible({ role: "radio", name: "Database" })]);
+      await ctx.verify("the workspace opens", [tab.visible({ role: "button", name: "Connect a database" }, { timeoutMs: 20_000 }), tab.shows(/No database is connected to the builder yet\./)]);
     },
   },
 ]);

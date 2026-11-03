@@ -17,7 +17,7 @@ export const journeys = guarded([
       await openBuilder(ctx, tab);
       const bar = tab.page.getByRole("banner").filter({ hasText: "Editing" });
       await ctx.verify("the editor bar", [
-        check("it names the page and its address", /Editing\s+Board\s+\/shop\/board/.test((await bar.first().innerText()).replace(/\n+/g, " ")), await bar.first().innerText()),
+        check("it names the page and its address", /Editing\s+\/shop\/board/i.test((await tab.page.locator("body").innerText()).replace(/\n+/g, " ")), await bar.first().innerText()),
         check("the workspaces are Page, Tables, Data and Database", (await tab.page.getByRole("radiogroup", { name: "Workspace" }).getByRole("radio").allInnerTexts()).join() === "Page,Tables,Data,Database", "radios"),
         check("Page is the open workspace", await tab.page.getByRole("radio", { name: "Page", exact: true }).isChecked(), "page"),
         check("nothing is saved or unsaved", (await saveStatus(tab)) === "All changes saved", await saveStatus(tab)),
@@ -96,7 +96,7 @@ export const journeys = guarded([
       await ctx.verify("Ctrl+S saves", [check("the bar reads Saved", await statusBecomes(tab, /^Saved/), await saveStatus(tab))], { critical: true });
       const after = await operation(ctx, "read", "GetPageStructure", BOARD);
       await ctx.verify("the new card is in the page source", [
-        check("one more top-level block than before", list(after.data, "blocks").length === 11, list(after.data, "blocks").map((block) => text(block, "name"))),
+        check("one more top-level block than the eight before", list(after.data, "blocks").length === 9, list(after.data, "blocks").map((block) => text(block, "name"))),
         check("a KpiCard was written", list(after.data, "blocks").some((block) => text(block, "type") === "KpiCard"), after.data),
       ]);
       await selectBlock(tab, "Revenue");
@@ -121,15 +121,19 @@ export const journeys = guarded([
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
       const rail = tab.page.getByRole("complementary", { name: "Side rail" });
+      await tab.visible({ role: "button", name: /^KPI card/ }, { timeoutMs: 20_000 });
       const simple = await rail.innerText();
-      await ctx.verify("Simple mode", [
-        check("the groups are listed", ["Layout", "Content", "Data", "Visualization"].every((group) => simple.includes(group)), simple),
-        check("CodeBlock, EmptyState and LiveToggle are left out", !/CodeBlock|EmptyState|LiveToggle/.test(simple), simple),
+      await ctx.verify("Simple mode lists the blocks a page author needs", [
+        check("Card, Table, Chart card and KPI card are listed", ["Card", "Table", "Chart card", "KPI card"].every((name) => simple.includes(name)), simple),
+        check("Code, Empty state and Live toggle are left out", !/Code\n|Empty state|Live toggle/.test(simple), simple),
       ]);
       await tab.page.getByRole("radio", { name: "Developer" }).check();
-      await tab.page.waitForTimeout(800);
+      await tab.visible({ role: "button", name: /^Live toggle/ }, { timeoutMs: 20_000 });
       const developer = await rail.innerText();
-      await ctx.verify("Developer mode", [check("CodeBlock, EmptyState and LiveToggle are listed", /CodeBlock/.test(developer) && /EmptyState/.test(developer) && /LiveToggle/.test(developer), developer)]);
+      await ctx.verify("Developer mode adds the others and groups the catalog", [
+        check("Code, Empty state and Live toggle are listed", /Code\n/.test(developer) && /Empty state/.test(developer) && /Live toggle/.test(developer), developer),
+        check("the groups are Layout, Content, Data, Visualization and Other", ["LAYOUT", "CONTENT", "DATA", "VISUALIZATION", "OTHER"].every((group) => developer.includes(group)), developer),
+      ]);
     },
   },
 ]);

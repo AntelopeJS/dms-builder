@@ -26,18 +26,20 @@ export const journeys = guarded([
       await openBuilder(ctx, tab);
       await retitleRevenue(tab, "Revenue invoiced");
       await tab.page.getByRole("button", { name: /1 unsaved change/ }).click();
+      await tab.shows(/On save/, { timeoutMs: 20_000 });
       const panel = inspector(tab);
       const body = await panel.innerText();
       await ctx.verify("the change list", [
         check("the edit is grouped under This page", /This page/.test(body) && /Revenue invoiced/.test(body), body),
         check("On save lists the three steps in order", body.indexOf("Every block has its required settings") >= 0 && body.indexOf("Check the page compiles") > body.indexOf("Every block has its required settings") && body.indexOf("Write the files, then reload the page") > body.indexOf("Check the page compiles"), body),
-        tab.visible({ role: "button", name: "Put this one back" }),
+        tab.visible({ role: "button", name: /^Revert/ }),
         tab.visible({ role: "button", name: "Discard all…" }),
       ]);
-      await tab.page.getByRole("button", { name: "Put this one back" }).first().click();
-      await ctx.verify("Put this one back reverts that edit", [check("all changes saved again", await statusBecomes(tab, /^All changes saved$/, 15_000), await saveStatus(tab))]);
+      await tab.page.getByRole("button", { name: /^Revert/ }).first().click();
+      await ctx.verify("Revert reverts that edit", [check("all changes saved again", await statusBecomes(tab, /^All changes saved$/, 15_000), await saveStatus(tab))]);
       await retitleRevenue(tab, "Revenue 2");
       await tab.page.getByRole("button", { name: /1 unsaved change/ }).click();
+      await tab.visible({ role: "button", name: "Discard all…" }, { timeoutMs: 20_000 });
       await tab.page.getByRole("button", { name: "Discard all…" }).click();
       await tab.page.getByRole("button", { name: /^Discard/ }).last().click();
       await ctx.verify("Discard all drops the draft and writes nothing", [
@@ -68,6 +70,8 @@ export const journeys = guarded([
       ]);
       await tab.page.getByRole("button", { name: "Keep my version" }).click();
       await ctx.verify("Keep my version writes nothing by itself", [check("the source still has the old title", !readProject(ctx, "the board", PAGE_FILE).text.includes('title: "Mine"'), "board")]);
+      await tab.shows(/This page changed outside the builder since it was opened\./, { not: true, timeoutMs: 30_000 });
+      await tab.page.waitForTimeout(2000);
       await tab.page.getByRole("button", { name: "Save", exact: true }).click();
       await ctx.verify("the next Save writes the draft over the outside change", [
         check("Saved", await statusBecomes(tab, /^Saved/), await saveStatus(tab)),
@@ -105,7 +109,7 @@ export const journeys = guarded([
       const tab = await ctx.tab();
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
-      const eye = tab.page.getByRole("button", { name: /View as/ });
+      const eye = tab.page.getByRole("button", { name: "View the page as a role" });
       await ctx.verify("the menu exists because the workspace has roles", [check("View as is in the bar", (await eye.count()) >= 1, "bar")]);
       await eye.first().click();
       await tab.page.getByRole("menuitem", { name: /viewer/i }).first().click();
