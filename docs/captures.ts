@@ -17,7 +17,7 @@ const OPEN_BUILDER = [
 export default [
   {
     id: "onboarding",
-    route: "/onboarding",
+    route: "/onboarding?token=helio-capture-setup-token",
     setup: true,
     steps: [
       { action: "fill", selector: 'input[name="name"]', value: "Helio" },
