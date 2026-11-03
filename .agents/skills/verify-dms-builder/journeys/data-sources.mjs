@@ -25,13 +25,16 @@ export const journeys = guarded([
         check("Remove the source stays disabled while a block reads it", await tab.page.getByRole("button", { name: "Remove the source" }).isDisabled(), "button"),
       ]);
       await tab.page.getByRole("button", { name: "New data source" }).click();
-      await tab.page.waitForTimeout(1200);
-      const after = await tab.page.locator("body").innerText();
-      await ctx.verify("a source was added", [
-        check("it carries the unsaved badge", /unsaved/i.test(after), after.slice(0, 600)),
-        check("it shows where it answers", /Answers at/i.test(after), after.slice(0, 600)),
-        check("it lists no block as reading it", /Used by/i.test(after), after.slice(0, 600)),
+      await tab.visible({ role: "button", name: "Add the source" }, { timeoutMs: 20_000 });
+      const form = await tab.page.locator("body").innerText();
+      await ctx.verify("New data source asks for a name, a table and a measure", [
+        check("the name is a route name", /Names its route: letters and digits, starting with a letter\./.test(form), form.slice(0, 600)),
+        check("it picks a table and a measure that starts on Count", /From\s+Pick a table…/.test(form) && /Measure\s+Count/.test(form), form.slice(0, 600)),
+        check("Add the source is disabled until it is filled", await tab.page.getByRole("button", { name: "Add the source" }).isDisabled(), "button"),
+        check("the sources are written with the next save", /its route is written with the next save/i.test(form), form.slice(0, 900)),
       ]);
+      await tab.page.getByRole("button", { name: "Cancel" }).click();
+      await ctx.verify("Cancel adds nothing", [tab.shows(/2 on this page/i), check("the bar still says all changes saved", /All changes saved/.test(await tab.page.locator("body").innerText()), "bar")]);
     },
   },
 ]);
