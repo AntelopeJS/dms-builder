@@ -40,5 +40,10 @@
     "overrides": {
       "@antelopejs/tooling-configs": "file:.campaign/tgz/antelopejs-tooling-configs-dab0aea.tgz"
     }
+  },
+  "antelopeJs": {
+    "docs": {
+      "standard": true
+    }
   }
 }
