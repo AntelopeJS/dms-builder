@@ -106,6 +106,7 @@
 			"copied_block": "Copied the block as JSON",
 			"configuration_applied": "Configuration applied",
 			"copied": "Copied to the clipboard",
+			"copy_failed": "Could not copy to the clipboard",
 			"tab_duplicated": "Tab duplicated",
 			"tab_deleted": "Tab deleted",
 			"locked": "This setting or placement is managed in code and cannot be changed here",
