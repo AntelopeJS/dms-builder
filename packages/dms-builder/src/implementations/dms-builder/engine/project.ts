@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { IndentationText, Project, ts } from "ts-morph";
 import { getModuleConfig } from "../../../config";
+import { isNumber } from "./scalar-guards";
+import { isPlainObject } from "./value";
 
 /**
  * The compiler options of the DMS project template, for a project that has no `tsconfig.json`: a
@@ -182,24 +184,28 @@ function formatterIndentation(rootDir: string): IndentationText | undefined {
   if (!config) {
     return undefined;
   }
-  let parsed: Record<string, unknown>;
+  let parsed: unknown;
   try {
     const text = fs
       .readFileSync(config, "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:"])\/\/.*$/gm, "$1");
-    parsed = JSON.parse(text) as Record<string, unknown>;
+    parsed = JSON.parse(text);
   } catch {
     return undefined;
   }
-  const formatter = (parsed.formatter ?? parsed) as Record<string, unknown>;
+  if (!isPlainObject(parsed)) {
+    return undefined;
+  }
+  const nested = parsed.formatter ?? parsed;
+  const formatter = isPlainObject(nested) ? nested : {};
   const style =
     formatter.indentStyle ?? (formatter.useTabs ? "tab" : undefined);
   if (style === "tab" || parsed.useTabs === true) {
     return IndentationText.Tab;
   }
   const width = formatter.indentWidth ?? parsed.tabWidth;
-  if (style === "space" || typeof width === "number") {
+  if (style === "space" || isNumber(width)) {
     return width === 4 ? IndentationText.FourSpaces : IndentationText.TwoSpaces;
   }
   return undefined;

@@ -9,26 +9,31 @@
  */
 
 import type {
+  ConfigValue,
   FilterOp,
   OpWarning,
   QueryParamBinding,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import { indentationText, resolveProjectRoot } from "./project";
+import { filterOpNamed } from "./query-chain";
 import {
   type CompiledChain,
   checkField,
   fallbackTypeWarning,
   isParamBinding,
   type MethodParam,
+  unvalidatedParam,
 } from "./query-template";
+import { isString } from "./scalar-guards";
+import { isPlainObject } from "./value";
 
 /** One conjunct of the plan's row selection. Filters combine with AND. */
 export interface PlanFilter {
   field: string;
   op: FilterOp;
   /** A literal baked into the chain, or a value the route supplies per request. */
-  value: unknown;
+  value: ConfigValue;
 }
 
 /** What the plan computes over the rows it selected. */
@@ -84,22 +89,26 @@ export interface QueryPlan {
   limit?: number;
 }
 
-/** Read a template's `where` parameter as the plan's filters. */
-export function planFilters(where: unknown): PlanFilter[] {
+/**
+ * Read a template's `where` parameter as the plan's filters. A template plans
+ * only after its `validate` passed, so an entry that is not a filter is a plan
+ * asked for before that, and refuses like the other plan readers do.
+ */
+export function planFilters(where: ConfigValue): PlanFilter[] {
   if (!Array.isArray(where)) {
     return [];
   }
-  return where.map((raw) => {
-    const filter = raw as PlanFilter;
-    return { field: filter.field, op: filter.op, value: filter.value };
+  const entries: ConfigValue[] = where;
+  return entries.map((raw) => {
+    if (!isPlainObject(raw) || !isString(raw.field) || !("value" in raw)) {
+      throw unvalidatedParam("where");
+    }
+    const op = isString(raw.op) ? filterOpNamed(raw.op) : undefined;
+    if (op === undefined) {
+      throw unvalidatedParam("where");
+    }
+    return { field: raw.field, op, value: raw.value };
   });
-}
-
-function literalText(value: unknown, ts: string): string {
-  if (ts === "Date") {
-    return `new Date(${JSON.stringify(value)})`;
-  }
-  return JSON.stringify(value);
 }
 
 const IDENTIFIER_START = /^[A-Za-z_$]/;
@@ -215,7 +224,9 @@ function emitFilters(
           parameters,
           taken,
         })
-      : literalText(filter.value, ts);
+      : ts === "Date"
+        ? `new Date(${JSON.stringify(filter.value)})`
+        : JSON.stringify(filter.value);
     return `.filter((row) => row.key(${JSON.stringify(filter.field)}).${filter.op}(${argument}))`;
   });
   return {

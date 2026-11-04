@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  isOptionalString,
+  isStringRecord,
+} from "../../implementations/dms-builder/engine/guards";
+import { isPlainObject } from "../../implementations/dms-builder/engine/value";
 
 /** The fields of a `package.json` the tests read. */
 export interface PackageManifest {
@@ -9,7 +14,42 @@ export interface PackageManifest {
 
 /** The fields of a `tsconfig.json` the tests read. */
 export interface TsConfigFile {
-  compilerOptions?: Record<string, string | boolean>;
+  compilerOptions?: {
+    strict?: boolean;
+    module?: string;
+    experimentalDecorators?: boolean;
+    emitDecoratorMetadata?: boolean;
+    rootDir?: string;
+  };
+}
+
+function isPackageManifest(value: unknown): value is PackageManifest {
+  return (
+    isPlainObject(value) &&
+    (value.dependencies === undefined || isStringRecord(value.dependencies)) &&
+    (value.devDependencies === undefined ||
+      isStringRecord(value.devDependencies))
+  );
+}
+
+function isOptionalBoolean(value: unknown): value is boolean | undefined {
+  return value === undefined || typeof value === "boolean";
+}
+
+function isTsConfigFile(value: unknown): value is TsConfigFile {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const options = value.compilerOptions;
+  return (
+    options === undefined ||
+    (isPlainObject(options) &&
+      isOptionalBoolean(options.strict) &&
+      isOptionalString(options.module) &&
+      isOptionalBoolean(options.experimentalDecorators) &&
+      isOptionalBoolean(options.emitDecoratorMetadata) &&
+      isOptionalString(options.rootDir))
+  );
 }
 
 /** A fixture project's file, as text. */
@@ -27,12 +67,20 @@ export function packageManifest(
   root: string,
   relativePath: string,
 ): PackageManifest {
-  return JSON.parse(projectFile(root, relativePath));
+  const parsed: unknown = JSON.parse(projectFile(root, relativePath));
+  if (!isPackageManifest(parsed)) {
+    throw new Error(`${relativePath} is not a package manifest the tests read`);
+  }
+  return parsed;
 }
 
 /** A `tsconfig.json` under a fixture project. */
 export function tsConfigFile(root: string, relativePath: string): TsConfigFile {
-  return JSON.parse(projectFile(root, relativePath));
+  const parsed: unknown = JSON.parse(projectFile(root, relativePath));
+  if (!isTsConfigFile(parsed)) {
+    throw new Error(`${relativePath} is not a tsconfig the tests read`);
+  }
+  return parsed;
 }
 
 /**

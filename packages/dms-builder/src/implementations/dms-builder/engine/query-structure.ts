@@ -1,4 +1,5 @@
 import type {
+  ConfigValue,
   QueryOutputKind,
   QueryStructure,
   ResourceRef,
@@ -14,15 +15,16 @@ import {
   SyntaxKind,
 } from "ts-morph";
 import { stringLiteralValue } from "./literals";
-import { bindName } from "./query-chain";
 import { outputForResponseKey, arrangementForHelper } from "./query-emit";
 import {
   getQueryTemplate,
   parseModelMethod,
+  type ParsedParams,
   type QueryParams,
   type QueryTemplate,
 } from "./query-template";
 import { findResourceBySymbol, findResourceRecord } from "./resource-index";
+import { isPlainObject } from "./value";
 import { getWritableProject } from "./writable";
 
 export const MODEL_DECORATORS = ["Model", "TenantScopedModel"];
@@ -505,12 +507,12 @@ export function unknownParamKeys(
  * the route no longer supplies what the chain reads.
  */
 function resolveBindings(
-  params: QueryParams,
+  params: ParsedParams,
   method: MethodDeclaration,
   call: QueryRouteCall,
   route: { name: string; in: ParamSource }[],
 ): QueryParams | undefined {
-  if (!Array.isArray(params.where)) {
+  if (!params.where) {
     return params;
   }
   const positionOf = new Map(
@@ -518,10 +520,9 @@ function resolveBindings(
       .getParameters()
       .map((parameter, index) => [parameter.getName(), index]),
   );
-  const where: unknown[] = [];
-  for (const raw of params.where) {
-    const filter = raw as { field: string; op: string; value: unknown };
-    const name = bindName(filter.value);
+  const where: ConfigValue[] = [];
+  for (const filter of params.where) {
+    const name = isPlainObject(filter.value) ? filter.value.$bind : undefined;
     if (name === undefined) {
       where.push(filter);
       continue;

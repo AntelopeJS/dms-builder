@@ -31,6 +31,7 @@ import {
   createImportCollector,
   type EmitContext,
   UnknownDataTypeError,
+  UnknownReferenceError,
 } from "./value";
 import { findImporters, Transaction } from "./writable";
 import {
@@ -103,7 +104,7 @@ function referencingResources(
     .map((other) => other.ref);
 }
 /** The refusal for an operation that would create or alter a column of a mapped module's table. */
-function mappedRefusal<T>(filepath: string): OpResult<T> | undefined {
+function mappedRefusal(filepath: string): OpResult<never> | undefined {
   const connection = mappedConnectionOfFile(filepath);
   if (!connection) {
     return undefined;
@@ -233,7 +234,7 @@ export function addField(
   spec: FieldSpec,
   opts?: MutationOpts,
 ): OpResult<{ path: string }> {
-  const reserved = reservedFieldError<{ path: string }>(spec.name);
+  const reserved = reservedFieldError(spec.name);
   if (reserved) {
     return reserved;
   }
@@ -241,7 +242,7 @@ export function addField(
   if (!record) {
     return notFound<{ path: string }>(ref);
   }
-  const mapped = mappedRefusal<{ path: string }>(record.databaseFile);
+  const mapped = mappedRefusal(record.databaseFile);
   if (mapped) {
     return mapped;
   }
@@ -274,9 +275,8 @@ export function addField(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType<{ path: string }>(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }
@@ -400,7 +400,7 @@ export function configureField(
   if (!("opened" in located)) return located;
   const { opened, dataApiProp, tableProp } = located;
   if (patch.dbField !== undefined) {
-    const mapped = mappedRefusal<void>(opened.databaseFile.getFilePath());
+    const mapped = mappedRefusal(opened.databaseFile.getFilePath());
     if (mapped) {
       return mapped;
     }
@@ -416,9 +416,8 @@ export function configureField(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }

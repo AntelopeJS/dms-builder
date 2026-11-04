@@ -1,3 +1,4 @@
+import type { SeriesMeasure } from "@antelopejs/interface-dms/base/query-response";
 import type {
   ImportRef,
   QueryOutputKind,
@@ -5,6 +6,7 @@ import type {
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import {
+  AGGREGATE_OPS,
   type CompiledChain,
   getQueryTemplate,
   type MethodParam,
@@ -14,6 +16,7 @@ import { PLAN_BUCKETS, type PlanBucket } from "./query-plan";
 import { indentationText, resolveProjectRoot } from "./project";
 import { decoratorImport } from "./resource-emit-types";
 import { words } from "./emit";
+import { isOneOf } from "./scalar-guards";
 
 /**
  * The prefix new query endpoints default to. Only a default — `AddQueryInput.endpoint`
@@ -40,24 +43,18 @@ interface ResponseEmission {
 }
 
 /** How the helpers are reached from a generated route. */
-const RESPONSE_HELPERS: Record<string, string> = {
-  card: "chartCardData",
-  value: "kpiCardData",
-  items: "topListData",
-};
-
-const RESPONSE_TYPES: Record<string, string> = {
-  card: "ChartCardData",
-  value: "KpiCardData",
-  items: "TopListData",
-};
+const RESPONSE_HELPERS = new Map([
+  ["card", { helper: "chartCardData", type: "ChartCardData" }],
+  ["value", { helper: "kpiCardData", type: "KpiCardData" }],
+  ["items", { helper: "topListData", type: "TopListData" }],
+]);
 
 /** What the series plan measures when no `op` was asked for. */
 const COUNT_MEASURE = "count";
 
 /** What a helper is told the series is: what was measured, and what to call it. */
 export interface SeriesNaming {
-  measure: string;
+  measure: SeriesMeasure;
   label: string;
   /** The period a date field is grouped into: the helper names each period for a reader. */
   bucket?: PlanBucket;
@@ -79,7 +76,7 @@ export function seriesNaming(
   resource: string,
   namesBuckets = false,
 ): SeriesNaming {
-  const measure = (params.op as string | undefined) ?? COUNT_MEASURE;
+  const measure = isOneOf(AGGREGATE_OPS, params.op) ? params.op : COUNT_MEASURE;
   const period = PLAN_BUCKETS.find((option) => option === params.bucket);
   const bucket = period && namesBuckets ? { bucket: period } : {};
   if (measure === COUNT_MEASURE) {
@@ -138,15 +135,16 @@ function responseEmission(
   if (arrangement === "series") {
     return plainResponse("series", SERIES_TYPE);
   }
-  const helper = RESPONSE_HELPERS[arrangement];
-  if (!helper) {
+  const helped = RESPONSE_HELPERS.get(arrangement);
+  if (!helped) {
     return plainResponse("series", SERIES_TYPE);
   }
+  const { helper, type } = helped;
   return {
-    returnType: `Promise<${RESPONSE_TYPES[arrangement]}>`,
+    returnType: `Promise<${type}>`,
     body: (current, previous) =>
       `${helper}(await ${current}${helperOptions(naming, previous)})`,
-    imports: [helper, RESPONSE_TYPES[arrangement]],
+    imports: [helper, type],
   };
 }
 
@@ -199,7 +197,7 @@ export function arrangementForHelper(
   helper: string,
 ): QueryStructure["response"] {
   return HELPED_ARRANGEMENTS.find(
-    (arrangement) => RESPONSE_HELPERS[arrangement] === helper,
+    (arrangement) => RESPONSE_HELPERS.get(arrangement)?.helper === helper,
   );
 }
 

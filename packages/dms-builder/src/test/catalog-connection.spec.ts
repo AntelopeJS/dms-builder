@@ -17,20 +17,26 @@ const ENGINE = path.join(
 const CONNECTION_MODULE = path.join(ENGINE, "catalog-connection.js");
 const RELOADED = [CONNECTION_MODULE, path.join(ENGINE, "own-connections.js")];
 
-type Loader = (request: string, parent: unknown, isMain: boolean) => unknown;
+type Loader = (
+  request: string,
+  parent: NodeJS.Module | null | undefined,
+  isMain: boolean,
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- the signature of Node's Module._load hook, which answers the exports of any module; the spec only forwards that answer or its stub
+) => unknown;
 
 /** Node's module loader, whose hook a spec replaces to answer a stub for one package. */
 interface ModuleLoader {
   _load: Loader;
 }
 
+// SAFETY: node:module exports Module, which carries the _load hook that ModuleLoader declares; the hook is undocumented, so no published type names it.
 const loader = require("node:module") as ModuleLoader;
 
 /** The async module context, as the runtime sets it: the builder while it loads, then the HTTP module. */
 const context = { module: BUILDER };
 
 /** interface-core as 0.2.5 answers: connections belong to the module of the current context. */
-function interfaceCore(catalogPath: string): Record<string, unknown> {
+function interfaceCore(catalogPath: string) {
   return {
     GetResponsibleModule: () => context.module,
     RunWithResponsibleModule: <T>(module: string, callback: () => T): T => {
@@ -63,6 +69,7 @@ function loadInBuilderContext(catalogPath: string): ConnectionModule {
   RELOADED.forEach((file) => delete require.cache[file]);
   try {
     context.module = BUILDER;
+    // SAFETY: ConnectionModule restates the two functions catalog-connection.js exports, listCatalogConnections and catalogOf, which the spec calls; require returns any.
     return require(CONNECTION_MODULE) as ConnectionModule;
   } finally {
     loader._load = original;

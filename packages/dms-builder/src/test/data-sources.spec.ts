@@ -23,7 +23,7 @@ describe("declared data sources", () => {
     const forCharts = await ListDataSources("series");
     expect(forCharts).to.be.an("array");
     for (const source of forCharts) {
-      expect(source.responseShape).to.equal("series");
+      expect(source.responseKind).to.equal("series");
     }
   });
 });

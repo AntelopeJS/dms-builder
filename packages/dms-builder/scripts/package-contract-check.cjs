@@ -1,26 +1,117 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { isDeepStrictEqual } = require("node:util");
+const { isRecord, isString } = require("./guards.js");
+
+/**
+ * @typedef {{ [name: string]: string }} RangeMap
+ * @typedef {{
+ *   name: string;
+ *   version: string;
+ *   dependencies?: RangeMap;
+ *   devDependencies?: RangeMap;
+ *   peerDependencies?: RangeMap;
+ *   engines?: RangeMap;
+ *   exports?: unknown;
+ *   files?: string[];
+ *   antelopeJs?: { implements?: string[] };
+ * }} PackageManifest
+ */
+
+/**
+ * @param {unknown} value
+ * @returns {value is RangeMap}
+ */
+function isRangeMap(value) {
+  return isRecord(value) && Object.values(value).every(isString);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is string[]}
+ */
+function isStringArray(value) {
+  return Array.isArray(value) && value.every(isString);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is PackageManifest}
+ */
+function isManifest(value) {
+  return (
+    isRecord(value) &&
+    isString(value.name) &&
+    isString(value.version) &&
+    (value.dependencies === undefined || isRangeMap(value.dependencies)) &&
+    (value.devDependencies === undefined ||
+      isRangeMap(value.devDependencies)) &&
+    (value.peerDependencies === undefined ||
+      isRangeMap(value.peerDependencies)) &&
+    (value.engines === undefined || isRangeMap(value.engines)) &&
+    (value.files === undefined || isStringArray(value.files)) &&
+    (value.antelopeJs === undefined ||
+      (isRecord(value.antelopeJs) &&
+        (value.antelopeJs.implements === undefined ||
+          isStringArray(value.antelopeJs.implements))))
+  );
+}
+
+/**
+ * @param {PackageManifest} manifest
+ * @param {string} subpath
+ */
+function exportOf(manifest, subpath) {
+  return isRecord(manifest.exports) ? manifest.exports[subpath] : undefined;
+}
+
+/**
+ * @param {string} file
+ * @returns {PackageManifest}
+ */
+function readManifest(file) {
+  /** @type {unknown} */
+  const manifest = require(file);
+  if (!isManifest(manifest)) {
+    throw new Error(`${file} is not a package manifest`);
+  }
+  return manifest;
+}
 
 const root = path.resolve(__dirname, "..");
-const dmsBuilder = require(path.join(root, "package.json"));
+const dmsBuilder = readManifest(path.join(root, "package.json"));
 const interfaceRoot = path.resolve(root, "../interface-dms-builder");
-const interfacePackage = require(path.join(interfaceRoot, "package.json"));
-const frontendLayer = require(path.join(root, "frontend-vue/package.json"));
+const interfacePackage = readManifest(path.join(interfaceRoot, "package.json"));
+const frontendLayer = readManifest(
+  path.join(root, "frontend-vue/package.json"),
+);
+
+/** @type {("dependencies" | "devDependencies" | "peerDependencies")[]} */
+const RANGE_FIELDS = ["dependencies", "devDependencies", "peerDependencies"];
 
 const RENDERER_PACKAGE = "@antelopejs/dms-frontend";
 const RENDERER_LOCKFILES = [
   "frontend-vue/pnpm-lock.yaml",
   "playground/pnpm-lock.yaml",
 ];
-const LOCKED_RENDERER = /^ {2}'@antelopejs\/dms-frontend@([^'(]+)':$/gm;
+const LOCKED_RENDERER =
+  /^ {2}'@antelopejs\/dms-frontend@([^'(]+)':\n((?: {4}.*\n)*)/gm;
+const LOCKED_VERSION = /^ {4}version: (\S+)$/m;
 const ENGINE_RANGE = /^>=(\d+\.\d+\.\d+) <(\d+\.\d+\.\d+)$/;
 const IMPLEMENTED_RANGE = /^>=(0\.(\d+)\.\d+) <(0\.(\d+)\.0)$/;
 const FLEET_RANGE = /^>=\d+\.\d+\.\d+ <1\.0\.0$/;
 
+/** @param {string} version */
+function versionParts(version) {
+  return version.split("-")[0].split(".").map(Number);
+}
+
+/**
+ * @param {string} a
+ * @param {string} b
+ */
 function compareVersions(a, b) {
-  const parts = (version) => version.split("-")[0].split(".").map(Number);
-  const [x, y] = [parts(a), parts(b)];
+  const [x, y] = [versionParts(a), versionParts(b)];
   return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
 }
 
@@ -28,6 +119,9 @@ function compareVersions(a, b) {
  * The module implements the interface, so it caps it below the next minor
  * (`>=<floor> <0.<minor+1>.0`): a breaking interface minor must never reach a
  * module that does not implement it.
+ *
+ * @param {string} version
+ * @param {string | undefined} range
  */
 function satisfiesImplementedRange(version, range) {
   const match = IMPLEMENTED_RANGE.exec(range ?? "");
@@ -42,6 +136,9 @@ function satisfiesImplementedRange(version, range) {
  * The layer's engine shape is `>=<floor> <<ceiling>`, the ceiling being the
  * next breaking loader release. A prerelease counts as the release it leads
  * to, as the loader counts it.
+ *
+ * @param {string} version
+ * @param {string | undefined} range
  */
 function satisfiesEngineRange(version, range) {
   const bounds = ENGINE_RANGE.exec(range ?? "");
@@ -53,9 +150,17 @@ function satisfiesEngineRange(version, range) {
   );
 }
 
+/**
+ * A tarball row is keyed by its `file:` spec and carries the release it holds
+ * on a `version:` line of its own.
+ *
+ * @param {string} lockfile
+ */
 function lockedRenderers(lockfile) {
   const source = fs.readFileSync(path.join(root, lockfile), "utf8");
-  return [...source.matchAll(LOCKED_RENDERER)].map(([, version]) => version);
+  return [...source.matchAll(LOCKED_RENDERER)].map(([, spec, body]) =>
+    spec.startsWith("file:") ? (LOCKED_VERSION.exec(body)?.[1] ?? spec) : spec,
+  );
 }
 
 function interfaceIsPublishable() {
@@ -64,7 +169,7 @@ function interfaceIsPublishable() {
     failures.push(`the interface is named ${interfacePackage.name}`);
   }
   if (
-    interfacePackage.peerDependencies["@antelopejs/interface-core"] !==
+    interfacePackage.peerDependencies?.["@antelopejs/interface-core"] !==
     ">=0.2.4 <1.0.0"
   ) {
     failures.push(
@@ -72,24 +177,24 @@ function interfaceIsPublishable() {
     );
   }
   if (
-    !isDeepStrictEqual(interfacePackage.exports["."], {
+    !isDeepStrictEqual(exportOf(interfacePackage, "."), {
       types: "./dist/index.d.ts",
       default: "./dist/index.js",
     })
   ) {
     failures.push(
-      `the interface root export is not exactly dist/index: ${JSON.stringify(interfacePackage.exports["."])}`,
+      `the interface root export is not exactly dist/index: ${JSON.stringify(exportOf(interfacePackage, "."))}`,
     );
   }
   for (const published of ["dist", "docs"]) {
-    if (!interfacePackage.files.includes(published)) {
+    if (!interfacePackage.files?.includes(published)) {
       failures.push(`the interface does not publish ${published}`);
     }
   }
   if (
     !satisfiesImplementedRange(
       interfacePackage.version,
-      dmsBuilder.dependencies["@antelopejs/interface-dms-builder"],
+      dmsBuilder.dependencies?.["@antelopejs/interface-dms-builder"],
     )
   ) {
     failures.push(
@@ -105,7 +210,7 @@ function interfaceIsPublishable() {
  * answers. Interfaces are the only cross-module runtime dependency.
  */
 function noRuntimeDependency() {
-  return Object.keys(dmsBuilder.dependencies)
+  return Object.keys(dmsBuilder.dependencies ?? {})
     .filter(
       (name) =>
         name.startsWith("@antelopejs/dms") && !name.includes("interface"),
@@ -115,11 +220,11 @@ function noRuntimeDependency() {
 
 function interfaceIsNotOwned() {
   const failures = [];
-  if (dmsBuilder.exports["./interfaces/dms-builder"] !== undefined) {
+  if (exportOf(dmsBuilder, "./interfaces/dms-builder") !== undefined) {
     failures.push("the package exports ./interfaces/dms-builder");
   }
   const files = fs
-    .readdirSync(path.join(root, "src"), { recursive: true })
+    .readdirSync(path.join(root, "src"), { recursive: true, encoding: "utf8" })
     .filter((file) => file.endsWith(".ts"));
   for (const file of files) {
     const source = fs.readFileSync(path.join(root, "src", file), "utf8");
@@ -144,20 +249,20 @@ function everyBuiltModuleIsExported() {
   }
   const failures = [];
   if (
-    !isDeepStrictEqual(interfacePackage.exports["./*"], {
+    !isDeepStrictEqual(exportOf(interfacePackage, "./*"), {
       types: "./dist/*.d.ts",
       default: "./dist/*.js",
     })
   ) {
     failures.push(
-      `the interface ./* export is not exactly dist/*: ${JSON.stringify(interfacePackage.exports["./*"])}`,
+      `the interface ./* export is not exactly dist/*: ${JSON.stringify(exportOf(interfacePackage, "./*"))}`,
     );
   }
   const entries = fs.readdirSync(dist, { recursive: true, encoding: "utf8" });
   for (const entry of entries) {
     if (!entry.endsWith(`${path.sep}index.js`)) continue;
     const subpath = `./${path.dirname(entry).split(path.sep).join("/")}`;
-    if (interfacePackage.exports[subpath] === undefined) {
+    if (exportOf(interfacePackage, subpath) === undefined) {
       failures.push(`${subpath} is built but not exported`);
     }
   }
@@ -175,11 +280,7 @@ function packagesAreDependedOnByRange() {
   const failures = [];
   for (const manifest of [dmsBuilder, frontendLayer]) {
     const implemented = manifest.antelopeJs?.implements ?? [];
-    for (const field of [
-      "dependencies",
-      "devDependencies",
-      "peerDependencies",
-    ]) {
+    for (const field of RANGE_FIELDS) {
       for (const [name, range] of Object.entries(manifest[field] ?? {})) {
         if (!/^@antelopejs\/(dms|interface-dms)/.test(name)) continue;
         const accepted = implemented.includes(name)

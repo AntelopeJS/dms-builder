@@ -1,4 +1,5 @@
 import type {
+  ConfigObject,
   PageLive,
   PagePermission,
 } from "@antelopejs/interface-dms-builder";
@@ -63,11 +64,11 @@ export interface ScanResult {
   categories: Map<string, CategoryRecord>;
 }
 
-const RESERVED_ROOTS: Record<string, { id: string; fullSlug: string }> = {
-  pagesCategory: { id: "pages", fullSlug: "/" },
-  modulesCategory: { id: "modules", fullSlug: "/modules" },
-  settingsCategory: { id: "settings", fullSlug: "/settings" },
-};
+const RESERVED_ROOTS = new Map([
+  ["pagesCategory", { id: "pages", fullSlug: "/" }],
+  ["modulesCategory", { id: "modules", fullSlug: "/modules" }],
+  ["settingsCategory", { id: "settings", fullSlug: "/settings" }],
+]);
 
 const CATEGORY_FACTORIES = new Set(["Category", "RootCategory"]);
 
@@ -88,7 +89,7 @@ export function joinSlug(parentSlug: string, urlSlug: string): string {
 function readObjectOption(
   opts: ObjectLiteralExpression,
   name: string,
-): PagePermission | PageLive | undefined {
+): ConfigObject | undefined {
   const node = getObjectProperty(opts, name);
   if (!node || !Node.isObjectLiteralExpression(node)) {
     return undefined;
@@ -269,7 +270,7 @@ class SourceScanner {
   }
 
   private resolveReserved(name: string): CategoryRecord | undefined {
-    const reserved = RESERVED_ROOTS[name];
+    const reserved = RESERVED_ROOTS.get(name);
     if (!reserved) {
       return undefined;
     }

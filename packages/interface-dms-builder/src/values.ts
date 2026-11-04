@@ -7,6 +7,26 @@
  */
 
 /**
+ * A value of a block's configuration: plain data, never a function or a class
+ * instance. `undefined` stands for an absent member, which the builder skips
+ * when it writes. The sentinel objects {@link DataTypeValue}, {@link ExprValue},
+ * {@link RefValue} and {@link BlockValue} are {@link ConfigObject}s.
+ */
+export type ConfigValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | ConfigValue[]
+  | ConfigObject;
+
+/** An object of {@link ConfigValue}s: a block's options, or a child's metadata. */
+export interface ConfigObject {
+  [key: string]: ConfigValue;
+}
+
+/**
  * A DataType value for a Form field's `type` (or a TableView `Column` `type`).
  * Emitted as `new <DataType>(<config>)` with the import auto-added.
  *
@@ -15,12 +35,12 @@
  * // → type: new DefaultDataTypes.StringType({ placeholder: "Name" })
  * ```
  */
-export interface DataTypeValue {
+export type DataTypeValue = {
   /** A `DataTypeDescriptor.id` from the catalog, e.g. `"string"` | `"select"`. */
   $dataType: string;
   /** The DataType's options; omit for a no-arg `new <DataType>()`. */
-  config?: Record<string, unknown>;
-}
+  config?: ConfigObject;
+};
 
 /**
  * A raw TypeScript expression, emitted verbatim. Required for values the builder
@@ -30,9 +50,9 @@ export interface DataTypeValue {
  * Note: dms-ai's safe mode rejects `$expr` (arbitrary code defeats the
  * structured guarantees). Only a direct file edit (vibe mode) should use it.
  */
-export interface ExprValue {
+export type ExprValue = {
   $expr: string;
-}
+};
 
 /**
  * A reference to a builder-generated resource class, emitted as the bare class
@@ -49,14 +69,14 @@ export interface ExprValue {
  * The resource must exist (unknown → `invalid_config`). Unlike `$expr`, this is
  * **allowed in safe mode**.
  */
-export interface RefValue {
+export type RefValue = {
   $ref: {
     /** A `ResourceRef` — the resource's name, e.g. `"product"`. */
     resource: string;
     /** Which class to reference; defaults to `"dataApi"`. */
     as?: "dataApi" | "table" | "model";
   };
-}
+};
 
 /**
  * A nested block, for the rare option that holds a component rather than data —
@@ -71,10 +91,10 @@ export interface RefValue {
  * Allowed in safe mode: the type is checked against the catalog and the config
  * is serialized the same way any other config is.
  */
-export interface BlockValue {
+export type BlockValue = {
   $block: {
     /** A `BlockTypeDescriptor.type` from the catalog. */
     type: string;
-    config?: Record<string, unknown>;
+    config?: ConfigObject;
   };
-}
+};

@@ -4,6 +4,7 @@ export * from "./catalog";
 export * from "./compose";
 export * from "./drafts";
 export * from "./mapping";
+export * from "./operation-map";
 export * from "./operations";
 export * from "./project";
 export * from "./queries";

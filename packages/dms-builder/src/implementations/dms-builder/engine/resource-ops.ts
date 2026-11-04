@@ -9,6 +9,7 @@ import type {
   ResourceRef,
 } from "@antelopejs/interface-dms-builder";
 import { type ClassDeclaration, type Project, type SourceFile } from "ts-morph";
+import { isString } from "./scalar-guards";
 import {
   barrelSpecifier,
   findNearestBarrel,
@@ -114,7 +115,7 @@ function resolveResourceBaseDir(
   if (location === undefined) {
     return src;
   }
-  if (typeof location === "string") {
+  if (isString(location)) {
     const resolved = resolveWithinSrc(src, location);
     return (
       resolved ??
@@ -130,7 +131,7 @@ function resolveResourceBaseDir(
         `unknown category "${location.category}"`,
       );
     }
-    const misplaced = moduleError<CreateData>(
+    const misplaced = moduleError(
       module,
       category.importModule,
       `category "${location.category}"`,
@@ -146,7 +147,7 @@ function resolveResourceBaseDir(
   if (!page) {
     return invalidConfig<CreateData>(`unknown page "${location.page}"`);
   }
-  const misplaced = moduleError<CreateData>(
+  const misplaced = moduleError(
     module,
     page.filepath,
     `page "${location.page}"`,
@@ -161,7 +162,7 @@ function resolveResourcePlacement(
   project: Project,
   input: CreateResourceInput,
 ): ResolvedPlacement | OpResult<CreateData> {
-  const unknownModule = moduleError<CreateData>(input.module, undefined, "");
+  const unknownModule = moduleError(input.module, undefined, "");
   if (unknownModule) {
     return unknownModule;
   }
@@ -170,7 +171,7 @@ function resolveResourcePlacement(
     return unsupported<CreateData>("no root barrel (src/index.ts) found");
   }
   const baseDir = resolveResourceBaseDir(src, input.location, input.module);
-  if (typeof baseDir !== "string") {
+  if (!isString(baseDir)) {
     return baseDir;
   }
   const mapped = mappedConnectionOfFile(baseDir);
@@ -220,10 +221,7 @@ export function createResource(
     );
   }
   for (const field of input.fields) {
-    const reserved = reservedFieldError<{
-      ref: ResourceRef;
-      files: ResourceFiles;
-    }>(field.name);
+    const reserved = reservedFieldError(field.name);
     if (reserved) {
       return reserved;
     }
@@ -289,9 +287,8 @@ export function createResource(
     if (error instanceof UnknownDataTypeError) {
       return invalidDataType<{ ref: ResourceRef; files: ResourceFiles }>(error);
     }
-    const refFail = refError(error);
-    if (refFail) {
-      return refFail;
+    if (error instanceof UnknownReferenceError) {
+      return refError(error);
     }
     throw error;
   }
@@ -307,20 +304,15 @@ export function createResource(
   return commit(transaction, { ref, files }, warnings);
 }
 
-export function refError(error: unknown): OpResult<never> | undefined {
-  if (error instanceof UnknownReferenceError) {
-    return invalidConfig<never>(
-      `${error.message}; call ListResources for valid resource refs`,
-    );
-  }
-  return undefined;
+export function refError(error: UnknownReferenceError): OpResult<never> {
+  return invalidConfig<never>(
+    `${error.message}; call ListResources for valid resource refs`,
+  );
 }
 
-export function reservedFieldError<T = void>(
-  name: string,
-): OpResult<T> | undefined {
+export function reservedFieldError(name: string): OpResult<never> | undefined {
   if (RESERVED_FIELD_NAMES.has(name)) {
-    return invalidConfig<T>(
+    return invalidConfig<never>(
       `field name "${name}" is reserved by the DataController (route or model property); choose another`,
     );
   }

@@ -83,7 +83,7 @@ function buildCategorySource(
 export function createCategory(
   input: CreateCategoryInput,
 ): OpResult<{ ref: CategoryRef }> {
-  const invalid = slugError<{ ref: CategoryRef }>(input.name, "category");
+  const invalid = slugError(input.name, "category");
   if (invalid) {
     return invalid;
   }
@@ -95,7 +95,7 @@ export function createCategory(
   if (findCategoryRecord(ref)) {
     return duplicate<{ ref: CategoryRef }>(input.name, "category");
   }
-  const misplaced = moduleError<{ ref: CategoryRef }>(
+  const misplaced = moduleError(
     input.module,
     parent?.importModule,
     `category "${input.parent}"`,

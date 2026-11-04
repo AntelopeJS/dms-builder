@@ -308,12 +308,12 @@ export function displayOfDataType(
 }
 
 /** A tab of the TableView, as the page's block config holds it. */
-export interface TabConfig {
+export type TabConfig = {
   id: string;
   label: string;
   filter?: { accessorKey: string; value: string; mode: string };
   textColor?: DisplayTone;
-}
+};
 
 function tabId(column: string, value: string): string {
   return [...words(column), ...words(value)].join("-");

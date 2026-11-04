@@ -22,7 +22,7 @@ import {
   relativeModule,
 } from "./emit";
 import { getExtendsCall, stringLiteralValue } from "./literals";
-import { parseBlockPath, valueToText } from "./paths";
+import { parseBlockPath } from "./paths";
 import { indentationText, resolveProjectRoot } from "./project";
 import {
   addSortedExport,
@@ -228,7 +228,7 @@ function buildPageSource(
     options.push(`description: ${JSON.stringify(input.description)}`);
   }
   if (input.permission !== undefined) {
-    options.push(`permission: ${valueToText(input.permission)}`);
+    options.push(`permission: ${JSON.stringify(input.permission)}`);
   }
   const indent = indentationText(resolveProjectRoot());
   const imports = [
@@ -321,10 +321,10 @@ function resolvePagePlacement(
  */
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export function slugError<T>(
+export function slugError(
   name: string,
   kind: "page" | "category",
-): OpResult<T> | undefined {
+): OpResult<never> | undefined {
   if (SLUG.test(name)) {
     return undefined;
   }
@@ -333,7 +333,7 @@ export function slugError<T>(
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return invalidConfig<T>(
+  return invalidConfig<never>(
     `"${name}" cannot name a ${kind}: it becomes a folder, a route and a class name, so it must be lowercase letters, digits and dashes${suggestion ? ` — try "${suggestion}"` : ""}`,
   );
 }
@@ -354,7 +354,7 @@ export function stagePage(
   input: CreatePageInput,
   transaction: Transaction,
 ): StagedPage | OpResult<PageData> {
-  const invalid = slugError<PageData>(input.name, "page");
+  const invalid = slugError(input.name, "page");
   if (invalid) {
     return invalid;
   }
@@ -366,7 +366,7 @@ export function stagePage(
   if (findPageRecord(ref)) {
     return duplicate<PageData>(input.name, "page");
   }
-  const misplaced = moduleError<PageData>(
+  const misplaced = moduleError(
     input.module,
     category.importModule,
     `category "${input.category}"`,

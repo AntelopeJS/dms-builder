@@ -46,7 +46,7 @@ function spacerCatalog(catalog: BlockCatalog): BlockCatalog {
 				icon: 'i-ph-arrow-line-right',
 				group: 'layout',
 				container: false,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				config: {
 					minSize: { type: 'string', optional: true, ui: { label: 'Minimum size', group: 'layout' } },
 					maxSize: { type: 'string', optional: true, ui: { label: 'Maximum size', group: 'layout' } },

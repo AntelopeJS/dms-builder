@@ -1,4 +1,7 @@
 import type {
+  ConfigObject,
+  ConfigValue,
+  ImportRef,
   OpWarning,
   BlockNode,
   BlockDraft,
@@ -33,6 +36,8 @@ import {
   checkVersion,
   commit,
   invalidConfig,
+  invalidDataType,
+  invalidReference,
   isError,
   notFound,
   openPage,
@@ -45,6 +50,7 @@ import { resourceRefResolver } from "./resource-index";
 import {
   createImportCollector,
   type EmitContext,
+  isPlainObject,
   serializeValue,
   UnknownBlockTypeError,
   UnknownDataTypeError,
@@ -139,19 +145,24 @@ function constantsIn(options: Node | undefined): ConstantsByPath {
  * builder, and naming it would tie it to a constant it never used.
  */
 function withConstants(
-  options: Record<string, unknown>,
+  options: ConfigObject,
   constants: ConstantsByPath | undefined,
-): Record<string, unknown> {
+): ConfigObject {
   return constants?.size
-    ? (namedAt(options, [], constants) as Record<string, unknown>)
+    ? Object.fromEntries(
+        Object.entries(options).map(([key, item]) => [
+          key,
+          namedAt(item, [key], constants),
+        ]),
+      )
     : options;
 }
 
 function namedAt(
-  value: unknown,
+  value: ConfigValue,
   path: (string | number)[],
   constants: ConstantsByPath,
-): unknown {
+): ConfigValue {
   const constant = constants.get(JSON.stringify(path));
   if (constant && constant.value === value) {
     return { $expr: constant.name };
@@ -161,7 +172,7 @@ function namedAt(
       namedAt(item, [...path, index], constants),
     );
   }
-  if (typeof value === "object" && value !== null) {
+  if (isPlainObject(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
@@ -445,21 +456,38 @@ function rewriteStatics(
   );
 }
 
-function emitFailure(
-  error: unknown,
-): OpResult<{ version: string }> | undefined {
-  if (error instanceof UnknownDataTypeError) {
-    return invalidConfig<{ version: string }>(
-      `${error.message}; call GetCatalog for valid DataType ids`,
-    );
-  }
-  if (error instanceof UnknownReferenceError) {
-    return invalidConfig<{ version: string }>(
-      `${error.message}; call ListResources for valid resource refs`,
-    );
-  }
-  if (error instanceof UnknownBlockTypeError) {
-    return invalidConfig<{ version: string }>(error.message);
+/**
+ * The first name an import would bind that the file already binds to something
+ * else, so adding the import would shadow it.
+ */
+function shadowedImport(
+  sourceFile: SourceFile,
+  imports: ImportRef[],
+): string | undefined {
+  const bindings = new Map(
+    sourceFile
+      .getSymbolsInScope(SymbolFlags.Value | SymbolFlags.Alias)
+      .map((symbol) => [symbol.getName(), symbol]),
+  );
+  for (const ref of imports) {
+    const name = ref.name.split(".")[0];
+    const binding = bindings.get(name);
+    const module = importSpecifier(sourceFile, ref);
+    if (
+      binding &&
+      module &&
+      !binding
+        .getDeclarations()
+        .some(
+          (declaration) =>
+            Node.isImportSpecifier(declaration) &&
+            declaration.getName() === name &&
+            declaration.getImportDeclaration().getModuleSpecifierValue() ===
+              module,
+        )
+    ) {
+      return name;
+    }
   }
   return undefined;
 }
@@ -526,42 +554,26 @@ export function setPageBlocks(
     }
   } catch (error) {
     transaction.rollback();
-    const failure = emitFailure(error);
-    if (failure) {
-      return failure;
+    if (error instanceof UnknownDataTypeError) {
+      return invalidDataType<{ version: string }>(error);
+    }
+    if (error instanceof UnknownReferenceError) {
+      return invalidReference<{ version: string }>(error);
+    }
+    if (error instanceof UnknownBlockTypeError) {
+      return invalidConfig<{ version: string }>(error.message);
     }
     throw error;
   }
   for (const block of draft.blocks) {
     blockImports(block, ctx, originals, block.name);
   }
-  const bindings = new Map(
-    context.sourceFile
-      .getSymbolsInScope(SymbolFlags.Value | SymbolFlags.Alias)
-      .map((symbol) => [symbol.getName(), symbol]),
-  );
-  for (const ref of imports) {
-    const name = ref.name.split(".")[0];
-    const binding = bindings.get(name);
-    const module = importSpecifier(context.sourceFile, ref);
-    if (
-      binding &&
-      module &&
-      !binding
-        .getDeclarations()
-        .some(
-          (declaration) =>
-            Node.isImportSpecifier(declaration) &&
-            declaration.getName() === name &&
-            declaration.getImportDeclaration().getModuleSpecifierValue() ===
-              module,
-        )
-    ) {
-      transaction.rollback();
-      return invalidConfig(
-        `Cannot emit "${name}": that name belongs to another binding. Rename it in source before adding this option or block`,
-      );
-    }
+  const shadowed = shadowedImport(context.sourceFile, imports);
+  if (shadowed !== undefined) {
+    transaction.rollback();
+    return invalidConfig(
+      `Cannot emit "${shadowed}": that name belongs to another binding. Rename it in source before adding this option or block`,
+    );
   }
   for (const importRef of imports) {
     applyImportRef(context.sourceFile, importRef);

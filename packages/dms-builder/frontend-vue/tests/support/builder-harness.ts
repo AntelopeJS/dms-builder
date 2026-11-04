@@ -68,7 +68,7 @@ export function testCatalog(): BlockCatalog {
 		group: 'layout',
 		container: false,
 		config: {},
-		shapeSource: 'test',
+		configOrigin: 'test',
 		...extra,
 	})
 	// What the stacks declare, their own defaults included: they centre what
@@ -479,7 +479,7 @@ export function withWrappers(catalog: BlockCatalog = testCatalog()): BlockCatalo
 		group: 'layout',
 		container: false,
 		config: {},
-		shapeSource: 'test',
+		configOrigin: 'test',
 		...extra,
 	})
 	return {

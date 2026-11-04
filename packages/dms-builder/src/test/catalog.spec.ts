@@ -33,7 +33,7 @@ describe("the block catalog", () => {
   it("reports the block types cms-base declares, not only what it can infer", () => {
     expect(catalog.blocks.length).to.be.greaterThan(20);
     const annotated = catalog.blocks.filter(
-      (block) => block.shapeSource === "annotated",
+      (block) => block.configOrigin === "annotated",
     );
     expect(
       annotated.length,

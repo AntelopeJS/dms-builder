@@ -471,7 +471,7 @@ async function withDescriptions<T>(
     );
   } catch (error) {
     return invalidConfig<T>(
-      `the catalog of "${input.connection}" refused: ${(error as Error).message}`,
+      `the catalog of "${input.connection}" refused: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

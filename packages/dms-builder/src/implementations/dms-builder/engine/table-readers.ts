@@ -1,6 +1,7 @@
 import { pageRoutePath } from "@antelopejs/interface-dms/page";
-import type { BlockNode } from "@antelopejs/interface-dms-builder";
+import type { BlockNode, ConfigValue } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
+import { isNumber, isString } from "./scalar-guards";
 import { isPerTenantSchema } from "./query-emit";
 import { routeModelBinding, findQueryRoutes } from "./query-structure";
 import { listResourceRecords } from "./resource-index";
@@ -18,8 +19,8 @@ export interface TableReader {
   queries: number;
 }
 
-function stringsIn(value: unknown, found: string[] = []): string[] {
-  if (typeof value === "string") {
+function stringsIn(value: ConfigValue, found: string[] = []): string[] {
+  if (isString(value)) {
     found.push(value);
   } else if (Array.isArray(value)) {
     for (const entry of value) {
@@ -50,13 +51,14 @@ function walk(blocks: BlockNode[], visit: (block: BlockNode) => void): void {
  */
 export function tableReaders(): Record<string, TableReader[]> {
   const resources = listResourceRecords();
-  const readers: Record<string, Map<string, TableReader>> = {};
+  const readers = new Map<string, Map<string, TableReader>>();
   const count = (
     table: string,
     page: { ref: string; displayName: string },
     kind: "blocks" | "queries",
   ): void => {
-    const pages = (readers[table] ??= new Map());
+    const pages = readers.get(table) ?? new Map<string, TableReader>();
+    readers.set(table, pages);
     const entry = pages.get(page.ref) ?? {
       page: page.ref,
       displayName: page.displayName,
@@ -97,10 +99,7 @@ export function tableReaders(): Record<string, TableReader[]> {
     }
   }
   return Object.fromEntries(
-    Object.entries(readers).map(([table, pages]) => [
-      table,
-      [...pages.values()],
-    ]),
+    [...readers].map(([table, pages]) => [table, [...pages.values()]]),
   );
 }
 
@@ -125,7 +124,7 @@ export async function tableRowCounts(
           ? schema.instance(tenant)
           : schema.instance();
       const rows = await instance.table(record.tableName).count();
-      if (typeof rows === "number") {
+      if (isNumber(rows)) {
         counts[record.ref] = rows;
       }
     } catch {}

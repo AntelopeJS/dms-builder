@@ -188,7 +188,7 @@ export function paletteGroups(
 		if (
 			structural.has(block.type) ||
 			hidden.has(block.type) ||
-			(!advanced && (block.shapeSource === 'inferred' || DEVELOPER_BLOCKS.has(block.type)))
+			(!advanced && (block.configOrigin === 'inferred' || DEVELOPER_BLOCKS.has(block.type)))
 		) {
 			continue
 		}

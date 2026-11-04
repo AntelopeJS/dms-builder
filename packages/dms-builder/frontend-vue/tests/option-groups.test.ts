@@ -11,7 +11,7 @@ describe('the cards of a block without a panel of its own', () => {
 	it('start with its data, then what it shows', () => {
 		const kpi = {
 			type: 'KpiCard',
-			shapeSource: 'test',
+			configOrigin: 'test',
 			config: {
 				title: { type: 'string', ui: { label: 'Title', group: 'content' } },
 				color: { type: 'string', optional: true, ui: { label: 'Colour', group: 'appearance' } },

@@ -18,6 +18,15 @@ import {
 } from "./helpers/project-files";
 
 const OP_TIMEOUT = 60_000;
+
+/**
+ * Whether a manifest range is a campaign tarball pin (`file:` into `.campaign/tgz`). A pin stands
+ * in for the registry range until the packages it names are published, so it says nothing about
+ * the range the builder scaffolds; the registry ranges are compared once they are back.
+ */
+function isCampaignPin(range: string): boolean {
+  return range.startsWith("file:") && range.includes(".campaign/tgz/");
+}
 const VARIABLE = "BUILDER_DB_ERP_URL";
 const URL = "postgres://reader:secret@db.example:5432/erp";
 
@@ -139,7 +148,11 @@ describe("a project that is its configuration alone", function () {
     );
     const ranges = { ...own.devDependencies, ...own.dependencies };
     for (const [name, range] of Object.entries(BUILDER_CODE_INTERFACES)) {
-      expect(ranges[name], name).to.equal(range);
+      const declared = ranges[name];
+      expect(declared, name).to.be.a("string");
+      if (declared !== undefined && !isCampaignPin(declared)) {
+        expect(declared, name).to.equal(range);
+      }
     }
   });
 

@@ -1,7 +1,9 @@
 import type {
   BlockNode,
   BlockPath,
+  ConfigObject,
   ConfigureTableViewOpts,
+  ConfigValue,
   FileChange,
   FooterSummarySetting,
   OpResult,
@@ -40,7 +42,7 @@ function findTableViews(blocks: BlockNode[]): BlockNode[] {
   ]);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: ConfigValue): value is ConfigObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

@@ -76,7 +76,7 @@ function chart(type: string, label: string): BlockTypeDescriptor {
 		label,
 		group: 'visualization',
 		config: {},
-		shapeSource: 'test',
+		configOrigin: 'test',
 	}
 }
 
@@ -91,7 +91,7 @@ function container(
 		group: 'layout',
 		container: true,
 		config: {},
-		shapeSource: 'test',
+		configOrigin: 'test',
 		...extra,
 	}
 }
@@ -138,7 +138,7 @@ describe('the components the palette lists', () => {
 					label: 'Code',
 					group: 'content',
 					container: false,
-					shapeSource: 'test',
+					configOrigin: 'test',
 					config: {},
 				},
 			],
@@ -196,7 +196,7 @@ describe('a type the DMS never declared', () => {
 					type: 'Widget',
 					container: true,
 					config: {},
-					shapeSource: 'inferred',
+					configOrigin: 'inferred',
 				} as BlockTypeDescriptor,
 			],
 		}

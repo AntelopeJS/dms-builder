@@ -12,17 +12,17 @@ export interface FileChange {
 }
 
 /** A config validation failure, addressed by a JSON pointer. */
-export interface ValidationIssue {
+export type ValidationIssue = {
   pointer: string;
   message: string;
-}
+};
 
 /** A TypeScript diagnostic from the in-memory typecheck gate. */
-export interface TypecheckError {
+export type TypecheckError = {
   file: string;
   line: number;
   message: string;
-}
+};
 
 /** A non-fatal advisory attached to an otherwise successful operation. */
 export interface OpWarning {

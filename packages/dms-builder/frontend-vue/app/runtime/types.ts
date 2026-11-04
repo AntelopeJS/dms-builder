@@ -95,7 +95,7 @@ export interface BlockTypeDescriptor {
 	defaults?: Record<string, unknown>
 	fixedOptions?: Record<string, unknown>
 	childMeta?: Record<string, OptionSchema>
-	shapeSource: string
+	configOrigin: string
 	description?: string
 	controllerArg?: boolean
 	/** The children the DMS's own helper places in a new block of this type. */
@@ -183,7 +183,7 @@ export interface PageDraft {
 }
 
 /** How a query's answer is arranged for the block that reads it. */
-export type QueryResponseShape = 'series' | 'card' | 'value' | 'items'
+export type QueryArrangement = 'series' | 'card' | 'value' | 'items'
 
 /** One measured group, as a route answers it and a chart reads it. */
 export interface QueryPoint {
@@ -200,7 +200,7 @@ export interface QueryPoint {
  */
 export interface QueryPreview {
 	output: string
-	response?: QueryResponseShape
+	response?: QueryArrangement
 	body: Record<string, unknown>
 	truncated: boolean
 }
@@ -388,7 +388,7 @@ export interface QueryStructure {
 	template?: string
 	params?: Record<string, unknown>
 	/** How the route arranges its answer, read off what it returns. */
-	response?: QueryResponseShape
+	response?: QueryArrangement
 	/** Whether the route answers the preceding period too. */
 	compare?: boolean
 	opaque?: boolean
@@ -404,7 +404,7 @@ export interface AddQueryInput {
 	 * How the route arranges its answer. Left out, a grouped calculation answers
 	 * its bare points, which only a chart can read.
 	 */
-	response?: QueryResponseShape
+	response?: QueryArrangement
 	/**
 	 * Answer the preceding period beside the current one, so a card can show
 	 * how far it moved. Only a query bound to the page's period can.

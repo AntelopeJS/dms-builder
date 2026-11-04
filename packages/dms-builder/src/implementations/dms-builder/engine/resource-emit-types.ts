@@ -10,6 +10,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { relativeModule } from "./emit";
 import { propertyKey } from "./paths";
+import { isNumber, isString } from "./scalar-guards";
 import { indentationText, resolveProjectRoot } from "./project";
 import {
   createImportCollector,
@@ -48,7 +49,7 @@ function fallbackWarning(field: FieldSpec, dbType: DbType): OpWarning[] {
 }
 
 export function decoratorImport(name: string): ImportRef {
-  return { name, module: DECORATOR_IMPORTS[name] };
+  return { name, module: DECORATOR_IMPORTS.get(name) };
 }
 
 interface CollectedImport {
@@ -60,12 +61,12 @@ interface CollectedImport {
 class ImportSet {
   private readonly refs: CollectedImport[] = [];
 
-  public add(name: string, module: string): void {
+  public add(name: string, module: string | undefined): void {
     this.refs.push({ name: name.split(".")[0], module });
   }
 
   public addSymbol(name: string): void {
-    this.add(name, DECORATOR_IMPORTS[name]);
+    this.add(name, DECORATOR_IMPORTS.get(name));
   }
 
   public addRef(ref: ImportRef): void {
@@ -134,8 +135,7 @@ function coerceSeeds(seeds: Seeds, fields: FieldSpec[]): Seeds {
     const out: Seeds[number] = {};
     for (const [key, value] of Object.entries(seed)) {
       out[key] =
-        dateFields.has(key) &&
-        (typeof value === "string" || typeof value === "number")
+        dateFields.has(key) && (isString(value) || isNumber(value))
           ? { $expr: `new Date(${JSON.stringify(value)})` }
           : value;
     }

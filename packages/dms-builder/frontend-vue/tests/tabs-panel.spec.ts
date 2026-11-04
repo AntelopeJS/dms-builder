@@ -52,7 +52,7 @@ function tabCatalog(catalog: BlockCatalog): BlockCatalog {
 				componentName: 'dms-tab',
 				label: 'Tabs',
 				container: true,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				dynamicSlots: { optionPath: 'items', idKey: 'slot', labelKey: 'label' },
 				config: {
 					items: {

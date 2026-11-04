@@ -1,3 +1,5 @@
+import type { ConfigObject } from "./values";
+
 /**
  * An import the emitter must add: `import { <name> } from "<module>"`. Either a
  * package `module` specifier (fixed, file-independent) or a `targetFile` absolute
@@ -167,18 +169,17 @@ export interface OptionSchema {
    * `dataApiController`. Its value is a `$ref` to a resource.
    */
   "x-controller"?: boolean;
-  [key: string]: unknown;
 }
 
 /**
  * A block's or DataType's options, keyed by option name. Declared schemas
- * (`shapeSource: "annotated"`) carry labels, defaults and widgets; inferred ones
+ * (`configOrigin: "annotated"`) carry labels, defaults and widgets; inferred ones
  * carry only what the TypeScript signature revealed.
  */
 export type ConfigSchema = Record<string, OptionSchema>;
 
 /** How a block type's emit shape was determined. */
-export type ShapeSource = "inferred" | "annotated";
+export type ConfigOrigin = "inferred" | "annotated";
 
 /**
  * The palette section a block type belongs to. The four the DMS ships are
@@ -211,7 +212,7 @@ export interface BlockTypeDescriptor {
   dynamicSlots?: DynamicSlots;
   config: ConfigSchema;
   /** Option values the factory applies when the caller omits them. */
-  defaults?: Record<string, unknown>;
+  defaults?: ConfigObject;
   /** Schema of the metadata a child carries, e.g. `{ colSpan }`. */
   childMeta?: ConfigSchema;
   /**
@@ -220,8 +221,8 @@ export interface BlockTypeDescriptor {
    * is unnecessary; a consumer rendering from the descriptor alone merges them
    * in.
    */
-  fixedOptions?: Record<string, unknown>;
-  shapeSource: ShapeSource;
+  fixedOptions?: ConfigObject;
+  configOrigin: ConfigOrigin;
   description?: string;
   /**
    * True when the factory takes a leading controller-class argument before its
@@ -244,7 +245,7 @@ export interface BlockInitialChild {
   /** The child's block type, a key of the catalog (`LiveToggle`). */
   type: string;
   /** The child's options. */
-  options: Record<string, unknown>;
+  options: ConfigObject;
 }
 
 /** A DataType usable as a Form field's `type`. */
@@ -283,7 +284,7 @@ export interface DataSourceDescriptor {
   title: string;
   description?: string;
   /** The shape it answers with, matched against what a block can read. */
-  responseShape: string;
+  responseKind: string;
   /** The path a block fetches, as declared. */
   path: string;
   method?: string;

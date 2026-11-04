@@ -11,6 +11,7 @@ import {
 } from "../implementations/dms-builder";
 import type {
   BlockDraft,
+  ConfigValue,
   PageDraft,
   PageStructure,
 } from "@antelopejs/interface-dms-builder";
@@ -150,6 +151,32 @@ describe("the page draft", () => {
       expect(preview.degraded).to.deep.equal([]);
     });
 
+    it("keeps a __proto__ key of a block's config as an own key of its options", async function () {
+      this.timeout(OP_TIMEOUT);
+      const entries: [string, ConfigValue][] = [
+        ["__proto__", { inherited: 1 }],
+        ["own", 2],
+      ];
+      const extra = Object.fromEntries(entries);
+      const preview = expectOk(
+        await PreviewLayout(PAGE, {
+          blocks: [
+            {
+              name: "note",
+              type: "Placeholder",
+              config: { label: "p", extra },
+            },
+          ],
+        }),
+        "PreviewLayout",
+      );
+
+      expect(preview.degraded).to.deep.equal([]);
+      expect(JSON.stringify(preview.components.note.options?.extra)).to.equal(
+        '{"__proto__":{"inherited":1},"own":2}',
+      );
+    });
+
     it("previews a form without the field the author has only just added", async function () {
       this.timeout(OP_TIMEOUT);
       const email = {
@@ -255,9 +282,8 @@ describe("the page draft", () => {
         'permission: { id: "shop.board" }',
       );
 
-      const cleared = JSON.parse(
-        '{"order":null,"permission":null}',
-      ) as PageDraft["page"];
+      // @ts-expect-error null is off-contract for the page's order and permission, and SetPageBlocks must clear both from the page file instead of writing null
+      const cleared: PageDraft["page"] = { order: null, permission: null };
       expectOk(
         await SetPageBlocks(
           PAGE,
@@ -291,7 +317,8 @@ describe("the page draft", () => {
       expect(app.read(PAGE_FILE)).to.contain("live: { maxRate: 5 }");
       expect((await structure()).page.live).to.deep.equal({ maxRate: 5 });
 
-      const off = JSON.parse('{"live":null}') as PageDraft["page"];
+      // @ts-expect-error null is off-contract for the page's live setting, and SetPageBlocks must take the page off instead of writing null
+      const off: PageDraft["page"] = { live: null };
       expectOk(
         await SetPageBlocks(
           PAGE,

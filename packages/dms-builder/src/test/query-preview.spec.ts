@@ -4,9 +4,15 @@ import {
   previewRequestFromSearch,
   runPlanPreview,
 } from "../implementations/dms-builder/engine/query-preview";
-import type { PlanStream } from "../implementations/dms-builder/engine/query-plan-execute";
+import type {
+  PlanPoints,
+  PlanStream,
+} from "../implementations/dms-builder/engine/query-plan-execute";
 import { registerBuiltinQueryTemplates } from "../implementations/dms-builder/engine/query-template-emit";
-import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
+import type {
+  QueryPoint,
+  ResourceFieldStructure,
+} from "@antelopejs/interface-dms-builder";
 
 function field(name: string, dataType: string): ResourceFieldStructure {
   return { name, dataType: { $dataType: dataType } };
@@ -19,41 +25,66 @@ const FIELDS = [
 ];
 
 /** What a table answers once awaited: a number for a scalar plan, one point per group for a grouped one. */
-type Answer = number | { x: number; y: number }[];
+type Answer = number | QueryPoint[];
 
-/** The awaitable half of a table handle, whose outcome a test decides. */
-interface Settling {
-  then(resolve: (answer: Answer) => void, reject: (error: Error) => void): void;
+/** How awaiting a handle settles, as the test decided. */
+type Outcome<Result> = (
+  resolve: (answer: Result) => void,
+  reject: (error: Error) => void,
+) => void;
+
+function awaitable<Result>(outcome: Outcome<Result>): PromiseLike<Result> {
+  return {
+    then: (onfulfilled, onrejected) =>
+      new Promise<Result>(outcome).then(onfulfilled, onrejected),
+  };
 }
 
 /**
  * A table without a database. Every call the plan makes returns the same handle,
- * and awaiting it settles as the test decided.
+ * a measure over it settles as `total` decided and the groups it makes settle as
+ * `groups` decided.
  */
-function tableSettling(then: Settling["then"]): PlanStream {
-  const handle: PlanStream & Settling = {
-    then,
+function tableSettling(
+  total: Outcome<number>,
+  groups: Outcome<QueryPoint[]>,
+): PlanStream {
+  const grouped: PlanPoints = {
+    ...awaitable(groups),
+    orderBy: () => grouped,
+    slice: () => grouped,
+  };
+  const handle: PlanStream = {
     filter: () => handle,
     map: () => handle,
-    group: () => handle,
-    orderBy: () => handle,
-    slice: () => handle,
-    count: () => handle,
-    sum: () => handle,
-    avg: () => handle,
-    min: () => handle,
-    max: () => handle,
+    group: () => grouped,
+    count: () => awaitable(total),
+    sum: () => awaitable(total),
+    avg: () => awaitable(total),
+    min: () => awaitable(total),
+    max: () => awaitable(total),
   };
   return handle;
 }
 
+function unasked(kind: string): Outcome<never> {
+  return (_resolve, reject) =>
+    reject(
+      new Error(`the table was awaited for ${kind}, which it was not given`),
+    );
+}
+
 /** A table that answers whatever the test decided. */
 function tableAnswering(rows: Answer): PlanStream {
-  return tableSettling((resolve) => resolve(rows));
+  return Array.isArray(rows)
+    ? tableSettling(unasked("a figure"), (resolve) => resolve(rows))
+    : tableSettling((resolve) => resolve(rows), unasked("points"));
 }
 
 function failingTable(message: string): PlanStream {
-  return tableSettling((_resolve, reject) => reject(new Error(message)));
+  const refusal: Outcome<never> = (_resolve, reject) =>
+    reject(new Error(message));
+  return tableSettling(refusal, refusal);
 }
 
 const COUNT_QUERY = {
@@ -134,10 +165,50 @@ describe("previewing a query", () => {
         result.data.response,
         "the same arrangement read-back reports",
       ).to.equal("card");
-      expect(result.data.body.value).to.equal(180);
-      expect(result.data.body.series).to.not.deep.equal(rows);
+      expect(result.data.body).to.have.property("value", 180);
+      expect(result.data.body)
+        .to.have.property("series")
+        .that.does.not.deep.equal(rows);
     }
   });
+
+  for (const response of [
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+    "bogus",
+  ]) {
+    it(`reads a response named ${response} as the default series arrangement`, async () => {
+      const rows = [
+        { x: 202601, y: 150 },
+        { x: 202602, y: 30 },
+      ];
+      const request = previewRequestFromSearch(
+        new URLSearchParams({
+          query: JSON.stringify({ ...MONTHLY, response }),
+        }),
+        "query",
+        undefined,
+      );
+      expect(request.ok).to.equal(true);
+      if (!request.ok) {
+        return;
+      }
+      const result = await runPlanPreview(
+        tableAnswering(rows),
+        request.data,
+        FIELDS,
+      );
+
+      expect(result.ok).to.equal(true);
+      if (result.ok) {
+        expect(result.data.response, "nothing arranged them").to.equal(
+          undefined,
+        );
+        expect(result.data.body).to.deep.equal({ series: rows });
+      }
+    });
+  }
 
   it("answers the period before too, when the card compares against it", async () => {
     const rows = [
@@ -166,10 +237,12 @@ describe("previewing a query", () => {
     expect(result.ok).to.equal(true);
     if (result.ok) {
       expect(
-        result.data.body.previousValue,
+        result.data.body,
         "the preceding period's headline, as the route would answer it",
-      ).to.equal(180);
-      expect(result.data.body.comparisonSeries).to.not.equal(undefined);
+      ).to.have.property("previousValue", 180);
+      expect(result.data.body)
+        .to.have.property("comparisonSeries")
+        .that.is.an("array");
     }
 
     const alone = await runPlanPreview(
@@ -180,9 +253,9 @@ describe("previewing a query", () => {
     expect(alone.ok).to.equal(true);
     if (alone.ok) {
       expect(
-        alone.data.body.previousValue,
+        alone.data.body,
         "no comparison bounds, no period before to read",
-      ).to.equal(undefined);
+      ).to.not.have.property("previousValue");
     }
   });
 
@@ -199,7 +272,7 @@ describe("previewing a query", () => {
 
     expect(result.ok).to.equal(true);
     if (result.ok) {
-      expect(result.data.body.series).to.have.length(500);
+      expect(result.data.body).to.have.property("series").with.length(500);
       expect(result.data.truncated).to.equal(true);
     }
   });

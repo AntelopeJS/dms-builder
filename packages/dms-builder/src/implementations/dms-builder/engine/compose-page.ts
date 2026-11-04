@@ -20,7 +20,6 @@ import type {
   MutationOpts,
   OpResult,
   OpWarning,
-  QueryPoint,
   QueryResponseBody,
   ValidationIssue,
 } from "@antelopejs/interface-dms-builder";
@@ -40,6 +39,7 @@ import { isIdentifier, parseBlockPath } from "./paths";
 import { runQueryPreview } from "./query-preview";
 import { stageQuery } from "./query-ops-emit";
 import { stringLiteralValue } from "./literals";
+import { isPlainObject } from "./value";
 import {
   findPageClass,
   getWritableProject,
@@ -393,6 +393,9 @@ function write(
 
 /** Whether a previewed answer would render as an empty or all-zero block. */
 export function answerStatus(body: QueryResponseBody): "ok" | "empty" | "zero" {
+  if (!isPlainObject(body)) {
+    return "zero";
+  }
   const { series, items, value } = body;
   if (Array.isArray(items)) {
     return items.length === 0 ? "empty" : "ok";
@@ -401,7 +404,7 @@ export function answerStatus(body: QueryResponseBody): "ok" | "empty" | "zero" {
     if (series.length === 0) {
       return "empty";
     }
-    return series.every((point: Partial<QueryPoint>) => !point.y)
+    return series.every((point) => !(isPlainObject(point) && point.y))
       ? "zero"
       : "ok";
   }

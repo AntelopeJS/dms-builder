@@ -24,16 +24,8 @@ const MEMBER = /(\w+): TableViewRoutes\.(\w+)/g;
 
 const allKeys = Object.keys(TableViewRoutes.All);
 const exportKeys = new Set(Object.keys(TableViewRoutes.ExportRoutes));
-const members: Record<
-  string,
-  (typeof TableViewRoutes)[keyof typeof TableViewRoutes]
-> = {
-  ...TableViewRoutes,
-};
-const served: Record<
-  string,
-  (typeof TableViewRoutes.All)[keyof typeof TableViewRoutes.All]
-> = TableViewRoutes.All;
+const members = new Map(Object.entries(TableViewRoutes));
+const served = new Map(Object.entries(TableViewRoutes.All));
 
 function without(route: ResourceRoute): ResourceRoute[] {
   return RESOURCE_ROUTES.filter((entry) => entry !== route);
@@ -64,7 +56,7 @@ describe("resource route maps", () => {
     for (const key of allKeys.filter((entry) => !exportKeys.has(entry))) {
       const member = named.get(key);
       expect(member, `${key} is written back`).to.be.a("string");
-      expect(members[String(member)], key).to.equal(served[key]);
+      expect(members.get(String(member)), key).to.equal(served.get(key));
     }
   });
 

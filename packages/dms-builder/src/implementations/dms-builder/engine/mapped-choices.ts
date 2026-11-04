@@ -18,11 +18,13 @@ import { pageOf, propertyName, tabsColumnOf } from "./mapped-displays";
 import { mappedConnectionOfFile } from "./mapped-modules";
 import { invalidConfig } from "./ops";
 import { mappedRecordsOf, type ResourceRecord } from "./resource-index";
+import { isString } from "./scalar-guards";
 import {
   buildResourceStructure,
   tableFieldDeclarations,
 } from "./resource-structure";
 import type { PageRecord } from "./scan";
+import { isPlainObject } from "./value";
 
 /** The rule every choice read back from a mapped module cites: it is what the module holds. */
 const MAPPED_RULE = "mapped";
@@ -35,14 +37,28 @@ interface RelationTarget {
   $ref?: { resource?: string };
 }
 
+function isRelationTarget(value: unknown): value is RelationTarget {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const ref = value.$ref;
+  return (
+    ref === undefined ||
+    (isPlainObject(ref) &&
+      (ref.resource === undefined || isString(ref.resource)))
+  );
+}
+
 /** The relation a controller field points at, by the ref of the resource its DataType names. */
 function targetOf(
   field: ResourceFieldStructure | undefined,
   relations: Map<string, string>,
 ): string | undefined {
   const config = field?.dataType?.config;
-  const controller = config?.dataApiController as RelationTarget | undefined;
-  const ref = controller?.$ref?.resource;
+  const controller = config?.dataApiController;
+  const ref = isRelationTarget(controller)
+    ? controller.$ref?.resource
+    : undefined;
   return ref ? relations.get(ref) : undefined;
 }
 

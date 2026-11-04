@@ -1,8 +1,10 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { test } = require("node:test");
+const { exposesConfig, exposesEntry } = require("./helpers/built-exports.js");
 const { loadModule } = require("./helpers/load-module.cjs");
 
+/** @param {string} name */
 function distFile(name) {
   return path.resolve(__dirname, "../dist", name);
 }
@@ -12,32 +14,38 @@ function distFile(name) {
  * development flag -- true under `ajs project run`, false under
  * `ajs project start` -- and not `NODE_ENV`, which nothing sets on the way to a
  * production start.
+ *
+ * @param {boolean} dev
  */
 function loadConfig(dev) {
-  return loadModule(distFile("config.js"), {
-    "@antelopejs/interface-core/runtime": {
-      GetRuntimeInfo: async () => ({
-        dev,
-        projectPath: "/app",
-        env: "default",
-      }),
+  return loadModule(
+    distFile("config.js"),
+    {
+      "@antelopejs/interface-core/runtime": {
+        GetRuntimeInfo: async () => ({
+          dev,
+          projectPath: "/app",
+          env: "default",
+        }),
+      },
     },
-  });
+    exposesConfig,
+  );
 }
 
-test("enables the builder when the project runs in development", async () => {
+void test("enables the builder when the project runs in development", async () => {
   const config = loadConfig(true);
   config.setModuleConfig({});
   assert.equal(await config.isBuilderEnabled(), true);
 });
 
-test("disables the builder when the project does not run in development", async () => {
+void test("disables the builder when the project does not run in development", async () => {
   const config = loadConfig(false);
   config.setModuleConfig({});
   assert.equal(await config.isBuilderEnabled(), false);
 });
 
-test("ignores NODE_ENV entirely", async () => {
+void test("ignores NODE_ENV entirely", async () => {
   const previous = process.env.NODE_ENV;
   process.env.NODE_ENV = "production";
   try {
@@ -49,19 +57,19 @@ test("ignores NODE_ENV entirely", async () => {
   }
 });
 
-test("lets an explicit override turn the builder on outside development", async () => {
+void test("lets an explicit override turn the builder on outside development", async () => {
   const config = loadConfig(false);
   config.setModuleConfig({ api: { enabled: true } });
   assert.equal(await config.isBuilderEnabled(), true);
 });
 
-test("lets an explicit override turn the builder off in development", async () => {
+void test("lets an explicit override turn the builder off in development", async () => {
   const config = loadConfig(true);
   config.setModuleConfig({ api: { enabled: false } });
   assert.equal(await config.isBuilderEnabled(), false);
 });
 
-test("re-decides when the module is reconfigured", async () => {
+void test("re-decides when the module is reconfigured", async () => {
   const config = loadConfig(false);
   config.setModuleConfig({ api: { enabled: true } });
   assert.equal(await config.isBuilderEnabled(), true);
@@ -74,6 +82,8 @@ test("re-decides when the module is reconfigured", async () => {
  * is that neither the controller nor the frontend module is ever loaded. The
  * routes entry is a getter, so the list records the import rather than the
  * mock's creation.
+ *
+ * @param {boolean} dev
  */
 function bootModule(dev) {
   const runtimeMock = {
@@ -95,7 +105,7 @@ function bootModule(dev) {
     },
     "@antelopejs/interface-dms-builder": {},
     "./implementations/dms-builder": {},
-    "./config": loadModule(distFile("config.js"), runtimeMock),
+    "./config": loadModule(distFile("config.js"), runtimeMock, exposesConfig),
   };
   Object.defineProperty(mocks, "./routes", {
     enumerable: true,
@@ -104,11 +114,11 @@ function bootModule(dev) {
       return {};
     },
   });
-  const index = loadModule(distFile("index.js"), mocks);
+  const index = loadModule(distFile("index.js"), mocks, exposesEntry);
   return { index, registrations, loadedRoutes };
 }
 
-test("mounts nothing at all when the project does not run in development", async () => {
+void test("mounts nothing at all when the project does not run in development", async () => {
   const booted = bootModule(false);
   await booted.index.construct();
   await booted.index.start();
@@ -116,7 +126,7 @@ test("mounts nothing at all when the project does not run in development", async
   assert.deepEqual(booted.registrations, []);
 });
 
-test("mounts the routes and the frontend module in development", async () => {
+void test("mounts the routes and the frontend module in development", async () => {
   const booted = bootModule(true);
   await booted.index.construct();
   await booted.index.start();
@@ -133,7 +143,7 @@ test("mounts the routes and the frontend module in development", async () => {
   ]);
 });
 
-test("mounts both when an override enables the builder outside development", async () => {
+void test("mounts both when an override enables the builder outside development", async () => {
   const booted = bootModule(false);
   await booted.index.construct({ api: { enabled: true } });
   await booted.index.start();

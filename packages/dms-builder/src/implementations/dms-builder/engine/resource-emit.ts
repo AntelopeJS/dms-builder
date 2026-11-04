@@ -63,23 +63,23 @@ const ROUTE_MEMBERS: Record<ResourceRoute, [key: string, member: string][]> = {
   export: [],
 };
 
-const KEY_TO_ROUTE: Record<string, ResourceRoute> = {
-  list: "list",
-  count: "list",
-  countBatch: "list",
-  summary: "list",
-  get: "get",
-  new: "create",
-  edit: "edit",
-  delete: "delete",
-  select: "select",
-  archive: "archive",
-  restore: "archive",
+const KEY_TO_ROUTE = new Map<string, ResourceRoute>([
+  ["list", "list"],
+  ["count", "list"],
+  ["countBatch", "list"],
+  ["summary", "list"],
+  ["get", "get"],
+  ["new", "create"],
+  ["edit", "edit"],
+  ["delete", "delete"],
+  ["select", "select"],
+  ["archive", "archive"],
+  ["restore", "archive"],
   /** Written as the `ExportRoutes` spread, but a map that names them one by one serves the same export. */
-  exportStart: "export",
-  exportStatus: "export",
-  exportDownload: "export",
-};
+  ["exportStart", "export"],
+  ["exportStatus", "export"],
+  ["exportDownload", "export"],
+]);
 
 export function isResourceRoute(value: string): value is ResourceRoute {
   return RESOURCE_ROUTES.some((route) => route === value);
@@ -124,7 +124,7 @@ export function routesFromRouteMap(
 ): ResourceRoute[] {
   const found = new Set<ResourceRoute>();
   for (const key of keys) {
-    const route = KEY_TO_ROUTE[key];
+    const route = KEY_TO_ROUTE.get(key);
     if (route) {
       found.add(route);
     }
@@ -135,34 +135,34 @@ export function routesFromRouteMap(
   return RESOURCE_ROUTES.filter((route) => found.has(route));
 }
 
-export const DECORATOR_IMPORTS: Record<string, string> = {
-  Controller: API_MODULE,
-  DataController: DATA_API_MODULE,
-  RegisterDataController: DATA_API_MODULE,
-  Access: METADATA_MODULE,
-  AccessMode: METADATA_MODULE,
-  Listable: METADATA_MODULE,
-  ModelReference: METADATA_MODULE,
-  Optional: METADATA_MODULE,
-  Sortable: METADATA_MODULE,
-  Model: DB_MODULE,
-  BasicDataModel: DB_MODULE,
-  Field: DB_MODULE,
-  Fixture: DB_MODULE,
-  Index: DB_MODULE,
-  RegisterTable: DB_MODULE,
-  Table: DB_MODULE,
-  Get: API_MODULE,
-  Parameter: API_MODULE,
-  TenantScopedModel: TENANT_MODEL_MODULE,
-  AuthUserWithPermission: GUARDS_MODULE,
-  User: AUTH_DB_MODULE,
-  Searchable: SEARCHABLE_MODULE,
-  Column: TABLE_VIEW_MODULE,
-  Select: TABLE_VIEW_MODULE,
-  TableViewRoutes: TABLE_VIEW_MODULE,
-  [CORE_SCHEMA_IDENTIFIER]: CONSTANTS_MODULE,
-};
+export const DECORATOR_IMPORTS = new Map<string, string>([
+  ["Controller", API_MODULE],
+  ["DataController", DATA_API_MODULE],
+  ["RegisterDataController", DATA_API_MODULE],
+  ["Access", METADATA_MODULE],
+  ["AccessMode", METADATA_MODULE],
+  ["Listable", METADATA_MODULE],
+  ["ModelReference", METADATA_MODULE],
+  ["Optional", METADATA_MODULE],
+  ["Sortable", METADATA_MODULE],
+  ["Model", DB_MODULE],
+  ["BasicDataModel", DB_MODULE],
+  ["Field", DB_MODULE],
+  ["Fixture", DB_MODULE],
+  ["Index", DB_MODULE],
+  ["RegisterTable", DB_MODULE],
+  ["Table", DB_MODULE],
+  ["Get", API_MODULE],
+  ["Parameter", API_MODULE],
+  ["TenantScopedModel", TENANT_MODEL_MODULE],
+  ["AuthUserWithPermission", GUARDS_MODULE],
+  ["User", AUTH_DB_MODULE],
+  ["Searchable", SEARCHABLE_MODULE],
+  ["Column", TABLE_VIEW_MODULE],
+  ["Select", TABLE_VIEW_MODULE],
+  ["TableViewRoutes", TABLE_VIEW_MODULE],
+  [CORE_SCHEMA_IDENTIFIER, CONSTANTS_MODULE],
+]);
 
 export const DATA_API_MODULE_ORDER = [
   API_MODULE,
@@ -245,31 +245,31 @@ const ANY_FIELD = "any";
  * neither is a string, whatever their names say. Only a DataType missing from
  * here — one a project registered itself — falls back to a string column.
  */
-const DB_TYPE_MAP: Record<string, { field: string; ts: string }> = {
-  string: { field: "string", ts: "string" },
-  email: { field: "string", ts: "string" },
-  url: { field: "string", ts: "string" },
-  password: { field: "string", ts: "string" },
-  color: { field: "string", ts: "string" },
-  phone: { field: "string", ts: "string" },
-  rich_text: { field: "string", ts: "string" },
-  select: { field: "string", ts: "string" },
-  number: { field: "number", ts: "number" },
-  price: { field: "number", ts: "number" },
-  percentage: { field: "number", ts: "number" },
-  string_time: { field: "number", ts: "number" },
-  date: { field: "date", ts: "Date" },
-  boolean: { field: "boolean", ts: "boolean" },
-  status: { field: "boolean", ts: "boolean" },
+const DB_TYPE_MAP = new Map<string, { field: string; ts: string }>([
+  ["string", { field: "string", ts: "string" }],
+  ["email", { field: "string", ts: "string" }],
+  ["url", { field: "string", ts: "string" }],
+  ["password", { field: "string", ts: "string" }],
+  ["color", { field: "string", ts: "string" }],
+  ["phone", { field: "string", ts: "string" }],
+  ["rich_text", { field: "string", ts: "string" }],
+  ["select", { field: "string", ts: "string" }],
+  ["number", { field: "number", ts: "number" }],
+  ["price", { field: "number", ts: "number" }],
+  ["percentage", { field: "number", ts: "number" }],
+  ["string_time", { field: "number", ts: "number" }],
+  ["date", { field: "date", ts: "Date" }],
+  ["boolean", { field: "boolean", ts: "boolean" }],
+  ["status", { field: "boolean", ts: "boolean" }],
   /** A relation holds the id of the row it points at. */
-  relation: { field: "string", ts: "string" },
-  cascader_relation: { field: "string", ts: "string" },
-  tree: { field: "string", ts: "string" },
-  permissions: { field: ANY_FIELD, ts: "string[]" },
-  address: { field: ANY_FIELD, ts: "Record<string, string>" },
-  file: { field: ANY_FIELD, ts: "Record<string, unknown>" },
-  image: { field: ANY_FIELD, ts: "Record<string, unknown>" },
-};
+  ["relation", { field: "string", ts: "string" }],
+  ["cascader_relation", { field: "string", ts: "string" }],
+  ["tree", { field: "string", ts: "string" }],
+  ["permissions", { field: ANY_FIELD, ts: "string[]" }],
+  ["address", { field: ANY_FIELD, ts: "Record<string, string>" }],
+  ["file", { field: ANY_FIELD, ts: "Record<string, unknown>" }],
+  ["image", { field: ANY_FIELD, ts: "Record<string, unknown>" }],
+]);
 
 /** The DataTypes that hold a list of values once configured `multiple`. */
 const MULTIPLE_TYPES = new Set([
@@ -303,7 +303,7 @@ export function withDefaultIndex(field: FieldSpec): FieldSpec {
 export function mappedDbType(
   dataType: DataTypeValue,
 ): { field: string; ts: string } | undefined {
-  const known = DB_TYPE_MAP[dataType.$dataType];
+  const known = DB_TYPE_MAP.get(dataType.$dataType);
   if (!known) {
     return undefined;
   }

@@ -4,6 +4,7 @@
  * built-in query templates are registered as this module loads.
  */
 import type {
+  Operations as BuilderOperations,
   AddBlockInput,
   AnalyseDatabaseInput,
   AnalysisState,
@@ -389,3 +390,52 @@ export async function ComposePage(
 ): Promise<OpResult<ComposePageData>> {
   return composePage(input, opts);
 }
+
+/**
+ * The map the interface declares next to its flat exports. The core attaches an implementation to every
+ * path of the declaration, so each operation is answered here as well, by the same function.
+ */
+export const Operations = {
+  AddBlock,
+  AddField,
+  AddModule,
+  AddQuery,
+  AnalyseDatabase,
+  ComposePage,
+  ConfigureBlock,
+  ConfigureCategory,
+  ConfigureField,
+  ConfigureModule,
+  ConfigurePage,
+  ConfigureProject,
+  ConfigureQuery,
+  ConfigureResource,
+  ConfigureTableView,
+  CreateCategory,
+  CreateLocalModule,
+  CreatePage,
+  CreateResource,
+  DeleteCategory,
+  DeletePage,
+  DeleteResource,
+  GetAnalysis,
+  GetCatalog,
+  GetMapping,
+  GetPageStructure,
+  GetResourceStructure,
+  ListCategories,
+  ListDataSources,
+  ListPages,
+  ListQueryTemplates,
+  ListResources,
+  MapResources,
+  PreviewMapResources,
+  MoveBlock,
+  PreviewLayout,
+  PreviewQuery,
+  RefreshSourceIndex,
+  RemoveBlock,
+  RemoveField,
+  RemoveQuery,
+  SetPageBlocks,
+} satisfies typeof BuilderOperations;

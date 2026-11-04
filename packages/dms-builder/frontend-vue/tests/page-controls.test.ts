@@ -23,7 +23,7 @@ function controlsCatalog(base: BlockCatalog = testCatalog()): BlockCatalog {
 				label: 'KPI card',
 				group: 'visualization',
 				container: false,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				config: {
 					fetchUrl: {
 						type: 'string',
@@ -39,7 +39,7 @@ function controlsCatalog(base: BlockCatalog = testCatalog()): BlockCatalog {
 				label: 'Live toggle',
 				group: 'data',
 				container: false,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				config: {
 					align: { type: 'string', optional: true },
 					variant: { type: 'string', optional: true },
@@ -51,7 +51,7 @@ function controlsCatalog(base: BlockCatalog = testCatalog()): BlockCatalog {
 				label: 'Page toolbar',
 				group: 'data',
 				container: true,
-				shapeSource: 'test',
+				configOrigin: 'test',
 				config: {
 					size: { type: 'string', optional: true },
 					showUpdatedAt: { type: 'boolean', optional: true },

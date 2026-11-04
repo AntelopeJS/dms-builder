@@ -1,5 +1,10 @@
-import type { ImportRef, RefValue } from "@antelopejs/interface-dms-builder";
+import type {
+  ConfigObject,
+  ConfigValue,
+  ImportRef,
+} from "@antelopejs/interface-dms-builder";
 import { buildCatalog } from "./catalog";
+import { isLiteralObject } from "./guards";
 import { propertyKey } from "./paths";
 
 interface RefResolution {
@@ -10,7 +15,7 @@ interface RefResolution {
 export interface EmitContext {
   addImport(ref: ImportRef): void;
   /** Resolves a `$ref` to a class identifier + its import. Absent outside a resource-aware op. */
-  resolveRef?(ref: RefValue["$ref"]): RefResolution;
+  resolveRef?(ref: RefSentinel["$ref"]): RefResolution;
 }
 
 export class UnknownDataTypeError extends Error {
@@ -41,17 +46,14 @@ type ExprSentinel = {
   $expr: string;
 };
 
-type DataTypeSentinel = {
-  $dataType: string;
-  config?: unknown;
-};
+type DataTypeSentinel = ConfigObject & { $dataType: string };
 
 type BlockSentinel = {
-  $block: { type: string; config?: unknown };
+  $block: ConfigObject & { type: string };
 };
 
 type RefSentinel = {
-  $ref: { resource: string; as?: unknown };
+  $ref: ConfigObject & { resource: string };
 };
 
 export function createImportCollector(opts?: {
@@ -73,7 +75,7 @@ export function isPlainObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isExprSentinel(value: Record<string, unknown>): value is ExprSentinel {
+function isExprSentinel(value: ConfigObject): value is ExprSentinel {
   return (
     "$expr" in value &&
     typeof value.$expr === "string" &&
@@ -81,9 +83,7 @@ function isExprSentinel(value: Record<string, unknown>): value is ExprSentinel {
   );
 }
 
-function isDataTypeSentinel(
-  value: Record<string, unknown>,
-): value is DataTypeSentinel {
+function isDataTypeSentinel(value: ConfigObject): value is DataTypeSentinel {
   if (!("$dataType" in value) || typeof value.$dataType !== "string") {
     return false;
   }
@@ -92,12 +92,10 @@ function isDataTypeSentinel(
   );
 }
 
-function isBlockSentinel(
-  value: Record<string, unknown>,
-): value is BlockSentinel {
+function isBlockSentinel(value: ConfigObject): value is BlockSentinel {
   if (
     !("$block" in value) ||
-    !isPlainObject(value.$block) ||
+    !isLiteralObject(value.$block) ||
     Object.keys(value).length !== 1
   ) {
     return false;
@@ -118,7 +116,7 @@ function blockText(value: BlockSentinel, ctx: EmitContext): string {
     throw new UnknownBlockTypeError(block.type);
   }
   ctx.addImport(descriptor.import);
-  const config = isPlainObject(block.config) ? block.config : undefined;
+  const config = isLiteralObject(block.config) ? block.config : undefined;
   const arg =
     config && definedEntries(config).length > 0
       ? objectValueText(config, ctx)
@@ -126,10 +124,10 @@ function blockText(value: BlockSentinel, ctx: EmitContext): string {
   return `${descriptor.type}(${arg})`;
 }
 
-function isRefSentinel(value: Record<string, unknown>): value is RefSentinel {
+function isRefSentinel(value: ConfigObject): value is RefSentinel {
   if (
     !("$ref" in value) ||
-    !isPlainObject(value.$ref) ||
+    !isLiteralObject(value.$ref) ||
     Object.keys(value).length !== 1
   ) {
     return false;
@@ -138,7 +136,7 @@ function isRefSentinel(value: Record<string, unknown>): value is RefSentinel {
 }
 
 function refText(value: RefSentinel, ctx: EmitContext): string {
-  const ref = value.$ref as RefValue["$ref"];
+  const ref = value.$ref;
   if (!ctx.resolveRef) {
     throw new UnknownReferenceError(ref.resource);
   }
@@ -147,7 +145,7 @@ function refText(value: RefSentinel, ctx: EmitContext): string {
   return resolved.text;
 }
 
-function definedEntries(obj: Record<string, unknown>): [string, unknown][] {
+function definedEntries(obj: ConfigObject): [string, ConfigValue][] {
   return Object.entries(obj).filter(([, value]) => value !== undefined);
 }
 
@@ -158,7 +156,7 @@ function dataTypeText(value: DataTypeSentinel, ctx: EmitContext): string {
     throw new UnknownDataTypeError(id);
   }
   ctx.addImport(descriptor.import);
-  const config = isPlainObject(value.config) ? value.config : undefined;
+  const config = isLiteralObject(value.config) ? value.config : undefined;
   const arg =
     config && definedEntries(config).length > 0
       ? objectValueText(config, ctx)
@@ -194,10 +192,7 @@ export function inlineOrBlock(
   return `${open}\n${parts.map((part) => `${part},`).join("\n")}\n${close}`;
 }
 
-function objectValueText(
-  obj: Record<string, unknown>,
-  ctx: EmitContext,
-): string {
+function objectValueText(obj: ConfigObject, ctx: EmitContext): string {
   const entries = definedEntries(obj);
   if (entries.length === 0) {
     return "{}";
@@ -208,8 +203,8 @@ function objectValueText(
   return inlineOrBlock(parts, "{", "}");
 }
 
-export function serializeValue(value: unknown, ctx: EmitContext): string {
-  if (isPlainObject(value)) {
+export function serializeValue(value: ConfigValue, ctx: EmitContext): string {
+  if (isLiteralObject(value)) {
     if (isExprSentinel(value)) {
       return value.$expr;
     }

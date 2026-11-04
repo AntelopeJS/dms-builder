@@ -50,7 +50,7 @@ describe('the palette', () => {
 					container: true,
 					allowedChildren: ['Text', 'Section'],
 					config: {},
-					shapeSource: 'test',
+					configOrigin: 'test',
 				},
 			],
 		}

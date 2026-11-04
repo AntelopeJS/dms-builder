@@ -34,21 +34,21 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 const ID_COLUMN = "_id";
 
 /** The DataType a TableView column shows for each declaration; others stay off the TableView. */
-const DATA_TYPES: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  date: "date",
-};
+const DATA_TYPES = new Map([
+  ["string", "string"],
+  ["number", "number"],
+  ["boolean", "boolean"],
+  ["date", "date"],
+]);
 
-const TS_TYPES: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  date: "Date",
-  object: "Record<string, unknown>",
-  any: "unknown",
-};
+const TS_TYPES = new Map([
+  ["string", "string"],
+  ["number", "number"],
+  ["boolean", "boolean"],
+  ["date", "Date"],
+  ["object", "Record<string, unknown>"],
+  ["any", "unknown"],
+]);
 
 /** One relation, planned: names, the table's fields, and the controller's when it has a TableView. */
 export interface PlannedResource {
@@ -83,7 +83,7 @@ function tsType(declared: string): string {
   if (declared.endsWith("[]")) {
     return `${tsType(declared.slice(0, -2))}[]`;
   }
-  return TS_TYPES[declared] ?? "unknown";
+  return TS_TYPES.get(declared) ?? "unknown";
 }
 
 export function namesFor(
@@ -208,7 +208,7 @@ function chosenFields(
 function tableField(field: MappedField, declared: string): FieldSpec {
   return {
     name: field.column,
-    dataType: { $dataType: DATA_TYPES[declared] ?? "string" },
+    dataType: { $dataType: DATA_TYPES.get(declared) ?? "string" },
     dbField: { field: JSON.stringify(declared), ts: tsType(declared) },
   };
 }
@@ -383,7 +383,10 @@ function controllerField(
       message: `${relationName(description)}.${field.column} is a relation column, which takes no display: written without one`,
     });
   }
-  if (!target && !DATA_TYPES[declared]) {
+  const scalar = DATA_TYPES.get(declared);
+  const source =
+    target ?? (scalar === undefined ? undefined : { $dataType: scalar });
+  if (!source) {
     return {
       reason: `a ${declared} field is not shown in a TableView in this version`,
     };
@@ -403,14 +406,15 @@ function controllerField(
     spec: {
       name: field.column,
       label: columnLabel(plan.defaults, field, column, target),
-      dataType: target
-        ? relationDataType(target, field.column, plan.warnings)
-        : fieldDataType(
-            display,
-            declared,
-            { $dataType: DATA_TYPES[declared] },
-            `${relationName(description)}.${field.column}`,
-          ),
+      dataType:
+        "$dataType" in source
+          ? fieldDataType(
+              display,
+              declared,
+              source,
+              `${relationName(description)}.${field.column}`,
+            )
+          : relationDataType(source, field.column, plan.warnings),
       listable: field.listable ?? true,
       filterable: field.filterable ?? false,
       sortable: field.sortable ?? false,

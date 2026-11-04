@@ -9,6 +9,7 @@
 import type {
   AddQueryInput,
   BlockDraft,
+  ConfigValue,
   OpResult,
   OpWarning,
   QueryStructure,
@@ -30,6 +31,7 @@ import {
   findQueryRoutes,
 } from "./query-structure";
 import { findResourceRecord } from "./resource-index";
+import { isString } from "./scalar-guards";
 import { isPlainObject } from "./value";
 import type { Transaction } from "./writable";
 
@@ -49,8 +51,8 @@ interface SyncContext {
  * looking for that URL rather than by trusting the draft to have listed it.
  */
 function configuredStrings(blocks: BlockDraft[], found: Set<string>): void {
-  const walk = (value: unknown): void => {
-    if (typeof value === "string") {
+  const walk = (value: ConfigValue): void => {
+    if (isString(value)) {
       found.add(value);
       return;
     }

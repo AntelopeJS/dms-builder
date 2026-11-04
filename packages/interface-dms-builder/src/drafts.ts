@@ -4,6 +4,7 @@ import type { AddQueryInput, QueryPreview } from "./queries";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
 import type { EditablePageMeta } from "./structure";
+import type { ConfigObject } from "./values";
 
 /**
  * A block as the caller wants it written. The whole tree is declarative: what
@@ -15,12 +16,12 @@ export interface BlockDraft {
   /** A catalog type; informational and checked against source when preserved. */
   type?: string;
   /** Understood options only. Omit locked options; the server retains their source. */
-  config?: Record<string, unknown>;
+  config?: ConfigObject;
   /** Read-only UI hints. The server derives option locks from its own source. */
   lockedOptions?: Record<string, string>;
   slot?: string;
   /** Child metadata emitted with `slot`, e.g. `{ colSpan: 2 }`. */
-  meta?: Record<string, unknown>;
+  meta?: ConfigObject;
   /** Required for a controller-leading block type such as `TableView`. */
   controller?: ResourceRef;
   /** Preserved parents may include their unchanged, recursively preserved children. */
@@ -54,18 +55,18 @@ export interface PageDraft {
 }
 
 /** A component tree in the shape the DMS frontend consumes. */
-export interface ComponentPreview {
+export type ComponentPreview = {
   componentName: string;
-  options?: Record<string, unknown>;
+  options?: ConfigObject;
   children?: ComponentPreviewChild[];
-}
+};
 
-export interface ComponentPreviewChild {
+export type ComponentPreviewChild = {
   id: string;
   slot?: string;
   component: ComponentPreview;
-  [key: string]: unknown;
-}
+  [key: string]: ConfigObject[string];
+};
 
 /** The preview of a page draft, keyed by top-level block name. */
 export interface PageLayoutPreview {
@@ -122,7 +123,7 @@ export const PreviewQuery =
 export interface QueryPreviewRequest {
   query: AddQueryInput;
   /** Values the route would receive, by the name it exposes them under. */
-  args?: Record<string, unknown>;
+  args?: ConfigObject;
   /** The tenant whose rows to read, for a resource in a per-tenant schema. */
   tenant?: string;
 }

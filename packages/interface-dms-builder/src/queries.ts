@@ -3,6 +3,7 @@ import type { PageRef } from "./addressing";
 import type { ConfigSchema } from "./catalog";
 import type { ResourceRef } from "./resources";
 import type { MutationOpts, OpResult } from "./results";
+import type { ConfigValue } from "./values";
 
 /**
  * A query's address: `<pageRef>@<name>`, e.g. `/books@inStockCount`. The page is
@@ -24,7 +25,7 @@ export type QueryOutputKind = "scalar" | "series";
  * says what the route wraps it in: the points themselves, a headline figure above
  * them, that figure alone, or the points as a ranked list.
  */
-export type QueryResponseShape = "series" | "card" | "value" | "items";
+export type QueryArrangement = "series" | "card" | "value" | "items";
 
 /** The comparison operators a filter may use. */
 export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";
@@ -39,14 +40,14 @@ export type FilterOp = "eq" | "ne" | "gt" | "ge" | "lt" | "le";
  * where the value came from — its own parameter is named from the template, so
  * `name`/`in` here only shape the route and are recovered from it on read-back.
  */
-export interface QueryParamBinding {
+export type QueryParamBinding = {
   $param: {
     /** A camelCase identifier; the route exposes the value under this name. */
     name: string;
     /** Where the route reads the value from; defaults to `"query"`. */
     in?: "query" | "param";
   };
-}
+};
 
 /**
  * A filter value: either a plain scalar baked into the chain, or a
@@ -55,15 +56,14 @@ export interface QueryParamBinding {
  * The alias is deliberate: it documents that a parameter value is data, never an
  * expression, which `QueryParamBinding` relies on.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-type-aliases
-export type QueryParamValue = unknown;
+export type QueryParamValue = ConfigValue;
 
 /** One conjunct of a query's `where`. Filters combine with AND. */
-export interface QueryFilter {
+export type QueryFilter = {
   field: string;
   op: FilterOp;
   value: QueryParamValue;
-}
+};
 
 /** A query template the builder can compile into a model method. */
 export interface QueryTemplateDescriptor {
@@ -92,7 +92,7 @@ export interface QueryPoint {
  * package deliberately does not depend on, so the body travels as the JSON the
  * route serves it as.
  */
-export type QueryResponseBody = Record<string, unknown>;
+export type QueryResponseBody = object;
 
 /**
  * What a draft query answers when run without being written.
@@ -112,7 +112,7 @@ export interface QueryPreview {
    * How the body is arranged, set only when a helper arranged it — the same
    * condition under which read-back reports it.
    */
-  response?: QueryResponseShape;
+  response?: QueryArrangement;
   body: QueryResponseBody;
   truncated: boolean;
 }
@@ -139,7 +139,7 @@ export interface AddQueryInput {
    * A grouped calculation feeds a bare chart, a card with a headline figure, or
    * a ranked list without being described three times.
    */
-  response?: QueryResponseShape;
+  response?: QueryArrangement;
   /**
    * Answer the preceding period alongside the current one, so a card can show a
    * variation. Only meaningful when the query binds a period.
@@ -167,7 +167,7 @@ export interface AddQueryInput {
 export interface QueryStructure {
   name: string;
   /** How the answer is arranged, when the route wraps the calculation. */
-  response?: QueryResponseShape;
+  response?: QueryArrangement;
   /** The route path relative to the page's slug, as {@link AddQueryInput.endpoint} takes it. */
   endpoint: string;
   resource?: ResourceRef;
@@ -178,7 +178,7 @@ export interface QueryStructure {
   modelMethod?: string;
   output?: QueryOutputKind;
   template?: string;
-  params?: Record<string, unknown>;
+  params?: Record<string, QueryParamValue>;
   /**
    * The route's declared parameters — the source of truth for a bound value's
    * `name` and `in`. `header` appears only on hand-written routes; a generated

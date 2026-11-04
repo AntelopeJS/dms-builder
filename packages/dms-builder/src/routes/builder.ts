@@ -36,7 +36,10 @@ import * as engine from "../implementations/dms-builder";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
 import { pageAccess } from "../implementations/dms-builder/engine/page-access";
 import { listPermissions } from "../implementations/dms-builder/engine/permissions";
-import { previewRequestFromSearch } from "../implementations/dms-builder/engine/query-preview";
+import {
+  previewRequestFromSearch,
+  runQueryPreview,
+} from "../implementations/dms-builder/engine/query-preview";
 import {
   pageImpact,
   tableReaders,
@@ -353,7 +356,7 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
     if (!request.ok) {
       return new HTTPResult(400, request.error);
     }
-    const answer = await engine.PreviewQuery(request.data);
+    const answer = await runQueryPreview(request.data);
     if (!answer.ok) {
       return new HTTPResult(
         answer.error.code === "not_found" ? 404 : 422,
@@ -366,7 +369,7 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.dataSources)
   async dataSources(
     @AuthTenantOwner() _user: User,
-    @Parameter("responseShape", "query") response?: string,
+    @Parameter("responseKind", "query") response?: string,
   ) {
     return engine.ListDataSources(response);
   }

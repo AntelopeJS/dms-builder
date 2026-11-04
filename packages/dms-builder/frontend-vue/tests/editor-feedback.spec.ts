@@ -208,7 +208,7 @@ describe('a block the builder cannot rewrite', () => {
 
 	it('offers understood options, names locked ones, and refuses their mutation', async () => {
 		useBuilderMode().setMode('simple')
-		backend.catalog.blocks.push({ type: 'ExampleCard', label: 'Example card', container: false, shapeSource: 'test', config: { title: { type: 'string', ui: { label: 'Title' } }, result: { type: 'number', ui: { label: 'Result' } } } })
+		backend.catalog.blocks.push({ type: 'ExampleCard', label: 'Example card', container: false, configOrigin: 'test', config: { title: { type: 'string', ui: { label: 'Title' } }, result: { type: 'number', ui: { label: 'Result' } } } })
 		await openWith([{ name: 'card', path: 'card', type: 'ExampleCard', editable: true, config: { title: 'Before' }, lockedOptions: { result: 'Defined in code; preserved unchanged' } }])
 		builder.select('card')
 		const view = mount(Config, { components: { DmsBuilderOption: Option } })

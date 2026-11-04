@@ -4,11 +4,17 @@ import {
   ControllerMeta,
 } from "@antelopejs/interface-api";
 import { GetMetadata } from "@antelopejs/interface-core";
+import type { Class } from "@antelopejs/interface-core/decorators";
+import type { ComponentBuilder } from "@antelopejs/interface-dms/component";
+import type { DataType } from "@antelopejs/interface-dms/base/data-types";
+import type * as TableViewApi from "@antelopejs/interface-dms/base/table-view";
 import type {
   BlockDraft,
   BlockPath,
   ComponentPreview,
+  ConfigObject,
   ConfigSchema,
+  ConfigValue,
   OpResult,
   OptionSchema,
   PageDraft,
@@ -19,6 +25,8 @@ import { notFound } from "./ops";
 import { resolveProjectRoot } from "./project";
 import { findResourceRecord } from "./resource-index";
 import { findPageRecord } from "./source-index";
+import { isCallable, isLiteralObject } from "./guards";
+import { isString } from "./scalar-guards";
 import { isPlainObject } from "./value";
 
 const BASE_MODULE = "@antelopejs/interface-dms/base";
@@ -68,7 +76,7 @@ const SOURCE_COLUMN_OPTIONS = [
   "cellWrap",
   "size",
   "display",
-];
+] as const satisfies readonly (keyof TableViewApi.ColumnOptions)[];
 
 /** What a data controller's list route handles itself: all of it. */
 const LIST_ROUTE_CAPABILITIES = {
@@ -79,42 +87,48 @@ const LIST_ROUTE_CAPABILITIES = {
 };
 
 /** The options of a block as the draft holds them, by option name. */
-type BlockOptions = NonNullable<BlockDraft["config"]>;
+type BlockOptions = ConfigObject;
+
+/** A config value once its sentinels are resolved: data, DataType instances, DataAPI classes and nested builders. */
+type RuntimeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | RuntimeValue[]
+  | RuntimeObject
+  | DataType
+  | ControllerClass
+  | PreviewBuilder;
+
+/** An options object whose values are {@link RuntimeValue}s. */
+interface RuntimeObject {
+  [key: string]: RuntimeValue;
+}
 
 /** A config object whose `$dataType` names a DataType. */
-type DataTypeSentinel = Record<string, unknown> & { $dataType: string };
-
-/** A column as a table's metadata describes it to its views. */
-interface DescribedColumn {
-  id: string;
-  listable: boolean;
-  enableSorting: boolean;
-}
+type DataTypeSentinel = ConfigObject & { $dataType: string };
 
 /** What the preview reads of a table's metadata, never writes. */
-interface TableMetadata {
-  columns: Record<string, Record<string, unknown>>;
-  config: { location: string; columns: DescribedColumn[] };
-}
+type TableMetadata = Pick<TableViewApi.TableViewMeta, "columns" | "config">;
 
-/** The metadata class a table's views read, as `GetMetadata` takes it. */
-interface TableMetadataClass {
-  new (target: ControllerClass): TableMetadata;
-  key: symbol;
-}
-
+/** The part of the table view module the preview drives. */
 interface TableViewModule {
-  TableViewMeta: TableMetadataClass;
-  tableViewFromSource: (options: Record<string, unknown>) => PreviewBuilder;
+  TableViewMeta: typeof TableViewApi.TableViewMeta;
+  tableViewFromSource: (
+    options: Omit<TableViewApi.TableViewSourceOptions, "columns"> & {
+      columns: Record<string, Partial<TableViewApi.TableViewSourceColumn>>;
+    },
+  ) => PreviewBuilder;
 }
+
+/** What a builder takes of a child besides its component: its slot and the rest of its metadata. */
+type ChildMeta = Parameters<ComponentBuilder["child"]>[2];
 
 /** The subset of `ComponentBuilder` the preview drives. */
 interface PreviewBuilder {
-  child(
-    id: string,
-    component: PreviewBuilder,
-    meta?: Record<string, unknown>,
-  ): this;
+  child(id: string, component: PreviewBuilder, meta?: ChildMeta): this;
   serialize(): Promise<ComponentPreview>;
 }
 
@@ -126,21 +140,21 @@ class DegradedBlockError extends Error {
   }
 }
 
-function loadModule<T = Record<string, unknown>>(specifier: string): T {
-  return require(specifier) as T;
+/** What `value` spreads from: itself when an object or a function, else nothing. */
+function spreadable(value: RuntimeValue): object | undefined {
+  return isCallable(value) || isPlainObject(value) ? value : undefined;
 }
 
-function isDataTypeSentinel(
-  value: Record<string, unknown>,
-): value is DataTypeSentinel {
-  return typeof value.$dataType === "string";
+function isDataTypeSentinel(value: ConfigObject): value is DataTypeSentinel {
+  return isString(value.$dataType);
 }
 
 function factoryFor(type: string): BlockFactory {
-  const factory = loadModule(BASE_MODULE)[type];
-  if (typeof factory !== "function") {
+  const factory: unknown = require(BASE_MODULE)[type];
+  if (!isCallable(factory)) {
     throw new DegradedBlockError(`no runtime factory for block type "${type}"`);
   }
+  // SAFETY: BASE_MODULE exports one factory per block type, each taking the block's options and answering a builder, and isCallable has just checked that this export is a function.
   return factory as BlockFactory;
 }
 
@@ -153,7 +167,9 @@ function factoryFor(type: string): BlockFactory {
  * table created a moment ago, which the app has not reloaded under yet, is
  * simply not there.
  */
-function loadedController(ref: string | undefined): unknown {
+function loadedController(
+  ref: string | undefined,
+): ControllerClass | undefined {
   const record = ref ? findResourceRecord(ref) : undefined;
   if (!record) {
     return undefined;
@@ -164,44 +180,40 @@ function loadedController(ref: string | undefined): unknown {
     if (!file.startsWith(root) || file.includes(dependencies)) {
       continue;
     }
-    const exported = (entry?.exports as Record<string, unknown> | undefined)?.[
-      record.apiName
-    ];
-    if (
-      typeof exported === "function" &&
-      GetMetadata(exported as ControllerClass, ControllerMeta).location ===
-        record.route
-    ) {
-      return exported;
+    const exported: unknown = entry?.exports?.[record.apiName];
+    if (!isCallable(exported)) {
+      continue;
+    }
+    // SAFETY: apiName is the export name of the resource's DataAPI controller class in the module that defines it, and isCallable has checked the export is a function; the location comparison on the next line rejects any other function of that name.
+    const controller = exported as ControllerClass;
+    if (GetMetadata(controller, ControllerMeta).location === record.route) {
+      return controller;
     }
   }
   return undefined;
 }
 
-/** Walks a dotted export path, e.g. `DefaultDataTypes.StringType`. */
-function resolveExport(specifier: string, name: string): unknown {
-  return name
-    .split(".")
-    .reduce<unknown>(
-      (current, part) => (isPlainObject(current) ? current[part] : undefined),
-      loadModule(specifier),
-    );
-}
-
-function instantiateDataType(value: DataTypeSentinel): unknown {
+/**
+ * A DataType instance for a `$dataType` config value, built from the export its
+ * catalog entry names: a dotted path such as `DefaultDataTypes.StringType`.
+ */
+function instantiateDataType(value: DataTypeSentinel): DataType {
   const id = value.$dataType;
   const descriptor = buildCatalog().dataTypes.find((type) => type.id === id);
   if (!descriptor?.import.module) {
     throw new DegradedBlockError(`unknown dataType "${id}"`);
   }
-  const exported = resolveExport(
-    descriptor.import.module,
-    descriptor.import.name,
-  );
-  if (typeof exported !== "function") {
+  const exported = descriptor.import.name
+    .split(".")
+    .reduce<unknown>(
+      (current, part) => (isPlainObject(current) ? current[part] : undefined),
+      require(descriptor.import.module),
+    );
+  if (!isCallable(exported)) {
     throw new DegradedBlockError(`dataType "${id}" is not constructible`);
   }
-  const Ctor = exported as new (config?: unknown) => unknown;
+  // SAFETY: the catalog entry's import names a DataType class export, such as DefaultDataTypes.StringType, and isCallable has checked that this export is a function.
+  const Ctor = exported as Class<DataType>;
   return new Ctor(
     value.config === undefined ? undefined : materialize(value.config),
   );
@@ -214,10 +226,13 @@ function instantiateDataType(value: DataTypeSentinel): unknown {
  * Only read, as a table form's own class is: the DataType looks the table's
  * routes up on it, which is what the saved page would do when served.
  */
-function referencedController(ref: Record<string, unknown>): unknown {
+function referencedController(ref: {
+  as?: unknown;
+  resource?: unknown;
+}): ControllerClass {
   const dataApi = ref.as === undefined || ref.as === "dataApi";
   const controller =
-    dataApi && typeof ref.resource === "string"
+    dataApi && isString(ref.resource)
       ? loadedController(ref.resource)
       : undefined;
   if (!controller) {
@@ -227,42 +242,46 @@ function referencedController(ref: Record<string, unknown>): unknown {
 }
 
 /** Resolves the sentinels a config may carry into the values a factory expects. */
-function materialize(value: unknown): unknown {
+function materialize(value: ConfigValue): RuntimeValue {
   if (Array.isArray(value)) {
     return value.map(materialize);
   }
-  if (!isPlainObject(value)) {
+  if (!isLiteralObject(value)) {
     return value;
   }
-  if (typeof value.$expr === "string") {
+  if (isString(value.$expr)) {
     throw new DegradedBlockError("$expr cannot be previewed");
   }
-  if (isPlainObject(value.$ref)) {
+  if (isLiteralObject(value.$ref)) {
     return referencedController(value.$ref);
   }
   if (isDataTypeSentinel(value)) {
     return instantiateDataType(value);
   }
-  if (isPlainObject(value.$block)) {
-    const block = value.$block as { type: string; config?: unknown };
+  if (isLiteralObject(value.$block)) {
+    const { type, config } = value.$block;
     return buildBlock({
       name: "preview",
-      type: block.type,
-      config: isPlainObject(block.config) ? block.config : {},
+      type: isString(type) ? type : undefined,
+      config: isLiteralObject(config) ? config : {},
     });
   }
-  const materialized: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    materialized[key] = materialize(entry);
-  }
-  return materialized;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, materialize(entry)]),
+  );
 }
 
 /** A value still missing an option its schema requires. */
 const UNFINISHED = Symbol("unfinished");
 
-function isEmpty(value: unknown): value is "" | null | undefined {
+function isEmpty(value: ConfigValue): value is "" | null | undefined {
   return value === undefined || value === null || value === "";
+}
+
+function isFinished(
+  value: ConfigValue | typeof UNFINISHED,
+): value is ConfigValue {
+  return value !== UNFINISHED;
 }
 
 function isRequired(schema: OptionSchema): boolean {
@@ -275,7 +294,10 @@ function isRequired(schema: OptionSchema): boolean {
  * however deep. Hidden options are not the author's to fill, so they are not
  * counted — the same reading the panel's "Waiting on" makes.
  */
-function finished(schema: OptionSchema, value: unknown): unknown {
+function finished(
+  schema: OptionSchema,
+  value: ConfigValue,
+): ConfigValue | typeof UNFINISHED {
   if (isEmpty(value)) {
     return isRequired(schema) ? UNFINISHED : value;
   }
@@ -288,8 +310,8 @@ function finished(schema: OptionSchema, value: unknown): unknown {
     }
     return UNFINISHED;
   }
-  if (schema.properties && isPlainObject(value)) {
-    const kept: Record<string, unknown> = { ...value };
+  if (schema.properties && isLiteralObject(value)) {
+    const kept: ConfigObject = { ...value };
     for (const [key, nested] of Object.entries(schema.properties)) {
       if (nested.ui?.hidden) {
         continue;
@@ -306,16 +328,15 @@ function finished(schema: OptionSchema, value: unknown): unknown {
   }
   if (schema.items && Array.isArray(value)) {
     const items = schema.items;
-    return value
-      .map((entry) => finished(items, entry))
-      .filter((entry) => entry !== UNFINISHED);
+    return value.map((entry) => finished(items, entry)).filter(isFinished);
   }
-  if (schema.values && isPlainObject(value)) {
+  if (schema.values && isLiteralObject(value)) {
     const values = schema.values;
     return Object.fromEntries(
-      Object.entries(value)
-        .map(([key, entry]) => [key, finished(values, entry)] as const)
-        .filter(([, entry]) => entry !== UNFINISHED),
+      Object.entries(value).flatMap(([key, entry]) => {
+        const settled = finished(values, entry);
+        return isFinished(settled) ? [[key, settled] as const] : [];
+      }),
     );
   }
   return value;
@@ -367,10 +388,9 @@ function placeholderFor(reason: string): PreviewBuilder {
   });
 }
 
-function childMeta(block: BlockDraft): Record<string, unknown> | undefined {
-  const meta: Record<string, unknown> = {};
-  if (block.slot !== undefined) meta.slot = block.slot;
-  const combined = { ...meta, ...block.meta };
+function childMeta(block: BlockDraft): ChildMeta {
+  const slot = block.slot === undefined ? {} : { slot: block.slot };
+  const combined = { ...slot, ...block.meta };
   return Object.keys(combined).length > 0 ? combined : undefined;
 }
 
@@ -398,9 +418,16 @@ function buildBlock(block: BlockDraft): PreviewBuilder {
   }
   const config = materialize(
     withoutUnfinishedEntries(descriptor.config, block.config ?? {}),
-  ) as Record<string, unknown>;
-  const options = { ...descriptor.defaults, ...config };
+  );
+  const spread = spreadable(config);
+  if (!spread) {
+    throw new DegradedBlockError("its options cannot be previewed");
+  }
+  const options: RuntimeObject = { ...descriptor.defaults, ...spread };
   if (descriptor.type === TABLE_VIEW_TYPE) {
+    if (!controller) {
+      throw new DegradedBlockError(`${label} — needs the running page`);
+    }
     return tablePreview(controller, options);
   }
   return controller
@@ -408,26 +435,29 @@ function buildBlock(block: BlockDraft): PreviewBuilder {
     : factoryFor(descriptor.type)(options);
 }
 
-function picked(
-  source: Record<string, unknown>,
-  keys: string[],
-): Record<string, unknown> {
-  return Object.fromEntries(
-    keys
-      .filter((key) => source[key] !== undefined)
-      .map((key) => [key, source[key]]),
-  );
+function picked<Source extends object, Key extends keyof Source>(
+  source: Source | undefined,
+  keys: readonly Key[],
+): Partial<Pick<Source, Key>> {
+  const kept: Partial<Pick<Source, Key>> = {};
+  for (const key of keys) {
+    const entry = source?.[key];
+    if (entry !== undefined) {
+      kept[key] = entry;
+    }
+  }
+  return kept;
 }
 
 /** The columns the table lists, as a source table takes them. */
-function listedColumns(meta: TableMetadata): Record<string, unknown> {
+function listedColumns(meta: TableMetadata) {
   return Object.fromEntries(
     meta.config.columns
       .filter((column) => column.listable)
       .map((column) => [
         column.id,
         {
-          ...picked(meta.columns[column.id] ?? {}, SOURCE_COLUMN_OPTIONS),
+          ...picked(meta.columns[column.id], SOURCE_COLUMN_OPTIONS),
           sortable: column.enableSorting,
         },
       ]),
@@ -443,11 +473,12 @@ function listedColumns(meta: TableMetadata): Record<string, unknown> {
  * Its actions are what the saved page adds; the rows are the ones it will list.
  */
 function tablePreview(
-  controller: unknown,
-  options: Record<string, unknown>,
+  controller: ControllerClass,
+  options: RuntimeObject,
 ): PreviewBuilder {
-  const module = loadModule<TableViewModule>(TABLE_VIEW_MODULE);
-  const meta = GetMetadata(controller as ControllerClass, module.TableViewMeta);
+  // SAFETY: TableViewModule restates the two exports of `@antelopejs/interface-dms/base/table-view` that the preview drives, typed from that module's own declarations; require returns any.
+  const module = require(TABLE_VIEW_MODULE) as TableViewModule;
+  const meta = GetMetadata(controller, module.TableViewMeta);
   return module.tableViewFromSource({
     ...picked(options, TABLE_PREVIEW_OPTIONS),
     columns: listedColumns(meta),

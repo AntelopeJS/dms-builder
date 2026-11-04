@@ -15,7 +15,7 @@ import type { BlockNode, BlockTypeDescriptor, OptionSchema } from '../app/runtim
  */
 
 function descriptor(config: Record<string, OptionSchema>): BlockTypeDescriptor {
-	return { type: 'Test', config, shapeSource: 'test' } as BlockTypeDescriptor
+	return { type: 'Test', config, configOrigin: 'test' } as BlockTypeDescriptor
 }
 
 const TABLE = descriptor({

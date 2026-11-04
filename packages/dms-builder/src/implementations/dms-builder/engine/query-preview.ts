@@ -10,18 +10,17 @@
 import {
   chartCardData,
   kpiCardData,
-  type SeriesMeasure,
   type SeriesOptions,
   topListData,
 } from "@antelopejs/interface-dms/base/query-response";
 import type {
   AddQueryInput,
+  ConfigObject,
   OpResult,
   QueryOutputKind,
   QueryPoint,
   QueryPreview,
-  QueryResponseBody,
-  QueryResponseShape,
+  QueryArrangement,
   ResourceFieldStructure,
 } from "@antelopejs/interface-dms-builder";
 import { invalidConfig, notFound, unsupported } from "./ops";
@@ -33,24 +32,21 @@ import {
   seriesNaming,
   type SeriesNaming,
 } from "./query-emit";
-import {
-  executePlan,
-  type PlanArguments,
-  type PlanStream,
-} from "./query-plan-execute";
+import { executePlan, type PlanStream } from "./query-plan-execute";
 import type { QueryPlan } from "./query-plan";
 import { getQueryTemplate, isParamBinding } from "./query-template";
 import { findResourceRecord, type ResourceRecord } from "./resource-index";
 import { resourceSchema } from "./resource-schema";
 import { buildResourceStructure } from "./resource-structure";
+import { isPlainObject } from "./value";
 
 /** How many points a preview will return before it says it stopped early. */
 const PREVIEW_LIMIT = 500;
 
 export interface PreviewRequest {
-  query: AddQueryInput;
+  query: Omit<AddQueryInput, "name">;
   /** Values the route would receive, by the name it exposes them under. */
-  args?: PlanArguments;
+  args?: ConfigObject;
   /**
    * The tenant whose rows to read. A resource in a per-tenant schema has one
    * table per tenant, and reading the wrong one is worse than reading none.
@@ -87,22 +83,22 @@ function openTable(
     return undefined;
   }
   const instance = tenant ? schema.instance(tenant) : schema.instance();
-  const table: unknown = instance.table(record.tableName);
-  return table as PlanStream;
+  // SAFETY: the table of a schema with no model is a Table<any>, and PlanStream names the filter, map, group and aggregate calls the executor makes on it; TypeScript cannot prove the assignment because PlanOperand is wider than the operands of ValueProxy, which the table accepts at run time.
+  return instance.table(record.tableName) as PlanStream;
 }
 
 /**
  * The helpers the generated route calls, so the preview and the page cannot
  * diverge on a rounding, a label or a missing group.
  */
-const RESPONSE_ARRANGERS: Record<
-  Exclude<QueryResponseShape, "series">,
+const RESPONSE_ARRANGERS = new Map<
+  QueryArrangement,
   (points: QueryPoint[], options: SeriesOptions) => object
-> = {
-  card: chartCardData,
-  value: kpiCardData,
-  items: topListData,
-};
+>([
+  ["card", chartCardData],
+  ["value", kpiCardData],
+  ["items", topListData],
+]);
 
 /** What the table answered: a figure, or the points, capped where it stopped. */
 interface ReadRows {
@@ -111,12 +107,12 @@ interface ReadRows {
   truncated: boolean;
 }
 
-function readRows(rows: unknown): ReadRows {
+function readRows(rows: number | QueryPoint[]): ReadRows {
   if (!Array.isArray(rows)) {
     return { value: Number(rows), truncated: false };
   }
   return {
-    points: (rows as QueryPoint[]).slice(0, PREVIEW_LIMIT),
+    points: rows.slice(0, PREVIEW_LIMIT),
     truncated: rows.length > PREVIEW_LIMIT,
   };
 }
@@ -133,7 +129,7 @@ function readRows(rows: unknown): ReadRows {
 function arrange(
   read: ReadRows,
   output: QueryOutputKind,
-  requested: QueryResponseShape | undefined,
+  requested: QueryArrangement | undefined,
   naming: SeriesNaming,
   previous?: QueryPoint[],
 ): OpResult<QueryPreview> {
@@ -146,24 +142,22 @@ function arrange(
     });
   }
   const arrangement = requested ?? "series";
-  if (arrangement === "series") {
+  const arranged = RESPONSE_ARRANGERS.get(arrangement);
+  if (!arranged) {
     return preview({
       output,
       body: { [RESPONSE_KEYS.series]: points },
       truncated: read.truncated,
     });
   }
-  const options: SeriesOptions = {
-    ...naming,
-    measure: naming.measure as SeriesMeasure,
-  };
+  const options: SeriesOptions = { ...naming };
   if (previous) {
     options.previous = previous;
   }
   return preview({
     output,
     response: arrangement,
-    body: RESPONSE_ARRANGERS[arrangement](points, options) as QueryResponseBody,
+    body: arranged(points, options),
     truncated: read.truncated,
   });
 }
@@ -177,8 +171,8 @@ function arrange(
 function precedingArguments(
   plan: QueryPlan,
   fields: ResourceFieldStructure[],
-  args: PlanArguments,
-): PlanArguments | undefined {
+  args: ConfigObject,
+): ConfigObject | undefined {
   const dates = new Set(
     fields
       .filter((field) => field.dataType?.$dataType === "date")
@@ -196,7 +190,7 @@ function precedingArguments(
   if (bounds.length !== COMPARISON_PARAMETERS.length) {
     return undefined;
   }
-  const preceding: PlanArguments = { ...args };
+  const preceding: ConfigObject = { ...args };
   for (const [at, name] of bounds.entries()) {
     const value = args[COMPARISON_PARAMETERS[at]];
     if (value === undefined) {
@@ -261,6 +255,16 @@ export async function runPlanPreview(
   }
 }
 
+function namesResourceAndTemplate(
+  value: unknown,
+): value is Pick<AddQueryInput, "resource" | "template"> {
+  return (
+    isPlainObject(value) &&
+    typeof value.resource === "string" &&
+    typeof value.template === "string"
+  );
+}
+
 /**
  * A preview asked for on a GET: the query as JSON in one parameter, and every
  * other parameter what the route would receive — the period a card appends to
@@ -281,18 +285,12 @@ export function previewRequestFromSearch(
   } catch {
     query = undefined;
   }
-  const input = query as Partial<AddQueryInput> | undefined;
-  if (
-    typeof input !== "object" ||
-    input === null ||
-    typeof input.resource !== "string" ||
-    typeof input.template !== "string"
-  ) {
+  if (!namesResourceAndTemplate(query)) {
     return invalidConfig<PreviewRequest>(
       `"${queryParameter}" must be a query as JSON, naming its resource and template`,
     );
   }
-  const args: PlanArguments = {};
+  const args: ConfigObject = {};
   for (const [name, value] of search) {
     if (name !== queryParameter) {
       args[name] = value;
@@ -300,7 +298,7 @@ export function previewRequestFromSearch(
   }
   return {
     ok: true,
-    data: { query: input as AddQueryInput, args, tenant },
+    data: { query, args, tenant },
     changes: [],
   };
 }

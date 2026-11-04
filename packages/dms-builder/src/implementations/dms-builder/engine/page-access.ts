@@ -3,6 +3,7 @@ import type { Permission, PermissionTree } from "@antelopejs/interface-dms";
 import { RoleModel, TenantMemberModel } from "@antelopejs/interface-dms/db";
 import type { BlockNode } from "@antelopejs/interface-dms-builder";
 import { buildPageBlocks } from "./block-tree";
+import { isString } from "./scalar-guards";
 import { getBooleanProperty } from "./literals";
 import { readPermissionTree } from "./permissions";
 import type { PageRecord } from "./scan";
@@ -76,9 +77,7 @@ function pageFullId(record: PageRecord): string {
 /** The page's permission: the one it names, else one named after it. */
 function pagePermissionId(record: PageRecord): string {
   const named = record.permission?.id;
-  return typeof named === "string" && named.length > 0
-    ? named
-    : pageFullId(record);
+  return isString(named) && named.length > 0 ? named : pageFullId(record);
 }
 
 /** A permission's node: the tree is keyed by the segments of the ids. */
@@ -87,9 +86,13 @@ function findPermissionNode(
   id: string,
 ): PermissionTree | undefined {
   const [head, ...rest] = id.split(ID_SEPARATOR);
-  let node = head === undefined ? undefined : tree[head];
+  let node =
+    head !== undefined && Object.hasOwn(tree, head) ? tree[head] : undefined;
   for (const part of rest) {
-    node = node?.children[part];
+    node =
+      node && Object.hasOwn(node.children, part)
+        ? node.children[part]
+        : undefined;
   }
   return node;
 }
@@ -226,10 +229,11 @@ async function readRoles(
   tenant: string | undefined,
   prefixes: string[],
 ): Promise<RoleAccess[] | null> {
-  if (!tenant) {
+  const { schemaName } = RoleModel;
+  if (!tenant || schemaName === undefined) {
     return null;
   }
-  const schema = Schema.get(RoleModel.schemaName);
+  const schema = Schema.get(schemaName);
   if (!schema) {
     return null;
   }

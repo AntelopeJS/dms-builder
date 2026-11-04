@@ -1,8 +1,12 @@
 import { expect } from "chai";
-import type { ResourceFieldStructure } from "@antelopejs/interface-dms-builder";
+import type {
+  QueryPoint,
+  ResourceFieldStructure,
+} from "@antelopejs/interface-dms-builder";
 import type { QueryPlan } from "../implementations/dms-builder/engine/query-plan";
 import {
   executePlan,
+  type PlanPoints,
   type PlanStream,
   type PlanValue,
 } from "../implementations/dms-builder/engine/query-plan-execute";
@@ -63,6 +67,12 @@ function dateValue(day: string): PlanValue {
 
 function stampOf(day: string): number {
   let stamp = Number.NaN;
+  const grouped: PlanPoints = {
+    then: (onfulfilled, onrejected) =>
+      Promise.resolve<QueryPoint[]>([]).then(onfulfilled, onrejected),
+    orderBy: () => grouped,
+    slice: () => grouped,
+  };
   const stream: PlanStream = {
     filter: () => stream,
     map: (mapper) => {
@@ -70,14 +80,12 @@ function stampOf(day: string): number {
       stamp = latest;
       return stream;
     },
-    group: () => stream,
-    orderBy: () => stream,
-    slice: () => stream,
-    count: () => undefined,
-    sum: () => undefined,
-    avg: () => undefined,
-    min: () => undefined,
-    max: () => undefined,
+    group: () => grouped,
+    count: () => Promise.resolve(0),
+    sum: () => Promise.resolve(0),
+    avg: () => Promise.resolve(0),
+    min: () => Promise.resolve(0),
+    max: () => Promise.resolve(0),
   };
   executePlan(stream, PLAN, FIELDS);
   return stamp;

@@ -87,4 +87,10 @@ describe("the column a DataType is stored in", () => {
   it("leaves a DataType nobody mapped to the string fallback", () => {
     expect(mappedDbType({ $dataType: "made_up" })).to.equal(undefined);
   });
+
+  for (const id of ["constructor", "toString", "hasOwnProperty", "valueOf"]) {
+    it(`leaves a DataType named ${id} to the string fallback`, () => {
+      expect(mappedDbType({ $dataType: id })).to.equal(undefined);
+    });
+  }
 });

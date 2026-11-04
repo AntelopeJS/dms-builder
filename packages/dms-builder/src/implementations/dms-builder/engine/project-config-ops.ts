@@ -24,13 +24,6 @@ import {
 
 const ENV_EXAMPLE = ".env.example";
 
-function refusal(error: unknown): OpResult<ProjectConfigResult> | undefined {
-  if (error instanceof StepRefusal || isScaffoldRefusal(error)) {
-    return invalidConfig<ProjectConfigResult>(error.message);
-  }
-  return undefined;
-}
-
 interface PlannedWrite {
   change: FileChange;
   content: string;
@@ -222,9 +215,8 @@ export function configureProject(
     }
     ensureEnvFileLoaded(draft);
   } catch (error) {
-    const refused = refusal(error);
-    if (refused) {
-      return refused;
+    if (error instanceof StepRefusal || isScaffoldRefusal(error)) {
+      return invalidConfig<ProjectConfigResult>(error.message);
     }
     throw error;
   }

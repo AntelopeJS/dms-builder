@@ -1,9 +1,12 @@
 import type {
   AddBlockInput,
   BlockPath,
+  ConfigObject,
   ConfigureBlock,
   ConfigureBlockOpts,
   DuplicateScope,
+  EditableCategoryMeta,
+  EditablePageMeta,
   MutationOpts,
   OpResult,
   OpWarning,
@@ -59,13 +62,13 @@ export function unsupported<T = void>(detail: string): OpResult<T> {
 }
 
 /** The refusal for an operation that names a module it cannot write into. */
-export function moduleError<T = void>(
+export function moduleError(
   module: string | undefined,
   declaredIn: string | undefined,
   what: string,
-): OpResult<T> | undefined {
+): OpResult<never> | undefined {
   const mismatch = moduleMismatch(module, declaredIn, what);
-  return mismatch ? invalidConfig<T>(mismatch) : undefined;
+  return mismatch ? invalidConfig<never>(mismatch) : undefined;
 }
 
 export function invalidConfig<T = void>(message: string): OpResult<T> {
@@ -207,6 +210,10 @@ function ensureOptionsObject(target: BlockTarget): ObjectLiteralExpression {
     .asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
 }
 
+type OptionsPatchValue =
+  | EditablePageMeta[keyof EditablePageMeta]
+  | EditableCategoryMeta[keyof EditableCategoryMeta];
+
 /**
  * A patch of a page's or a category's own options, as the wire carries it.
  *
@@ -216,8 +223,8 @@ function ensureOptionsObject(target: BlockTarget): ObjectLiteralExpression {
  * than written as a `null` the page's types refuse.
  */
 export function optionsPatch(
-  patch: Record<string, unknown>,
-): Record<string, unknown> {
+  patch: Record<string, OptionsPatchValue>,
+): Record<string, OptionsPatchValue> {
   return Object.fromEntries(
     Object.entries(patch).map(([key, value]) => [
       key,
@@ -228,7 +235,7 @@ export function optionsPatch(
 
 export function applyPatch(
   obj: ObjectLiteralExpression,
-  patch: Record<string, unknown>,
+  patch: ConfigObject,
   replace: boolean,
   ctx: EmitContext,
 ): void {

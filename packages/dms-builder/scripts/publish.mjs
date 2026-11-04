@@ -13,10 +13,30 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/**
+ * @param {unknown} value
+ * @returns {value is { name: string; version: string }}
+ */
+function isPackageIdentity(value) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "version" in value &&
+    typeof value.version === "string"
+  );
+}
+
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const { name, version } = JSON.parse(
+/** @type {unknown} */
+const manifest = JSON.parse(
   readFileSync(join(packageRoot, "package.json"), "utf8"),
 );
+if (!isPackageIdentity(manifest)) {
+  throw new Error("package.json names no package and version");
+}
+const { name, version } = manifest;
 
 const prerelease = version.split("-").slice(1).join("-");
 const identifier = prerelease.split(".")[0];
