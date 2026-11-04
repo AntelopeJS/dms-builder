@@ -11,7 +11,7 @@
 
 </div>
 
-![Screen recording from the AntelopeJS DMS film. Ctrl B opens the Builder on a dashboard and a TableView block is added from the block list under the caption Ctrl B. Edit it on the page. The block is saved, the whole project is typechecked, and the new TableView line appears in dashboard/page.ts under the caption Every save becomes TypeScript.](https://raw.githubusercontent.com/AntelopeJS/dms/main/docs/media/builder.gif)
+<img data-illustration alt="Screen recording from the AntelopeJS DMS film. Ctrl B opens the Builder on a dashboard and a TableView block is added from the block list under the caption Ctrl B. Edit it on the page. The block is saved, the whole project is typechecked, and the new TableView line appears in dashboard/page.ts under the caption Every save becomes TypeScript." src="https://raw.githubusercontent.com/AntelopeJS/dms/main/docs/media/builder.gif">
 
 ## What it does
 
