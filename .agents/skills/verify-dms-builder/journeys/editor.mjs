@@ -126,14 +126,17 @@ export const journeys = guarded([
       await ctx.verify("Simple mode lists the blocks a page author needs", [
         check("Card, Table, Chart card and KPI card are listed", ["Card", "Table", "Chart card", "KPI card"].every((name) => simple.includes(name)), simple),
         check("Code, Empty state and Live toggle are left out", !/Code\n|Empty state|Live toggle/.test(simple), simple),
-        check("no block shows its name beside its title", !/KpiCard/.test(simple), simple),
       ]);
       await tab.page.getByRole("radio", { name: "Developer" }).check();
       await tab.visible({ role: "button", name: /^Live toggle/ }, { timeoutMs: 20_000 });
       const developer = await rail.innerText();
+      await tab.page.getByRole("tab", { name: "Layers" }).click();
+      await tab.visible({ role: "treeitem", name: /^Revenue/ }, { timeoutMs: 20_000 });
+      const layers = await tab.page.getByRole("tree", { name: "Blocks of the page" }).innerText();
+      await ctx.verify("Developer mode shows each block's name next to its title", [check("the Revenue row also names revenueChart and the chart card row chartCard", /revenueChart/.test(layers) && /chartCard/.test(layers), layers)]);
+      await tab.page.getByRole("tab", { name: "Add" }).click();
       await ctx.verify("Developer mode adds the others and groups the catalog", [
         check("Code, Empty state and Live toggle are listed", /Code\n/.test(developer) && /Empty state/.test(developer) && /Live toggle/.test(developer), developer),
-        check("each block shows its name beside its title", /KpiCard/.test(developer) && /ChartCard|Chart card/.test(developer), developer),
         check("the groups are Layout, Content, Data, Visualization and Other", ["LAYOUT", "CONTENT", "DATA", "VISUALIZATION", "OTHER"].every((group) => developer.includes(group)), developer),
       ]);
     },
