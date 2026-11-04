@@ -1,7 +1,7 @@
 import { AnalyseDatabase, GetAnalysis, GetMapping } from "./analysis";
 import { ComposePage } from "./compose";
 import { PreviewLayout, PreviewQuery, SetPageBlocks } from "./drafts";
-import { MapResources } from "./mapping";
+import { MapResources, PreviewMapResources } from "./mapping";
 import {
   AddBlock,
   ConfigureBlock,
@@ -85,6 +85,7 @@ export const Operations = {
   ListQueryTemplates,
   ListResources,
   MapResources,
+  PreviewMapResources,
   MoveBlock,
   PreviewLayout,
   PreviewQuery,

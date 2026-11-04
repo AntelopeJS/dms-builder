@@ -429,6 +429,7 @@ export const Operations = {
   ListQueryTemplates,
   ListResources,
   MapResources,
+  PreviewMapResources,
   MoveBlock,
   PreviewLayout,
   PreviewQuery,
