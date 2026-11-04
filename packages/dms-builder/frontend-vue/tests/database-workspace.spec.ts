@@ -3,6 +3,8 @@ import { nextTick } from 'vue'
 import DatabaseProposal from '../app/components/DatabaseProposal.vue'
 import DatabaseRelation from '../app/components/DatabaseRelation.vue'
 import DatabaseApplied from '../app/components/DatabaseApplied.vue'
+import DatabaseApplySummary from '../app/components/DatabaseApplySummary.vue'
+import DatabasePromptCopy from '../app/components/DatabasePromptCopy.vue'
 import { ASSISTANT_ACTIONS_KEY, type AssistantActions } from '../app/runtime/database-build'
 import type {
 	AnalysisState,
@@ -23,8 +25,7 @@ import {
 
 /**
  * The Database workspace: the analysis's proposal decided in the builder and
- * applied as one `MapResources`, and a few rows shown to the integrator and
- * kept nowhere.
+ * applied as one `MapResources`, and a few rows shown, kept nowhere.
  */
 
 let backend: FakeBackend
@@ -84,7 +85,10 @@ const COMPONENTS = {
 	USwitch: stub('USwitch'),
 	DmsEyebrow: stub('DmsEyebrow'),
 	DmsBuilderDatabaseRelation: DatabaseRelation,
+	DmsBuilderDatabaseApplySummary: DatabaseApplySummary,
 	DmsBuilderDatabaseApplied: DatabaseApplied,
+	DmsBuilderDatabasePromptCopy: DatabasePromptCopy,
+	UPopover: stub('UPopover'),
 	DmsBuilderDiffView: stub('DmsBuilderDiffView'),
 }
 
@@ -519,5 +523,27 @@ describe('after Review it myself is applied', () => {
 		expect(entry.started).toEqual([])
 		fire(button(root, 'Let the assistant build the dashboard'), 'click')
 		expect(entry.started).toHaveLength(1)
+	})
+
+	it('copies the dashboard prompt with or without dms-ai, whether or not it was handed off', async () => {
+		const writes: string[] = []
+		vi.stubGlobal('navigator', {
+			clipboard: {
+				writeText: (text: string) => {
+					writes.push(text)
+					return Promise.resolve()
+				},
+			},
+		})
+		const entry = assistant(true)
+		const handedOff = await applyReviewed(entry)
+		fire(button(handedOff, 'Copy prompt'), 'click')
+		unmount?.()
+		const absent = await applyReviewed(undefined, null)
+		expect(findAll(absent, (node) => node.props.label === 'Let the assistant build the dashboard')).toEqual([])
+		fire(button(absent, 'Copy prompt'), 'click')
+		vi.unstubAllGlobals()
+		expect(writes).toEqual([entry.started[0]![0], entry.started[0]![0]])
+		expect(writes[0]).toContain('connection erp, module erp-tables')
 	})
 })

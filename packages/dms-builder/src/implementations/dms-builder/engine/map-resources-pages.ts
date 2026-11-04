@@ -246,22 +246,46 @@ function updatePage(ref: string, resource: PlannedResource): OpResult<string> {
   return written(ref, changes, warnings);
 }
 
+/** The page a relation has though its choices no longer call for one. */
+function pageToRemove(
+  category: string,
+  resource: PlannedResource,
+): string | undefined {
+  if (resource.tableView) {
+    return undefined;
+  }
+  const ref = pageRefOf(category, resource);
+  return findPageRecord(ref) ? ref : undefined;
+}
+
+/** The pages `writePages` removes for this plan: those of relations that lost their TableView. */
+export function pagesToRemove(
+  input: MapResourcesInput,
+  plan: MappingPlan,
+): string[] {
+  const category = `pages.${input.connection}`;
+  return plan.resources.flatMap((resource) => {
+    const ref = pageToRemove(category, resource);
+    return ref === undefined ? [] : [ref];
+  });
+}
+
 /** The page a relation's choices call for: created, updated, or removed when it lost its TableView. */
 function syncPage(
   input: MapResourcesInput,
   category: string,
   resource: PlannedResource,
 ): OpResult<string | undefined> {
-  const ref = pageRefOf(category, resource);
-  const existing = findPageRecord(ref);
   if (!resource.tableView) {
-    if (!existing) {
+    const stale = pageToRemove(category, resource);
+    if (stale === undefined) {
       return { ok: true, data: undefined, changes: [] };
     }
-    const removed = deletePage(ref);
+    const removed = deletePage(stale);
     return removed.ok ? { ...removed, data: undefined } : removed;
   }
-  return existing
+  const ref = pageRefOf(category, resource);
+  return findPageRecord(ref)
     ? updatePage(ref, resource)
     : addPage(input, category, resource);
 }

@@ -2,6 +2,7 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useBuilderApi } from '../runtime/api'
 import { refusalText } from '../runtime/database-connect'
+import { t } from '../runtime/i18n'
 import {
 	ASSISTANT_ACTIONS_KEY,
 	type AssistantActions,
@@ -51,9 +52,10 @@ let disposed = false
 const steps = computed<BuildStep[]>(() => view.value?.steps ?? [])
 const settled = computed(() => !!view.value?.fork || !!view.value?.empty || !!view.value?.analysisFailed)
 const canHandOff = computed(() => !!assistant?.isAvailable)
+const handOffPrompt = computed(() => assistantMessage(props.connection, props.module, view.value?.proposal))
 
 function letAssistantFinish(): void {
-	assistant?.startConversation(assistantMessage(props.connection, props.module, view.value?.proposal), { mode: 'plan' })
+	assistant?.startConversation(handOffPrompt.value, { mode: 'plan', send: true })
 }
 
 async function startAnalysis(schemas?: string[]): Promise<void> {
@@ -124,7 +126,7 @@ onBeforeUnmount(() => {
 	<div class="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
 		<header>
 			<p class="text-xl font-semibold tracking-tight text-highlighted">{{ connection }}</p>
-			<p class="font-mono text-xs text-muted">tables in module {{ module }}</p>
+			<p class="font-mono text-xs text-muted">{{ t('database.build.tables_in_module', { module }) }}</p>
 		</header>
 
 		<ol class="flex flex-col gap-3" aria-live="polite">
@@ -143,11 +145,11 @@ onBeforeUnmount(() => {
 					</p>
 
 					<div v-if="entry.key === 'reload' && entry.status === 'failed'" class="flex gap-2">
-						<UButton label="Remove" size="xs" color="error" variant="outline" @click="emit('remove')" />
+						<UButton :label="t('database.build.remove')" size="xs" color="error" variant="outline" @click="emit('remove')" />
 					</div>
 					<div v-if="entry.key === 'connect' && entry.status === 'failed'" class="flex gap-2">
-						<UButton label="Edit the connection" size="xs" @click="emit('edit')" />
-						<UButton label="Remove" size="xs" color="error" variant="outline" @click="emit('remove')" />
+						<UButton :label="t('database.build.edit')" size="xs" @click="emit('edit')" />
+						<UButton :label="t('database.build.remove')" size="xs" color="error" variant="outline" @click="emit('remove')" />
 					</div>
 					<div v-if="entry.key === 'read' && view?.schemas" class="flex flex-col gap-2" data-schemas>
 						<label
@@ -162,16 +164,16 @@ onBeforeUnmount(() => {
 							{{ option.title }}
 						</label>
 						<div>
-							<UButton label="Continue" size="xs" :disabled="!checked.length" @click="readSchemas" />
+							<UButton :label="t('database.build.continue')" size="xs" :disabled="!checked.length" @click="readSchemas" />
 						</div>
 					</div>
 					<div v-if="entry.key === 'read' && view?.analysisFailed" class="flex gap-2">
-						<UButton label="Analyse again" size="xs" @click="analyseAgain" />
-						<UButton label="Edit the connection" size="xs" variant="soft" @click="emit('edit')" />
-						<UButton label="Remove" size="xs" color="error" variant="outline" @click="emit('remove')" />
+						<UButton :label="t('database.build.again')" size="xs" @click="analyseAgain" />
+						<UButton :label="t('database.build.edit')" size="xs" variant="soft" @click="emit('edit')" />
+						<UButton :label="t('database.build.remove')" size="xs" color="error" variant="outline" @click="emit('remove')" />
 					</div>
 					<div v-if="entry.key === 'read' && view?.empty" class="flex gap-2">
-						<UButton label="Remove" size="xs" color="error" variant="outline" @click="emit('remove')" />
+						<UButton :label="t('database.build.remove')" size="xs" color="error" variant="outline" @click="emit('remove')" />
 					</div>
 				</div>
 			</li>
@@ -182,11 +184,12 @@ onBeforeUnmount(() => {
 		<section v-if="view?.fork && view.job" class="flex flex-col gap-3 rounded-md border border-default p-4" data-fork>
 			<p class="text-sm font-semibold text-highlighted">{{ forkText(view.fork) }}</p>
 			<p class="text-xs text-muted">
-				Nothing is mapped yet. Choose who settles the questions and maps the tables.
+				{{ t('database.build.undecided') }}
 			</p>
 			<div class="flex gap-2">
-				<UButton v-if="canHandOff" label="Let the assistant finish" @click="letAssistantFinish" />
-				<UButton label="Review it myself" variant="soft" @click="emit('review', view.job)" />
+				<UButton v-if="canHandOff" :label="t('database.build.finish')" @click="letAssistantFinish" />
+				<UButton :label="t('database.build.review')" variant="soft" @click="emit('review', view.job)" />
+				<DmsBuilderDatabasePromptCopy :prompt="handOffPrompt" />
 			</div>
 		</section>
 	</div>

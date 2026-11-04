@@ -9,6 +9,7 @@ import {
   ACTION_LABEL,
   ACTION_ORDER,
   APP_OVERLAYS_STATE_KEY,
+  CONNECT_PROMPT_COMPONENT_NAME,
   HEADER_ACTIONS_STATE_KEY,
   OVERLAY_COMPONENT_NAME,
 } from '../runtime/constants'
@@ -26,12 +27,12 @@ interface HeaderAction {
   isActive?: () => boolean
 }
 
-function registerOverlay(): void {
+function registerOverlay(name: string): void {
   const overlays = useDmsState<string[]>(APP_OVERLAYS_STATE_KEY, () => [])
-  if (overlays.value.includes(OVERLAY_COMPONENT_NAME)) {
+  if (overlays.value.includes(name)) {
     return
   }
-  overlays.value = [...overlays.value, OVERLAY_COMPONENT_NAME]
+  overlays.value = [...overlays.value, name]
 }
 
 function registerAction(onSelect: () => void, isActive: () => boolean): void {
@@ -58,7 +59,8 @@ export default defineDmsPlugin(() => {
   // says nothing about whether the backend runs in development.
   const builder = useBuilder()
   const route = useDmsRoute()
-  registerOverlay()
+  registerOverlay(OVERLAY_COMPONENT_NAME)
+  registerOverlay(CONNECT_PROMPT_COMPONENT_NAME)
   registerAction(
     () => {
       if (builder.session.value.active) {
