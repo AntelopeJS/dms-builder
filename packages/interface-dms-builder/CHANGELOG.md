@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.3.1...v0.4.0)
+
+### 🩹 Fixes
+
+- **deps:** Require the builder interface that previews page removals ([#145](https://github.com/AntelopeJS/dms-builder/pull/145))
+
+### 📖 Documentation
+
+- **readme:** Show the Builder at work in a GIF ([0e7bb2e](https://github.com/AntelopeJS/dms-builder/commit/0e7bb2e))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/dms-builder v0.9.1 ([8b67bc2](https://github.com/AntelopeJS/dms-builder/commit/8b67bc2))
+- Land the cleanup campaign on main ([#159](https://github.com/AntelopeJS/dms-builder/pull/159))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.3.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/interface-v0.3.0...v0.3.1)
