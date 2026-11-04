@@ -140,4 +140,31 @@ export const journeys = guarded([
       await ctx.verify("Ctrl+S saves from a text field", [check("Saved", await statusBecomes(tab, /^Saved/), await saveStatus(tab))]);
     },
   },
+  {
+    id: "ctrl-b-does-not-close-the-builder-from-editable-text",
+    title: "Ctrl+B pressed while the focus is in an editable field (the Find box, the catalog search, a block's title field) leaves the builder open (docs: it works anywhere except inside editable text)",
+    entryPoint: "keyboard Ctrl+B in text fields",
+    async run(/** @type {Ctx} */ ctx) {
+      const tab = await layersTab(ctx);
+      const bar = tab.page.getByRole("radiogroup", { name: "Workspace" });
+      /** @type {[string, () => Promise<void>][]} */
+      const fields = [
+        ["the Find box", async () => { await tab.page.getByRole("textbox", { name: "Find a block on this page" }).click(); }],
+        ["the catalog search", async () => { await tab.page.getByRole("tab", { name: "Add" }).click(); await tab.page.getByRole("textbox", { name: "Search blocks" }).click(); }],
+        ["a block's title field", async () => { await selectOnCanvas(tab, "Revenue", "Chart card"); await inspector(tab).getByRole("textbox", { name: "Title*" }).click(); }],
+      ];
+      for (const [label, focus] of fields) {
+        if (!(await bar.isVisible())) await tab.page.keyboard.press("Control+b");
+        await tab.visible({ role: "radiogroup", name: "Workspace" }, { timeoutMs: 20_000 });
+        await focus();
+        await tab.page.keyboard.press("Control+b");
+        await tab.page.waitForTimeout(1500);
+        await ctx.verify(`Ctrl+B in ${label}`, [check("the builder stays open", await bar.isVisible(), label)]);
+      }
+      if (!(await bar.isVisible())) await tab.page.keyboard.press("Control+b");
+      await tab.visible({ role: "radiogroup", name: "Workspace" }, { timeoutMs: 20_000 });
+      const editable = await tab.page.locator("[contenteditable]").count();
+      await ctx.verify("a contenteditable element", [check("the builder has no contenteditable on the page, or Ctrl+B leaves it open there", editable === 0 || (await (async () => { await tab.page.locator("[contenteditable]").first().click(); await tab.page.keyboard.press("Control+b"); await tab.page.waitForTimeout(1500); return bar.isVisible(); })()), `contenteditable elements: ${editable}`)]);
+    },
+  },
 ]);

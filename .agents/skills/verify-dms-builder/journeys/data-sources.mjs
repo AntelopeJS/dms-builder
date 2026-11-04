@@ -27,7 +27,8 @@ export const journeys = guarded([
       await tab.page.getByRole("button", { name: "Read it now" }).click();
       await tab.shows(/paid\s+12/, { timeoutMs: 30_000 });
       const rows = await tab.page.locator("body").innerText();
-      await ctx.verify("Read it now runs the source and shows its rows", [
+      await ctx.verify("Read it now runs the source and shows its rows (known finding: a card-arranged source shows an undefined NaN row)", [
+        check("no row reads undefined or NaN", !/undefined|NaN/.test(rows), rows.slice(0, 900)),
         check("paid 12, pending 3, refunded 3", /paid\s+12/.test(rows) && /pending\s+3/.test(rows) && /refunded\s+3/.test(rows), rows.slice(0, 900)),
       ]);
       await tab.page.getByRole("button", { name: "Select" }).first().click();

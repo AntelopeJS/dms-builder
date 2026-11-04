@@ -46,7 +46,7 @@ export const journeys = guarded([
         check("all changes saved", await statusBecomes(tab, /^All changes saved$/, 15_000), await saveStatus(tab)),
         check("the source is untouched", readProject(ctx, "the board", PAGE_FILE).text.includes('title: "Revenue",'), "board"),
       ]);
-      await tab.page.getByRole("button", { name: "Undo" }).click();
+      await tab.page.getByRole("button", { name: "Undo", exact: true }).click();
       await ctx.verify("Undo brings the discarded draft back while the editor stays open", [
         check("one unsaved change again", await statusBecomes(tab, /^1 unsaved change$/, 15_000), await saveStatus(tab)),
         check("the card is Revenue 2 again", (await inspector(tab).getByRole("textbox", { name: "Title*" }).inputValue()) === "Revenue 2", "title"),

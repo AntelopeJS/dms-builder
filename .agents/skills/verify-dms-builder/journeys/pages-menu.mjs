@@ -108,16 +108,19 @@ export const journeys = guarded([
       await tab.page.waitForTimeout(2500);
       const renamed = await operation(ctx, "list", "ListCategories");
       await ctx.verify("Rename is written at once", [check("Alpha two", list(renamed.raw).some((row) => text(row, "ref") === "pages.alpha" && text(row, "displayName") === "Alpha two"), renamed.raw)]);
-      await tab.page.getByRole("button", { name: "Move Alpha two down the menu", exact: true }).click();
+      const orders = async () => {
+        const rows = list((await operation(ctx, "list", "ListCategories")).raw);
+        const at = (/** @type {string} */ ref) => Number(rows.find((row) => text(row, "ref") === ref)?.order);
+        return { alpha: at("pages.alpha"), beta: at("pages.beta"), rows };
+      };
+      await tab.page.getByRole("button", { name: "Move Beta up the menu", exact: true }).click();
       await tab.page.waitForTimeout(2500);
-      const moved = list((await operation(ctx, "list", "ListCategories")).raw);
-      const order = (/** @type {string} */ ref) => Number(moved.find((row) => text(row, "ref") === ref)?.order);
-      await ctx.verify("the down arrow puts Alpha two after Beta", [check("Alpha two sorts after Beta", order("pages.alpha") > order("pages.beta"), moved)]);
-      await tab.page.getByRole("button", { name: "Move Alpha two up the menu", exact: true }).click();
+      const up = await orders();
+      await ctx.verify("the up arrow puts Beta before Alpha two, written at once", [check("Beta sorts before Alpha two", up.beta < up.alpha, up.rows)]);
+      await tab.page.getByRole("button", { name: "Move Beta down the menu", exact: true }).click();
       await tab.page.waitForTimeout(2500);
-      const back = list((await operation(ctx, "list", "ListCategories")).raw);
-      const rank = (/** @type {string} */ ref) => Number(back.find((row) => text(row, "ref") === ref)?.order);
-      await ctx.verify("the up arrow puts it back", [check("Alpha two sorts before Beta", rank("pages.alpha") < rank("pages.beta"), back)]);
+      const down = await orders();
+      await ctx.verify("the down arrow puts Beta after Alpha two again", [check("Beta sorts after Alpha two", down.beta > down.alpha, down.rows)]);
     },
   },
   {
