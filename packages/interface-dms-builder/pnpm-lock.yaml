@@ -5,16 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@antelopejs/interface-core': file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz
+  '@antelopejs/interface-core': 0.4.0
 
 importers:
 
   .:
-    dependencies:
-      '@antelopejs/interface-core':
-        specifier: file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz
-        version: file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz
     devDependencies:
+      '@antelopejs/interface-core':
+        specifier: 0.4.0
+        version: 0.4.0
       release-it:
         specifier: ^19.2.4
         version: 19.2.4(@types/node@24.19.2)
@@ -30,9 +29,8 @@ importers:
 
 packages:
 
-  '@antelopejs/interface-core@file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz':
-    resolution: {tarball: file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz}
-    version: 0.4.0
+  '@antelopejs/interface-core@0.4.0':
+    resolution: {integrity: sha512-IPX6dtt3KHknclN4mLOYeRYL2Odz1Pts+dtaZul62NghsBUX/0OFHD4Qhoaf+Beva4hjInbaF918ajr4Z5HVWQ==}
 
   '@inquirer/ansi@1.0.2':
     resolution: {integrity: sha512-S8qNSZiYzFd0wAcyG5AXCvUHC5Sr7xpZ9wZ2py9XR88jUz8wooStVx5M6dRzczbBWjic9NP7+rY0Xi7qqK/aMQ==}
@@ -1056,7 +1054,7 @@ packages:
 
 snapshots:
 
-  '@antelopejs/interface-core@file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz':
+  '@antelopejs/interface-core@0.4.0':
     dependencies:
       reflect-metadata: 0.2.2
 

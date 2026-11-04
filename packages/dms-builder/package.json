@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "@antelopejs/interface-api": ">=0.0.15 <1.0.0",
-    "@antelopejs/interface-core": "file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz",
+    "@antelopejs/interface-core": ">=0.4.0 <1.0.0",
     "@antelopejs/interface-database": ">=0.1.11 <1.0.0",
     "@antelopejs/interface-dms": ">=0.10.0 <1.0.0",
     "@antelopejs/interface-dms-builder": ">=0.3.1 <0.4.0",
@@ -69,9 +69,9 @@
     "ts-morph": "^23.0.0"
   },
   "devDependencies": {
-    "@antelopejs/core": "file:../../.campaign/tgz/antelopejs-core-184eb90.tgz",
-    "@antelopejs/interface-api-util": "file:../../.campaign/tgz/antelopejs-interface-api-util-639f38b.tgz",
-    "@antelopejs/interface-data-api": "file:../../.campaign/tgz/antelopejs-interface-data-api-d8a868f.tgz",
+    "@antelopejs/core": "^1.20.0",
+    "@antelopejs/interface-api-util": ">=0.3.0 <1.0.0",
+    "@antelopejs/interface-data-api": ">=0.6.0 <1.0.0",
     "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
     "@antelopejs/tooling-configs": "^0.2.18",
     "@types/chai": "^5.2.3",
@@ -91,14 +91,13 @@
   "packageManager": "pnpm@10.2.0",
   "pnpm": {
     "overrides": {
-      "@antelopejs/interface-api": "file:../../.campaign/tgz/antelopejs-interface-api-f2a99b5.tgz",
-      "@antelopejs/interface-api-util": "file:../../.campaign/tgz/antelopejs-interface-api-util-639f38b.tgz",
+      "@antelopejs/interface-api": "0.2.0",
+      "@antelopejs/interface-api-util": "0.3.0",
       "@antelopejs/interface-database": "0.3.0",
-      "@antelopejs/interface-database-decorators": "file:../../.campaign/tgz/antelopejs-interface-database-decorators-e79a62b.tgz",
-      "@antelopejs/interface-data-api": "file:../../.campaign/tgz/antelopejs-interface-data-api-d8a868f.tgz",
+      "@antelopejs/interface-database-decorators": "0.2.0",
+      "@antelopejs/interface-data-api": "0.6.0",
       "@antelopejs/interface-dms": "file:../../.campaign/tgz/antelopejs-interface-dms-14e671d.tgz",
-      "@antelopejs/interface-core": "file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz",
-      "@antelopejs/core": "file:../../.campaign/tgz/antelopejs-core-184eb90.tgz"
+      "@antelopejs/interface-core": "0.4.0"
     }
   },
   "antelopeJs": {
