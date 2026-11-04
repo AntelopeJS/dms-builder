@@ -101,11 +101,33 @@
 			},
 			"dismiss_warnings": "Fermer les avertissements"
 		},
+		"connect_prompt": {
+			"title": "Partez d’une base de données que vous utilisez déjà",
+			"description": "Connectez-la et le builder transforme ses tables en pages, écrites en code dans votre projet.",
+			"steps": "Trois étapes",
+			"connect": {
+				"title": "Connecter",
+				"text": "Nommez une connexion et indiquez son URL. L’URL est écrite dans votre fichier .env, jamais dans la configuration. Dans un projet git, seulement si git ignore ce fichier. Un rôle en lecture seule suffit pour commencer."
+			},
+			"map": {
+				"title": "Cartographier",
+				"text_assistant": "L’assistant lit le schéma (tables, champs, relations) et des agrégats : comptages, plages de valeurs et valeurs des petites listes comme les statuts. Ses outils de base de données ne renvoient aucune ligne.",
+				"text_manual": "Le builder lit le schéma et les mêmes agrégats, puis propose une cartographie. Vous la relisez vous-même, table par table, avec quelques lignes d’exemple visibles de vous seul, avant qu’une page soit générée."
+			},
+			"build": {
+				"title": "Construire",
+				"text": "Un back-office en code, qui vous appartient. Les pages sont écrites dans votre projet en TypeScript et démarrent en lecture seule."
+			},
+			"later": "Vous pourrez connecter une base plus tard depuis l’espace de travail Base de données du builder.",
+			"accept": "Connecter une base de données",
+			"dismiss": "Pas maintenant"
+		},
 		"toasts": {
 			"copied_draft": "Brouillon copié en JSON",
 			"copied_block": "Bloc copié en JSON",
 			"configuration_applied": "Configuration appliquée",
 			"copied": "Copié dans le presse-papiers",
+			"copy_failed": "Impossible de copier dans le presse-papiers",
 			"tab_duplicated": "Onglet dupliqué",
 			"tab_deleted": "Onglet supprimé",
 			"locked": "Ce réglage ou cet emplacement est géré dans le code et ne peut pas être modifié ici",
@@ -116,6 +138,329 @@
 			"removed": "{block} supprimé",
 			"block_duplicated": "Bloc dupliqué",
 			"changes_discarded": "Modifications abandonnées"
+		},
+		"database": {
+			"panel": {
+				"title": "Bases de données",
+				"connect": "Connecter une base de données",
+				"connecting": "Connexion en cours…",
+				"removed": "Retirée, redémarrez pour terminer",
+				"empty": "Aucune base de données n’est encore connectée au builder.",
+				"module": "Module de ses tables",
+				"edit": "Modifier la connexion",
+				"remove": "Retirer",
+				"leave_unsaved": "{count} table modifiée n’est pas encore appliquée. Quitter sans l’appliquer ? | {count} table modifiée n’est pas encore appliquée. Quitter sans l’appliquer ? | {count} tables modifiées ne sont pas encore appliquées. Quitter sans les appliquer ?"
+			},
+			"build": {
+				"tables_in_module": "tables dans le module {module}",
+				"remove": "Retirer",
+				"edit": "Modifier la connexion",
+				"continue": "Continuer",
+				"again": "Analyser à nouveau",
+				"finish": "Laisser l’assistant terminer",
+				"review": "Je vérifie moi-même",
+				"undecided": "Rien n’est encore mappé. Choisissez qui tranche les questions et mappe les tables.",
+				"tables": "{count} table | {count} table | {count} tables",
+				"pages": "{count} page | {count} page | {count} pages",
+				"questions": "{count} question | {count} question | {count} questions",
+				"fork": "{tables} : {pages}, {stats} pour les statistiques, {questions}",
+				"add": {
+					"title": "Ajout de la connexion au projet",
+					"undeclared": "La configuration ne déclare pas cette connexion.",
+					"done": "Écrite dans la configuration, l’URL dans .env.",
+					"done_variable": "Écrite dans la configuration, l’URL dans .env sous le nom {variable}. Chaque environnement déployé la définit là où il garde ses secrets, jamais dans git."
+				},
+				"reload": {
+					"title": "Rechargement du projet",
+					"gave_up": "Le projet n’est pas revenu en 3 minutes. Redémarrez-le à la main : arrêtez le processus qui exécute le projet, puis relancez-le.",
+					"running": "Le projet se recharge pour charger la connexion. Cela prend environ 15 secondes."
+				},
+				"connect": {
+					"title": "Connexion"
+				},
+				"read": {
+					"title": "Lecture de la base de données",
+					"starting": "Démarrage de l’analyse.",
+					"progress": "{described} tables décrites sur {relations}, {profiled} profilées sur {toProfile}{late}.",
+					"late": ", {timeouts} mesures hors délai",
+					"failed": "L’analyse a échoué : {error}",
+					"no_proposal": "aucune proposition",
+					"none": "Aucune table que l’utilisateur {role} puisse lire.",
+					"done": "{tables} lues."
+				}
+			},
+			"applied": {
+				"title": "Appliqué.",
+				"added": "{tables} tables ajoutées. Leurs pages apparaissent dans le menu sous {connection} d’ici quelques secondes.",
+				"building": "L’assistant construit le tableau de bord et le détail des pages.",
+				"hand_off": "Laisser l’assistant construire le tableau de bord"
+			},
+			"copy": {
+				"label": "Copier le prompt",
+				"about": "À propos de la copie du prompt",
+				"agent": "Lancez ce travail dans votre propre agent, Claude Code ou Codex, plutôt que dans le chat. L’agent a besoin du plugin AntelopeJS, qui synchronise les skills fournis par les modules de votre projet.",
+				"skills": "Le prompt cite dms-external-database et dms-page-design. Ils sont fournis avec dms-ai : le projet a donc besoin de ce module pour que le plugin les synchronise.",
+				"docs": "Lire comment le configurer"
+			},
+			"connect": {
+				"title": "Connecter une base de données",
+				"intro": "Relie une base de données existante au projet, pour que ses tables puissent être associées à des pages.",
+				"name": "Nom",
+				"name_used": "Utilisé comme {id}",
+				"name_help": "Nomme la connexion dans le builder et dans dms-ai.",
+				"name_placeholder": "erp",
+				"engine": "Type de base de données",
+				"connection": "Connexion",
+				"paste_placeholder": "Collez une URL {scheme}// pour remplir les champs",
+				"fill_in": "Remplir",
+				"host": "Hôte",
+				"port": "Port",
+				"database": "Base de données",
+				"user": "Utilisateur",
+				"password": "Mot de passe",
+				"ssl": "Se connecter en SSL",
+				"options": "Autres options, conservées depuis l’URL collée :",
+				"env": "Écrit dans le .env du projet sous le nom {variable}, jamais dans la configuration.",
+				"env_database": "Écrit dans le .env du projet sous le nom {variable}, la base de données sous le nom {databaseVariable}, jamais dans la configuration.",
+				"advanced": "Paramètres avancés",
+				"driver": "Module du pilote",
+				"driver_help": "L’instance de {package} qui se connecte à cette base de données.",
+				"version": "Version du package",
+				"version_help": "La plage de versions de {package} à installer.",
+				"tables": "Module des tables",
+				"tables_help": "Le module dans lequel sont écrites les tables et les pages de la base de données.",
+				"variable": "Variable",
+				"variable_help": "Contient l’URL dans chaque environnement.",
+				"database_variable": "Variable de la base de données",
+				"database_variable_help": "Contient le nom de la base de données dans chaque environnement.",
+				"show_changes": "Afficher les modifications",
+				"show_changes_hint": "Ce que Connecter écrit, avant de l’écrire.",
+				"retry": "Réessayer",
+				"connect": "Connecter",
+				"cancel": "Annuler",
+				"needs": "Il faut {missing}.",
+				"check": "Vérifiez les informations : {problem}.",
+				"reading": "Lecture du projet…",
+				"url_unreadable": "Cette URL n’a pas pu être lue : {reason}",
+				"problem_host": "l’hôte doit être un nom ou une adresse, sans espace, port ni chemin",
+				"problem_port": "le port doit être un nombre",
+				"problem_database": "le nom de la base de données ne peut pas contenir ? ni #",
+				"missing_name": "un nom",
+				"missing_host": "un hôte",
+				"missing_database": "une base de données",
+				"missing_user": "un utilisateur",
+				"missing_driver": "un module de pilote",
+				"missing_tables": "un module des tables",
+				"missing_variable": "une variable",
+				"missing_database_variable": "une variable pour la base de données",
+				"missing_version": "une version du package",
+				"refusal_typecheck": "Le projet ne passe pas la vérification des types : {found}",
+				"refusal_not_found": "{ref} est introuvable",
+				"refusal_blocked": "Encore utilisé par {modules}"
+			},
+			"edit": {
+				"title": "Modifier {connection}",
+				"intro": "La façon dont le projet accède à la base de données, enregistrée dans le .env sous le nom {variable}.",
+				"unreadable": "L’URL de la connexion n’a pas pu être lue dans le .env.",
+				"port_placeholder": "par défaut",
+				"database_help": "Lu depuis sa propre variable dans le .env.",
+				"password_keep": "Laissez vide pour le conserver.",
+				"password_needed": "Autre serveur ou autre utilisateur : saisissez son mot de passe.",
+				"password_unchanged": "Inchangé",
+				"options": "Autres options, conservées :",
+				"save": "Enregistrer",
+				"saving": "Enregistrement…"
+			},
+			"remove": {
+				"title": "Retirer {connection}",
+				"intro": "Retire la base de données du projet. La base de données elle-même n’est pas touchée.",
+				"will": "Le retrait va :",
+				"driver_and_modules": "retirer le pilote {driver} et le module {modules} de antelope.config.ts, si bien que ses pages ne sont plus servies ;",
+				"driver": "retirer le pilote {driver} de antelope.config.ts ;",
+				"modules": "retirer le module {modules} de antelope.config.ts, si bien que ses pages ne sont plus servies ;",
+				"keep_driver": "conserver le pilote {driver} et son URL : c’est la base de données du projet, ou un autre module passe par lui ;",
+				"keep_modules": "conserver {modules} : il passe par le pilote mais n’enregistre pas cette connexion, il n’a donc pas été conçu pour elle ;",
+				"delete_folders": "supprimer {folders}, avec les tables et les pages qui y sont écrites ;",
+				"remove_connection": "retirer la connexion {connection} du builder et de dms-ai ;",
+				"remove_variables": "retirer {variables} de envOverrides, du .env et du .env.example.",
+				"action": "Retirer {connection}",
+				"removing": "Retrait en cours…",
+				"changes": "Les modifications",
+				"files": "{count} fichier | {count} fichier | {count} fichiers",
+				"removed": "Connexion retirée. Redémarrez le projet.",
+				"done": "Terminé"
+			},
+			"engines": {
+				"postgres_account": "Un rôle avec SELECT sur les schémas à associer, et des droits d’écriture uniquement là où les pages modifient les données.",
+				"mongodb_account": "Un utilisateur avec le rôle intégré read, et des droits d’écriture uniquement sur les collections que les pages modifient.",
+				"rethinkdb_account": "Un utilisateur avec la permission de lecture sur la base de données, et d’écriture uniquement sur les tables que les pages modifient.",
+				"not_url": "ce n’est pas une URL {engine}"
+			},
+			"proposal": {
+				"saved_in": "enregistré dans le module {module}",
+				"start_over": "Repartir de la suggestion",
+				"analyse_again": "Analyser à nouveau",
+				"analyse": "Analyser",
+				"progress": "{described} relations décrites sur {relations}, {profiled} profilées sur {toProfile}.",
+				"progress_timeouts": "{described} relations décrites sur {relations}, {profiled} profilées sur {toProfile}, {timeouts} mesures hors délai.",
+				"failed": "L’analyse a échoué : {error}",
+				"schemas_placeholder": "Schémas",
+				"analyse_these": "Analyser ceux-ci",
+				"tables_label": "Tables",
+				"group_pages": "Pages ({count})",
+				"group_stats": "Stats uniquement, sans page ({count})",
+				"group_left": "Non ajoutées ({count})",
+				"add_aria": "Ajouter {relation}",
+				"to_decide": "{count} à trancher",
+				"suggested": "suggestion",
+				"skipped": "Ignorées automatiquement ({count})",
+				"colon": " :",
+				"skipped_entry": "{reason} ({rule})",
+				"already_added": "Déjà ajoutées ({count})",
+				"unsaved": "non enregistrée",
+				"applying": "Application…",
+				"apply_changes": "Appliquer les modifications",
+				"apply_changes_many": "Appliquer les modifications ({count} tables)",
+				"saved": "Enregistré : {titles}. Les pages sont mises à jour une fois le module rechargé, dans quelques secondes.",
+				"relabelled": "Les colonnes qui pointent vers elles dans {relations} affichent aussi le nouveau libellé.",
+				"open_page": "Ouvrir la page",
+				"not_saved": "Pas encore enregistré : {titles}.",
+				"no_changes": "Aucune modification à appliquer.",
+				"discard": "Abandonner les modifications",
+				"pick_table": "Choisissez une table pour voir ses colonnes, ou appliquez la suggestion telle quelle.",
+				"applying_will": "En appliquant :",
+				"summary_entry": "{purpose}, avec {count} colonne | {purpose}, avec {count} colonne | {purpose}, avec {count} colonnes",
+				"remember_excluded": "mémoriser {count} table comme non ajoutée, pour que la prochaine analyse ne la suggère pas | mémoriser {count} table comme non ajoutée, pour que la prochaine analyse ne la suggère pas | mémoriser {count} tables comme non ajoutées, pour que la prochaine analyse ne les suggère pas",
+				"leave_open": "laisser {count} question ouverte pour la prochaine fois, appliquée en attendant comme suit : | laisser {count} question ouverte pour la prochaine fois, appliquée en attendant comme suit : | laisser {count} questions ouvertes pour la prochaine fois, appliquées en attendant comme suit :",
+				"confirm": "Confirmer",
+				"back": "Retour",
+				"apply": "Appliquer",
+				"adds": "Ajoute {pages} tables avec une page et {stats} en stats uniquement.",
+				"purpose": {
+					"left_out": "laissée de côté",
+					"stats": "l’ajouter aux stats, sans page",
+					"page_editable": "ajouter une page où les lignes sont modifiables",
+					"page_read_only": "ajouter une page, en lecture seule"
+				},
+				"answer": {
+					"not_analysed": "non analysé",
+					"label": "nommée d’après {column}",
+					"no_label": "sans libellé",
+					"column_left_out": "colonne laissée de côté",
+					"declared": "déclarée {type}",
+					"reference": "une référence vers {relation}",
+					"plain": "une colonne simple"
+				}
+			},
+			"relation": {
+				"title_aria": "Titre",
+				"has_page": "Possède une page",
+				"rows_editable": "Lignes modifiables",
+				"writes_can": "L’utilisateur de la base peut {verbs} des lignes",
+				"writes_cannot": "L’utilisateur de la base ne peut pas modifier les lignes",
+				"verb": {
+					"insert": "ajouter",
+					"update": "modifier",
+					"delete": "supprimer"
+				},
+				"to_decide": "À trancher",
+				"purpose": {
+					"tableView": {
+						"label": "Une page pour lister et modifier ses lignes",
+						"help": "Une page listée dans le menu."
+					},
+					"statsOnly": {
+						"label": "Comptée dans les stats, sans page",
+						"help": "Les pages de stats peuvent la compter et en faire des graphiques."
+					},
+					"excluded": {
+						"label": "Laissée de côté",
+						"help": "Non mappée, et plus proposée."
+					}
+				},
+				"label_field": "Libellé",
+				"label_help": "La colonne qui nomme une ligne. Elle s’affiche {where}.",
+				"first_in_list": "en premier dans sa liste",
+				"label_placeholder": "Aucun libellé",
+				"keep_label": "Garder {label}",
+				"keep_no_label": "Garder sans libellé",
+				"sampled_read": "Lignes échantillonnées lues :",
+				"sampled_empty": "{empty} ligne échantillonnée sur {rows} n’a rien à afficher ici. | {empty} ligne échantillonnée sur {rows} n’a rien à afficher ici. | {empty} lignes échantillonnées sur {rows} n’ont rien à afficher ici.",
+				"col_column": "Colonne",
+				"col_type": "Type",
+				"col_title": "Titre de la colonne",
+				"col_data": "Dans les données",
+				"flag": {
+					"listable": "Liste",
+					"filterable": "Filtre",
+					"sortable": "Tri",
+					"searchable": "Recherche"
+				},
+				"keep": "Garder",
+				"found_in_data": "(trouvée dans les données : {rule})",
+				"left_out": "est laissée de côté : {reason}.",
+				"show_rows": "Afficher d’autres lignes",
+				"sample_note": "Jusqu’à {limit} lignes, affichées ici uniquement et jamais transmises.",
+				"bytes": "{count} octet | {count} octet | {count} octets",
+				"the_key": "la clé primaire",
+				"percent_filled": "{percent} % remplie",
+				"values": "{count} valeur | {count} valeur | {count} valeurs",
+				"nulls": "{count} valeur nulle | {count} valeur nulle | {count} valeurs nulles",
+				"distinct": "{count} valeur distincte | {count} valeur distincte | {count} valeurs distinctes",
+				"why_suggested": "Suggestion : {rule}",
+				"type": {
+					"string": "Texte",
+					"number": "Nombre",
+					"date": "Date",
+					"boolean": "Booléen",
+					"object": "Objet"
+				}
+			},
+			"server": {
+				"schemas": "La base de données compte {count} tables, plus que ce qu’une analyse lit d’un coup : aucune n’a encore été lue. Choisissez les schémas à analyser.",
+				"label": "Quelle colonne nomme une ligne de {relation} ? C’est ce que sa liste affiche en premier, et ce qu’affichent les colonnes des autres tables qui y pointent.",
+				"purpose": "Que doit devenir {relation} ? Ses noms, ses commentaires et ses données ne disent pas ce qu’elle contient.",
+				"lossy": {
+					"bigint": "un bigint au-delà de 2^53 perd en précision comme nombre ; déclarez-le en chaîne pour le lire exactement",
+					"numeric": "un numeric perd en précision comme nombre ; déclarez-le en chaîne pour le lire exactement",
+					"real": "un real converti en nombre n’est pas la décimale telle qu’elle a été écrite",
+					"microseconds": "les microsecondes sont tronquées en millisecondes",
+					"json": "le json est lu comme du jsonb : les clés en double, l’ordre des clés et les espaces ne sont pas conservés",
+					"timestamp": "un timestamp sans fuseau horaire est lu en UTC ; {rest}"
+				},
+				"trait": {
+					"identifier-like": "type identifiant",
+					"enum-like": "type énumération",
+					"measure": "mesure",
+					"time-axis": "axe temporel",
+					"label-candidate": "candidat au libellé"
+				}
+			},
+			"rules": {
+				"R1": "La base indique que cette table n’est pas lisible.",
+				"R2": "Pas de clé primaire : elle peut alimenter des stats, pas une page.",
+				"R3": "Elle ne contient aucune ligne.",
+				"R4": "Table d’un framework ou d’un outil de migration.",
+				"R5": "Elle ne fait que relier deux autres tables : pour les stats uniquement.",
+				"R6": "Elle a une clé primaire, des lignes et une colonne qui nomme une ligne : une page.",
+				"R7": "D’autres tables y pointent mais aucune colonne ne nomme une ligne : une page, dont les lignes sont nommées par leur clé primaire.",
+				"R8": "Des lignes datées et rien qui nomme une ligne : des événements ou un journal, pour les stats uniquement.",
+				"R9": "Rien dans les données n’indique ce qu’elle contient.",
+				"L1": "Une colonne nommée comme le nom d’une personne ou d’un objet, sinon la colonne dont le nom correspond le mieux à un nom de ligne, sinon la première colonne de ce type.",
+				"L2": "Tiré du commentaire de la base lorsqu’il est court, sinon du nom.",
+				"F1": "Aucun type de colonne ne peut la lire.",
+				"F2": "Nommée comme un secret.",
+				"F3": "Le premier type sous lequel la colonne peut être lue.",
+				"F4": "La base déclare qu’elle pointe vers une table qui a une page.",
+				"F5": "Chaque valeur correspond à une ligne de l’autre table, bien que la base ne le déclare pas.",
+				"FL": "D’après l’aspect des données.",
+				"D1": "Chaque valeur de cette colonne de texte fait partie d’un petit ensemble : un badge, une teinte par valeur.",
+				"D2": "Un nombre nommé comme un montant : affiché comme un prix.",
+				"D3": "Nommée d’après la table vers laquelle elle pointe, au singulier.",
+				"T1": "Onglets sur la colonne qui indique un statut.",
+				"W1": "En lecture seule tant que vous n’en décidez pas autrement.",
+				"mapped": "Telle qu’elle est enregistrée actuellement."
+			}
 		}
 	}
 }

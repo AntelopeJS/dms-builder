@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useBuilderApi } from '../runtime/api'
+import { useBuilder } from '../runtime/session'
 import { DATABASE_ICON } from '../runtime/constants'
 import { defaultNames } from '../runtime/database-connect'
 import type { ConnectionInfo, DatabaseConnection } from '../runtime/database-types'
+import { t } from '../runtime/i18n'
 
 /**
  * The databases the project maps: the builder's catalog connections in a list,
@@ -13,9 +15,25 @@ import type { ConnectionInfo, DatabaseConnection } from '../runtime/database-typ
  */
 
 const api = useBuilderApi()
+const session = useBuilder().session
 const connections = ref<DatabaseConnection[] | null>(null)
 const selected = ref<string | null>(null)
 const connecting = ref(false)
+
+/**
+ * A request to show the connect form, from outside the workspace. Taken at
+ * once, on setup, so the form is the first thing drawn when the workspace was
+ * opened for it, and again whenever one arrives while the workspace is open.
+ */
+watch(
+	() => session.value.connectRequest,
+	(requested) => {
+		if (!requested) return
+		session.value.connectRequest = false
+		connecting.value = true
+	},
+	{ immediate: true },
+)
 const module = ref('')
 /** The module field as typed; the mapping follows it once the field is left. */
 const moduleInput = ref('')
@@ -38,12 +56,22 @@ let returnTo: 'mapping' | 'build' = 'mapping'
 /** The analysis *Review it myself* opens the mapping on, so it is not run again. */
 const reviewJob = ref<string | undefined>()
 
-async function load(): Promise<void> {
-	connections.value = await api.databaseConnections().catch(() => [])
-	const first = connections.value.find((entry) => !removed.value.includes(entry.id))
-	if (!selected.value && first) {
+function openFirst(): void {
+	const first = connections.value?.find((entry) => !removed.value.includes(entry.id))
+	if (!selected.value && !connecting.value && first) {
 		void open(first.id)
 	}
+}
+
+async function load(): Promise<void> {
+	connections.value = await api.databaseConnections().catch(() => [])
+	openFirst()
+}
+
+/** Closing a form that was opened over the list lands on its first connection, as opening the workspace does. */
+function cancelConnecting(): void {
+	connecting.value = false
+	openFirst()
 }
 
 /** A connection written to the configuration: listed as pending until the builder lists it, and built. */
@@ -67,10 +95,10 @@ function connected(): void {
 /** What a listed connection's line says under its name. */
 function status(entry: DatabaseConnection): { text: string; tone: string } {
 	if (pending.value.includes(entry.id) && !entry.engine && !entry.error) {
-		return { text: 'Connecting…', tone: 'text-warning' }
+		return { text: t('database.panel.connecting'), tone: 'text-warning' }
 	}
 	if (removed.value.includes(entry.id)) {
-		return { text: 'Removed, restart to finish', tone: 'text-warning' }
+		return { text: t('database.panel.removed'), tone: 'text-warning' }
 	}
 	if (entry.error) {
 		return { text: entry.error, tone: 'text-error' }
@@ -82,7 +110,7 @@ function status(entry: DatabaseConnection): { text: string; tone: string } {
 function mayLeave(): boolean {
 	return (
 		unsaved.value === 0 ||
-		window.confirm(`${unsaved.value} changed tables are not applied yet. Leave them unsaved?`)
+		window.confirm(t('database.panel.leave_unsaved', {}, unsaved.value))
 	)
 }
 
@@ -193,11 +221,11 @@ onMounted(load)
 	<div class="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
 		<aside
 			class="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-default bg-(--dms-bg-sidebar) p-3"
-			aria-label="Databases"
+			:aria-label="t('database.panel.title')"
 		>
 			<UButton
 				icon="i-ph-plus-light"
-				label="Connect a database"
+				:label="t('database.panel.connect')"
 				size="sm"
 				:variant="connecting ? 'soft' : 'solid'"
 				@click="startConnecting"
@@ -211,11 +239,11 @@ onMounted(load)
 				<UIcon :name="DATABASE_ICON" class="size-4 shrink-0 text-muted" />
 				<span class="flex min-w-0 flex-col">
 					<span class="truncate text-[13px] font-semibold text-highlighted">{{ id }}</span>
-					<span class="truncate text-[11px] text-warning">Connecting…</span>
+					<span class="truncate text-[11px] text-warning">{{ t('database.panel.connecting') }}</span>
 				</span>
 			</div>
 			<p v-if="connections && !connections.length && !pending.length" class="text-xs text-muted">
-				No database is connected to the builder yet.
+				{{ t('database.panel.empty') }}
 			</p>
 			<UButton
 				v-for="entry in connections ?? []"
@@ -237,7 +265,7 @@ onMounted(load)
 				</span>
 			</UButton>
 			<template v-if="selected && !connecting">
-				<UFormField label="Module for its tables" size="xs">
+				<UFormField :label="t('database.panel.module')" size="xs">
 					<UInput
 						v-model="moduleInput"
 						size="xs"
@@ -250,7 +278,7 @@ onMounted(load)
 				<div v-if="info && !removed.includes(selected)" class="flex gap-2">
 					<UButton
 						icon="i-ph-pencil-simple"
-						label="Edit connection"
+						:label="t('database.panel.edit')"
 						size="xs"
 						color="neutral"
 						:variant="view === 'edit' ? 'soft' : 'outline'"
@@ -258,7 +286,7 @@ onMounted(load)
 					/>
 					<UButton
 						icon="i-ph-trash"
-						label="Remove"
+						:label="t('database.panel.remove')"
 						size="xs"
 						color="error"
 						:variant="view === 'remove' ? 'soft' : 'outline'"
@@ -271,7 +299,7 @@ onMounted(load)
 		<section class="flex min-h-0 min-w-0 flex-col overflow-y-auto">
 			<DmsBuilderDatabaseConnect
 				v-if="connecting || (connections && !connections.length && !pending.length)"
-				@cancel="connecting = false"
+				@cancel="cancelConnecting"
 				@written="wrote"
 			/>
 			<DmsBuilderDatabaseBuild

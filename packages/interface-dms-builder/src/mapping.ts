@@ -154,6 +154,14 @@ export interface MapResourcesInput {
   resources: MappedResource[];
   /** Relations recorded as left out. Mapping one later removes it from the record. */
   excluded?: ExcludedRelation[];
+  /**
+   * The pages a person approved removing, as `PreviewMapResources` answered them. When present,
+   * `MapResources` plans on the state it finds, writes nothing and refuses with `invalid_config`
+   * naming the pages when that plan removes a page not in this list; an empty list approves none.
+   * Left out, `MapResources` removes the pages the choices no longer call for, as before.
+   * `PreviewMapResources` ignores it.
+   */
+  approvedPageRemovals?: PageRef[];
 }
 
 /** A column a TableView does not show, and why. */
@@ -180,6 +188,15 @@ export interface MapResourcesResult {
   category?: CategoryRef;
 }
 
+/** What `MapResources` would remove for the same input, answered by `PreviewMapResources`. */
+export interface MapResourcesPreview {
+  /**
+   * The pages of relations already mapped with a TableView that the input maps with `tableView`
+   * false, which `MapResources` removes. Empty when the call removes no page.
+   */
+  pagesToRemove: PageRef[];
+}
+
 /**
  * Writes table classes, models, DataAPI controllers and TableView pages over relations of a
  * database the project does not own, into a module bound to it. Names are the database's own,
@@ -193,4 +210,14 @@ export interface MapResourcesResult {
 export const MapResources =
   InterfaceFunction<
     (input: MapResourcesInput) => Promise<OpResult<MapResourcesResult>>
+  >();
+
+/**
+ * Answers which pages `MapResources` would remove for `input`, and writes nothing. It plans the
+ * mapping as `MapResources` does and refuses what that refuses, so a caller can ask a person
+ * before a mapping that removes a page.
+ */
+export const PreviewMapResources =
+  InterfaceFunction<
+    (input: MapResourcesInput) => Promise<OpResult<MapResourcesPreview>>
   >();

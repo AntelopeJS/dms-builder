@@ -32,7 +32,7 @@ importers:
         specifier: file:../../.campaign/tgz/antelopejs-interface-dms-14e671d.tgz
         version: file:../../.campaign/tgz/antelopejs-interface-dms-14e671d.tgz(6251a637b637cc4003b8909ecc29ab1a)
       '@antelopejs/interface-dms-builder':
-        specifier: '>=0.3.0 <0.4.0'
+        specifier: '>=0.3.1 <0.4.0'
         version: link:../interface-dms-builder
       diff:
         specifier: ^9.0.0

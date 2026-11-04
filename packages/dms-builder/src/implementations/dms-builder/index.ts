@@ -10,6 +10,7 @@ import type {
   AnalysisState,
   MappedRelation,
   MapResourcesInput,
+  MapResourcesPreview,
   MapResourcesResult,
   ModuleEntryInput,
   CreateLocalModuleOpts,
@@ -57,7 +58,7 @@ import type {
   ResourceSummary,
 } from "@antelopejs/interface-dms-builder";
 import { analysisState, startAnalysis } from "./engine/analysis-job";
-import { mapResources } from "./engine/map-resources";
+import { mapResources, previewMapResources } from "./engine/map-resources";
 import { mappedChoices } from "./engine/mapped-choices";
 import { configureProject } from "./engine/project-config-ops";
 import {
@@ -229,6 +230,12 @@ export async function MapResources(
   input: MapResourcesInput,
 ): Promise<OpResult<MapResourcesResult>> {
   return mapResources(input);
+}
+
+export async function PreviewMapResources(
+  input: MapResourcesInput,
+): Promise<OpResult<MapResourcesPreview>> {
+  return previewMapResources(input);
 }
 
 export async function AnalyseDatabase(

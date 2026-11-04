@@ -6,6 +6,7 @@ import {
 	type DatabaseEngine,
 	ENGINES,
 	type ManagedNames,
+	accountAdvice,
 	connectSteps,
 	connectVariables,
 	connectionId,
@@ -19,6 +20,7 @@ import {
 	refusalText,
 } from '../runtime/database-connect'
 import type { ProjectModules } from '../runtime/database-types'
+import { t } from '../runtime/i18n'
 import type { FileChange } from '../runtime/types'
 
 /**
@@ -110,7 +112,9 @@ function applyUrl(text: string): boolean {
 		pasteProblem.value = ''
 		return true
 	} catch (error) {
-		pasteProblem.value = `This URL could not be read: ${error instanceof Error ? error.message : String(error)}`
+		pasteProblem.value = t('database.connect.url_unreadable', {
+			reason: error instanceof Error ? error.message : String(error),
+		})
 		return false
 	}
 }
@@ -164,25 +168,23 @@ async function write(): Promise<void> {
 <template>
 	<div class="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
 		<header>
-			<p class="text-xl font-semibold tracking-tight text-highlighted">Connect a database</p>
-			<p class="text-xs text-muted">
-				Wires an existing database into the project, so its tables can be mapped into pages.
-			</p>
+			<p class="text-xl font-semibold tracking-tight text-highlighted">{{ t('database.connect.title') }}</p>
+			<p class="text-xs text-muted">{{ t('database.connect.intro') }}</p>
 		</header>
 
 		<div class="grid grid-cols-2 gap-3">
 			<UFormField
-				label="Name"
-				:help="id && id !== form.name ? `Used as ${id}` : 'Names the connection in the builder and dms-ai.'"
+				:label="t('database.connect.name')"
+				:help="id && id !== form.name ? t('database.connect.name_used', { id }) : t('database.connect.name_help')"
 			>
 				<UInput
 					:model-value="form.name"
-					placeholder="erp"
+					:placeholder="t('database.connect.name_placeholder')"
 					class="w-full"
 					@update:model-value="typeName(String($event))"
 				/>
 			</UFormField>
-			<UFormField label="Database type">
+			<UFormField :label="t('database.connect.engine')">
 				<USelect
 					:model-value="form.engine"
 					:items="ENGINE_ITEMS"
@@ -193,35 +195,35 @@ async function write(): Promise<void> {
 		</div>
 
 		<section class="flex flex-col gap-3 rounded-md border border-default p-3">
-			<p class="text-sm font-semibold text-highlighted">Connection</p>
+			<p class="text-sm font-semibold text-highlighted">{{ t('database.connect.connection') }}</p>
 			<div class="flex gap-2">
 				<UInput
 					v-model="pasted"
 					type="password"
 					autocomplete="off"
-					:placeholder="`Paste a ${spec.schemes[0]}// URL to fill the fields`"
+					:placeholder="t('database.connect.paste_placeholder', { scheme: spec.schemes[0] })"
 					class="flex-1 font-mono"
 					@keydown.enter="pasteUrl"
 				/>
-				<UButton label="Fill in" variant="soft" :disabled="!pasted.trim()" @click="pasteUrl" />
+				<UButton :label="t('database.connect.fill_in')" variant="soft" :disabled="!pasted.trim()" @click="pasteUrl" />
 			</div>
 			<p v-if="pasteProblem" class="text-xs text-error">{{ pasteProblem }}</p>
 			<div class="grid grid-cols-[1fr_8rem] gap-3">
-				<UFormField label="Host">
+				<UFormField :label="t('database.connect.host')">
 					<UInput v-model="form.fields.host" class="w-full font-mono" @paste="pasteIntoHost" />
 				</UFormField>
-				<UFormField label="Port">
+				<UFormField :label="t('database.connect.port')">
 					<UInput v-model="form.fields.port" inputmode="numeric" class="w-full font-mono" />
 				</UFormField>
 			</div>
 			<div class="grid grid-cols-3 gap-3">
-				<UFormField label="Database">
+				<UFormField :label="t('database.connect.database')">
 					<UInput v-model="form.fields.database" class="w-full font-mono" />
 				</UFormField>
-				<UFormField label="User">
+				<UFormField :label="t('database.connect.user')">
 					<UInput v-model="form.fields.user" autocomplete="off" class="w-full font-mono" />
 				</UFormField>
-				<UFormField label="Password">
+				<UFormField :label="t('database.connect.password')">
 					<UInput
 						v-model="form.fields.password"
 						type="password"
@@ -231,50 +233,51 @@ async function write(): Promise<void> {
 				</UFormField>
 			</div>
 			<div v-if="spec.sslMode" class="flex items-center gap-3">
-				<USwitch v-model="form.fields.ssl" aria-label="Connect over SSL" />
-				<span class="text-sm text-default">Connect over SSL</span>
+				<USwitch v-model="form.fields.ssl" :aria-label="t('database.connect.ssl')" />
+				<span class="text-sm text-default">{{ t('database.connect.ssl') }}</span>
 			</div>
 			<p v-if="extraOptions.length" class="text-xs text-muted">
-				Other options, kept from the pasted URL:
+				{{ t('database.connect.options') }}
 				<span class="font-mono">{{ extraOptions.map(([key, value]) => `${key}=${value}`).join(', ') }}</span>
 			</p>
-			<p class="text-xs text-muted">{{ spec.accountAdvice }}</p>
+			<p class="text-xs text-muted">{{ accountAdvice(form.engine) }}</p>
 			<p class="text-xs text-muted">
-				Written into the project's <span class="font-mono">.env</span> as
-				<span class="font-mono">{{ names.variable }}</span><template v-if="spec.separateDatabase">,
-					the database as <span class="font-mono">{{ names.databaseVariable }}</span></template>,
-				never into the configuration.
+				{{
+					spec.separateDatabase
+						? t('database.connect.env_database', { variable: names.variable, databaseVariable: names.databaseVariable })
+						: t('database.connect.env', { variable: names.variable })
+				}}
 			</p>
 		</section>
 
 		<DmsBuilderFoldCard
 			icon="i-ph-gear-six"
-			title="Advanced settings"
+			:title="t('database.connect.advanced')"
 			:summary="`${names.driverModule}, ${names.tablesModule}, ${names.variable}`"
 		>
 			<div class="grid grid-cols-2 gap-3">
-				<UFormField label="Driver module" :help="`The ${spec.package} instance that connects to this database.`">
+				<UFormField :label="t('database.connect.driver')" :help="t('database.connect.driver_help', { package: spec.package })">
 					<UInput
 						:model-value="names.driverModule"
 						class="w-full font-mono"
 						@update:model-value="setName('driverModule', String($event))"
 					/>
 				</UFormField>
-				<UFormField label="Package version" :help="`The range of ${spec.package} to install.`">
+				<UFormField :label="t('database.connect.version')" :help="t('database.connect.version_help', { package: spec.package })">
 					<UInput
 						:model-value="names.version"
 						class="w-full font-mono"
 						@update:model-value="setName('version', String($event))"
 					/>
 				</UFormField>
-				<UFormField label="Tables module" help="The module the database's tables and pages are written into.">
+				<UFormField :label="t('database.connect.tables')" :help="t('database.connect.tables_help')">
 					<UInput
 						:model-value="names.tablesModule"
 						class="w-full font-mono"
 						@update:model-value="setName('tablesModule', String($event))"
 					/>
 				</UFormField>
-				<UFormField label="Variable" help="Holds the URL in each environment.">
+				<UFormField :label="t('database.connect.variable')" :help="t('database.connect.variable_help')">
 					<UInput
 						:model-value="names.variable"
 						class="w-full font-mono"
@@ -283,8 +286,8 @@ async function write(): Promise<void> {
 				</UFormField>
 				<UFormField
 					v-if="spec.separateDatabase"
-					label="Database variable"
-					help="Holds the database name in each environment."
+					:label="t('database.connect.database_variable')"
+					:help="t('database.connect.database_variable_help')"
 				>
 					<UInput
 						:model-value="names.databaseVariable"
@@ -294,24 +297,24 @@ async function write(): Promise<void> {
 				</UFormField>
 			</div>
 			<div class="flex items-center gap-2">
-				<UButton label="Show the changes" size="xs" variant="soft" :disabled="blocked" @click="showDiff" />
-				<span class="text-xs text-muted">What Connect writes, before it does.</span>
+				<UButton :label="t('database.connect.show_changes')" size="xs" variant="soft" :disabled="blocked" @click="showDiff" />
+				<span class="text-xs text-muted">{{ t('database.connect.show_changes_hint') }}</span>
 			</div>
 			<DmsBuilderDiffView v-if="preview" :changes="preview" />
 		</DmsBuilderFoldCard>
 
 		<p v-if="projectProblem" class="flex items-center gap-2 text-xs text-error">
 			{{ projectProblem }}
-			<UButton label="Try again" size="xs" variant="soft" @click="readProject" />
+			<UButton :label="t('database.connect.retry')" size="xs" variant="soft" @click="readProject" />
 		</p>
 		<p v-if="problem" class="text-xs text-error">{{ problem }}</p>
 
 		<div class="flex items-center gap-2">
-			<UButton label="Connect" :loading="busy" :disabled="blocked" @click="write" />
-			<UButton label="Cancel" color="neutral" variant="ghost" @click="emit('cancel')" />
-			<span v-if="missing" class="text-xs text-muted">Needs {{ missing }}.</span>
-			<span v-else-if="invalid" class="text-xs text-error">Check the details: {{ invalid }}.</span>
-			<span v-else-if="!project && !projectProblem" class="text-xs text-muted">Reading the project…</span>
+			<UButton :label="t('database.connect.connect')" :loading="busy" :disabled="blocked" @click="write" />
+			<UButton :label="t('database.connect.cancel')" color="neutral" variant="ghost" @click="emit('cancel')" />
+			<span v-if="missing" class="text-xs text-muted">{{ t('database.connect.needs', { missing }) }}</span>
+			<span v-else-if="invalid" class="text-xs text-error">{{ t('database.connect.check', { problem: invalid }) }}</span>
+			<span v-else-if="!project && !projectProblem" class="text-xs text-muted">{{ t('database.connect.reading') }}</span>
 		</div>
 	</div>
 </template>
