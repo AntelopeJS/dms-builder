@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/frontend-vue/app/components/Overlay.vue b/packages/dms-builder/frontend-vue/app/components/Overlay.vue
+index 101fe71..0ccbf2f 100644
+--- a/packages/dms-builder/frontend-vue/app/components/Overlay.vue
++++ b/packages/dms-builder/frontend-vue/app/components/Overlay.vue
+@@ -210,7 +210,7 @@ function onKeydown(event: KeyboardEvent): void {
+ 		builder.nudge(path, arrow)
+ 		return
+ 	}
+-	if (modifier && event.key.toLowerCase() === 'd') {
++	if (modifier && event.key.toLowerCase() === 'x') {
+ 		event.preventDefault()
+ 		builder.duplicate(path)
+ 		return
