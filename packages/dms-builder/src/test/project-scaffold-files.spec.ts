@@ -74,7 +74,7 @@ describe("scaffolding a module from project files npm, pnpm and tsc accept", () 
         "tsconfig.json",
       );
       expect(text).to.equal(
-        '{\n  "compilerOptions": {\n    "rootDir": "src",\n    "outDir": "dist"\n  },\n  "include": [\n    "src/**/*.ts"\n  ]\n}\n',
+        '{\n  "compilerOptions": {\n    "rootDir": "src",\n    "outDir": "dist",\n    "tsBuildInfoFile": "dist/.tsbuildinfo"\n  },\n  "include": [\n    "src/**/*.ts"\n  ]\n}\n',
       );
     });
   }
