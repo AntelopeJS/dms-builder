@@ -93,6 +93,8 @@ declare module "playwright-core" {
     waitForEvent(event: "download", options?: Timeout): Promise<Download>;
     waitForEvent(event: "filechooser", options?: Timeout): Promise<FileChooser>;
     evaluate<R>(callback: () => R): Promise<R>;
+    evaluate<R, A>(callback: (argument: A) => R, argument: A): Promise<R>;
+    waitForRequest(predicate: (request: { method(): string; url(): string }) => boolean, options?: Timeout): Promise<{ method(): string; url(): string }>;
     reload(): Promise<object | null>;
     setViewportSize(size: { width: number; height: number }): Promise<void>;
     context(): BrowserContext;

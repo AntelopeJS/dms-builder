@@ -46,6 +46,11 @@ export const journeys = guarded([
         check("all changes saved", await statusBecomes(tab, /^All changes saved$/, 15_000), await saveStatus(tab)),
         check("the source is untouched", readProject(ctx, "the board", PAGE_FILE).text.includes('title: "Revenue",'), "board"),
       ]);
+      await tab.page.getByRole("button", { name: "Undo" }).click();
+      await ctx.verify("Undo brings the discarded draft back while the editor stays open", [
+        check("one unsaved change again", await statusBecomes(tab, /^1 unsaved change$/, 15_000), await saveStatus(tab)),
+        check("the card is Revenue 2 again", (await inspector(tab).getByRole("textbox", { name: "Title*" }).inputValue()) === "Revenue 2", "title"),
+      ]);
     },
   },
   {
@@ -98,6 +103,34 @@ export const journeys = guarded([
         tab.visible({ role: "button", name: "Discard" }),
         check("the source was not written", !readProject(ctx, "the board", PAGE_FILE).text.includes("Kept draft"), "board"),
       ]);
+    },
+  },
+  {
+    id: "a-kept-draft-lasts-seven-days",
+    title: "A draft kept on the device is offered back when it is 6 days old and dropped when it is 8 days old",
+    entryPoint: "builder draft in local storage, 7 days",
+    async run(/** @type {Ctx} */ ctx) {
+      const tab = await ctx.tab();
+      await tab.signIn("admin");
+      await openBuilder(ctx, tab);
+      await retitleRevenue(tab, "Aged draft");
+      await tab.page.waitForTimeout(1500);
+      const age = (/** @type {number} */ days) => tab.page.evaluate((offset) => {
+        const key = "dms-builder:draft:/shop/board";
+        const raw = localStorage.getItem(key) ?? "";
+        const replaced = raw.replace(/"at":\d+/, `"at":${Date.now() - offset * 24 * 60 * 60 * 1000}`);
+        localStorage.setItem(key, replaced);
+        return replaced !== raw;
+      }, days);
+      await age(6);
+      await tab.goto(BOARD);
+      await openBuilder(ctx, tab);
+      await ctx.verify("a 6 day old draft is offered back", [check("one unsaved change", await statusBecomes(tab, /^1 unsaved change$/, 20_000), await saveStatus(tab)), tab.visible({ role: "button", name: "Review" }, { timeoutMs: 15_000 })]);
+      await age(8);
+      await tab.goto(BOARD);
+      await openBuilder(ctx, tab);
+      await tab.page.waitForTimeout(2500);
+      await ctx.verify("an 8 day old draft is dropped", [check("all changes saved", (await saveStatus(tab)) === "All changes saved", await saveStatus(tab)), tab.visible({ role: "button", name: "Review" }, { hidden: true, timeoutMs: 5_000 })]);
     },
   },
   {

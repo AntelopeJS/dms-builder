@@ -89,3 +89,37 @@ export async function selectBlock(tab, title) {
 export function inspector(tab) {
   return tab.page.getByRole("complementary", { name: "Inspector" });
 }
+
+/**
+ * Selects a block by clicking it on the canvas, which leaves the focus on the page rather than on a Layers row, so
+ * the keys that act on the selected block reach it.
+ *
+ * @param {Tab} tab The tab with the builder open
+ * @param {string} title The block's title
+ * @param {string} kind The block's kind as the canvas names it, for example `Chart card`
+ */
+export async function selectOnCanvas(tab, title, kind) {
+  await tab.page.getByRole("group", { name: `${title} · ${kind}` }).first().click();
+}
+
+/**
+ * The titles of the blocks the Layers tab lists, in order.
+ *
+ * @param {Tab} tab The tab with the builder open and the Layers tab shown
+ * @returns {Promise<string[]>} The titles
+ */
+export async function layerTitles(tab) {
+  const rows = await tab.page.getByRole("tree", { name: "Blocks of the page" }).getByRole("treeitem").allInnerTexts();
+  return rows.map((row) => row.replace(/\s*Actions for[\s\S]*$/, "").trim()).slice(1);
+}
+
+/**
+ * The title the inspector names, or the empty text when nothing is selected.
+ *
+ * @param {Tab} tab The tab
+ * @returns {Promise<string>} The first line of the inspector
+ */
+export async function inspectorTitle(tab) {
+  const text = await inspector(tab).innerText();
+  return text.includes("Nothing selected") ? "" : (text.split("\n")[0] ?? "").trim();
+}

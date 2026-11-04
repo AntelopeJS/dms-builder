@@ -1,6 +1,6 @@
 import { guarded } from "../guard.mjs";
 import { check, list, operation, projectHas, rebuild, text } from "../builder.mjs";
-import { openBuilder } from "../editor.mjs";
+import { inspector, openBuilder, selectBlock } from "../editor.mjs";
 
 /** @typedef {import("../builder.mjs").Ctx} Ctx */
 /** @typedef {import("../builder.mjs").Tab} Tab */
@@ -52,6 +52,72 @@ export const journeys = guarded([
       await ctx.verify("the starting layout is not written to the file", [
         check("the file has no blocks yet", list(structure.data, "blocks").length === 0, list(structure.data, "blocks").map((block) => text(block, "type"))),
       ]);
+    },
+  },
+  {
+    id: "the-delete-confirmation-names-what-goes-with-the-page",
+    title: "Deleting a page that has blocks, a data source, a page linking to it and an unsaved change on it asks with the exact counts, the names of the linking pages and the unsaved change",
+    entryPoint: "builder Pages tab, Delete <page>",
+    async run(/** @type {Ctx} */ ctx) {
+      await operation(ctx, "the target page", "CreatePage", { name: "target", displayName: "Target", category: "pages.shop" });
+      const filled = await operation(ctx, "two blocks and a query", "SetPageBlocks", "/shop/target", {
+        blocks: [{ name: "k1", type: "KpiCard", config: { title: "K1" } }, { name: "k2", type: "KpiCard", config: { title: "K2" } }],
+        queries: [{ name: "cnt", resource: "order", template: "count" }],
+      });
+      await operation(ctx, "the linking page", "CreatePage", { name: "linker", displayName: "Linker", category: "pages.shop" });
+      const linked = await operation(ctx, "a card that links to the target", "AddBlock", { page: "/shop/linker", name: "go", type: "NavCardGrid", config: { title: "Go", items: [{ title: "To target", to: "/shop/target", icon: "i-ph-x" }] } });
+      await ctx.verify("the seed", [check("blocks, query and link are written", filled.ok && linked.ok, [filled.raw, linked.raw])], { critical: true });
+      await ctx.verify("the project is compiled so the running app knows the pages", [await rebuild(ctx)], { critical: true });
+      const tab = await ctx.tab();
+      await tab.signIn("admin");
+      await openBuilder(ctx, tab, "/shop/target");
+      await tab.page.getByRole("tab", { name: "Layers" }).click();
+      await selectBlock(tab, "K1");
+      await inspector(tab).getByRole("textbox", { name: "Title*" }).fill("K1 edited");
+      await tab.page.getByRole("tab", { name: "Pages" }).click();
+      await tab.page.getByRole("button", { name: "Delete Target" }).click();
+      await tab.visible({ role: "button", name: "Delete the page", exact: true }, { timeoutMs: 30_000 });
+      const dialog = (await tab.page.getByRole("dialog", { name: "Delete Target?" }).innerText()).replace(/\s+/g, " ");
+      await ctx.verify("the confirmation says exactly what leaves", [
+        check("its 2 blocks and 1 data source go with it", dialog.includes("Its 2 blocks and 1 data source go with it."), dialog),
+        check("Linker still links to it", dialog.includes("Linker still links to it: those links will lead nowhere."), dialog),
+        check("its unsaved changes go with it", dialog.includes("Its unsaved changes go with it."), dialog),
+        check("the builder cannot undo this", dialog.includes("The builder cannot undo this."), dialog),
+      ]);
+      await tab.page.getByRole("button", { name: "Keep it", exact: true }).click();
+    },
+  },
+  {
+    id: "rename-and-the-arrows-change-the-menu-at-once",
+    title: "Rename changes a category's title at once, the up and down arrows reorder categories at once, an empty category reads empty, and a category shows how many pages it holds",
+    entryPoint: "builder Pages tab, Rename, Move up the menu, Move down the menu",
+    async run(/** @type {Ctx} */ ctx) {
+      await operation(ctx, "first", "CreateCategory", { name: "alpha", displayName: "Alpha", parent: "pages", order: 1 });
+      await operation(ctx, "second", "CreateCategory", { name: "beta", displayName: "Beta", parent: "pages", order: 2 });
+      await ctx.verify("the project is compiled so the running app knows the categories", [await rebuild(ctx)], { critical: true });
+      const tab = await pagesTab(ctx);
+      const tree = (await tab.page.getByRole("tree", { name: "Pages" }).innerText()).replace(/\s+/g, " ");
+      await ctx.verify("the labels of the tree", [
+        check("an empty category reads empty", /Alpha empty/.test(tree) && /Beta empty/.test(tree), tree),
+        check("a category with pages shows their count", /Shop 1/.test(tree), tree),
+      ]);
+      await tab.page.getByRole("button", { name: "Rename Alpha", exact: true }).click();
+      const field = tab.page.getByRole("textbox", { name: "Category name" });
+      await field.fill("Alpha two");
+      await field.press("Enter");
+      await tab.page.waitForTimeout(2500);
+      const renamed = await operation(ctx, "list", "ListCategories");
+      await ctx.verify("Rename is written at once", [check("Alpha two", list(renamed.raw).some((row) => text(row, "ref") === "pages.alpha" && text(row, "displayName") === "Alpha two"), renamed.raw)]);
+      await tab.page.getByRole("button", { name: "Move Alpha two down the menu", exact: true }).click();
+      await tab.page.waitForTimeout(2500);
+      const moved = list((await operation(ctx, "list", "ListCategories")).raw);
+      const order = (/** @type {string} */ ref) => Number(moved.find((row) => text(row, "ref") === ref)?.order);
+      await ctx.verify("the down arrow puts Alpha two after Beta", [check("Alpha two sorts after Beta", order("pages.alpha") > order("pages.beta"), moved)]);
+      await tab.page.getByRole("button", { name: "Move Alpha two up the menu", exact: true }).click();
+      await tab.page.waitForTimeout(2500);
+      const back = list((await operation(ctx, "list", "ListCategories")).raw);
+      const rank = (/** @type {string} */ ref) => Number(back.find((row) => text(row, "ref") === ref)?.order);
+      await ctx.verify("the up arrow puts it back", [check("Alpha two sorts before Beta", rank("pages.alpha") < rank("pages.beta"), back)]);
     },
   },
   {

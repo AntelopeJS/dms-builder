@@ -22,12 +22,14 @@ export const journeys = guarded([
       const structure = await operation(ctx, "read", "GetResourceStructure", "invoice");
       await ctx.verify("the table is written at once", [
         check("three files named after the table", ["data-api.ts", "database.ts", "index.ts"].every((name) => files.some((file) => file.endsWith(name))), files),
-        check("one field, Title", list(structure.data, "fields").length === 1, list(structure.data, "fields")),
+        check("one field, named title and labelled Title", list(structure.data, "fields").length === 1 && text(list(structure.data, "fields")[0], "name") === "title" && text(list(structure.data, "fields")[0], "label") === "Title", list(structure.data, "fields")),
+        check("the Fields tab lists Title", (await tab.page.locator("body").innerText()).includes("Title"), "fields"),
       ], { critical: true });
       await tab.visible({ role: "tab", name: "Settings" }, { timeoutMs: 20_000 });
       await tab.page.getByRole("tab", { name: "Settings" }).click();
       const confirm = tab.page.getByRole("textbox", { name: /to confirm/ });
       const remove = tab.page.getByRole("button", { name: "Delete the table and its rows" });
+      await ctx.verify("the confirmation field shows the key as its placeholder", [check("placeholder is invoice", (await confirm.getAttribute("placeholder")) === "invoice", await confirm.getAttribute("placeholder"))]);
       await ctx.verify("the deletion is gated by the key", [
         check("disabled while the field is empty", await remove.isDisabled(), "button"),
       ]);
@@ -49,9 +51,11 @@ export const journeys = guarded([
       await tab.page.getByRole("radio", { name: "Tables" }).check();
       await tab.page.getByRole("button", { name: /^invoice/ }).click();
       await tab.page.getByRole("tab", { name: "Settings" }).click();
-      await tab.page.getByRole("textbox", { name: /to confirm/ }).fill("invoice");
-      const remove = tab.page.getByRole("button", { name: "Delete the table and its rows" });
-      await remove.click();
+      const confirm = tab.page.getByRole("textbox", { name: /to confirm/ });
+      await confirm.fill("invoice");
+      const sent = tab.page.waitForRequest((request) => request.method() === "DELETE" && request.url().includes("/api/builder/resource"), { timeout: 20_000 }).then(() => true, () => false);
+      await confirm.press("Enter");
+      await ctx.verify("Enter in the confirmation field sends the deletion", [check("a DELETE request to /api/builder/resource", await sent, "request")]);
       await tab.page.waitForTimeout(3500);
       const left = await operation(ctx, "list", "ListResources");
       await ctx.verify("the table is deleted at once", [

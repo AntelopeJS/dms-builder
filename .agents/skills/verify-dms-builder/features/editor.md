@@ -5,7 +5,6 @@ covers:
   - packages/dms-builder/frontend-vue/app/build/Node.ts
   - packages/dms-builder/frontend-vue/app/components/Bar.vue
   - packages/dms-builder/frontend-vue/app/components/Workspace.vue
-  - packages/dms-builder/frontend-vue/app/components/Overlay.vue
   - packages/dms-builder/frontend-vue/app/components/LeftRail.vue
   - packages/dms-builder/frontend-vue/app/components/Library.vue
   - packages/dms-builder/frontend-vue/app/components/Layers.vue

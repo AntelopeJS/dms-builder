@@ -14,7 +14,11 @@
     "composite": false,
     "noEmit": true,
     "incremental": false,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "paths": {
+      "@antelopejs/interface-dms/*": ["../../../packages/dms-builder/node_modules/@antelopejs/interface-dms/dist/*"],
+      "*": ["../../../packages/dms-builder/node_modules/*"]
+    }
   },
   "include": ["**/*.mjs", "**/*.ts"],
   "exclude": ["node_modules", "playground/node_modules", "playground/dist"]
