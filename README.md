@@ -11,7 +11,7 @@ Visual and programmatic editing of an [AntelopeJS DMS](https://github.com/Antelo
 
 </div>
 
-![The builder open on a page, with the block catalog, the canvas and a chart card's settings](./packages/dms-builder/docs/images/editor-selected.png)
+![Screen recording from the AntelopeJS DMS film. Ctrl B opens the Builder on a dashboard and a TableView block is added from the block list under the caption Ctrl B. Edit it on the page. The block is saved, the whole project is typechecked, and the new TableView line appears in dashboard/page.ts under the caption Every save becomes TypeScript.](https://raw.githubusercontent.com/AntelopeJS/dms/main/docs/media/builder.gif)
 
 ## What it does
 
