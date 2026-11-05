@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts b/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts
+index db64fe3..37d73c6 100644
+--- a/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts
++++ b/packages/dms-builder/src/implementations/dms-builder/engine/page-delete.ts
+@@ -61,7 +61,7 @@ export function deletePage(ref: string, opts?: MutationOpts): OpResult {
+   pageClass.remove();
+   pruneUnusedLocals(sourceFile, usedLocals);
+   pruneUnusedImports(sourceFile, usedImports);
+-  if (holdsOnlyImports(sourceFile)) {
++  if (holdsOnlyImports(sourceFile) || importers.length >= 0) {
+     for (const importer of importers) {
+       transaction.track(importer.getSourceFile());
+       importer.remove();

@@ -1,0 +1,81 @@
+import { CONNECT_PROMPT, guarded } from "../guard.mjs";
+import { BOARD, builder, check, pick, text } from "../builder.mjs";
+
+/** @typedef {import("../builder.mjs").Ctx} Ctx */
+
+export const journeys = guarded([
+  {
+    id: "a-project-without-an-external-database-answers-the-documented-empties-and-404s",
+    title: "On a project with no catalog connection the Database routes list no connection, answer 404 for an unknown connection, analysis or mapping, and read the project's modules",
+    entryPoint: "GET /api/builder/database/*, POST /api/builder/database/sample",
+    async run(/** @type {Ctx} */ ctx) {
+      const connections = await builder(ctx, "connections", "GET", "/database/connections");
+      const project = await builder(ctx, "project", "GET", "/database/project");
+      const analysis = await builder(ctx, "analysis of an unknown connection", "GET", "/database/analysis?connection=nope");
+      const analysisById = await builder(ctx, "analysis by an unknown id", "GET", "/database/analysis?id=nope");
+      const connection = await builder(ctx, "an unknown connection", "GET", "/database/connection?connection=nope");
+      const sample = await builder(ctx, "sample of an unknown connection", "POST", "/database/sample", { body: { connection: "nope", relation: "orders", columns: ["id"], limit: 5 } });
+      const mapping = await builder(ctx, "mapping of an unknown connection", "GET", "/database/mapping?connection=nope&module=nope");
+      await ctx.verify("the reads", [
+        check("connections is an empty list", connections.status === 200 && Array.isArray(connections.body) && connections.body.length === 0, connections),
+        check("project answers modules", project.status === 200 && Array.isArray(pick(project.body, "modules")) && (/** @type {unknown[]} */ (pick(project.body, "modules"))).includes("dms-builder"), project),
+        check("an unknown analysis connection is 404", analysis.status === 404, analysis),
+        check("an unknown analysis id answers a not_found OpResult", pick(analysisById.body, "ok") === false && text(analysisById.body, "error", "code") === "not_found", analysisById),
+        check("an unknown connection is 404", connection.status === 404, connection),
+        check("a sample of an unknown connection is 404", sample.status === 404, sample),
+        check("an unknown mapping answers a refusal, not a 200 mapping", mapping.status !== 200 || pick(mapping.body, "ok") === false, mapping),
+      ]);
+      const remove = await builder(ctx, "remove an unknown connection", "POST", "/database/connection/remove", { body: { connection: "nope", dryRun: true } });
+      const url = await builder(ctx, "set the url of an unknown connection", "POST", "/database/connection/url", { body: { connection: "nope", url: "postgres://u:p@h/db" } });
+      const refused = await builder(ctx, "a request the engine refuses", "POST", "/database/analyse", { body: { connection: "nope" } });
+      await ctx.verify("the writes are refused without touching the project", [
+        check("remove answers an OpResult that is not ok", pick(remove.body, "ok") === false || remove.status >= 400, remove),
+        check("setting a url on an unknown connection is not ok", pick(url.body, "ok") === false || url.status >= 400, url),
+        check("analysing an unknown connection is not ok", pick(refused.body, "ok") === false || refused.status >= 400, refused),
+        check("a refused request carries a code", [text(refused.body, "code"), text(refused.body, "error", "code")].some((code) => code !== ""), refused.body),
+      ]);
+    },
+  },
+  {
+    id: "the-database-workspace-offers-to-connect-a-database",
+    title: "The Database workspace of the builder opens on a project without a connection and offers to connect one",
+    entryPoint: "builder Database workspace",
+    async run(/** @type {Ctx} */ ctx) {
+      const { openBuilder } = await import("../editor.mjs");
+      const tab = await ctx.tab();
+      await tab.signIn("admin");
+      await openBuilder(ctx, tab);
+      await tab.page.getByRole("radio", { name: "Database" }).check();
+      await ctx.verify("the workspace opens", [tab.visible({ role: "button", name: "Connect a database" }, { timeoutMs: 20_000 }), tab.shows(/No database is connected to the builder yet\./)]);
+    },
+  },
+  {
+    id: "the-connect-prompt-asks-once-per-browser",
+    title: "On a project with no external database a browser that never answered is asked to connect one on its first dashboard page; Not now keeps the question away after a reload, and Connect a database opens the builder on the connect form",
+    entryPoint: "dashboard connect prompt",
+    async run(/** @type {Ctx} */ ctx) {
+      const tab = await ctx.tab();
+      await tab.signIn("admin");
+      const prompt = { role: "dialog", name: "Start from a database you already run" };
+      const forget = () => tab.page.evaluate((key) => localStorage.removeItem(key), CONNECT_PROMPT.answered);
+      await forget();
+      await tab.goto(BOARD);
+      await ctx.verify("a browser that never answered is asked", [tab.visible(prompt, { timeoutMs: 30_000 }), tab.visible({ role: "button", name: "Not now" }), tab.visible({ role: "button", name: "Connect a database" })]);
+      await tab.page.getByRole("button", { name: "Not now" }).click();
+      await ctx.verify("Not now closes it", [tab.visible(prompt, { hidden: true, timeoutMs: 15_000 })]);
+      await tab.goto(BOARD);
+      await tab.page.waitForTimeout(4000);
+      const remembered = await tab.page.evaluate((key) => localStorage.getItem(key), CONNECT_PROMPT.answered);
+      await ctx.verify("the answer holds after a reload", [tab.visible(prompt, { hidden: true, timeoutMs: 2_000 }), check("the browser remembers the answer", remembered === "1", String(remembered))]);
+      await forget();
+      await tab.goto(BOARD);
+      await tab.visible(prompt, { timeoutMs: 30_000 });
+      await tab.page.getByRole("dialog", { name: prompt.name }).getByRole("button", { name: "Connect a database" }).click();
+      await ctx.verify("Connect a database opens the connect form", [
+        tab.visible(prompt, { hidden: true, timeoutMs: 15_000 }),
+        tab.visible({ role: "radiogroup", name: "Workspace" }, { timeoutMs: 30_000 }),
+        tab.shows(/Wires an existing database into the project, so its tables can be mapped into pages\./, { timeoutMs: 20_000 }),
+      ]);
+    },
+  },
+]);

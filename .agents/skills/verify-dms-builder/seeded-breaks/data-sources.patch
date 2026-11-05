@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/frontend-vue/app/runtime/data-source.ts b/packages/dms-builder/frontend-vue/app/runtime/data-source.ts
+index de1119b..67ac010 100644
+--- a/packages/dms-builder/frontend-vue/app/runtime/data-source.ts
++++ b/packages/dms-builder/frontend-vue/app/runtime/data-source.ts
+@@ -114,7 +114,7 @@ export function describeSource(
+ 	const op = typeof params.op === 'string' ? params.op : 'count'
+ 	let measure =
+ 		op === 'count' || !params.field
+-			? `Count of ${query.resource} rows`
++			? `Count of rows`
+ 			: `${MEASURE_WORDS[op] ?? op} of ${labelOf(fields, params.field)}`
+ 	if (params.groupBy) {
+ 		measure += isDate(fields, params.groupBy)

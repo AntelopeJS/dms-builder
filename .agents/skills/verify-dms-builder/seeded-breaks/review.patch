@@ -1,0 +1,15 @@
+diff --git a/packages/dms-builder/frontend-vue/app/runtime/save-status.ts b/packages/dms-builder/frontend-vue/app/runtime/save-status.ts
+index b8d0343..ca56b95 100644
+--- a/packages/dms-builder/frontend-vue/app/runtime/save-status.ts
++++ b/packages/dms-builder/frontend-vue/app/runtime/save-status.ts
+@@ -33,9 +33,7 @@ export function clockTime(at: number): string {
+ }
+ 
+ export function saveStatus(input: SaveStatusInput): SaveStatus {
+-	const unsaved = input.changes
+-		? t('save_status.unsaved_count', {}, input.changes)
+-		: t('save_status.unsaved')
++	const unsaved = t('save_status.unsaved')
+ 	if (input.saving) {
+ 		return { kind: 'saving', label: t('save_status.saving'), icon: 'i-ph-circle-notch' }
+ 	}

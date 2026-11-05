@@ -1,0 +1,14 @@
+diff --git a/packages/dms-builder/package.json b/packages/dms-builder/package.json
+index 6d20c13..7369564 100644
+--- a/packages/dms-builder/package.json
++++ b/packages/dms-builder/package.json
+@@ -26,8 +26,7 @@
+     "dist",
+     "!dist/test",
+     "!dist/.tsbuildinfo",
+-    "frontend-vue",
+-    "skills"
++    "frontend-vue"
+   ],
+   "main": "dist/index.js",
+   "types": "dist/index.d.ts",

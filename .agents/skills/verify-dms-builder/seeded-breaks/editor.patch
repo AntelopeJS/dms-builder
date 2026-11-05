@@ -1,0 +1,14 @@
+diff --git a/packages/dms-builder/frontend-vue/app/components/Overlay.vue b/packages/dms-builder/frontend-vue/app/components/Overlay.vue
+index 101fe71..ea7e21a 100644
+--- a/packages/dms-builder/frontend-vue/app/components/Overlay.vue
++++ b/packages/dms-builder/frontend-vue/app/components/Overlay.vue
+@@ -166,9 +166,6 @@ function onKeydown(event: KeyboardEvent): void {
+ 		}
+ 		// Only a selection: with none, this would trade the open panel for
+ 		// the library.
+-		if (session.value.selection) {
+-			builder.select(null)
+-		}
+ 		return
+ 	}
+ 	// The palette's search, from anywhere on the page.

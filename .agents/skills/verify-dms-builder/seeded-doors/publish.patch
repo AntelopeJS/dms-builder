@@ -1,0 +1,10 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 7366ba0..5a37413 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -1,4 +1,4 @@
+-name: Release DMS builder
++name: Release the DMS builder
+ 
+ on:
+   workflow_dispatch:

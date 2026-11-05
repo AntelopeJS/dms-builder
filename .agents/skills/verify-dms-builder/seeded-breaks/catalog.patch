@@ -1,0 +1,12 @@
+diff --git a/packages/dms-builder/src/implementations/dms-builder/engine/reserved-names.ts b/packages/dms-builder/src/implementations/dms-builder/engine/reserved-names.ts
+index a1f2c5a..51a9689 100644
+--- a/packages/dms-builder/src/implementations/dms-builder/engine/reserved-names.ts
++++ b/packages/dms-builder/src/implementations/dms-builder/engine/reserved-names.ts
+@@ -8,7 +8,6 @@ export const RESERVED_FIELD_NAMES = new Set([
+   "_id",
+   "model",
+   "get",
+-  "list",
+   "select",
+   "count",
+   "new",

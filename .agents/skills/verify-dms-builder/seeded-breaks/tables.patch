@@ -1,0 +1,13 @@
+diff --git a/packages/dms-builder/frontend-vue/app/components/TableApi.vue b/packages/dms-builder/frontend-vue/app/components/TableApi.vue
+index 94606ea..493df97 100644
+--- a/packages/dms-builder/frontend-vue/app/components/TableApi.vue
++++ b/packages/dms-builder/frontend-vue/app/components/TableApi.vue
+@@ -66,7 +66,7 @@ function toggle(route: TableRoute): void {
+ 				:model-value="serves(entry.key)"
+ 				:label="entry.label"
+ 				:description="entry.help"
+-				:disabled="writing || (serves(entry.key) && served.length === 1)"
++				:disabled="writing"
+ 				class="border-t border-default px-3 py-2.5"
+ 				@update:model-value="toggle(entry.key)"
+ 			/>
