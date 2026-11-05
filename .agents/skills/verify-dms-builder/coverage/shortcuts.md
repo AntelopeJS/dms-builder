@@ -10,8 +10,8 @@ Docs: `4.usage/1.page-editor.md`, the Keyboard section. Journeys: `journeys/shor
 | dms-builder/docs/4.usage/1.page-editor.md:81 | Ctrl+D duplicates the selected block | ctrl-d-duplicates-enter-opens-settings-and-slash-searches | one more block of the same title, one unsaved change |
 | dms-builder/docs/4.usage/1.page-editor.md:85 | Enter opens the selected block's settings | same | the inspector's Content, Data, Style tabs |
 | dms-builder/docs/4.usage/1.page-editor.md:86 | / searches the catalog | same | the search box receives what is typed next |
-| dms-builder/docs/4.usage/1.page-editor.md:86 | Enter and Alt+Enter in the catalog search add below and beside | search-enter-adds-below-and-alt-enter-adds-beside | a KPI card follows the selected block; Alt+Enter adds one more |
+| dms-builder/docs/4.usage/1.page-editor.md:32 | Enter and Alt+Enter in the catalog search add below and beside | search-enter-adds-below-and-alt-enter-adds-beside | a KPI card follows the selected block; Alt+Enter adds one more |
 | dms-builder/docs/4.usage/1.page-editor.md:89 | the other shortcuts do nothing while you type in a field; Ctrl+S works anywhere | keys-do-nothing-while-typing-but-ctrl-s-still-saves | the block stays, nothing unsaved, the selection does not move; Ctrl+S saves |
 | dms-builder/docs/4.usage/1.page-editor.md:89 | Ctrl+B works anywhere except inside editable text | ctrl-b-closes-from-a-text-field-but-not-from-editable-text | closes from the Find box; stays open from a contenteditable region placed on the page, which the builder itself never renders |
-| dms-builder/docs/4.usage/1.page-editor.md:89 | the block keys work only in the Page workspace | - | Not driven: the other workspaces hold no selected block to act on |
+| dms-builder/docs/4.usage/1.page-editor.md:89 | the block keys work only in the Page workspace | block-keys-act-only-in-the-page-workspace | Delete with the focus on the page changes nothing in Data, then removes the selected block in Page |
 | dms-builder/docs/4.usage/1.page-editor.md:73 | Cmd works as Ctrl | - | Not driven: the run's browser is Chromium on Linux |

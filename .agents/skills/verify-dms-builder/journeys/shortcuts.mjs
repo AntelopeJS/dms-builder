@@ -166,4 +166,30 @@ export const journeys = guarded([
       await ctx.verify("Ctrl+B in editable text", [tab.visible(bar, { timeoutMs: 2_000 })]);
     },
   },
+  {
+    id: "block-keys-act-only-in-the-page-workspace",
+    title: "With a block selected and the focus on the page, Delete does nothing in the Data workspace and removes the block back in the Page workspace",
+    entryPoint: "keyboard Delete outside the Page workspace",
+    async run(/** @type {Ctx} */ ctx) {
+      const tab = await layersTab(ctx);
+      await selectOnCanvas(tab, "Revenue", "Chart card");
+      const blur = () => tab.page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+      await tab.page.getByRole("radio", { name: "Data", exact: true }).check();
+      await tab.visible({ role: "button", name: "New data source" }, { timeoutMs: 30_000 });
+      await blur();
+      await tab.page.keyboard.press("Delete");
+      await tab.page.waitForTimeout(1500);
+      const inData = await saveStatus(tab);
+      await tab.page.getByRole("radio", { name: "Page", exact: true }).check();
+      await tab.page.getByRole("tab", { name: "Layers" }).click();
+      await ctx.verify("Delete in the Data workspace does nothing", [check("nothing is unsaved", inData === "All changes saved", inData), check("Revenue is still on the page", (await layerTitles(tab)).includes("Revenue"), await layerTitles(tab))]);
+      await selectOnCanvas(tab, "Revenue", "Chart card");
+      await blur();
+      await tab.page.keyboard.press("Delete");
+      await ctx.verify("the same key removes it in the Page workspace", [
+        check("one unsaved change", await statusBecomes(tab, /^1 unsaved change$/, 15_000), await saveStatus(tab)),
+        check("Revenue is gone", !(await layerTitles(tab)).includes("Revenue"), await layerTitles(tab)),
+      ]);
+    },
+  },
 ]);

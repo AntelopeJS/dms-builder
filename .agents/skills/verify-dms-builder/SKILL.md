@@ -105,7 +105,7 @@ List these under `notVerified` in the judgement of every verdict; the per-featur
 - connecting an external database, analysing it, mapping its relations and the module changes that follow (`AnalyseDatabase`, `MapResources`, `ConfigureProject`, `AddModule`, `CreateLocalModule`, `ConfigureTableView`): the run has no catalog provider and no external database, so only the empty and refusal paths are driven;
 - the builder button's absence under `ajs project start` (the dashboard is built once, see Gotchas);
 - pointer drag and drop of a block, the canvas zoom and width, and the pixels of the preview: the accessibility tree does not carry them;
-- `Cmd` in place of `Ctrl`, and the block keys outside the Page workspace (see `coverage/shortcuts.md`);
+- `Cmd` in place of `Ctrl`: the run's browser is Chromium on Linux;
 - `module` placement of pages, categories and resources in another project module: the playground has one module.
 
 ## Feature map

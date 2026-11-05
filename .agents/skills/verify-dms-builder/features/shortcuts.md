@@ -15,6 +15,7 @@ docs:
 - `search-enter-adds-below-and-alt-enter-adds-beside`
 - `ctrl-b-closes-from-a-text-field-but-not-from-editable-text`
 - `keys-do-nothing-while-typing-but-ctrl-s-still-saves`
+- `block-keys-act-only-in-the-page-workspace`
 
 ## Driving it with dms-control
 

@@ -115,14 +115,14 @@ export const journeys = guarded([
       };
       const settle = async (/** @type {(order: { alpha: number, beta: number }) => boolean} */ done) => {
         let last = await orders();
-        for (let poll = 0; poll < 30 && !done(last); poll += 1) {
+        for (let poll = 0; poll < 10 && !done(last); poll += 1) {
           await tab.page.waitForTimeout(500);
           last = await orders();
         }
         return last;
       };
       const treeReads = async (/** @type {RegExp} */ order) => {
-        for (let poll = 0; poll < 30; poll += 1) {
+        for (let poll = 0; poll < 10; poll += 1) {
           if (order.test(await tab.page.getByRole("tree", { name: "Pages" }).innerText())) return true;
           await tab.page.waitForTimeout(500);
         }
