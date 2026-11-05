@@ -21,7 +21,7 @@
 	},
 	"devDependencies": {
 		"@antelopejs/core": "1.20.0",
-		"@antelopejs/dms": ">=0.16.1 <1.0.0",
+		"@antelopejs/dms": ">=0.17.0 <1.0.0",
 		"@antelopejs/dms-frontend": ">=0.10.0 <1.0.0",
 		"@antelopejs/interface-api": ">=0.3.0 <1.0.0",
 		"@antelopejs/interface-api-util": ">=0.3.0 <1.0.0",
