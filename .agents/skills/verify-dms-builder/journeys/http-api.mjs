@@ -1,5 +1,5 @@
 import { guarded } from "../guard.mjs";
-import { BOARD, builder, check, list, member, pick, text, withConfig } from "../builder.mjs";
+import { BOARD, blockDraft, builder, check, isRow, list, member, pick, readProject, text, withConfig } from "../builder.mjs";
 
 /** @typedef {import("../builder.mjs").Ctx} Ctx */
 
@@ -119,6 +119,30 @@ export const journeys = guarded([
           check("it is the process working directory, not the literal dot", text(dot.body, "projectRoot") !== "." && text(dot.body, "projectRoot").length > 1, dot.body),
         ]);
       });
+    },
+  },
+  {
+    id: "a-save-through-the-route-is-refused-on-a-stale-version",
+    title: "POST /page/blocks with an expectedVersion the page no longer has answers stale and writes nothing; with the version GET /page answers it writes the draft",
+    entryPoint: "GET /api/builder/page, POST /api/builder/page/blocks",
+    async run(/** @type {Ctx} */ ctx) {
+      const read = await builder(ctx, "the board's structure", "GET", `/page?ref=${encodeURIComponent(BOARD)}`);
+      const version = text(read.body, "data", "version");
+      const blocks = list(read.body, "data", "blocks").map((node) => blockDraft(node));
+      const revenue = blocks.find((block) => pick(block, "config", "title") === "Revenue");
+      await ctx.verify("the editor's view of the board", [check("a version and a Revenue card", version !== "" && revenue !== undefined, read.body)], { critical: true });
+      if (revenue && isRow(revenue.config)) revenue.config.title = "Route title";
+      const draft = { blocks };
+      const stale = await builder(ctx, "save on a stale version", "POST", "/page/blocks", { body: { page: BOARD, draft, expectedVersion: "0000000000000000" } });
+      await ctx.verify("a stale version is refused and nothing is written", [
+        check("the answer is stale", pick(stale.body, "ok") === false && text(stale.body, "error", "code") === "stale", stale.body),
+        check("the page file is untouched", !readProject(ctx, "the board", "src/board/page.ts").text.includes("Route title"), "board"),
+      ]);
+      const saved = await builder(ctx, "save on the current version", "POST", "/page/blocks", { body: { page: BOARD, draft, expectedVersion: version } });
+      await ctx.verify("the current version writes the draft", [
+        check("the answer is ok with a new version", pick(saved.body, "ok") === true && text(saved.body, "data", "version") !== version, saved.body),
+        check("the page file holds the new title", readProject(ctx, "the board", "src/board/page.ts").text.includes('title: "Route title"'), "board"),
+      ]);
     },
   },
 ]);

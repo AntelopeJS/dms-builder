@@ -20,6 +20,7 @@ docs:
 - `lists-answer-their-value-and-mutations-answer-an-op-result`
 - `the-builder-follows-api-enabled-and-the-start-mode`
 - `project-root-decides-where-the-builder-writes`
+- `a-save-through-the-route-is-refused-on-a-stale-version`
 
 ## Driving it with dms-control
 

@@ -26,6 +26,25 @@ const HIDE_PASSWORD = { role: "button", name: "Hide password" };
 const HYDRATION_ATTEMPTS = 20;
 const HYDRATION_POLL_MS = 1500;
 const SIGN_IN_TIMEOUT_MS = 60_000;
+const AUTH_ATTEMPTS = 10;
+const AUTH_RETRY_MS = 2000;
+const BACKEND_NOT_FOUND = /^\s*\{"message":"Not found"\}\s*$/;
+
+/**
+ * Opens the sign-in page until the dashboard serves it: right after the backend restarts, `/auth` can answer the
+ * backend's raw `{"message":"Not found"}` for a moment, and the form never appears.
+ *
+ * @param {Tab} tab The tab
+ * @returns {Promise<void>}
+ */
+async function openSignIn(tab) {
+  for (let attempt = 0; attempt < AUTH_ATTEMPTS; attempt += 1) {
+    await tab.goto("/auth");
+    const body = await tab.page.locator("body").innerText({ timeout: 10_000 }).catch(() => "");
+    if (!BACKEND_NOT_FOUND.test(body)) return;
+    await tab.page.waitForTimeout(AUTH_RETRY_MS);
+  }
+}
 
 /**
  * Waits until the sign-in form is interactive. The server renders it as a plain `<form method="post">` and the
@@ -60,7 +79,7 @@ async function signInHydrated(ctx, tab, account) {
     ctx.record(ctx.step(`${tab.label} signed in as ${account}`), [{ name: `${account} signs in and leaves /auth`, pass: false, detail: `no account ${account}` }], { critical: true });
     return;
   }
-  await tab.goto("/auth");
+  await openSignIn(tab);
   await waitForHydration(tab);
   await tab.fill({ role: "textbox", name: "Email address" }, credentials.email);
   await tab.fill({ role: "textbox", name: "Password", exact: true }, credentials.password);
@@ -127,8 +146,11 @@ export function guarded(journeys) {
     ...journey,
     async run(/** @type {Ctx} */ ctx) {
       const openTab = ctx.tab.bind(ctx);
+      /** @type {Tab[]} */
+      const tabs = [];
       ctx.tab = async (account, label) => {
         const tab = await openTab(account, label);
+        tabs.push(tab);
         await answerConnectPromptOnce(tab);
         tab.signIn = (/** @type {string} */ who) => signInHydrated(ctx, tab, who);
         return tab;
@@ -144,8 +166,9 @@ export function guarded(journeys) {
       const verify = ctx.verify.bind(ctx);
       ctx.verify = async (label, checks, options) => {
         const results = await Promise.all(checks.map((check) => Promise.resolve(check)));
-        if (results.some((check) => !check.pass) && !environmentUp(ctx)) {
-          throw new Error(`NOT VERIFIED: the environment went away before "${label}" could be judged`);
+        if (results.some((check) => !check.pass)) {
+          if (!environmentUp(ctx)) throw new Error(`NOT VERIFIED: the environment went away before "${label}" could be judged`);
+          await tabs.at(-1)?.snapshot(`${label}, failing state`).catch(() => undefined);
         }
         return verify(label, results, options);
       };

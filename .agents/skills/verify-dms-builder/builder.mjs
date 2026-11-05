@@ -90,6 +90,30 @@ export function check(name, pass, detail) {
 }
 
 /**
+ * The draft the editor builds from a page's structure (`structureToDraft` in `frontend-vue/app/runtime/draft.ts`):
+ * every editable block with its config, every other block preserved where it sits.
+ *
+ * @param {unknown} node A `BlockNode` of `GetPageStructure`
+ * @param {boolean} [inherited] Whether an opaque parent holds it
+ * @returns {Record<string, unknown>} Its `BlockDraft`
+ */
+export function blockDraft(node, inherited = false) {
+  const opaque = inherited || pick(node, "editable") !== true || !isText(pick(node, "type"));
+  /** @type {Record<string, unknown>} */
+  const draft = { name: pick(node, "name") };
+  const kept = opaque ? ["type", "slot", "meta"] : ["type", "lockedOptions", "slot", "meta", "controller"];
+  for (const key of kept) {
+    const value = pick(node, key);
+    if (value !== undefined) draft[key] = value;
+  }
+  if (opaque) draft.preserve = true;
+  else draft.config = pick(node, "config") ?? {};
+  const children = list(node, "children");
+  if (children.length > 0) draft.children = children.map((child) => blockDraft(child, opaque));
+  return draft;
+}
+
+/**
  * A call to the builder's HTTP API as the owner (or another account).
  *
  * @param {Ctx} ctx The journey
