@@ -24,13 +24,6 @@ export const journeys = guarded([
         tab.visible({ role: "button", name: "Remove the source" }),
         check("Remove the source stays disabled while a block reads it", await tab.page.getByRole("button", { name: "Remove the source" }).isDisabled(), "button"),
       ]);
-      await tab.page.getByRole("button", { name: "Read it now" }).click();
-      await tab.shows(/paid\s+12/, { timeoutMs: 30_000 });
-      const rows = await tab.page.locator("body").innerText();
-      await ctx.verify("Read it now runs the source and shows its rows (known finding: a card-arranged source shows an undefined NaN row)", [
-        check("no row reads undefined or NaN", !/undefined|NaN/.test(rows), rows.slice(0, 900)),
-        check("paid 12, pending 3, refunded 3", /paid\s+12/.test(rows) && /pending\s+3/.test(rows) && /refunded\s+3/.test(rows), rows.slice(0, 900)),
-      ]);
       await tab.page.getByRole("button", { name: "Select" }).first().click();
       await ctx.verify("Select selects the block that reads the source on the page", [
         check("the Page workspace opens", await tab.page.getByRole("radio", { name: "Page", exact: true }).isChecked(), "workspace"),
@@ -56,6 +49,25 @@ export const journeys = guarded([
         check("three sources", await tab.shows(/3 on this page/i).then((result) => result.pass), "count"),
         check("a Not saved yet marker", (await tab.page.locator('[title="Not saved yet"]').count()) >= 1, "dot"),
         check("the bar counts a change", /unsaved change/.test(await saveStatus(tab)), await saveStatus(tab)),
+      ]);
+    },
+  },
+  {
+    id: "read-it-now-shows-one-row-per-group-known-finding",
+    title: "Read it now runs the page's chart-card source and shows one row per status, with no undefined or NaN row (known finding dms-builder#152)",
+    entryPoint: "builder Data workspace, Read it now",
+    async run(/** @type {Ctx} */ ctx) {
+      const tab = await ctx.tab();
+      await tab.signIn("admin");
+      await openBuilder(ctx, tab);
+      await tab.page.getByRole("radio", { name: "Data", exact: true }).check();
+      await tab.visible({ role: "button", name: "Read it now" }, { timeoutMs: 30_000 });
+      await tab.page.getByRole("button", { name: "Read it now" }).click();
+      await tab.shows(/paid\s+12/, { timeoutMs: 30_000 });
+      const rows = await tab.page.locator("body").innerText();
+      await ctx.verify("Read it now shows the rows of the source", [
+        check("no row reads undefined or NaN", !/undefined|NaN/.test(rows), rows.slice(0, 900)),
+        check("paid 12, pending 3, refunded 3", /paid\s+12/.test(rows) && /pending\s+3/.test(rows) && /refunded\s+3/.test(rows), rows.slice(0, 900)),
       ]);
     },
   },

@@ -23,6 +23,7 @@ docs:
 ## Sub-features
 
 - `the-data-workspace-lists-the-sources-of-the-page-and-adds-one`
+- `read-it-now-shows-one-row-per-group-known-finding`
 
 ## Driving it with dms-control
 
