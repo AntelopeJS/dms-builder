@@ -17,6 +17,8 @@ docs:
 
 - `new-page-writes-the-page-at-once-from-a-layout`
 - `categories-and-pages-are-managed-from-the-menu`
+- `the-delete-confirmation-names-what-goes-with-the-page`
+- `rename-and-the-arrows-change-the-menu-at-once`
 
 ## Driving it with dms-control
 

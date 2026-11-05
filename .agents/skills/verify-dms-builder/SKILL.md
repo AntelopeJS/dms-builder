@@ -90,6 +90,7 @@ $C doors "$PWD/.agents/skills/verify-dms-builder/seeded-doors/data.patch"
 ## Gotchas
 
 - Every dashboard page renders on the server and hydrates after `load`; a click that lands first does nothing. `openBuilder` clicks the hammer until the editor bar shows.
+- On a project with no external database the dashboard asks a fresh browser to connect one, in a dialog over every page. `guarded` answers Not now once per browser before any page script runs; `database/the-connect-prompt-asks-once-per-browser` removes that answer to drive the dialog.
 - The page files the builder writes are not served until the project is compiled and the backend restarted, which `ajs project dev -w` does on its own; journeys that need the rendered page call `rebuild`.
 - A frontend is built once: the dashboard keeps its builder button after the backend turns the builder off, so the button's absence is Not driven; the routes' 404 is driven.
 - The docs name the change list's undo control "Put this one back"; the UI button reads "Revert: <edit>" (dms-builder#151).
@@ -104,7 +105,7 @@ List these under `notVerified` in the judgement of every verdict; the per-featur
 - connecting an external database, analysing it, mapping its relations and the module changes that follow (`AnalyseDatabase`, `MapResources`, `ConfigureProject`, `AddModule`, `CreateLocalModule`, `ConfigureTableView`): the run has no catalog provider and no external database, so only the empty and refusal paths are driven;
 - the builder button's absence under `ajs project start` (the dashboard is built once, see Gotchas);
 - pointer drag and drop of a block, the canvas zoom and width, and the pixels of the preview: the accessibility tree does not carry them;
-- the fixed shortcuts other than Ctrl+B, Ctrl+S, Ctrl+Z, Ctrl+Shift+Z and Esc (Alt+arrows, Ctrl+D, /, Enter);
+- `Cmd` in place of `Ctrl`, and the block keys outside the Page workspace (see `coverage/shortcuts.md`);
 - `module` placement of pages, categories and resources in another project module: the playground has one module.
 
 ## Feature map

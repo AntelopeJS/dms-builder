@@ -13,7 +13,7 @@ docs:
 - `arrows-select-and-alt-arrows-move`
 - `ctrl-d-duplicates-enter-opens-settings-and-slash-searches`
 - `search-enter-adds-below-and-alt-enter-adds-beside`
-- `ctrl-b-does-not-close-the-builder-from-editable-text`
+- `ctrl-b-closes-from-a-text-field-but-not-from-editable-text`
 - `keys-do-nothing-while-typing-but-ctrl-s-still-saves`
 
 ## Driving it with dms-control

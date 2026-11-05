@@ -9,6 +9,7 @@ covers:
   - packages/dms-builder/frontend-vue/app/components/Library.vue
   - packages/dms-builder/frontend-vue/app/components/Layers.vue
   - packages/dms-builder/frontend-vue/app/components/Canvas.vue
+  - packages/dms-builder/frontend-vue/app/components/Overlay.vue
   - packages/dms-builder/frontend-vue/app/components/Inspector.vue
   - packages/dms-builder/frontend-vue/app/components/BlockMenu.vue
   - packages/dms-builder/frontend-vue/app/plugins/builder.client.ts

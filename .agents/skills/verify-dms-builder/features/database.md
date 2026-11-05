@@ -38,22 +38,28 @@ covers:
   - packages/interface-dms-builder/src/mapping.ts
   - packages/interface-dms-builder/src/project.ts
   - packages/dms-builder/src/routes/database.ts
+  - packages/dms-builder/frontend-vue/app/components/ConnectPrompt.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseApplied.vue
+  - packages/dms-builder/frontend-vue/app/components/DatabaseApplySummary.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseBuild.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseConnect.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseConnectionEdit.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseConnectionRemove.vue
   - packages/dms-builder/frontend-vue/app/components/DatabasePanel.vue
+  - packages/dms-builder/frontend-vue/app/components/DatabasePromptCopy.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseProposal.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseRelation.vue
   - packages/dms-builder/frontend-vue/app/runtime/analysis-summary.ts
+  - packages/dms-builder/frontend-vue/app/runtime/connect-prompt.ts
   - packages/dms-builder/frontend-vue/app/runtime/database-build.ts
   - packages/dms-builder/frontend-vue/app/runtime/database-connect.ts
   - packages/dms-builder/frontend-vue/app/runtime/database-display.ts
   - packages/dms-builder/frontend-vue/app/runtime/database-remap.ts
   - packages/dms-builder/frontend-vue/app/runtime/database-rules.ts
+  - packages/dms-builder/frontend-vue/app/runtime/database-server-text.ts
   - packages/dms-builder/frontend-vue/app/runtime/database-types.ts
   - packages/dms-builder/frontend-vue/app/runtime/database.ts
+  - packages/dms-builder/frontend-vue/app/runtime/use-connect-prompt.ts
 docs:
   - packages/interface-dms-builder/docs/11.external-databases.md
 ---
@@ -64,6 +70,7 @@ docs:
 
 - `a-project-without-an-external-database-answers-the-documented-empties-and-404s`
 - `the-database-workspace-offers-to-connect-a-database`
+- `the-connect-prompt-asks-once-per-browser`
 
 ## Driving it with dms-control
 

@@ -24,6 +24,7 @@ docs:
 - `the-change-list-names-the-edits-and-what-save-checks`
 - `a-save-after-an-outside-change-is-refused-with-three-ways-out`
 - `an-unsaved-draft-is-kept-on-the-device-and-offered-back`
+- `a-kept-draft-lasts-seven-days`
 - `view-as-previews-the-page-the-way-a-role-sees-it`
 
 ## Driving it with dms-control
