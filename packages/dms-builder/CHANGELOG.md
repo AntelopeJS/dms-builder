@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.10.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.9.1...v0.10.0)
+
+### 📖 Documentation
+
+- **readme:** Show the Builder at work in a GIF ([0e7bb2e](https://github.com/AntelopeJS/dms-builder/commit/0e7bb2e))
+
+### 🏡 Chore
+
+- Land the cleanup campaign on main ([#159](https://github.com/AntelopeJS/dms-builder/pull/159))
+- **release:** @antelopejs/interface-dms-builder v0.4.0 ([66d4145](https://github.com/AntelopeJS/dms-builder/commit/66d4145))
+- Land the cleanup campaign on main ([#161](https://github.com/AntelopeJS/dms-builder/pull/161))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.9.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.9.0...v0.9.1)
