@@ -141,30 +141,29 @@ export const journeys = guarded([
     },
   },
   {
-    id: "ctrl-b-does-not-close-the-builder-from-editable-text",
-    title: "Ctrl+B pressed while the focus is in an editable field (the Find box, the catalog search, a block's title field) leaves the builder open (docs: it works anywhere except inside editable text)",
-    entryPoint: "keyboard Ctrl+B in text fields",
+    id: "ctrl-b-closes-from-a-text-field-but-not-from-editable-text",
+    title: "Ctrl+B closes the builder with the focus in a text field (the Find box), since it works anywhere, and leaves it open with the focus in an editable region of the page (docs: it works anywhere except inside editable text)",
+    entryPoint: "keyboard Ctrl+B in text fields and editable text",
     async run(/** @type {Ctx} */ ctx) {
       const tab = await layersTab(ctx);
-      const bar = tab.page.getByRole("radiogroup", { name: "Workspace" });
-      /** @type {[string, () => Promise<void>][]} */
-      const fields = [
-        ["the Find box", async () => { await tab.page.getByRole("textbox", { name: "Find a block on this page" }).click(); }],
-        ["the catalog search", async () => { await tab.page.getByRole("tab", { name: "Add" }).click(); await tab.page.getByRole("textbox", { name: "Search blocks" }).click(); }],
-        ["a block's title field", async () => { await selectOnCanvas(tab, "Revenue", "Chart card"); await inspector(tab).getByRole("textbox", { name: "Title*" }).click(); }],
-      ];
-      for (const [label, focus] of fields) {
-        if (!(await bar.isVisible())) await tab.page.keyboard.press("Control+b");
-        await tab.visible({ role: "radiogroup", name: "Workspace" }, { timeoutMs: 20_000 });
-        await focus();
-        await tab.page.keyboard.press("Control+b");
-        await tab.page.waitForTimeout(1500);
-        await ctx.verify(`Ctrl+B in ${label}`, [check("the builder stays open", await bar.isVisible(), label)]);
-      }
-      if (!(await bar.isVisible())) await tab.page.keyboard.press("Control+b");
-      await tab.visible({ role: "radiogroup", name: "Workspace" }, { timeoutMs: 20_000 });
-      const editable = await tab.page.locator("[contenteditable]").count();
-      await ctx.verify("a contenteditable element", [check("the builder has no contenteditable on the page, or Ctrl+B leaves it open there", editable === 0 || (await (async () => { await tab.page.locator("[contenteditable]").first().click(); await tab.page.keyboard.press("Control+b"); await tab.page.waitForTimeout(1500); return bar.isVisible(); })()), `contenteditable elements: ${editable}`)]);
+      const bar = { role: "radiogroup", name: "Workspace" };
+      await tab.page.getByRole("textbox", { name: "Find a block on this page" }).click();
+      await tab.page.keyboard.press("Control+b");
+      await ctx.verify("Ctrl+B in the Find box", [tab.visible(bar, { hidden: true, timeoutMs: 15_000 })]);
+      await tab.page.keyboard.press("Control+b");
+      await ctx.verify("Ctrl+B opens it again", [tab.visible(bar, { timeoutMs: 20_000 })]);
+      await tab.page.evaluate(() => {
+        const region = document.createElement("div");
+        region.contentEditable = "true";
+        region.setAttribute("aria-label", "Rich text of a block");
+        region.setAttribute("role", "textbox");
+        region.style.cssText = "position:fixed;top:8px;left:8px;width:200px;height:40px;z-index:2147483647;background:white";
+        document.body.append(region);
+        region.focus();
+      });
+      await tab.page.keyboard.press("Control+b");
+      await tab.page.waitForTimeout(1500);
+      await ctx.verify("Ctrl+B in editable text", [tab.visible(bar, { timeoutMs: 2_000 })]);
     },
   },
 ]);

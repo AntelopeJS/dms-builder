@@ -24,6 +24,17 @@ function packed(ctx, folder) {
   return { files: list(first, "files").map((file) => text(file, "path")), manifest: isRow(manifest) ? manifest : {} };
 }
 
+/**
+ * The range a 0.x dependant accepts of a 0.x package: its minor from `.0`, below the next minor.
+ *
+ * @param {string} version The package's version, for example `0.4.0`
+ * @returns {string} For example `>=0.4.0 <0.5.0`
+ */
+function minorRange(version) {
+  const [major, minor] = version.split(".").map(Number);
+  return `>=${major}.${minor}.0 <${major}.${(minor ?? 0) + 1}.0`;
+}
+
 export const journeys = guarded([
   {
     id: "the-module-and-the-interface-tarballs-hold-what-their-manifests-name",
@@ -46,7 +57,7 @@ export const journeys = guarded([
         check("main and types point at files in the tarball", has(contract.files, text(contract.manifest, "main")) && has(contract.files, text(contract.manifest, "types")), [contract.manifest.main, contract.manifest.types]),
         check("the docs are shipped", contract.files.filter((file) => file.startsWith("docs/")).length >= 11, contract.files.filter((file) => file.startsWith("docs/")).length),
         check("the sources are not shipped", !contract.files.some((file) => file.startsWith("src/")), contract.files.filter((file) => file.startsWith("src/")).slice(0, 2)),
-        check("the module depends on the interface within the compatibility range", text(module.manifest, "dependencies", "@antelopejs/interface-dms-builder") === ">=0.3.0 <0.4.0", pick(module.manifest, "dependencies")),
+        check("the module depends on the interface from its released minor up to the next", text(module.manifest, "dependencies", "@antelopejs/interface-dms-builder") === minorRange(text(contract.manifest, "version")), [pick(module.manifest, "dependencies"), text(contract.manifest, "version")]),
       ]);
     },
   },

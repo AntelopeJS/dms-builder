@@ -113,13 +113,27 @@ export const journeys = guarded([
         const at = (/** @type {string} */ ref) => Number(rows.find((row) => text(row, "ref") === ref)?.order);
         return { alpha: at("pages.alpha"), beta: at("pages.beta"), rows };
       };
+      const settle = async (/** @type {(order: { alpha: number, beta: number }) => boolean} */ done) => {
+        let last = await orders();
+        for (let poll = 0; poll < 30 && !done(last); poll += 1) {
+          await tab.page.waitForTimeout(500);
+          last = await orders();
+        }
+        return last;
+      };
+      const treeReads = async (/** @type {RegExp} */ order) => {
+        for (let poll = 0; poll < 30; poll += 1) {
+          if (order.test(await tab.page.getByRole("tree", { name: "Pages" }).innerText())) return true;
+          await tab.page.waitForTimeout(500);
+        }
+        return false;
+      };
       await tab.page.getByRole("button", { name: "Move Beta up the menu", exact: true }).click();
-      await tab.page.waitForTimeout(2500);
-      const up = await orders();
-      await ctx.verify("the up arrow puts Beta before Alpha two, written at once", [check("Beta sorts before Alpha two", up.beta < up.alpha, up.rows)]);
+      const up = await settle((order) => order.beta < order.alpha);
+      await ctx.verify("the up arrow puts Beta before Alpha two, written at once", [check("Beta sorts before Alpha two", up.beta < up.alpha, up.rows), check("the tree lists Beta first", await treeReads(/Beta[\s\S]*Alpha two/), "tree")]);
+      await tab.enabled({ role: "button", name: "Move Beta down the menu", exact: true }, { timeoutMs: 15_000 });
       await tab.page.getByRole("button", { name: "Move Beta down the menu", exact: true }).click();
-      await tab.page.waitForTimeout(2500);
-      const down = await orders();
+      const down = await settle((order) => order.beta > order.alpha);
       await ctx.verify("the down arrow puts Beta after Alpha two again", [check("Beta sorts after Alpha two", down.beta > down.alpha, down.rows)]);
     },
   },
