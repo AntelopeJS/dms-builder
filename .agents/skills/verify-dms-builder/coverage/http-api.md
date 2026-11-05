@@ -18,3 +18,4 @@ Docs: `3.configuration.md`, `5.extending.md`, `6.faq.md`. Journeys: `journeys/ht
 | dms-builder/docs/5.extending.md:117 | Frontend module registered at priority 100 only when the builder is on; English fallback; locale files | - | Not driven: the registration is read by the dashboard build; i18n catalogs are driven in i18n |
 | dms-builder/docs/6.faq.md:5 | The hammer button is missing under ajs project start | the-builder-follows-api-enabled-and-the-start-mode | Not driven: see above |
 | dms-builder/docs/6.faq.md:12 | Every /api/builder route answers 404 when the builder is off | the-builder-follows-api-enabled-and-the-start-mode | /status and /pages answer 404 |
+| dms-builder/docs/4.usage/5.saving-and-access.md:30 | a save is refused when the page changed since it was read | a-save-through-the-route-is-refused-on-a-stale-version | POST /page/blocks on a stale expectedVersion answers stale and writes nothing; on the current one it writes |
