@@ -83,6 +83,7 @@ declare module "playwright-core" {
 
   interface Page {
     route(url: string, handler: (route: Route) => Promise<void>): Promise<void>;
+    addInitScript<A>(script: (argument: A) => void, argument: A): Promise<void>;
     getByRole(role: Role, options?: RoleOptions): Locator;
     getByText(text: string | RegExp): Locator;
     locator(selector: string): Locator;

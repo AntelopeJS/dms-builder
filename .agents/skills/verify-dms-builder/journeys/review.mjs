@@ -1,6 +1,6 @@
 import { guarded } from "../guard.mjs";
 import { BOARD, check, member, operation, readProject } from "../builder.mjs";
-import { inspector, openBuilder, saveStatus, selectBlock, statusBecomes } from "../editor.mjs";
+import { inspector, layerTitles, openBuilder, saveStatus, selectBlock, statusBecomes } from "../editor.mjs";
 
 /** @typedef {import("../builder.mjs").Ctx} Ctx */
 
@@ -47,9 +47,13 @@ export const journeys = guarded([
         check("the source is untouched", readProject(ctx, "the board", PAGE_FILE).text.includes('title: "Revenue",'), "board"),
       ]);
       await tab.page.getByRole("button", { name: "Undo", exact: true }).click();
+      const undone = await statusBecomes(tab, /^1 unsaved change$/, 15_000);
+      const status = await saveStatus(tab);
+      await tab.page.getByRole("tab", { name: "Layers" }).click();
+      const titles = await layerTitles(tab);
       await ctx.verify("Undo brings the discarded draft back while the editor stays open", [
-        check("one unsaved change again", await statusBecomes(tab, /^1 unsaved change$/, 15_000), await saveStatus(tab)),
-        check("the card is Revenue 2 again", (await inspector(tab).getByRole("textbox", { name: "Title*" }).inputValue()) === "Revenue 2", "title"),
+        check("one unsaved change again", undone, status),
+        check("Layers names the card Revenue 2 again", titles.includes("Revenue 2") && !titles.includes("Revenue"), titles.join(", ")),
       ]);
     },
   },
