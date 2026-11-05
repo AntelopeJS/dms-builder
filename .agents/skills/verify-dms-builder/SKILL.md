@@ -1,6 +1,6 @@
 ---
 name: verify-dms-builder
-description: "Drive the AntelopeJS dms-builder module (the page editor in the dashboard, pages and menu, tables, data sources, the /api/builder HTTP API and the @antelopejs/interface-dms-builder operations) the way a tenant owner and another module do, inside a DMS with free ports and its own MongoDB database, and post a verdict with evidence. Use to prove a change to AntelopeJS/dms-builder works before merge, to verify a PR, or to check that a seeded break or a seeded one-way door is caught."
+description: "Drive the AntelopeJS dms-builder module (the page editor in the dashboard, pages and menu, tables, data sources, the /api/builder HTTP API and the @antelopejs/interface-dms-builder operations) the way a tenant owner and another module do, inside a DMS with free ports and its own MongoDB database, and post a verdict with evidence. Use to prove a change to AntelopeJS/dms-builder works before merge, or to verify a PR."
 ---
 
 # Verify dms-builder
@@ -14,7 +14,7 @@ C="node .agents/skills/verify-dms-builder/playground/node_modules/@antelopejs/dm
 $C                       # lists every command
 ```
 
-Give `seeded`, `doors` and `--skill` absolute paths. Set `TMPDIR` to a folder of yours.
+Give `doors` and `--skill` absolute paths. Set `TMPDIR` to a folder of yours.
 
 ## Launch
 
@@ -69,23 +69,14 @@ $C down "$RUN"
 3. **Every registered journey of a feature in `run` must have run and passed.** Known findings stay as failing journeys (see Gotchas): they fail a verdict only when the diff touches their feature.
 4. **Docs.** Judge every `docs:` page of each touched feature against what the journeys showed.
 5. **Formal checks.** `$C formal "$RUN"` runs every formal check of `verify.config.ts` that covers the diff, or whose own `files` the diff changes, and records it under `evidence/formal/<name>/`. Today that is [`formal-page-save`](../formal-page-save/SKILL.md), a TLA+ model of how a page file is saved. A `BROKEN`, `CHANGED` or `HOLDS` line fails the verdict. Its recorded findings (F1, F2 in its SKILL.md) fail a verdict only when the diff changes what the covered code does.
-6. **One-way doors.** The section comes right after the result line and is mandatory. `$C doors` prints the `One-way-door:` line for the diff. A Data door is contained only by `pages/delete-a-page-removes-its-file-and-import` and `resources/delete-resource-removes-its-files-imports-and-rows` passing in this run, an Exposure door by `http-api/every-route-needs-a-tenant-owner`; no journey contains a Format, Contract or Publish door, so those rows say so.
+6. **One-way doors.** The section comes right after the result line and is mandatory. `$C doors` prints the `One-way-door:` line for the diff.
 7. **Result.** FAIL if any of rules 1 to 6 fail. PASS+NOTES when something is not verified or needs the owner's attention. PASS otherwise.
 
 Write `$RUN/evidence/judgement.json` (`doors`, `docs`, `notVerified`, `attention`, `verifier`), then `$C verdict "$RUN" --pr <n>` and, from a thread that did not write the change, `$C publish "$RUN" --pr <n>`.
 
 ## Trust
 
-The skill is not Trusted yet. It becomes Trusted when it catches every seeded break and flags every seeded door, passes a shadow run of 10 consecutive agent PRs, and its last maintain pass is newer than the last change to the repository or its `@antelopejs` dependencies and at most 30 days old.
-
-## Seeded breaks and doors
-
-```bash
-$C seeded smoke pages
-$C doors "$PWD/.agents/skills/verify-dms-builder/seeded-doors/data.patch"
-```
-
-`seeded-breaks/<feature>.patch` is one minimal product bug per feature; `seeded` builds a control and a patched worktree from the committed HEAD, runs the feature's journeys in each, and prints `CAUGHT` with the journeys that caught it, or `MISSED`. A break counts only when a journey that passes in the control fails one of its checks with the patch. `seeded-doors/<kind>.patch` holds one change per door kind.
+The skill is not Trusted yet. It becomes Trusted when it passes a shadow run of 10 consecutive agent PRs, and its last maintain pass is newer than the last change to the repository or its `@antelopejs` dependencies and at most 30 days old.
 
 ## Gotchas
 

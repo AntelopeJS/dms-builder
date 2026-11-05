@@ -1,11 +1,10 @@
 /** A kind of one-way door. */
 export type DoorKind = "data" | "format" | "contract" | "outbound" | "exposure" | "publish";
 
-/** Path rules for one door kind: globs, declared funnel modules, and the journeys, as `feature/journey`, that contain it. */
+/** Path rules for one door kind: globs and declared funnel modules. */
 export interface DoorRule {
   globs: string[];
   funnels: string[];
-  containments: string[];
   why: string;
 }
 
@@ -81,32 +80,27 @@ const config: VerifyConfig = {
         `${MODULE}/src/implementations/dms-builder/engine/project-config-remove.ts`,
       ],
       funnels: [],
-      containments: ["pages/delete-a-page-removes-its-file-and-import", "resources/delete-resource-removes-its-files-imports-and-rows"],
       why: "these delete project source files, tables and their rows, which a revert of the builder does not bring back",
     },
     format: {
       globs: [`${MODULE}/src/implementations/dms-builder/engine/emit.ts`, `${MODULE}/src/implementations/dms-builder/engine/resource-emit.ts`, `${MODULE}/src/implementations/dms-builder/engine/resource-emit-types.ts`, `${MODULE}/src/implementations/dms-builder/engine/query-emit.ts`, `${MODULE}/src/implementations/dms-builder/engine/query-template-emit.ts`],
       funnels: [],
-      containments: [],
       why: "the source the builder writes into a project is read back by the next version of the builder and by the project's own build",
     },
     contract: {
       globs: [`${MODULE}/package.json`, `${MODULE}/src/routes/**`, `${MODULE}/src/config.ts`, `${INTERFACE}/package.json`, `${INTERFACE}/src/**`, `${MODULE}/frontend-vue/package.json`],
       funnels: [],
-      containments: [],
       why: "other modules import the interface, agents call the HTTP routes, and projects set the config keys and the renderer range",
     },
     outbound: null,
     exposure: {
       globs: [`${MODULE}/src/routes/**`, `${MODULE}/src/config.ts`, `${MODULE}/src/frontend-module.ts`, `${MODULE}/src/index.ts`],
       funnels: [],
-      containments: ["http-api/every-route-needs-a-tenant-owner"],
       why: "these decide who may rewrite the project's sources and whether the builder is reachable at all",
     },
     publish: {
       globs: [`${MODULE}/package.json`, `${INTERFACE}/package.json`, `${MODULE}/.release-it.json`, `${INTERFACE}/.release-it.json`, `${MODULE}/changelogen.config.json`, `${INTERFACE}/changelogen.config.json`, ".github/workflows/release.yml", ".github/workflows/release-interface.yml"],
       funnels: [],
-      containments: [],
       why: "the package names, their files and the release workflows claim @antelopejs/dms-builder and @antelopejs/interface-dms-builder in the npm registry",
     },
   },

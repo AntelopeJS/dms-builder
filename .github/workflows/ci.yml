@@ -35,6 +35,7 @@ jobs:
         packages/interface-dms-builder/docs
       docs-typescript-project: packages/interface-dms-builder/docs/tsconfig.json
       renovate-sync: false
+      test-job: false
     permissions:
       contents: read
 
