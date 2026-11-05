@@ -9,6 +9,33 @@ export interface DoorRule {
   why: string;
 }
 
+/**
+ * How the gate decides whether a diff changed what the covered code does:
+ * `emit` compares the JavaScript statements of the covered files on the
+ * base and on HEAD (types, comments, formatting, imports and export
+ * keywords left out); `probe` runs a command on a checkout of each, the
+ * checkout's path as last argument, and compares what it prints.
+ */
+export type Behaviour = { kind: "emit" } | { kind: "probe"; command: string[] };
+
+/**
+ * A formal check: the source files it covers, the check's own files, the
+ * command that runs it, how its output names a violated and a passing rule,
+ * how the gate decides that a diff changed the covered behaviour, and the
+ * command run on the base when it did or when the check's own files changed
+ * (`command` when absent).
+ */
+export interface FormalCheck {
+  name: string;
+  covers: string[];
+  files: string[];
+  command: string[];
+  baseCommand?: string[];
+  violation: RegExp | null;
+  passing: RegExp | null;
+  behaviour: Behaviour;
+}
+
 /** The repo-owned layer of the verification skill, read by `dms-control`. */
 export interface VerifyConfig {
   playground: string;
@@ -18,7 +45,7 @@ export interface VerifyConfig {
   smoke: string;
   smokeJourney: string;
   doors: Record<DoorKind, DoorRule | null>;
-  formal: never[];
+  formal: FormalCheck[];
 }
 
 const SKILL = ".agents/skills/verify-dms-builder";
@@ -83,7 +110,17 @@ const config: VerifyConfig = {
       why: "the package names, their files and the release workflows claim @antelopejs/dms-builder and @antelopejs/interface-dms-builder in the npm registry",
     },
   },
-  formal: [],
+  formal: [
+    {
+      name: "formal-page-save",
+      covers: [`${MODULE}/src/implementations/dms-builder/engine/ops.ts`, `${MODULE}/src/implementations/dms-builder/engine/writable.ts`, `${MODULE}/src/implementations/dms-builder/engine/page-draft.ts`, `${MODULE}/src/implementations/dms-builder/engine/page-structure.ts`, `${MODULE}/src/implementations/dms-builder/engine/source-index.ts`, `${MODULE}/frontend-vue/app/runtime/session-lifecycle.ts`, `${MODULE}/frontend-vue/app/runtime/session-site.ts`, `${MODULE}/frontend-vue/app/runtime/session-loaders.ts`, `${MODULE}/frontend-vue/app/runtime/draft.ts`],
+      files: [".agents/skills/formal-page-save/**"],
+      command: ["node", ".agents/skills/formal-page-save/check.mjs"],
+      violation: /^(?:finding|BROKEN|CHANGED|HOLDS) +(\w+)/gm,
+      passing: /(?<=^holds +(?:\w+, )*)(\w+)(?=,| \()/gm,
+      behaviour: { kind: "emit" },
+    },
+  ],
 };
 
 export default config;

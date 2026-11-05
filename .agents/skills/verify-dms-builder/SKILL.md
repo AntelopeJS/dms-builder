@@ -68,7 +68,7 @@ $C down "$RUN"
 2. **Unmapped surface fails the verdict.** User-facing code is `packages/dms-builder/src/**`, `frontend-vue/**`, `skills/**`, `package.json`, and `packages/interface-dms-builder/src/**` and `package.json`, tests and tool configs excluded (`verify.config.ts`). `map` checks the whole tree.
 3. **Every registered journey of a feature in `run` must have run and passed.** Known findings stay as failing journeys (see Gotchas): they fail a verdict only when the diff touches their feature.
 4. **Docs.** Judge every `docs:` page of each touched feature against what the journeys showed.
-5. **Formal checks.** None.
+5. **Formal checks.** `$C formal "$RUN"` runs every formal check of `verify.config.ts` that covers the diff, or whose own `files` the diff changes, and records it under `evidence/formal/<name>/`. Today that is [`formal-page-save`](../formal-page-save/SKILL.md), a TLA+ model of how a page file is saved. A `BROKEN`, `CHANGED` or `HOLDS` line fails the verdict. Its recorded findings (F1, F2 in its SKILL.md) fail a verdict only when the diff changes what the covered code does.
 6. **One-way doors.** The section comes right after the result line and is mandatory. `$C doors` prints the `One-way-door:` line for the diff. A Data door is contained only by `pages/delete-a-page-removes-its-file-and-import` and `resources/delete-resource-removes-its-files-imports-and-rows` passing in this run, an Exposure door by `http-api/every-route-needs-a-tenant-owner`; no journey contains a Format, Contract or Publish door, so those rows say so.
 7. **Result.** FAIL if any of rules 1 to 6 fail. PASS+NOTES when something is not verified or needs the owner's attention. PASS otherwise.
 
