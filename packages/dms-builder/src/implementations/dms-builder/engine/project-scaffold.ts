@@ -14,10 +14,10 @@ const INTERFACE_PACKAGE = /^@antelopejs\/interface-/;
 export const BUILDER_CODE_INTERFACES = {
   "@antelopejs/interface-api": ">=0.3.0 <1.0.0",
   "@antelopejs/interface-core": ">=0.4.0 <1.0.0",
-  "@antelopejs/interface-data-api": ">=0.6.0 <1.0.0",
-  "@antelopejs/interface-database": ">=0.1.11 <1.0.0",
-  "@antelopejs/interface-database-decorators": ">=0.1.10 <1.0.0",
-  "@antelopejs/interface-dms": ">=0.10.0 <1.0.0",
+  "@antelopejs/interface-data-api": ">=0.6.1 <1.0.0",
+  "@antelopejs/interface-database": ">=0.3.0 <1.0.0",
+  "@antelopejs/interface-database-decorators": ">=0.2.0 <1.0.0",
+  "@antelopejs/interface-dms": ">=0.12.0 <1.0.0",
 } satisfies Record<string, string>;
 /**
  * The build tooling a module needs, at these ranges when the project does not declare its own.
