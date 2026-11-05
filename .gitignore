@@ -373,6 +373,3 @@ $RECYCLE.BIN/
 # pnpm store
 .pnpm-store
 .test-app/
-
-!.agents/skills/verify-dms-builder/coverage
-!.agents/skills/verify-dms-builder/coverage/**

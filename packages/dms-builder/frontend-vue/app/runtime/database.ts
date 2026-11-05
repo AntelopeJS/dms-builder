@@ -5,6 +5,7 @@
  * profile or a sampled row, so it is safe to keep in the browser.
  */
 import type {
+	AnalysisState,
 	ColumnDisplay,
 	MapResourcesInput,
 	MappedField,
@@ -18,6 +19,7 @@ import type {
 } from './database-types'
 import { sentDisplay, sentTabs } from './database-display'
 import { answerFieldType } from './field-type-answer'
+import { t } from './i18n'
 
 const DRAFT_PREFIX = 'dms-builder:database:'
 const MAPPED_PREFIX = 'dms-builder:database-mapped:'
@@ -256,15 +258,24 @@ export function settledInput(
 	}
 }
 
+/** How far the analysis is, as the screen says it while it runs. */
+export function progressText(progress: AnalysisState['progress']): string {
+	return progress.timeouts
+		? t('database.proposal.progress_timeouts', { ...progress })
+		: t('database.proposal.progress', { ...progress })
+}
+
 /** What a relation becomes, as the summary of Apply words it. */
 export function purposeText(resource: { include?: boolean; tableView: boolean; writable: boolean }): string {
 	if (resource.include === false) {
-		return 'left out'
+		return t('database.proposal.purpose.left_out')
 	}
 	if (!resource.tableView) {
-		return 'add it to stats, with no page'
+		return t('database.proposal.purpose.stats')
 	}
-	return `add a page${resource.writable ? ' where rows can be edited' : ', read-only'}`
+	return resource.writable
+		? t('database.proposal.purpose.page_editable')
+		: t('database.proposal.purpose.page_read_only')
 }
 
 /** What an open item holds in the draft for now, as Apply would write it. */
@@ -275,26 +286,30 @@ export function currentAnswer(
 ): string {
 	const resource = resourceIn(draft, item.relation)
 	if (item.kind === 'schemas') {
-		return 'not analysed'
+		return t('database.proposal.answer.not_analysed')
 	}
 	if (!resource?.include) {
-		return 'left out'
+		return t('database.proposal.purpose.left_out')
 	}
 	if (item.kind === 'purpose') {
 		return purposeText(resource)
 	}
 	if (item.kind === 'label') {
-		return resource.label ? `labelled by ${resource.label}` : 'no label'
+		return resource.label
+			? t('database.proposal.answer.label', { column: resource.label })
+			: t('database.proposal.answer.no_label')
 	}
 	const field = resource.fields.find((candidate) => candidate.column === item.column)
 	if (!field?.include) {
-		return 'column left out'
+		return t('database.proposal.answer.column_left_out')
 	}
 	if (item.kind === 'field-type') {
-		return `declared ${field.declared}`
+		return t('database.proposal.answer.declared', { type: field.declared })
 	}
 	const relation = relationKept(draft, field.relation, mappedTableViews)
-	return relation ? `a reference to ${relation}` : 'a plain column'
+	return relation
+		? t('database.proposal.answer.reference', { relation })
+		: t('database.proposal.answer.plain')
 }
 
 /** The relation columns of the draft and the module that point at a relation, as `relation.column`. */

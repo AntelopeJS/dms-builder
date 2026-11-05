@@ -3,6 +3,7 @@
  * turns into. The integrator names the connection and gives its connection details;
  * the modules and the variable the builder manages are named after it.
  */
+import { t } from './i18n'
 import type {
 	ConnectionDetails,
 	ModuleEntryInput,
@@ -48,8 +49,6 @@ interface EngineSpec {
 	version: string
 	port: string
 	schemes: string[]
-	/** The account to connect with, in the engine's own words. */
-	accountAdvice: string
 	/** Whether the URL's `sslmode` parameter is what the SSL switch stands for. */
 	sslMode: boolean
 	/** The raw-client interface the driver implements, which core must never offer from it. */
@@ -65,7 +64,6 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		version: '>=0.2.1 <1.0.0',
 		port: '5432',
 		schemes: ['postgres:', 'postgresql:'],
-		accountAdvice: 'A role with SELECT on the schemas to map, and writes only where pages edit.',
 		sslMode: true,
 		separateDatabase: false,
 	},
@@ -75,7 +73,6 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		version: '>=1.6.0 <2.0.0',
 		port: '27017',
 		schemes: ['mongodb:'],
-		accountAdvice: 'A user with the built-in read role, and writes only on the collections pages edit.',
 		sslMode: false,
 		rawInterface: '@antelopejs/interface-mongodb',
 		separateDatabase: true,
@@ -86,11 +83,15 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		version: '>=1.6.0 <2.0.0',
 		port: '28015',
 		schemes: ['rethinkdb:'],
-		accountAdvice: 'A user with read permission on the database, and write only on the tables pages edit.',
 		sslMode: false,
 		rawInterface: '@antelopejs/interface-rethinkdb',
 		separateDatabase: false,
 	},
+}
+
+/** The account to connect with, in the engine's own words. */
+export function accountAdvice(engine: DatabaseEngine): string {
+	return t(`database.engines.${engine}_account`)
 }
 
 /** The engine whose URLs have this scheme, as `postgres` or `postgres:`. */
@@ -174,7 +175,7 @@ function sslFromMode(mode: string | undefined): Pick<ConnectionFields, 'ssl' | '
 export function parseConnectionUrl(engine: DatabaseEngine, text: string): ConnectionFields {
 	const url = new URL(text.trim())
 	if (!ENGINES[engine].schemes.includes(url.protocol)) {
-		throw new Error(`not a ${ENGINES[engine].label} URL`)
+		throw new Error(t('database.engines.not_url', { engine: ENGINES[engine].label }))
 	}
 	const parameters = Object.fromEntries(url.searchParams)
 	const { [SSL_PARAMETER]: mode, ...others } = parameters
@@ -229,13 +230,13 @@ export function fieldProblem(fields: ConnectionFields): string | undefined {
 	const host = fields.host.trim()
 	const written = [SOCKET_DIRECTORY, IPV6, BRACKETED_IPV6, HOST_NAME].some((pattern) => pattern.test(host))
 	if (host && !written) {
-		return 'the host is a name or an address only: no spaces, port or path'
+		return t('database.connect.problem_host')
 	}
 	if (fields.port.trim() && !PORT.test(fields.port.trim())) {
-		return 'the port is a number'
+		return t('database.connect.problem_port')
 	}
 	if (UNWRITABLE_DATABASE.test(fields.database)) {
-		return 'the database name cannot hold ? or #'
+		return t('database.connect.problem_database')
 	}
 	return undefined
 }
@@ -255,17 +256,18 @@ export function connectionUrl(
 export function missingField(form: ConnectForm): string | undefined {
 	const names = managedNames(form)
 	const required: [string, string][] = [
-		['a name', connectionId(form.name)],
-		['a host', form.fields.host],
-		['a database', form.fields.database],
-		['a user', form.fields.user],
-		['a driver module', names.driverModule],
-		['a tables module', names.tablesModule],
-		['a variable', names.variable],
-		...(ENGINES[form.engine].separateDatabase ? [['a database variable', names.databaseVariable] as [string, string]] : []),
-		['a package version', names.version],
+		['name', connectionId(form.name)],
+		['host', form.fields.host],
+		['database', form.fields.database],
+		['user', form.fields.user],
+		['driver', names.driverModule],
+		['tables', names.tablesModule],
+		['variable', names.variable],
+		...(ENGINES[form.engine].separateDatabase ? [['database_variable', names.databaseVariable] as [string, string]] : []),
+		['version', names.version],
 	]
-	return required.find(([, value]) => value.trim() === '')?.[0]
+	const missing = required.find(([, value]) => value.trim() === '')?.[0]
+	return missing === undefined ? undefined : t(`database.connect.missing_${missing}`)
 }
 
 function catalogConnection(id: string, driverModule: string): ModuleEntryInput {
@@ -378,16 +380,16 @@ export function refusalText(error: unknown): string {
 	}
 	if (refusal.diagnostics) {
 		const found = refusal.diagnostics.map((item) => `${fileName(item.file)}:${item.line} ${item.message}`)
-		return `The project does not typecheck: ${found.join('; ')}`
+		return t('database.connect.refusal_typecheck', { found: found.join('; ') })
 	}
 	if (refusal.detail) {
 		return refusal.detail
 	}
 	if (refusal.code === 'not_found' && refusal.ref) {
-		return `${refusal.ref} was not found`
+		return t('database.connect.refusal_not_found', { ref: refusal.ref })
 	}
 	if (refusal.blockedBy) {
-		return `Still used by ${refusal.blockedBy.join(', ')}`
+		return t('database.connect.refusal_blocked', { modules: refusal.blockedBy.join(', ') })
 	}
 	return JSON.stringify(error)
 }

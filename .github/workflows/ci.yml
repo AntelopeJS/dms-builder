@@ -51,10 +51,10 @@ jobs:
 
       - run: pnpm --dir packages/dms-builder/frontend-vue typecheck
 
-  # The engine specs write ts-morph fixtures to disk and take minutes: they
-  # gate `main` after the merge, not every pull request.
+  # The engine specs write ts-morph fixtures to disk and take minutes: they run
+  # on every pull request as well as on `main`, so a red spec is caught before
+  # the merge instead of turning `main` red.
   engine-specs:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -68,9 +68,7 @@ jobs:
       - run: pnpm --filter @antelopejs/dms-builder test:unit
 
   # The single check to require on `main`: it keeps the historical job name,
-  # and fails unless every job above succeeded. `skipped` counts as a pass only
-  # for engine-specs, which runs on push alone, so a pull request is never left
-  # pending.
+  # and fails unless every job above succeeded; none may be skipped.
   ubuntu:
     if: always()
     needs: [ci, frontend-verify, engine-specs]
@@ -78,7 +76,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - if: >-
-          contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || needs.ci.result == 'skipped' || needs.frontend-verify.result == 'skipped'
+          contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || needs.ci.result == 'skipped' || needs.frontend-verify.result == 'skipped' || needs.engine-specs.result == 'skipped'
         run: exit 1
   renovate-sync:
     if: >-

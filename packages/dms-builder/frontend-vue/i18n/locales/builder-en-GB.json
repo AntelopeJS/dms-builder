@@ -101,11 +101,33 @@
 			},
 			"dismiss_warnings": "Dismiss the warnings"
 		},
+		"connect_prompt": {
+			"title": "Start from a database you already run",
+			"description": "Connect it and the builder turns its tables into pages, written as code in your project.",
+			"steps": "Three steps",
+			"connect": {
+				"title": "Connect",
+				"text": "Name a connection and give its URL. The URL is written to your .env, never to the configuration. In a git project, only where git ignores that file. A read-only role is enough to start."
+			},
+			"map": {
+				"title": "Map",
+				"text_assistant": "The assistant reads the schema (tables, fields, relations) and aggregates such as counts, ranges and the values of short lists like statuses. Its database tools return no row.",
+				"text_manual": "The builder reads the schema and the same aggregates, then proposes a mapping. You review it yourself, table by table, with a few sample rows shown to you alone, before any page is generated."
+			},
+			"build": {
+				"title": "Build",
+				"text": "A back office as code you own. Pages are written into your project as TypeScript and start read-only."
+			},
+			"later": "You can connect a database later from the Database workspace of the builder.",
+			"accept": "Connect a database",
+			"dismiss": "Not now"
+		},
 		"toasts": {
 			"copied_draft": "Copied the draft as JSON",
 			"copied_block": "Copied the block as JSON",
 			"configuration_applied": "Configuration applied",
 			"copied": "Copied to the clipboard",
+			"copy_failed": "Could not copy to the clipboard",
 			"tab_duplicated": "Tab duplicated",
 			"tab_deleted": "Tab deleted",
 			"locked": "This setting or placement is managed in code and cannot be changed here",
@@ -116,6 +138,329 @@
 			"removed": "Removed {block}",
 			"block_duplicated": "Block duplicated",
 			"changes_discarded": "Changes discarded"
+		},
+		"database": {
+			"panel": {
+				"title": "Databases",
+				"connect": "Connect a database",
+				"connecting": "Connecting…",
+				"removed": "Removed, restart to finish",
+				"empty": "No database is connected to the builder yet.",
+				"module": "Module for its tables",
+				"edit": "Edit connection",
+				"remove": "Remove",
+				"leave_unsaved": "{count} changed table is not applied yet. Leave it unsaved? | {count} changed tables are not applied yet. Leave them unsaved?"
+			},
+			"build": {
+				"tables_in_module": "tables in module {module}",
+				"remove": "Remove",
+				"edit": "Edit the connection",
+				"continue": "Continue",
+				"again": "Analyse again",
+				"finish": "Let the assistant finish",
+				"review": "Review it myself",
+				"undecided": "Nothing is mapped yet. Choose who settles the questions and maps the tables.",
+				"tables": "{count} table | {count} tables",
+				"pages": "{count} page | {count} pages",
+				"questions": "{count} question | {count} questions",
+				"fork": "{tables}: {pages}, {stats} for statistics, {questions}",
+				"add": {
+					"title": "Adding the connection to the project",
+					"undeclared": "The configuration does not declare this connection.",
+					"done": "Written into the configuration, the URL into .env.",
+					"done_variable": "Written into the configuration, the URL into .env as {variable}. Every deployed environment sets it where it keeps its secrets, never in git."
+				},
+				"reload": {
+					"title": "Reloading the project",
+					"gave_up": "The project did not come back within 3 minutes. Restart it by hand: stop the process running the project, then start it again.",
+					"running": "The project reloads to load the connection. This takes about 15 seconds."
+				},
+				"connect": {
+					"title": "Connecting"
+				},
+				"read": {
+					"title": "Reading the database",
+					"starting": "Starting the analysis.",
+					"progress": "{described} of {relations} tables described, {profiled} of {toProfile} profiled{late}.",
+					"late": ", {timeouts} measures out of time",
+					"failed": "The analysis failed: {error}",
+					"no_proposal": "no proposal",
+					"none": "No tables user {role} can read.",
+					"done": "Read {tables}."
+				}
+			},
+			"applied": {
+				"title": "Applied.",
+				"added": "{tables} tables added. Their pages appear in the menu under {connection} within a few seconds.",
+				"building": "The assistant is building the dashboard and the pages' details.",
+				"hand_off": "Let the assistant build the dashboard"
+			},
+			"copy": {
+				"label": "Copy prompt",
+				"about": "About copying the prompt",
+				"agent": "Run this work in your own agent, Claude Code or Codex, instead of the chatbox. The agent needs the AntelopeJS plugin, which syncs the skills your project's modules ship.",
+				"skills": "The prompt names dms-external-database and dms-page-design. They ship with dms-ai, so the project needs that module for the plugin to sync them.",
+				"docs": "Read how to set it up"
+			},
+			"connect": {
+				"title": "Connect a database",
+				"intro": "Wires an existing database into the project, so its tables can be mapped into pages.",
+				"name": "Name",
+				"name_used": "Used as {id}",
+				"name_help": "Names the connection in the builder and dms-ai.",
+				"name_placeholder": "erp",
+				"engine": "Database type",
+				"connection": "Connection",
+				"paste_placeholder": "Paste a {scheme}// URL to fill the fields",
+				"fill_in": "Fill in",
+				"host": "Host",
+				"port": "Port",
+				"database": "Database",
+				"user": "User",
+				"password": "Password",
+				"ssl": "Connect over SSL",
+				"options": "Other options, kept from the pasted URL:",
+				"env": "Written into the project's .env as {variable}, never into the configuration.",
+				"env_database": "Written into the project's .env as {variable}, the database as {databaseVariable}, never into the configuration.",
+				"advanced": "Advanced settings",
+				"driver": "Driver module",
+				"driver_help": "The {package} instance that connects to this database.",
+				"version": "Package version",
+				"version_help": "The range of {package} to install.",
+				"tables": "Tables module",
+				"tables_help": "The module the database's tables and pages are written into.",
+				"variable": "Variable",
+				"variable_help": "Holds the URL in each environment.",
+				"database_variable": "Database variable",
+				"database_variable_help": "Holds the database name in each environment.",
+				"show_changes": "Show the changes",
+				"show_changes_hint": "What Connect writes, before it does.",
+				"retry": "Try again",
+				"connect": "Connect",
+				"cancel": "Cancel",
+				"needs": "Needs {missing}.",
+				"check": "Check the details: {problem}.",
+				"reading": "Reading the project…",
+				"url_unreadable": "This URL could not be read: {reason}",
+				"problem_host": "the host is a name or an address only: no spaces, port or path",
+				"problem_port": "the port is a number",
+				"problem_database": "the database name cannot hold ? or #",
+				"missing_name": "a name",
+				"missing_host": "a host",
+				"missing_database": "a database",
+				"missing_user": "a user",
+				"missing_driver": "a driver module",
+				"missing_tables": "a tables module",
+				"missing_variable": "a variable",
+				"missing_database_variable": "a database variable",
+				"missing_version": "a package version",
+				"refusal_typecheck": "The project does not typecheck: {found}",
+				"refusal_not_found": "{ref} was not found",
+				"refusal_blocked": "Still used by {modules}"
+			},
+			"edit": {
+				"title": "Edit {connection}",
+				"intro": "How the project reaches the database, saved in .env as {variable}.",
+				"unreadable": "The connection's URL could not be read from .env.",
+				"port_placeholder": "default",
+				"database_help": "Read from its own variable in .env.",
+				"password_keep": "Leave empty to keep it.",
+				"password_needed": "Another server or user: enter its password.",
+				"password_unchanged": "Unchanged",
+				"options": "Other options, kept:",
+				"save": "Save",
+				"saving": "Saving…"
+			},
+			"remove": {
+				"title": "Remove {connection}",
+				"intro": "Takes the database out of the project. The database itself is not touched.",
+				"will": "Removing will:",
+				"driver_and_modules": "remove the driver {driver} and the module {modules} from antelope.config.ts, so its pages are no longer served;",
+				"driver": "remove the driver {driver} from antelope.config.ts;",
+				"modules": "remove the module {modules} from antelope.config.ts, so its pages are no longer served;",
+				"keep_driver": "keep the driver {driver} and its URL: it is the project's own database, or another module reads through it;",
+				"keep_modules": "keep {modules}: it reads through the driver but does not record this connection, so it was not made for it;",
+				"delete_folders": "delete {folders}, with the tables and pages written there;",
+				"remove_connection": "remove the {connection} connection of the builder and dms-ai;",
+				"remove_variables": "remove {variables} from envOverrides, .env and .env.example.",
+				"action": "Remove {connection}",
+				"removing": "Removing…",
+				"changes": "The changes",
+				"files": "{count} file | {count} files",
+				"removed": "Removed. Restart the project.",
+				"done": "Done"
+			},
+			"engines": {
+				"postgres_account": "A role with SELECT on the schemas to map, and writes only where pages edit.",
+				"mongodb_account": "A user with the built-in read role, and writes only on the collections pages edit.",
+				"rethinkdb_account": "A user with read permission on the database, and write only on the tables pages edit.",
+				"not_url": "not a {engine} URL"
+			},
+			"proposal": {
+				"saved_in": "saved in module {module}",
+				"start_over": "Start over from the suggestion",
+				"analyse_again": "Analyse again",
+				"analyse": "Analyse",
+				"progress": "{described} of {relations} relations described, {profiled} of {toProfile} profiled.",
+				"progress_timeouts": "{described} of {relations} relations described, {profiled} of {toProfile} profiled, {timeouts} measures out of time.",
+				"failed": "The analysis failed: {error}",
+				"schemas_placeholder": "Schemas",
+				"analyse_these": "Analyse these",
+				"tables_label": "Tables",
+				"group_pages": "Pages ({count})",
+				"group_stats": "Stats only, no page ({count})",
+				"group_left": "Not added ({count})",
+				"add_aria": "Add {relation}",
+				"to_decide": "{count} to decide",
+				"suggested": "suggested",
+				"skipped": "Skipped automatically ({count})",
+				"colon": ":",
+				"skipped_entry": "{reason} ({rule})",
+				"already_added": "Already added ({count})",
+				"unsaved": "unsaved",
+				"applying": "Applying…",
+				"apply_changes": "Apply changes",
+				"apply_changes_many": "Apply changes ({count} tables)",
+				"saved": "Saved {titles}. The pages update once the module reloads, in a few seconds.",
+				"relabelled": "The columns pointing at them in {relations} show the new label too.",
+				"open_page": "Open the page",
+				"not_saved": "Not saved yet: {titles}.",
+				"no_changes": "No changes to apply.",
+				"discard": "Discard changes",
+				"pick_table": "Pick a table to see its columns, or apply the suggestion as it stands.",
+				"applying_will": "Applying will:",
+				"summary_entry": "{purpose}, with {count} column | {purpose}, with {count} columns",
+				"remember_excluded": "remember {count} table as not added, so the next analysis does not suggest it | remember {count} tables as not added, so the next analysis does not suggest them",
+				"leave_open": "leave {count} question open for next time, applied meanwhile as: | leave {count} questions open for next time, applied meanwhile as:",
+				"confirm": "Confirm",
+				"back": "Back",
+				"apply": "Apply",
+				"adds": "Adds {pages} tables with a page and {stats} for stats only.",
+				"purpose": {
+					"left_out": "left out",
+					"stats": "add it to stats, with no page",
+					"page_editable": "add a page where rows can be edited",
+					"page_read_only": "add a page, read-only"
+				},
+				"answer": {
+					"not_analysed": "not analysed",
+					"label": "labelled by {column}",
+					"no_label": "no label",
+					"column_left_out": "column left out",
+					"declared": "declared {type}",
+					"reference": "a reference to {relation}",
+					"plain": "a plain column"
+				}
+			},
+			"relation": {
+				"title_aria": "Title",
+				"has_page": "Has a page",
+				"rows_editable": "Rows can be edited",
+				"writes_can": "The database login can {verbs} rows",
+				"writes_cannot": "The database login cannot change rows",
+				"verb": {
+					"insert": "add",
+					"update": "change",
+					"delete": "delete"
+				},
+				"to_decide": "To decide",
+				"purpose": {
+					"tableView": {
+						"label": "A page to list and edit its rows",
+						"help": "A page listed in the menu."
+					},
+					"statsOnly": {
+						"label": "Counted in stats, no page",
+						"help": "Stats pages can count and chart it."
+					},
+					"excluded": {
+						"label": "Left out",
+						"help": "Not mapped, and not proposed again."
+					}
+				},
+				"label_field": "Label",
+				"label_help": "The column a row is named by. It shows {where}.",
+				"first_in_list": "first in its list",
+				"label_placeholder": "No label",
+				"keep_label": "Keep {label}",
+				"keep_no_label": "Keep no label",
+				"sampled_read": "Sampled rows read:",
+				"sampled_empty": "{empty} of {rows} sampled rows has nothing to show here. | {empty} of {rows} sampled rows have nothing to show here.",
+				"col_column": "Column",
+				"col_type": "Type",
+				"col_title": "Column title",
+				"col_data": "In the data",
+				"flag": {
+					"listable": "List",
+					"filterable": "Filter",
+					"sortable": "Sort",
+					"searchable": "Search"
+				},
+				"keep": "Keep",
+				"found_in_data": "(found in the data: {rule})",
+				"left_out": "is left out: {reason}.",
+				"show_rows": "Show other rows",
+				"sample_note": "Up to {limit} rows, shown here only and never passed on.",
+				"bytes": "{count} byte | {count} bytes",
+				"the_key": "the key",
+				"percent_filled": "{percent}% filled",
+				"values": "{count} value | {count} values",
+				"nulls": "{count} null | {count} null",
+				"distinct": "{count} distinct | {count} distinct",
+				"why_suggested": "Suggested: {rule}",
+				"type": {
+					"string": "Text",
+					"number": "Number",
+					"date": "Date",
+					"boolean": "Boolean",
+					"object": "Object"
+				}
+			},
+			"server": {
+				"schemas": "The database has {count} tables, more than one analysis reads at once, so none were read yet. Pick the schemas to analyse.",
+				"label": "Which column names a row of {relation}? It is what its list shows first, and what columns of other tables pointing at it show.",
+				"purpose": "What should {relation} become? Its names, comments and data do not say what it holds.",
+				"lossy": {
+					"bigint": "a bigint beyond 2^53 loses precision as a number; declare it string to read it exactly",
+					"numeric": "a numeric loses precision as a number; declare it string to read it exactly",
+					"real": "a real widened to a number is not the decimal it was written as",
+					"microseconds": "microseconds are truncated to milliseconds",
+					"json": "json is read as jsonb: duplicate keys, key order and whitespace are not kept",
+					"timestamp": "a timestamp without time zone is read as UTC; {rest}"
+				},
+				"trait": {
+					"identifier-like": "identifier-like",
+					"enum-like": "enum-like",
+					"measure": "measure",
+					"time-axis": "time-axis",
+					"label-candidate": "label-candidate"
+				}
+			},
+			"rules": {
+				"R1": "The database reports this table cannot be read.",
+				"R2": "No key: it can feed stats, not a page.",
+				"R3": "It has no rows.",
+				"R4": "A framework's or a migration tool's table.",
+				"R5": "It only links two other tables: for stats only.",
+				"R6": "It has a key, rows and a column that names a row: a page.",
+				"R7": "Other tables point at it but no column names a row: a page, its rows named by their key.",
+				"R8": "Dated rows and nothing that names a row: events or a log, for stats only.",
+				"R9": "Nothing in the data says what it holds.",
+				"L1": "A column named like a person's or a thing's name, then the column whose name best fits a row name, then the first such column.",
+				"L2": "From the database's comment when it is short, otherwise from the name.",
+				"F1": "No column type can read it.",
+				"F2": "Named like a secret.",
+				"F3": "The first type the column can be read as.",
+				"F4": "The database declares it points at a table with a page.",
+				"F5": "Every value matches a row of the other table, though the database does not declare it.",
+				"FL": "From what the data looks like.",
+				"D1": "Every value of this text column is one of a few: a badge, one tone per value.",
+				"D2": "A number named like an amount: shown as a price.",
+				"D3": "Named after the table it points at, in singular.",
+				"T1": "Tabs on the column that tells a status.",
+				"W1": "Read-only until you choose otherwise.",
+				"mapped": "As it is saved now."
+			}
 		}
 	}
 }

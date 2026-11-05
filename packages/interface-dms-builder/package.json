@@ -1,6 +1,6 @@
 {
   "name": "@antelopejs/interface-dms-builder",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "AntelopeJS interface for the DMS builder: create and edit pages, blocks, resources and queries in a DMS project from another module.",
   "keywords": [
     "antelopejs",
@@ -50,7 +50,7 @@
     "prepack": "pnpm run build"
   },
   "devDependencies": {
-    "@antelopejs/interface-core": "file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz",
+    "@antelopejs/interface-core": ">=0.4.0 <1.0.0",
     "release-it": "^19.2.4",
     "release-it-changelogen": "^0.1.0",
     "rimraf": "^6.1.3",
@@ -60,10 +60,5 @@
     "@antelopejs/interface-core": ">=0.2.4 <1.0.0"
   },
   "packageManager": "pnpm@10.2.0",
-  "pnpm": {
-    "overrides": {
-      "@antelopejs/interface-core": "file:../../.campaign/tgz/antelopejs-interface-core-f7df541.tgz"
-    }
-  },
   "antelopeJs": {}
 }

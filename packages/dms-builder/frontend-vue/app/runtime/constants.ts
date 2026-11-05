@@ -9,6 +9,7 @@ export const HEADER_ACTIONS_STATE_KEY = 'dms:header-actions'
 export const APP_OVERLAYS_STATE_KEY = 'dms-app-overlays'
 
 export const OVERLAY_COMPONENT_NAME = 'DmsBuilderOverlay'
+export const CONNECT_PROMPT_COMPONENT_NAME = 'DmsBuilderConnectPrompt'
 export const SESSION_STATE_KEY = 'dms-builder:session'
 
 export const ACTION_ID = 'dms-builder-edit'

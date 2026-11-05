@@ -6,7 +6,6 @@ import { refusalText } from '../runtime/database-connect'
 import { relabelledBy } from '../runtime/database-remap'
 import {
 	answerItem,
-	currentAnswer,
 	draftFromMapped,
 	draftFromProposal,
 	forgetMappingDraft,
@@ -18,7 +17,7 @@ import {
 	mergedDraft,
 	type MappingDraft,
 	pointingAt,
-	purposeText,
+	progressText,
 	remapInput,
 	type ResourceDraft,
 	settledInput,
@@ -30,6 +29,8 @@ import {
 	unsavedRelations,
 } from '../runtime/database'
 import { ruleSentence } from '../runtime/database-rules'
+import { questionText } from '../runtime/database-server-text'
+import { t } from '../runtime/i18n'
 import type {
 	AnalysisState,
 	MappedRelation,
@@ -84,6 +85,11 @@ const schemasItem = computed(() => open.value.find((item) => item.kind === 'sche
 const tableViews = computed(() => draft.value?.resources.filter((entry) => entry.include && entry.tableView) ?? [])
 const statsOnly = computed(() => draft.value?.resources.filter((entry) => entry.include && !entry.tableView) ?? [])
 const left = computed(() => draft.value?.resources.filter((entry) => !entry.include) ?? [])
+const groups = computed(() => [
+	{ key: 'pages', title: t('database.proposal.group_pages', { count: tableViews.value.length }), entries: tableViews.value },
+	{ key: 'stats', title: t('database.proposal.group_stats', { count: statsOnly.value.length }), entries: statsOnly.value },
+	{ key: 'left', title: t('database.proposal.group_left', { count: left.value.length }), entries: left.value },
+])
 const mappedTableViews = computed(() => mappedTableViewsOf(mapped.value))
 const unsaved = computed(() => unsavedRelations(mappedDrafts.value, mappedRead.value))
 const summary = computed(() =>
@@ -324,12 +330,12 @@ async function remap(): Promise<void> {
 				<p class="text-xl font-semibold tracking-tight text-highlighted">{{ connection }}</p>
 				<p class="font-mono text-xs text-muted">
 					<template v-if="proposal">{{ proposal.database.engine }} · {{ proposal.database.role }} · </template>
-					saved in module {{ module }}
+					{{ t('database.proposal.saved_in', { module }) }}
 				</p>
 			</div>
 			<UButton
 				v-if="proposal && draft && !applied"
-				label="Start over from the suggestion"
+				:label="t('database.proposal.start_over')"
 				color="neutral"
 				variant="ghost"
 				size="sm"
@@ -337,7 +343,7 @@ async function remap(): Promise<void> {
 			/>
 			<UButton
 				icon="i-ph-magnifying-glass-light"
-				:label="proposal ? 'Analyse again' : 'Analyse'"
+				:label="proposal ? t('database.proposal.analyse_again') : t('database.proposal.analyse')"
 				:loading="state?.status === 'running'"
 				@click="analyse()"
 			/>
@@ -347,16 +353,17 @@ async function remap(): Promise<void> {
 		<p v-for="warning in mappedWarnings" :key="warning" class="text-xs text-warning">{{ warning }}</p>
 
 		<div v-if="state?.status === 'running'" class="text-xs text-muted" aria-live="polite">
-			{{ state.progress.described }} of {{ state.progress.relations }} relations described,
-			{{ state.progress.profiled }} of {{ state.progress.toProfile }} profiled<template v-if="state.progress.timeouts">,
-			{{ state.progress.timeouts }} measures out of time</template>.
+			{{ progressText(state.progress) }}
 		</div>
-		<p v-else-if="state?.status === 'failed'" class="text-xs text-error">The analysis failed: {{ state.error }}</p>
+		<p v-else-if="state?.status === 'failed'" class="text-xs text-error">
+			{{ t('database.proposal.failed', { error: state.error }) }}
+		</p>
 
 		<DmsBuilderDatabaseApplied
 			v-if="applied"
 			:tables="applied.resources.length"
 			:connection="connection"
+			:module="module"
 			:warnings="appliedWarnings"
 			:handed-off="handedOff"
 			:can-hand-off="!!job && !!assistant?.isAvailable"
@@ -367,31 +374,27 @@ async function remap(): Promise<void> {
 			v-if="proposal && draft && !applied && schemasItem"
 			class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
 		>
-			<span class="min-w-0 flex-1 text-toned">{{ schemasItem.question }}</span>
+			<span class="min-w-0 flex-1 text-toned">{{ questionText(schemasItem) }}</span>
 			<USelect
 				v-model="schemas"
 				multiple
 				:items="schemasItem.options.map((option) => ({ label: option.title, value: String(option.value) }))"
-				placeholder="Schemas"
+				:placeholder="t('database.proposal.schemas_placeholder')"
 				size="xs"
 				class="w-64"
 			/>
-			<UButton label="Analyse these" size="xs" :disabled="!schemas.length" @click="analyse(schemas)" />
+			<UButton :label="t('database.proposal.analyse_these')" size="xs" :disabled="!schemas.length" @click="analyse(schemas)" />
 		</section>
 
 		<div v-if="(proposal && draft && !applied) || mapped.length" class="grid min-h-0 grid-cols-[280px_minmax(0,1fr)] gap-4">
-			<aside class="flex flex-col gap-3" aria-label="Tables">
+			<aside class="flex flex-col gap-3" :aria-label="t('database.proposal.tables_label')">
 				<template v-if="proposal && draft && !applied">
-					<template v-for="group in [
-						{ title: 'Pages', entries: tableViews },
-						{ title: 'Stats only, no page', entries: statsOnly },
-						{ title: 'Not added', entries: left },
-					]" :key="group.title">
-						<DmsEyebrow v-if="group.entries.length">{{ group.title }} ({{ group.entries.length }})</DmsEyebrow>
+					<template v-for="group in groups" :key="group.key">
+						<DmsEyebrow v-if="group.entries.length">{{ group.title }}</DmsEyebrow>
 						<div v-for="entry in group.entries" :key="entry.relation" class="flex items-center gap-2">
 							<UCheckbox
 								:model-value="entry.include"
-								:aria-label="`Add ${entry.relation}`"
+								:aria-label="t('database.proposal.add_aria', { relation: entry.relation })"
 								@update:model-value="includeResource(draft, entry.relation, $event === true)"
 							/>
 							<UButton
@@ -405,27 +408,29 @@ async function remap(): Promise<void> {
 								{{ entry.relation }}
 							</UButton>
 							<UBadge v-if="openFor(entry.relation).length" color="warning" variant="subtle" size="sm">
-								{{ openFor(entry.relation).length }} to decide
+								{{ t('database.proposal.to_decide', { count: openFor(entry.relation).length }) }}
 							</UBadge>
 							<UTooltip
 								v-if="proposedRule(entry.relation)?.kind === 'default'"
 								:text="ruleSentence(proposedRule(entry.relation)!.rule)"
 							>
 								<UBadge color="warning" variant="subtle" size="sm">
-									suggested
+									{{ t('database.proposal.suggested') }}
 								</UBadge>
 							</UTooltip>
 						</div>
 					</template>
 					<template v-if="proposal.excluded.length">
-						<DmsEyebrow>Skipped automatically ({{ proposal.excluded.length }})</DmsEyebrow>
+						<DmsEyebrow>{{ t('database.proposal.skipped', { count: proposal.excluded.length }) }}</DmsEyebrow>
 						<p v-for="entry in proposal.excluded" :key="entry.relation" class="text-[11px] text-muted">
-							<span class="font-mono">{{ entry.relation }}</span>: {{ entry.reason }} ({{ ruleSentence(entry.rule) }})
+							<span class="font-mono">{{ entry.relation }}</span>{{ t('database.proposal.colon') }} {{
+								t('database.proposal.skipped_entry', { reason: entry.reason, rule: ruleSentence(entry.rule) })
+							}}
 						</p>
 					</template>
 				</template>
 				<template v-if="mapped.length">
-					<DmsEyebrow>Already added ({{ mapped.length }})</DmsEyebrow>
+					<DmsEyebrow>{{ t('database.proposal.already_added', { count: mapped.length }) }}</DmsEyebrow>
 					<UButton
 						v-for="entry in mapped"
 						:key="entry.resource.relation"
@@ -438,7 +443,7 @@ async function remap(): Promise<void> {
 					>
 						{{ entry.resource.relation }}
 						<UBadge v-if="unsaved.includes(entry.resource.relation)" color="warning" variant="subtle" size="sm">
-							unsaved
+							{{ t('database.proposal.unsaved') }}
 						</UBadge>
 					</UButton>
 				</template>
@@ -464,7 +469,13 @@ async function remap(): Promise<void> {
 					/>
 					<div class="mt-3 flex flex-wrap items-center gap-3" aria-live="polite">
 						<UButton
-							:label="busy ? 'Applying…' : unsaved.length > 1 ? `Apply changes (${unsaved.length} tables)` : 'Apply changes'"
+							:label="
+								busy
+									? t('database.proposal.applying')
+									: unsaved.length > 1
+										? t('database.proposal.apply_changes_many', { count: unsaved.length })
+										: t('database.proposal.apply_changes')
+							"
 							size="sm"
 							:loading="busy"
 							:disabled="!unsaved.length"
@@ -475,20 +486,20 @@ async function remap(): Promise<void> {
 							v-else-if="remapped"
 							class="rounded-md border border-success/40 bg-success/10 px-2 py-1 text-xs text-toned"
 						>
-							Saved {{ remapped.titles.join(', ') }}. The pages update once the module reloads, in a few seconds.
+							{{ t('database.proposal.saved', { titles: remapped.titles.join(', ') }) }}
 							<template v-if="remapped.relabelled.length">
-								The columns pointing at them in {{ remapped.relabelled.join(', ') }} show the new label too.
+								{{ t('database.proposal.relabelled', { relations: remapped.relabelled.join(', ') }) }}
 							</template>
 							<template v-for="warning in remapped.warnings" :key="warning">{{ warning }}. </template>
-							<a v-if="remapped.page" :href="pageHref(remapped.page)" class="text-primary underline">Open the page</a>
+							<a v-if="remapped.page" :href="pageHref(remapped.page)" class="text-primary underline">{{ t('database.proposal.open_page') }}</a>
 						</span>
 						<span v-else-if="unsaved.length" class="text-xs text-warning">
-							Not saved yet: {{ unsaved.map((relation) => mappedDrafts[relation]?.title).join(', ') }}.
+							{{ t('database.proposal.not_saved', { titles: unsaved.map((relation) => mappedDrafts[relation]?.title).join(', ') }) }}
 						</span>
-						<span v-else class="text-xs text-muted">No changes to apply.</span>
+						<span v-else class="text-xs text-muted">{{ t('database.proposal.no_changes') }}</span>
 						<UButton
 							v-if="selected && unsaved.includes(selected.relation) && !busy"
-							label="Discard changes"
+							:label="t('database.proposal.discard')"
 							size="xs"
 							color="neutral"
 							variant="ghost"
@@ -496,37 +507,27 @@ async function remap(): Promise<void> {
 						/>
 					</div>
 				</template>
-				<p v-else class="text-xs text-muted">Pick a table to see its columns, or apply the suggestion as it stands.</p>
+				<p v-else class="text-xs text-muted">{{ t('database.proposal.pick_table') }}</p>
 			</section>
 		</div>
 
 		<footer v-if="proposal && draft && !applied && summary" class="flex flex-col gap-3 border-t border-default pt-3">
-			<div v-if="confirming" class="flex flex-col gap-1 rounded-md border border-default bg-elevated px-3 py-2 text-xs text-toned">
-				<p class="font-semibold text-highlighted">Applying will:</p>
-				<p v-for="entry in summary.resources" :key="entry.relation">
-					· <span class="font-mono">{{ entry.relation }}</span>:
-					{{ purposeText(entry) }},
-					with {{ entry.fields.length }} columns
-				</p>
-				<p v-if="summary.excluded?.length">
-					· remember {{ summary.excluded.length }} tables as not added, so the next analysis does not suggest them
-				</p>
-				<template v-if="open.length">
-					<p>· leave {{ open.length }} questions open for next time, applied meanwhile as:</p>
-					<p v-for="item in open" :key="item.id" class="pl-3">
-						<span class="font-mono">{{ item.column ? `${item.relation}.${item.column}` : item.relation ?? connection }}</span>:
-						{{ currentAnswer(draft, item, mappedTableViews) }}
-					</p>
-				</template>
-			</div>
+			<DmsBuilderDatabaseApplySummary
+				v-if="confirming"
+				:summary="summary"
+				:open="open"
+				:draft="draft"
+				:mapped-table-views="mappedTableViews"
+				:connection="connection"
+			/>
 			<div class="flex items-center gap-3">
 				<template v-if="confirming">
-					<UButton label="Confirm" :loading="busy" @click="apply" />
-					<UButton label="Back" color="neutral" variant="ghost" @click="confirming = false" />
+					<UButton :label="t('database.proposal.confirm')" :loading="busy" @click="apply" />
+					<UButton :label="t('database.proposal.back')" color="neutral" variant="ghost" @click="confirming = false" />
 				</template>
-				<UButton v-else label="Apply" @click="confirming = true" />
+				<UButton v-else :label="t('database.proposal.apply')" @click="confirming = true" />
 				<span class="text-xs text-muted">
-					Adds {{ tableViews.length }} tables with a page and {{ statsOnly.length }} for stats only.
+					{{ t('database.proposal.adds', { pages: tableViews.length, stats: statsOnly.length }) }}
 				</span>
 			</div>
 		</footer>

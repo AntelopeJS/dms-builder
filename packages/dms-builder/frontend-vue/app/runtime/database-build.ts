@@ -5,6 +5,8 @@
  */
 import type { useBuilderApi } from './api'
 import { analysisSummary } from './analysis-summary'
+import { questionText } from './database-server-text'
+import { t } from './i18n'
 import type { AnalysisState, DatabaseConnection, MappingProposal, OpenItem } from './database-types'
 
 /** How long the screen waits for the project to come back before it says how to restart by hand. */
@@ -135,13 +137,14 @@ export function forkSummary(proposal: MappingProposal): ForkSummary {
 	}
 }
 
-function plural(count: number, one: string, many: string): string {
-	return `${count} ${count === 1 ? one : many}`
-}
-
 /** "8 tables: 5 pages, 2 for statistics, 3 questions". */
 export function forkText(summary: ForkSummary): string {
-	return `${plural(summary.tables, 'table', 'tables')}: ${plural(summary.pages, 'page', 'pages')}, ${summary.stats} for statistics, ${plural(summary.questions, 'question', 'questions')}`
+	return t('database.build.fork', {
+		tables: t('database.build.tables', {}, summary.tables),
+		pages: t('database.build.pages', {}, summary.pages),
+		stats: summary.stats,
+		questions: t('database.build.questions', {}, summary.questions),
+	})
 }
 
 function step(key: StepKey, title: string, status: StepStatus, detail = ''): BuildStep {
@@ -149,31 +152,26 @@ function step(key: StepKey, title: string, status: StepStatus, detail = ''): Bui
 }
 
 function addStep(answers: BuildAnswers): BuildStep {
-	const title = 'Adding the connection to the project'
+	const title = t('database.build.add.title')
 	if (answers.declared === false) {
-		return step('add', title, 'failed', 'The configuration does not declare this connection.')
+		return step('add', title, 'failed', t('database.build.add.undeclared'))
 	}
-	const where = answers.variable
-		? ` as ${answers.variable}. Every deployed environment sets it where it keeps its secrets, never in git`
-		: ''
-	return step('add', title, 'done', `Written into the configuration, the URL into .env${where}.`)
+	const detail = answers.variable
+		? t('database.build.add.done_variable', { variable: answers.variable })
+		: t('database.build.add.done')
+	return step('add', title, 'done', detail)
 }
 
 function reloadStep(answers: BuildAnswers, reloading: boolean, gaveUp: boolean): BuildStep {
-	const title = 'Reloading the project'
+	const title = t('database.build.reload.title')
 	if (answers.declared === false) {
 		return step('reload', title, 'pending')
 	}
 	if (gaveUp) {
-		return step(
-			'reload',
-			title,
-			'failed',
-			'The project did not come back within 3 minutes. Restart it by hand: stop the process running the project, then start it again.',
-		)
+		return step('reload', title, 'failed', t('database.build.reload.gave_up'))
 	}
 	if (reloading) {
-		return step('reload', title, 'running', 'The project reloads to load the connection. This takes about 15 seconds.')
+		return step('reload', title, 'running', t('database.build.reload.running'))
 	}
 	return step('reload', title, 'done')
 }
@@ -183,7 +181,7 @@ function listedEntry(answers: BuildAnswers): DatabaseConnection | undefined {
 }
 
 function connectStep(entry: DatabaseConnection | undefined): BuildStep {
-	const title = 'Connecting'
+	const title = t('database.build.connect.title')
 	if (!entry) {
 		return step('connect', title, 'pending')
 	}
@@ -195,30 +193,30 @@ function connectStep(entry: DatabaseConnection | undefined): BuildStep {
 
 function progressText(analysis: AnalysisState): string {
 	const { described, relations, profiled, toProfile, timeouts } = analysis.progress
-	const late = timeouts ? `, ${timeouts} measures out of time` : ''
-	return `${described} of ${relations} tables described, ${profiled} of ${toProfile} profiled${late}.`
+	const late = timeouts ? t('database.build.read.late', { timeouts }) : ''
+	return t('database.build.read.progress', { described, relations, profiled, toProfile, late })
 }
 
 function readStep(analysis: AnalysisState | undefined, connected: boolean, role: string): BuildStep {
-	const title = 'Reading the database'
+	const title = t('database.build.read.title')
 	if (!connected || !analysis) {
-		return step('read', title, connected ? 'running' : 'pending', connected ? 'Starting the analysis.' : '')
+		return step('read', title, connected ? 'running' : 'pending', connected ? t('database.build.read.starting') : '')
 	}
 	if (analysis.status === 'running') {
 		return step('read', title, 'running', progressText(analysis))
 	}
 	if (analysis.status === 'failed' || !analysis.proposal) {
-		return step('read', title, 'failed', `The analysis failed: ${analysis.error ?? 'no proposal'}`)
+		return step('read', title, 'failed', t('database.build.read.failed', { error: analysis.error ?? t('database.build.read.no_proposal') }))
 	}
 	const schemas = analysis.proposal.open.find((item) => item.kind === 'schemas')
 	if (schemas) {
-		return step('read', title, 'running', schemas.question)
+		return step('read', title, 'running', questionText(schemas))
 	}
 	const { tables } = forkSummary(analysis.proposal)
 	if (tables === 0) {
-		return step('read', title, 'done', `No tables user ${role} can read.`)
+		return step('read', title, 'done', t('database.build.read.none', { role }))
 	}
-	return step('read', title, 'done', `Read ${plural(tables, 'table', 'tables')}.`)
+	return step('read', title, 'done', t('database.build.read.done', { tables: t('database.build.tables', {}, tables) }))
 }
 
 /**
@@ -267,7 +265,7 @@ export interface AssistantActions {
 /** The global key dms-ai provides its assistant actions under, the same symbol in every layer. */
 export const ASSISTANT_ACTIONS_KEY = Symbol.for('dms-ai:assistant-actions')
 
-/** The message *Let the assistant finish* prefills: the skills, the connection and its tables module. */
+/** The message *Let the assistant finish* sends, and *Copy prompt* copies: the skills, the connection and its tables module. */
 export function assistantMessage(connection: string, module: string, proposal?: MappingProposal): string {
 	const head = `Use dms-external-database on connection ${connection}, module ${module}. The connection is live and analysed: settle the open items, map the tables, and plan analytics pages from the data with dms-page-design.`
 	if (!proposal) return head

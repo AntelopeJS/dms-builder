@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.10.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.9.1...v0.10.0)
+
+### 📖 Documentation
+
+- **readme:** Show the Builder at work in a GIF ([0e7bb2e](https://github.com/AntelopeJS/dms-builder/commit/0e7bb2e))
+
+### 🏡 Chore
+
+- Land the cleanup campaign on main ([#159](https://github.com/AntelopeJS/dms-builder/pull/159))
+- **release:** @antelopejs/interface-dms-builder v0.4.0 ([66d4145](https://github.com/AntelopeJS/dms-builder/commit/66d4145))
+- Land the cleanup campaign on main ([#161](https://github.com/AntelopeJS/dms-builder/pull/161))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
+## v0.9.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.9.0...v0.9.1)
+
+### 🚀 Enhancements
+
+- **frontend-vue:** Send the assistant handoff and add a Copy prompt button ([#133](https://github.com/AntelopeJS/dms-builder/pull/133))
+- **frontend-vue:** Translate the Database workspace to fr-FR ([#137](https://github.com/AntelopeJS/dms-builder/pull/137))
+- **dms-builder:** Ask a developer to connect a database on the first dashboard page ([#134](https://github.com/AntelopeJS/dms-builder/pull/134))
+- **interface:** Answer which pages a mapping would remove before it writes ([#136](https://github.com/AntelopeJS/dms-builder/pull/136))
+
+### 🩹 Fixes
+
+- **deps:** Require the builder interface that previews page removals ([#145](https://github.com/AntelopeJS/dms-builder/pull/145))
+
+### 📖 Documentation
+
+- **github:** Send questions and ideas to Discord ([#135](https://github.com/AntelopeJS/dms-builder/pull/135))
+
+### 🏡 Chore
+
+- **release:** @antelopejs/interface-dms-builder v0.3.1 ([c59ddd4](https://github.com/AntelopeJS/dms-builder/commit/c59ddd4))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.9.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.8.0...v0.9.0)

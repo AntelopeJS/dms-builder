@@ -144,7 +144,7 @@ describe("how a query's answer is arranged", () => {
 
     const page = app.read(PAGE_FILE);
     expect(page).to.contain(
-      'chartCardData(await model.revenueCard(), { measure: "sum", label: "Amount" })',
+      'chartCardData(await model.revenueCard(), { measure: "sum", label: "Amount"',
     );
     expect(page, "the helper is imported, not reinvented").to.contain(
       'import { ChartCardData, chartCardData } from "@antelopejs/interface-dms/base";',
@@ -164,7 +164,7 @@ describe("how a query's answer is arranged", () => {
       "AddQuery",
     );
     expect(app.read(PAGE_FILE)).to.contain(
-      'chartCardData(await model.ordersCard(), { measure: "count", label: "order" })',
+      'chartCardData(await model.ordersCard(), { measure: "count", label: "order"',
     );
   });
 

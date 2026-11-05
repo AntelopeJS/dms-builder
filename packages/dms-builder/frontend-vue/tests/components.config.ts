@@ -59,6 +59,12 @@ export default defineConfig({
 			'#dms-core': fileURLToPath(
 				new URL('../node_modules/@antelopejs/dms/frontend-vue/layers/dms-core', import.meta.url),
 			),
+			'#dms-ui': fileURLToPath(
+				new URL('../node_modules/@antelopejs/dms/frontend-vue/layers/dms-ui', import.meta.url),
+			),
+			'#dms-onboarding': fileURLToPath(
+				new URL('../node_modules/@antelopejs/dms/frontend-vue/layers/dms-onboarding', import.meta.url),
+			),
 		},
 	},
 	test: {
