@@ -3,8 +3,8 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 /**
- * @typedef {import("./playground/node_modules/@antelopejs/dms/bin/control/journey.mjs").JourneyContext} Ctx
- * @typedef {import("./playground/node_modules/@antelopejs/dms/bin/control/tab.mjs").Tab} Tab
+ * @typedef {import("./control.d.ts").Ctx} Ctx
+ * @typedef {import("./control.d.ts").Tab} Tab
  * @typedef {{ status: number | null, body: unknown, error: string | null, folder?: string }} Answer
  * @typedef {Record<string, unknown>} Row
  * @typedef {{ name: string, pass: boolean, detail: string }} Check

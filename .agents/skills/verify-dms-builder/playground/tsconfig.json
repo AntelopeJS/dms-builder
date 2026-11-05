@@ -4,8 +4,12 @@
     "moduleResolution": "bundler",
     "target": "esnext",
     "module": "preserve",
-    "lib": ["ES2020"],
-    "types": ["node"],
+    "lib": [
+      "ES2020"
+    ],
+    "types": [
+      "node"
+    ],
     "allowJs": true,
     "outDir": "dist",
     "strict": true,
@@ -17,7 +21,39 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "sourceMap": true,
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+    "paths": {
+      "@antelopejs/interface-dms/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-dms/dist/*"
+      ],
+      "@antelopejs/interface-data-api/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-data-api/dist/*"
+      ],
+      "@antelopejs/interface-core/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-core/dist/*"
+      ],
+      "@antelopejs/interface-api/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-api/dist/*"
+      ],
+      "@antelopejs/interface-database/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-database/dist/*"
+      ],
+      "@antelopejs/interface-database-decorators/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-database-decorators/dist/*"
+      ],
+      "@antelopejs/interface-api-util/*": [
+        "../../../../packages/dms-builder/node_modules/@antelopejs/interface-api-util/dist/*"
+      ],
+      "*": [
+        "../../../../packages/dms-builder/node_modules/*"
+      ]
+    },
+    "typeRoots": [
+      "../../../../packages/dms-builder/node_modules/@types"
+    ]
   },
-  "include": ["./src/**/*.ts", "./antelope.config.ts"]
+  "include": [
+    "./src/**/*.ts",
+    "./antelope.config.ts"
+  ]
 }
