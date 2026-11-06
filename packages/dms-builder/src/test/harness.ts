@@ -15,9 +15,15 @@ import { resetWritableProject } from "../implementations/dms-builder/engine/writ
  * because the code the engine emits imports `@antelopejs-private/cms` and the
  * Antelope interfaces: only a fixture under this package resolves them, and a
  * fixture whose imports do not resolve fails every operation on `typecheck_failed`
- * rather than on what the test is about.
+ * rather than on what the test is about. Each process gets its own folder, so
+ * the files `mocha --parallel` runs in separate workers never share one app.
  */
-const FIXTURE_ROOT = path.join(__dirname, "..", "..", ".test-app");
+const FIXTURE_ROOT = path.join(
+  __dirname,
+  "..",
+  "..",
+  `.test-app-${process.pid}`,
+);
 
 /**
  * Resolved the way the playground resolves: the DMS interfaces publish their
