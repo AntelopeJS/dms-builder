@@ -54,19 +54,48 @@ jobs:
 
   # The engine specs write ts-morph fixtures to disk and take minutes: they run
   # on every pull request as well as on `main`, so a red spec is caught before
-  # the merge instead of turning `main` red.
+  # the merge instead of turning `main` red. Each shard runs its files with
+  # `mocha --parallel` (`.mocharc.json`). One rule per shard but the last, which
+  # takes every file no rule matches, so a new spec always runs; the rules group
+  # the files by their measured duration.
   engine-specs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       DMS_PREBUILT: "1"
+      SHARD_RULES: |
+        ^table-
+        ^(map-resources-(display|label|forgiving)|draft-queries\.)
+        ^(map-resources-(page-options|remap|approval)|compose-page)\.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
 
       - run: pnpm --filter @antelopejs/interface-dms-builder build
       - run: pnpm --filter @antelopejs/dms-builder prepack
-      - run: pnpm --filter @antelopejs/dms-builder test:unit
+      - working-directory: packages/dms-builder
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ strategy.job-total }}
+        run: |
+          files=$(cd dist/test && ls *.spec.js | sort | awk -v shard="$SHARD" -v total="$TOTAL" '
+            BEGIN {
+              n = split(ENVIRON["SHARD_RULES"], rule, "\n")
+              if (rule[n] == "") n--
+              if (n != total - 1) { print "SHARD_RULES has " n " rules for " total " shards" > "/dev/stderr"; exit 1 }
+            }
+            {
+              owner = total
+              for (i = 1; i <= n; i++) if ($0 ~ rule[i]) { owner = i; break }
+              if (owner == shard) print "dist/test/" $0
+            }')
+          test -n "$files" || { echo "shard $SHARD runs no spec file" >&2; exit 1; }
+          mapfile -t list <<< "$files"
+          pnpm exec mocha "${list[@]}"
 
   # The single check to require on `main`: it keeps the historical job name,
   # and fails unless every job above succeeded; none may be skipped.

@@ -57,7 +57,7 @@
     "prepack": "pnpm run build",
     "knip": "knip --dependencies",
     "knip:all": "knip",
-    "test:unit": "mocha --timeout 20000 \"dist/test/**/*.spec.js\""
+    "test:unit": "mocha \"dist/test/**/*.spec.js\""
   },
   "dependencies": {
     "@antelopejs/interface-api": ">=0.3.0 <1.0.0",
