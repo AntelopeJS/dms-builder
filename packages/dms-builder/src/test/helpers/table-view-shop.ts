@@ -16,6 +16,7 @@ import {
 } from "../../implementations/dms-builder";
 import { setCatalogConnectionsForTests } from "../../implementations/dms-builder/engine/catalog-connection";
 import { setModuleReloadForTests } from "../../implementations/dms-builder/engine/module-reload";
+import { getWritableProject } from "../../implementations/dms-builder/engine/writable";
 import { invalidateResourceIndex } from "../../implementations/dms-builder/engine/resource-index";
 import { invalidateSourceIndex } from "../../implementations/dms-builder/engine/source-index";
 import {
@@ -152,8 +153,13 @@ export function ordersControllerPath(): string {
   );
 }
 
-/** Rewrites the orders controller's text, then lets the engine read the file again. */
+/**
+ * Rewrites the orders controller's text while the engine holds the project in
+ * memory, as a developer editing a file under a running builder does, then lets
+ * the engine read the file again.
+ */
 export function editOrdersController(edit: (text: string) => string): void {
+  getWritableProject();
   const file = ordersControllerPath();
   fs.writeFileSync(file, edit(fs.readFileSync(file, "utf8")));
   invalidateSourceIndex();
