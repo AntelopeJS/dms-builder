@@ -44,9 +44,14 @@ const TSCONFIG = {
   include: ["src"],
 };
 
-/** Other local modules of the fixture's project, each under `modules/<id>`. */
+/** Where {@link snapshotFixture} keeps its copy of the app. */
+const SNAPSHOT_ROOT = `${FIXTURE_ROOT}-snapshot`;
+
 export interface FixtureOptions {
+  /** Other local modules of the fixture's project, each under `modules/<id>`. */
   modules?: string[];
+  /** Start from the app {@link snapshotFixture} copied instead of an empty one. */
+  fromSnapshot?: boolean;
 }
 
 /** The project's id for its own module in a fixture that declares others. */
@@ -80,6 +85,16 @@ function WriteModules(modules: string[]): void {
   }
 }
 
+function WriteEmptyApp(modules: string[]): void {
+  fs.mkdirSync(path.join(FIXTURE_ROOT, "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(FIXTURE_ROOT, "tsconfig.json"),
+    `${JSON.stringify(TSCONFIG, null, 2)}\n`,
+  );
+  fs.writeFileSync(path.join(FIXTURE_ROOT, "src", "index.ts"), "export {};\n");
+  WriteModules(modules);
+}
+
 export interface Fixture {
   /** Absolute path of the app root the engine is pointed at. */
   root: string;
@@ -101,13 +116,11 @@ export interface Fixture {
  */
 export function createFixture(options: FixtureOptions = {}): Fixture {
   fs.rmSync(FIXTURE_ROOT, { recursive: true, force: true });
-  fs.mkdirSync(path.join(FIXTURE_ROOT, "src"), { recursive: true });
-  fs.writeFileSync(
-    path.join(FIXTURE_ROOT, "tsconfig.json"),
-    `${JSON.stringify(TSCONFIG, null, 2)}\n`,
-  );
-  fs.writeFileSync(path.join(FIXTURE_ROOT, "src", "index.ts"), "export {};\n");
-  WriteModules(options.modules ?? []);
+  if (options.fromSnapshot) {
+    fs.cpSync(SNAPSHOT_ROOT, FIXTURE_ROOT, { recursive: true });
+  } else {
+    WriteEmptyApp(options.modules ?? []);
+  }
 
   resetWritableProject();
   invalidateSourceIndex();
@@ -127,8 +140,20 @@ export function createFixture(options: FixtureOptions = {}): Fixture {
   };
 }
 
+/**
+ * Copy the app as it stands, so later tests start from it with
+ * `createFixture({ fromSnapshot: true })` instead of rebuilding it. The engine
+ * keeps nothing but caches outside the app's files, and `createFixture` drops
+ * them, so the copy is the whole state. {@link destroyFixture} removes it.
+ */
+export function snapshotFixture(): void {
+  fs.rmSync(SNAPSHOT_ROOT, { recursive: true, force: true });
+  fs.cpSync(FIXTURE_ROOT, SNAPSHOT_ROOT, { recursive: true });
+}
+
 export function destroyFixture(): void {
   fs.rmSync(FIXTURE_ROOT, { recursive: true, force: true });
+  fs.rmSync(SNAPSHOT_ROOT, { recursive: true, force: true });
   resetWritableProject();
   setModuleConfig({});
 }

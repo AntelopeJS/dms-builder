@@ -18,7 +18,7 @@ import { answerStatus } from "../implementations/dms-builder/engine/compose-page
 import { typecheckCount } from "../implementations/dms-builder/engine/writable";
 import { expectOk } from "./harness";
 import {
-  freshApp,
+  freshMappedApp,
   installShopCatalog,
   ordersInput,
   removeShopCatalog,
@@ -160,8 +160,7 @@ describe("composing a page in one call", function () {
   after(removeShopCatalog);
 
   beforeEach(async () => {
-    freshApp();
-    expectOk(await MapResources(ordersInput()), "MapResources");
+    await freshMappedApp();
     ORDERS =
       (await ListResources()).find((entry) => entry.tableName === "orders")
         ?.ref ?? "";

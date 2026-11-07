@@ -8,18 +8,16 @@ import {
   ConfigureTableView,
   CreatePage,
   ListPages,
-  MapResources,
 } from "../implementations/dms-builder";
 import { expectOk } from "./harness";
 import {
   configure,
   editOrdersController,
-  freshApp,
+  freshMappedApp,
   installShopCatalog,
   ordersControllerPath,
   ordersControllerText,
   ordersFlag,
-  ordersInput,
   ordersPage,
   pageSource,
   refusal,
@@ -32,10 +30,7 @@ describe("setting displays, views and footer figures on a table page", function 
 
   before(installShopCatalog);
 
-  beforeEach(async () => {
-    freshApp();
-    expectOk(await MapResources(ordersInput()), "MapResources");
-  });
+  beforeEach(freshMappedApp);
 
   after(removeShopCatalog);
 
