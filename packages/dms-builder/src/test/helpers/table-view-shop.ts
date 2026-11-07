@@ -12,6 +12,7 @@ import {
   GetResourceStructure,
   ListPages,
   ListResources,
+  MapResources,
 } from "../../implementations/dms-builder";
 import { setCatalogConnectionsForTests } from "../../implementations/dms-builder/engine/catalog-connection";
 import { setModuleReloadForTests } from "../../implementations/dms-builder/engine/module-reload";
@@ -22,6 +23,7 @@ import {
   destroyFixture,
   expectOk,
   type Fixture,
+  snapshotFixture,
 } from "../harness";
 import { MODULE } from "../mapped-database";
 import { reloadedAtOnce } from "../reload-stub";
@@ -34,6 +36,25 @@ let current: Fixture | undefined;
 export function freshApp(): Fixture {
   current = createFixture({ modules: [MODULE] });
   return current;
+}
+
+let mapped = false;
+
+/**
+ * A fresh app with the shop mapped by {@link ordersInput}. The first call maps
+ * it and snapshots the result; later calls copy that snapshot back, until
+ * {@link removeShopCatalog}.
+ */
+export async function freshMappedApp(): Promise<Fixture> {
+  if (mapped) {
+    current = createFixture({ fromSnapshot: true });
+    return current;
+  }
+  const fixture = freshApp();
+  expectOk(await MapResources(ordersInput()), "MapResources");
+  snapshotFixture();
+  mapped = true;
+  return fixture;
 }
 
 function app(): Fixture {
@@ -78,6 +99,7 @@ export function removeShopCatalog(): void {
   setCatalogConnectionsForTests();
   setModuleReloadForTests();
   destroyFixture();
+  mapped = false;
 }
 
 export function ordersInput(
