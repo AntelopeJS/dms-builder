@@ -64,9 +64,9 @@ jobs:
     env:
       DMS_PREBUILT: "1"
       SHARD_RULES: |
-        ^table-
-        ^(map-resources-(display|label|forgiving)|draft-queries\.)
-        ^(map-resources-(page-options|remap|approval)|compose-page)\.
+        ^(map-resources(-(display|display-defaults|page-options|page-options-mapped))?|module-reload|page-access)\.
+        ^(map-resources-(forgiving|remap)\.|table-)
+        ^(draft-queries|map-resources-(approval|declared-relations|display-defaults-null|label-defaults-kept)|mapped-table-reads)\.
     strategy:
       fail-fast: false
       matrix:
