@@ -19,7 +19,7 @@ Give `doors` and `--skill` absolute paths. Set `TMPDIR` to a folder of yours.
 ## Launch
 
 ```bash
-RUN=$($C up --prepare --skill "$PWD/.agents/skills/verify-dms-builder" --base origin/campaign/integration)
+RUN=$($C up --prepare --skill "$PWD/.agents/skills/verify-dms-builder" --base origin/main)
 ```
 
 `--prepare` runs the `prepare` commands of `verify.config.ts`: the frozen install, the build of the interface and the module, the playground install and its TypeScript build. `up` starts an isolated DMS from `playground/`:
@@ -42,7 +42,7 @@ Do not drive a run that fails doctor.
 ## Drive
 
 ```bash
-$C plan --base origin/campaign/integration   # the diff mapped to features; unmapped surfaces
+$C plan --base origin/main   # the diff mapped to features; unmapped surfaces
 $C journey "$RUN" smoke
 $C journey "$RUN" pages [journey-id...]
 ```
@@ -64,7 +64,7 @@ $C down "$RUN"
 
 ## Verdict rules
 
-1. **Run every feature whose `covers:` globs the diff touches, plus the smoke journey.** `plan` prints that list as `run`.
+1. **Run every feature whose `covers:` globs the diff touches, plus the smoke journey.** `plan` prints that list as `run`. When the diff touches a shared file (a `package.json`, a `pnpm-lock.yaml`, `packages/interface-dms-builder/src/**`, a `tsconfig*.json` or `verify.config.ts`), and before a release, run every feature instead: `plan` does not widen `run` for these yet.
 2. **Unmapped surface fails the verdict.** User-facing code is `packages/dms-builder/src/**`, `frontend-vue/**`, `skills/**`, `package.json`, and `packages/interface-dms-builder/src/**` and `package.json`, tests and tool configs excluded (`verify.config.ts`). `map` checks the whole tree.
 3. **Every registered journey of a feature in `run` must have run and passed.** Known findings stay as failing journeys (see Gotchas): they fail a verdict only when the diff touches their feature.
 4. **Docs.** Judge every `docs:` page of each touched feature against what the journeys showed.
