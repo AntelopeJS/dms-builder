@@ -221,4 +221,25 @@ describe('the keys', () => {
 		press(key('Enter', focused))
 		expect(builder.session.value.inspector, 'the settings open').toBe('block')
 	})
+
+	it('acts on the row Tab brought the focus to, not on the block selected before', async () => {
+		await openWith([editable('title', 'Text'), editable('intro', 'Text')])
+		builder.select('title')
+		const press = overlayKeys()
+		const { root } = mount(Layers)
+		const row = findAll(
+			root,
+			(node) => node.tag === 'button' && typeof node.props.onMouseenter === 'function',
+		)[1]
+		if (!row) {
+			throw new Error('no row for the second block')
+		}
+
+		fire(row, 'focus')
+		press(key('Delete', asElement(row)))
+
+		expect(builder.session.value.draft?.blocks.map((block) => block.name)).toEqual([
+			'title',
+		])
+	})
 })
