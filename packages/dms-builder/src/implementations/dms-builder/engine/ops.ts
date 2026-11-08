@@ -96,9 +96,7 @@ export function invalidDataType<T = void>(
   };
 }
 
-export function invalidReference<T = void>(
-  error: UnknownReferenceError,
-): OpResult<T> {
+function invalidReference<T = void>(error: UnknownReferenceError): OpResult<T> {
   return {
     ok: false,
     error: {
@@ -490,11 +488,15 @@ export function stageBlock(
     resolveRef: resourceRefResolver(),
   });
   let valueText: string;
+  let childText: string | undefined;
   try {
     const controllerText = input.controller
       ? serializeValue({ $ref: { resource: input.controller } }, ctx)
       : undefined;
     valueText = blockCallText(input.type, input.config, ctx, controllerText);
+    childText = parentTarget
+      ? childArgText(input.name, valueText, ctx, input.slot, input.meta)
+      : undefined;
   } catch (error) {
     if (error instanceof InvalidValueError) {
       return invalidValue(error);
@@ -506,14 +508,10 @@ export function stageBlock(
   for (const importRef of imports) {
     applyImportRef(sourceFile, importRef);
   }
-  if (parentTarget) {
+  if (parentTarget && childText !== undefined) {
     const args = childArgsOf(parentTarget);
     const clamped = clampIndex(input.index ?? args.length, args.length);
-    args.splice(
-      clamped.index,
-      0,
-      childArgText(input.name, valueText, ctx, input.slot, input.meta),
-    );
+    args.splice(clamped.index, 0, childText);
     setChildren(parentTarget, args);
     return {
       path: `${input.parent}/${input.name}`,

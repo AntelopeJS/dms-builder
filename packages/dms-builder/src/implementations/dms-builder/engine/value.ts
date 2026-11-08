@@ -33,7 +33,7 @@ export class UnknownReferenceError extends InvalidValueError {
   }
 }
 
-export class UnknownBlockTypeError extends InvalidValueError {
+class UnknownBlockTypeError extends InvalidValueError {
   constructor(public readonly type: string) {
     super(`unknown block type "${type}"`);
   }
