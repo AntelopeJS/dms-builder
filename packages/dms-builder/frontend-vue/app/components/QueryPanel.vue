@@ -5,7 +5,6 @@ import { describeSource, type SourceQuery } from '../runtime/data-source'
 import { findNode, walkDraft } from '../runtime/draft'
 import { blockKind, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
-import type { SeriesPoint } from '@antelopejs/interface-dms/base/query-response'
 import type { AddQueryInput, QueryPreview } from '../runtime/types'
 
 /**
@@ -210,15 +209,24 @@ watch(selected, () => {
 	preview.value = null
 })
 
-function isPoint(value: unknown): value is SeriesPoint {
+/** A measured group as a preview reads it: a group with no key keeps its row. */
+interface PreviewPoint {
+	x: unknown
+	y: number | null
+}
+
+function isPoint(value: unknown): value is PreviewPoint {
 	return (
 		value !== null &&
 		typeof value === 'object' &&
 		Object.hasOwn(value, 'x') &&
 		Object.hasOwn(value, 'y') &&
-		['number', 'string'].includes(typeof Reflect.get(value, 'x')) &&
 		(typeof Reflect.get(value, 'y') === 'number' || Reflect.get(value, 'y') === null)
 	)
+}
+
+function groupLabel(x: unknown): string {
+	return x === null || x === undefined ? '—' : String(x)
 }
 
 /**
@@ -232,7 +240,7 @@ function seriesPoints(series: unknown): Array<[string, number | null]> {
 		return []
 	}
 	if (series.every(isPoint)) {
-		return series.map((point) => [String(point.x), point.y])
+		return series.map((point) => [groupLabel(point.x), point.y])
 	}
 	const named = series.filter(
 		(entry): entry is { name: unknown; data: unknown[] } =>
@@ -245,7 +253,7 @@ function seriesPoints(series: unknown): Array<[string, number | null]> {
 		data
 			.filter(isPoint)
 			.map((point): [string, number | null] => [
-				named.length > 1 ? `${String(name)} · ${String(point.x)}` : String(point.x),
+				named.length > 1 ? `${String(name)} · ${groupLabel(point.x)}` : groupLabel(point.x),
 				point.y,
 			]),
 	)
