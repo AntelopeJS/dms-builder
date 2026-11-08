@@ -209,54 +209,40 @@ watch(selected, () => {
 	preview.value = null
 })
 
-/** A measured group as a preview reads it: a group with no key keeps its row. */
-interface PreviewPoint {
-	x: unknown
-	y: number | null
-}
-
-function isPoint(value: unknown): value is PreviewPoint {
-	return (
-		value !== null &&
-		typeof value === 'object' &&
-		Object.hasOwn(value, 'x') &&
-		Object.hasOwn(value, 'y') &&
-		(typeof Reflect.get(value, 'y') === 'number' || Reflect.get(value, 'y') === null)
-	)
-}
-
 function groupLabel(x: unknown): string {
 	return x === null || x === undefined ? '—' : String(x)
+}
+
+/** One group as its label and measure; a group with nothing measured keeps its row. */
+function pointRow(point: unknown, series?: string): [string, number | null] {
+	const x: unknown = point !== null && typeof point === 'object' ? Reflect.get(point, 'x') : undefined
+	const y: unknown = point !== null && typeof point === 'object' ? Reflect.get(point, 'y') : undefined
+	const label = groupLabel(x)
+	return [series === undefined ? label : `${series} · ${label}`, typeof y === 'number' ? y : null]
+}
+
+function seriesData(entry: unknown): unknown[] | undefined {
+	const data: unknown = entry !== null && typeof entry === 'object' ? Reflect.get(entry, 'data') : undefined
+	return Array.isArray(data) ? data : undefined
 }
 
 /**
  * The groups of a preview's series, each as its label and measure. A `series`
  * body lists the points; a `card` body lists named series that hold them in
- * `data`, labelled with the series name when there is more than one. A group
- * with nothing to measure keeps its row, with a null measure.
+ * `data`, labelled with the series name when there is more than one.
  */
 function seriesPoints(series: unknown): Array<[string, number | null]> {
 	if (!Array.isArray(series)) {
 		return []
 	}
-	if (series.every(isPoint)) {
-		return series.map((point) => [groupLabel(point.x), point.y])
+	const named = series.filter((entry) => seriesData(entry) !== undefined)
+	if (named.length === 0) {
+		return series.map((point) => pointRow(point))
 	}
-	const named = series.filter(
-		(entry): entry is { name: unknown; data: unknown[] } =>
-			entry !== null &&
-			typeof entry === 'object' &&
-			Object.hasOwn(entry, 'data') &&
-			Array.isArray(Reflect.get(entry, 'data')),
-	)
-	return named.flatMap(({ name, data }) =>
-		data
-			.filter(isPoint)
-			.map((point): [string, number | null] => [
-				named.length > 1 ? `${String(name)} · ${groupLabel(point.x)}` : groupLabel(point.x),
-				point.y,
-			]),
-	)
+	return named.flatMap((entry) => {
+		const name = named.length > 1 ? groupLabel(Reflect.get(entry, 'name')) : undefined
+		return (seriesData(entry) ?? []).map((point) => pointRow(point, name))
+	})
 }
 
 /** What the preview answered, as rows: its figure, then its series or its list. */
