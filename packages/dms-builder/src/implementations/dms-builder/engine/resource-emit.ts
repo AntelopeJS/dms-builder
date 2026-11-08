@@ -135,34 +135,41 @@ export function routesFromRouteMap(
   return RESOURCE_ROUTES.filter((route) => found.has(route));
 }
 
-export const DECORATOR_IMPORTS = new Map<string, string>([
-  ["Controller", API_MODULE],
-  ["DataController", DATA_API_MODULE],
-  ["RegisterDataController", DATA_API_MODULE],
-  ["Access", METADATA_MODULE],
-  ["AccessMode", METADATA_MODULE],
-  ["Listable", METADATA_MODULE],
-  ["ModelReference", METADATA_MODULE],
-  ["Optional", METADATA_MODULE],
-  ["Sortable", METADATA_MODULE],
-  ["Model", DB_MODULE],
-  ["BasicDataModel", DB_MODULE],
-  ["Field", DB_MODULE],
-  ["Fixture", DB_MODULE],
-  ["Index", DB_MODULE],
-  ["RegisterTable", DB_MODULE],
-  ["Table", DB_MODULE],
-  ["Get", API_MODULE],
-  ["Parameter", API_MODULE],
-  ["TenantScopedModel", TENANT_MODEL_MODULE],
-  ["AuthUserWithPermission", GUARDS_MODULE],
-  ["User", AUTH_DB_MODULE],
-  ["Searchable", SEARCHABLE_MODULE],
-  ["Column", TABLE_VIEW_MODULE],
-  ["Select", TABLE_VIEW_MODULE],
-  ["TableViewRoutes", TABLE_VIEW_MODULE],
-  [CORE_SCHEMA_IDENTIFIER, CONSTANTS_MODULE],
-]);
+/** The module each symbol a generated resource file names is imported from. */
+export const DECORATOR_IMPORTS = {
+  Controller: API_MODULE,
+  DataController: DATA_API_MODULE,
+  RegisterDataController: DATA_API_MODULE,
+  Access: METADATA_MODULE,
+  AccessMode: METADATA_MODULE,
+  Listable: METADATA_MODULE,
+  Mandatory: METADATA_MODULE,
+  ModelReference: METADATA_MODULE,
+  Optional: METADATA_MODULE,
+  Sortable: METADATA_MODULE,
+  Model: DB_MODULE,
+  BasicDataModel: DB_MODULE,
+  Field: DB_MODULE,
+  Fixture: DB_MODULE,
+  Index: DB_MODULE,
+  RegisterTable: DB_MODULE,
+  Table: DB_MODULE,
+  Get: API_MODULE,
+  Parameter: API_MODULE,
+  TenantScopedModel: TENANT_MODEL_MODULE,
+  AuthUserWithPermission: GUARDS_MODULE,
+  User: AUTH_DB_MODULE,
+  Searchable: SEARCHABLE_MODULE,
+  ArchiveField: TABLE_VIEW_MODULE,
+  Column: TABLE_VIEW_MODULE,
+  Select: TABLE_VIEW_MODULE,
+  Exported: TABLE_VIEW_MODULE,
+  TableViewRoutes: TABLE_VIEW_MODULE,
+  [CORE_SCHEMA_IDENTIFIER]: CONSTANTS_MODULE,
+} as const;
+
+/** A symbol a generated resource file may name. */
+export type DecoratorSymbol = keyof typeof DECORATOR_IMPORTS;
 
 export const DATA_API_MODULE_ORDER = [
   API_MODULE,

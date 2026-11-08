@@ -63,7 +63,7 @@ export const journeys = guarded([
   },
   {
     id: "an-exported-field-is-written-with-its-import",
-    title: "A field with exported: true is written as @Exported with its import, and the resource compiles (known finding: the import is missing and the write fails typecheck)",
+    title: "A field with exported: true is written as @Exported with its import, and the resource compiles",
     entryPoint: "CreateResource with exported",
     async run(/** @type {Ctx} */ ctx) {
       const made = await operation(ctx, "exported title", "CreateResource", { name: "report", fields: [{ name: "title", dataType: STRING, exported: true }] });

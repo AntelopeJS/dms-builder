@@ -14,6 +14,7 @@ import {
 } from "./query-template";
 import { PLAN_BUCKETS, type PlanBucket } from "./query-plan";
 import { indentationText, resolveProjectRoot } from "./project";
+import type { DecoratorSymbol } from "./resource-emit";
 import { decoratorImport } from "./resource-emit-types";
 import { words } from "./emit";
 import { isOneOf } from "./scalar-guards";
@@ -263,7 +264,7 @@ export function parseQueryRef(
  * table registered in a per-tenant schema; a core-schema table must use the
  * plain `Model` provider or every query returns zero rows.
  */
-function modelDecoratorFor(schema: string): string {
+function modelDecoratorFor(schema: string): DecoratorSymbol {
   return isPerTenantSchema(schema) ? "TenantScopedModel" : "Model";
 }
 

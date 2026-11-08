@@ -53,6 +53,7 @@ import {
   tableFieldText,
 } from "./resource-emit-types";
 import {
+  type DecoratorSymbol,
   routeMapExpr,
   TABLE_VIEW_MODULE,
   withDefaultIndex,
@@ -202,7 +203,10 @@ function removeEmptyDir(dir: string): void {
   }
 }
 
-function applyFieldImports(sourceFile: SourceFile, symbols: string[]): void {
+function applyFieldImports(
+  sourceFile: SourceFile,
+  symbols: DecoratorSymbol[],
+): void {
   for (const symbol of symbols) {
     applyImportRef(sourceFile, decoratorImport(symbol));
   }
@@ -211,9 +215,9 @@ function applyFieldImports(sourceFile: SourceFile, symbols: string[]): void {
 /** A field's table and Data API text, the decorators each needs, and the emit warnings. */
 interface FieldText {
   table: string;
-  tableSymbols: string[];
+  tableSymbols: DecoratorSymbol[];
   api: string;
-  apiSymbols: string[];
+  apiSymbols: DecoratorSymbol[];
   warnings: OpWarning[];
 }
 

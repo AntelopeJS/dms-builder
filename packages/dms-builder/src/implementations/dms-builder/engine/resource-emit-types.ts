@@ -23,6 +23,7 @@ import {
   DATABASE_MODULE_ORDER,
   DbType,
   DECORATOR_IMPORTS,
+  type DecoratorSymbol,
   mappedDbType,
   ResourceNames,
   routeMapExpr,
@@ -48,8 +49,8 @@ function fallbackWarning(field: FieldSpec, dbType: DbType): OpWarning[] {
   ];
 }
 
-export function decoratorImport(name: string): ImportRef {
-  return { name, module: DECORATOR_IMPORTS.get(name) };
+export function decoratorImport(name: DecoratorSymbol): ImportRef {
+  return { name, module: DECORATOR_IMPORTS[name] };
 }
 
 interface CollectedImport {
@@ -65,8 +66,8 @@ class ImportSet {
     this.refs.push({ name: name.split(".")[0], module });
   }
 
-  public addSymbol(name: string): void {
-    this.add(name, DECORATOR_IMPORTS.get(name));
+  public addSymbol(name: DecoratorSymbol): void {
+    this.add(name, DECORATOR_IMPORTS[name]);
   }
 
   public addRef(ref: ImportRef): void {
@@ -256,14 +257,14 @@ function propertyName(name: string): string {
 /** A field's declaration in the Table class, the symbols it needs and what it warns of. */
 export interface TableFieldText {
   text: string;
-  symbols: string[];
+  symbols: DecoratorSymbol[];
   warnings: OpWarning[];
 }
 
 /** A field's declaration in the DataAPI class and the symbols it needs. */
 export interface DataApiFieldText {
   text: string;
-  symbols: string[];
+  symbols: DecoratorSymbol[];
 }
 
 /** A generated file's text and the warnings raised while writing it. */
@@ -285,7 +286,7 @@ type Seeds = NonNullable<CreateResourceInput["seeds"]>;
  * author's back.
  */
 export function tableFieldText(field: FieldSpec): TableFieldText {
-  const symbols = ["Field"];
+  const symbols: DecoratorSymbol[] = ["Field"];
   const decorators: string[] = [];
   if (field.indexed) {
     decorators.push("@Index()");
@@ -321,7 +322,7 @@ export function dataApiFieldText(
   field: FieldSpec,
   ctx: EmitContext,
 ): DataApiFieldText {
-  const symbols: string[] = [];
+  const symbols: DecoratorSymbol[] = [];
   const decorators: string[] = [];
   const listable = field.listable !== false;
   if (field.searchable) {
@@ -476,7 +477,7 @@ export function buildDataApiFile(spec: DataApiFileSpec): EmittedFile {
     "AccessMode",
     "Select",
     "Listable",
-  ]) {
+  ] satisfies DecoratorSymbol[]) {
     imports.addSymbol(name);
   }
   imports.add(names.className, DATABASE_LOCAL);

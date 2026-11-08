@@ -82,7 +82,7 @@ Write `$RUN/evidence/judgement.json` (`doors`, `docs`, `notVerified`, `attention
 - A frontend is built once: the dashboard keeps its builder button after the backend turns the builder off, so the button's absence is Not driven; the routes' 404 is driven.
 - `CreatePage` places a page at `<category-folder>/<name>/page.ts` when a barrel sits beside the category's file, and at `src/<name>.ts` otherwise; journeys create a category first when they need the folder form.
 - `ResourceSummary.fieldCount` counts the generated `_id`.
-- Known findings at the integration head, each a failing journey with an issue draft: `resources/an-exported-field-is-written-with-its-import` (the `@Exported` import is missing, dms-builder#149), `queries/preview-validates-parameters-as-add-query-does` (PreviewQuery accepts an undeclared parameter, dms-builder#150).
+- Known findings at the integration head, each a failing journey with an issue draft: `queries/preview-validates-parameters-as-add-query-does` (PreviewQuery accepts an undeclared parameter, dms-builder#150).
 
 ## Not driven
 
