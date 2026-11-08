@@ -126,8 +126,12 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 	 * the page as it now is: only what was read off it, and the version the next
 	 * save is checked against, have to catch up. Starting again from the page
 	 * here is what used to drop every unsaved edit, with no undo to get it back.
+	 *
+	 * The next save is checked against `written`, the version that write
+	 * produced. A page read at any other version changed outside the builder
+	 * after the write, so the editor says it went stale.
 	 */
-	async function refresh(): Promise<void> {
+	async function refresh(written: string): Promise<void> {
 		const pageRef = session.value.pageRef
 		if (!pageRef) {
 			return
@@ -138,7 +142,8 @@ export function createLifecycle(scope: SessionCore & ReturnType<typeof createDer
 			return
 		}
 		session.value.structure = result.data
-		session.value.version = result.data.version
+		session.value.version = written
+		session.value.conflict = result.data.version !== written
 		schedulePreview()
 	}
 

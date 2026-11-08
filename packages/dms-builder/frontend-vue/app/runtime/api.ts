@@ -147,8 +147,16 @@ export function useBuilderApi() {
 			put<void>('/category', { category, patch }),
 		// The ref comes back because a patch can change it: a page's category
 		// decides its route.
-		configurePage: (page: string, patch: Record<string, unknown>) =>
-			post<{ ref: string }>('/page/configure', { page, patch }),
+		configurePage: (
+			page: string,
+			patch: Record<string, unknown>,
+			expectedVersion?: string,
+		) =>
+			post<{ ref: string; version: string }>('/page/configure', {
+				page,
+				patch,
+				expectedVersion,
+			}),
 		createResource: (input: CreateResourceInput) =>
 			post<{ ref: string }>('/resources', input),
 		addField: (resource: string, field: FieldSpec) =>

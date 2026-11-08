@@ -42,17 +42,17 @@ export function planCategoryMove(
   ref: string,
   page: PageRecord,
   category: string,
-): CategoryMove | OpResult<{ ref: string }> {
+): CategoryMove | OpResult<never> {
   const target = findCategoryRecord(category);
-  if (!target) return notFound<{ ref: string }>(category);
+  if (!target) return notFound<never>(category);
   if (!isDeclaredCategory(target)) {
-    return unsupported<{ ref: string }>(
+    return unsupported<never>(
       `category "${category}" is built-in or not declared in source, so a page cannot reference it`,
     );
   }
   const newRef = joinSlug(target.fullSlug, page.id);
   if (newRef !== ref && findPageRecord(newRef))
-    return duplicate<{ ref: string }>(newRef, "page");
+    return duplicate<never>(newRef, "page");
   const wanted = pageDirectoryFor(getWritableProject(), target, page.id);
   const move: CategoryMove = { target, newRef };
   if (wanted && wanted !== page.filepath) move.newPath = wanted;
@@ -82,7 +82,7 @@ export function applyCategoryMove(
   optionsArg: ObjectLiteralExpression,
   move: CategoryMove,
   transaction: Transaction,
-): void {
+): SourceFile {
   const target = move.target;
   const oldPath = sourceFile.getFilePath();
   const newPath = move.newPath ?? oldPath;
@@ -104,6 +104,7 @@ export function applyCategoryMove(
   ensureNamedImport(file, target.importName, specifier);
   pruneUnusedImports(file, used);
   if (move.newPath !== undefined) transaction.trackDelete(sourceFile);
+  return file;
 }
 
 function reanchorRelativeImports(

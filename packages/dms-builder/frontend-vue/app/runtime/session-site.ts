@@ -213,7 +213,12 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 		}
 		startPending(pageRef)
 		try {
-			const result = await api.configurePage(pageRef, { category })
+			const result = await api.configurePage(
+				pageRef,
+				{ category },
+				session.value.version ?? undefined,
+			)
+			session.value.conflict = !result.ok && result.error.code === 'stale'
 			if (!report(result, 'Page moved', {
 				title: `Moved the page to ${categoryName(category)}`,
 				scope: 'menu',
@@ -225,7 +230,7 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 			// and the editor stops the move to the new route to ask about it.
 			if (dirty.value && result.data.ref !== pageRef) {
 				session.value.pageRef = result.data.ref
-				await refresh()
+				await refresh(result.data.version)
 			}
 			await loadSiteTree()
 			return result.data.ref

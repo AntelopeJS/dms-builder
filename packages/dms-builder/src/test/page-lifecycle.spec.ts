@@ -254,5 +254,35 @@ describe("the page lifecycle", () => {
         /import \{[^}]*\bCategory\b[^}]*\bpagesCategory\b[^}]*\} from "@antelopejs\/interface-dms\/page";/,
       );
     });
+
+    it("moves to another category only from the version it was read at, and answers the one it wrote", async function () {
+      this.timeout(OP_TIMEOUT);
+      const before = expectOk(
+        await GetPageStructure("/board/sales"),
+        "GetPageStructure",
+      );
+      const refused = await ConfigurePage(
+        "/board/sales",
+        { category: "pages.shop" },
+        { expectedVersion: "0000000000000000" },
+      );
+      expect(refused.ok ? "ok" : refused.error.code).to.equal("stale");
+
+      const moved = expectOk(
+        await ConfigurePage(
+          "/board/sales",
+          { category: "pages.shop" },
+          { expectedVersion: before.version },
+        ),
+        "ConfigurePage",
+      );
+      const after = expectOk(
+        await GetPageStructure(moved.ref),
+        "GetPageStructure",
+      );
+      expect(moved.ref).to.equal("/shop/sales");
+      expect(moved.version).to.equal(after.version);
+      expect(moved.version).to.not.equal(before.version);
+    });
   });
 });

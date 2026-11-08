@@ -133,7 +133,8 @@ export const CreatePage =
  * Patch a page's metadata. The result carries the page's ref, which the patch
  * can change: a page's category decides its route, so moving it between
  * categories moves its URL — reported as a `route_changed` warning, since
- * nothing redirects the old one.
+ * nothing redirects the old one. It also carries the version of the page file
+ * it wrote, which a draft held across the patch saves against.
  */
 export const ConfigurePage =
   InterfaceFunction<
@@ -141,7 +142,7 @@ export const ConfigurePage =
       ref: PageRef,
       patch: Partial<EditablePageMeta>,
       opts?: MutationOpts,
-    ) => Promise<OpResult<{ ref: PageRef }>>
+    ) => Promise<OpResult<{ ref: PageRef; version: string }>>
   >();
 export const DeletePage =
   InterfaceFunction<(ref: PageRef, opts?: MutationOpts) => Promise<OpResult>>();
