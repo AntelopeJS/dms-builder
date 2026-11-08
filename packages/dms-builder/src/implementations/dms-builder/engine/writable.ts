@@ -404,9 +404,10 @@ export class Transaction {
 
   public trackDelete(sourceFile: SourceFile): void {
     const filePath = sourceFile.getFilePath();
+    const tracked = this.touched.get(filePath);
     this.touched.set(filePath, {
       path: filePath,
-      before: sourceFile.getFullText(),
+      before: tracked ? tracked.before : sourceFile.getFullText(),
       kind: "delete",
     });
     this.project.removeSourceFile(sourceFile);
@@ -415,6 +416,27 @@ export class Transaction {
   public typecheckErrors(): TypecheckError[] {
     typechecks += 1;
     return relevantDiagnostics(this.project);
+  }
+
+  /**
+   * The first file the transaction read whose text on disk is no longer what
+   * it read, with the text it holds now: a save from outside the builder that
+   * landed while the operation ran, which a flush would overwrite. A file gone
+   * from disk holds no text.
+   */
+  public changedOnDisk(): { path: string; text: string } | undefined {
+    for (const entry of this.touched.values()) {
+      if (entry.before === undefined) {
+        continue;
+      }
+      const text = fs.existsSync(entry.path)
+        ? fs.readFileSync(entry.path, "utf8")
+        : "";
+      if (text !== entry.before) {
+        return { path: entry.path, text };
+      }
+    }
+    return undefined;
   }
 
   public rollback(): void {

@@ -18,7 +18,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 /** The findings of each configuration, in run order, with the states in TLC's shortest counterexample. */
 const CONFIGS = {
   Serial: {},
-  Window: { NoSilentLoss: 4 },
+  Window: {},
   Move: { NoSilentLoss: 11 },
 };
 
