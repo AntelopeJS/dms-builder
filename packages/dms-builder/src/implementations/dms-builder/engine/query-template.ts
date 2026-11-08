@@ -82,6 +82,28 @@ export function getQueryTemplate(id: string): QueryTemplate | undefined {
 }
 
 /**
+ * Every issue with a template's params: a key the template does not declare,
+ * then what its own `validate` refuses. `AddQuery` and `PreviewQuery` both read
+ * this, so a preview refuses exactly what a write would.
+ */
+export function templateParamIssues(
+  template: QueryTemplate,
+  params: QueryParams,
+  fields: ResourceFieldStructure[],
+): ValidationIssue[] {
+  const known = new Set(Object.keys(template.descriptor.params));
+  return [
+    ...Object.keys(params)
+      .filter((key) => !known.has(key))
+      .map((key) => ({
+        pointer: `/${key}`,
+        message: `template "${template.descriptor.id}" declares no parameter "${key}"`,
+      })),
+    ...template.validate(params, fields),
+  ];
+}
+
+/**
  * Reads a model method as a query, by asking every template to `parse` it and
  * accepting the answer only when exactly one does. The single-match rule is the
  * guard against templates whose emitted shapes ever overlap: an ambiguous body

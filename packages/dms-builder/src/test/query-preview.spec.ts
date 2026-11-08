@@ -295,6 +295,27 @@ describe("previewing a query", () => {
     }
   });
 
+  it("refuses a parameter the template does not declare, as AddQuery does", async () => {
+    const result = await runPlanPreview(
+      tableAnswering(18),
+      { query: { ...COUNT_QUERY, params: { bogus: 1 } } },
+      FIELDS,
+    );
+
+    expect(result.ok).to.equal(false);
+    if (!result.ok) {
+      expect(result.error).to.deep.equal({
+        code: "invalid_config",
+        issues: [
+          {
+            pointer: "/bogus",
+            message: 'template "count" declares no parameter "bogus"',
+          },
+        ],
+      });
+    }
+  });
+
   it("refuses a template it does not know", async () => {
     const result = await runPlanPreview(
       tableAnswering(0),

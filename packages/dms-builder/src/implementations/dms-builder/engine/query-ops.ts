@@ -25,10 +25,10 @@ import {
   findQueryRoutes,
   pageRoutePaths,
   routeModelBinding,
-  unknownParamKeys,
 } from "./query-structure";
 import {
   getQueryTemplate,
+  templateParamIssues,
   type MethodParam,
   parseModelMethod,
 } from "./query-template";
@@ -310,14 +310,9 @@ export function compileQuery(
   const endpoint = input.endpoint ?? defaultEndpoint(input.name);
   const params = input.params ?? {};
   const fields = resourceFields(record);
-  const unknown = unknownParamKeys(template, params);
   const issues = [
     ...checkEndpoint(endpoint),
-    ...unknown.map((key) => ({
-      pointer: `/${key}`,
-      message: `template "${input.template}" declares no parameter "${key}"`,
-    })),
-    ...template.validate(params, fields),
+    ...templateParamIssues(template, params, fields),
   ];
   if (
     params.bucket === "week" &&
