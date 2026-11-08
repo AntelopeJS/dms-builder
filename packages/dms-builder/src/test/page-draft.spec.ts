@@ -124,6 +124,32 @@ describe("the page draft", () => {
       expect(result.ok).to.equal(false);
       expect(app.read(PAGE_FILE)).to.not.contain("nope");
     });
+
+    it("refuses a nested block type the catalog does not know, as invalid_config", async function () {
+      this.timeout(OP_TIMEOUT);
+      const nested = { chart: { $block: { type: "NoSuchChart" } } };
+      const before = app.read(PAGE_FILE);
+      const added = await AddBlock({
+        page: PAGE,
+        name: "revenueCard",
+        type: "ChartCard",
+        config: nested,
+      });
+      const configured = await ConfigureBlock(`${PAGE}#revenueKpi`, nested);
+
+      for (const result of [added, configured]) {
+        expect(result).to.deep.equal({
+          ok: false,
+          error: {
+            code: "invalid_config",
+            issues: [
+              { pointer: "", message: 'unknown block type "NoSuchChart"' },
+            ],
+          },
+        });
+      }
+      expect(app.read(PAGE_FILE)).to.equal(before);
+    });
   });
 
   describe("previewing a draft", () => {

@@ -43,11 +43,7 @@ import {
   findPageRecord,
   invalidateSourceIndex,
 } from "./source-index";
-import {
-  createImportCollector,
-  UnknownDataTypeError,
-  UnknownReferenceError,
-} from "./value";
+import { createImportCollector, InvalidValueError } from "./value";
 import {
   findPageClass,
   getWritableProject,
@@ -65,8 +61,7 @@ import {
   duplicate,
   invalidConfig,
   moduleError,
-  invalidDataType,
-  invalidReference,
+  invalidValue,
   isError,
   notFound,
   opaque,
@@ -453,11 +448,8 @@ export function configurePage(
     applyPatch(optionsArg, optionsPatch(scalar), false, ctx);
   } catch (error) {
     transaction.rollback();
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference(error);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }

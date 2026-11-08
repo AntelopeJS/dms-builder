@@ -31,6 +31,7 @@ import { findPageRecord, invalidateSourceIndex } from "./source-index";
 import {
   createImportCollector,
   type EmitContext,
+  InvalidValueError,
   serializeValue,
   UnknownDataTypeError,
   UnknownReferenceError,
@@ -110,6 +111,17 @@ export function invalidReference<T = void>(
       ],
     },
   };
+}
+
+/** The refusal for an author's value that cannot be serialized. */
+export function invalidValue(error: InvalidValueError): OpResult<never> {
+  if (error instanceof UnknownDataTypeError) {
+    return invalidDataType<never>(error);
+  }
+  if (error instanceof UnknownReferenceError) {
+    return invalidReference<never>(error);
+  }
+  return invalidConfig<never>(error.message);
 }
 
 export interface PageContext {
@@ -375,11 +387,8 @@ export function configureBlock(
     }
   } catch (error) {
     transaction.rollback();
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference(error);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }
@@ -487,11 +496,8 @@ export function stageBlock(
       : undefined;
     valueText = blockCallText(input.type, input.config, ctx, controllerText);
   } catch (error) {
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType<never>(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference<never>(error);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }

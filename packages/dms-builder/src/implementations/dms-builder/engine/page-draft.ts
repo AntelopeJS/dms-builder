@@ -36,8 +36,7 @@ import {
   checkVersion,
   commit,
   invalidConfig,
-  invalidDataType,
-  invalidReference,
+  invalidValue,
   isError,
   notFound,
   openPage,
@@ -51,10 +50,8 @@ import {
   createImportCollector,
   type EmitContext,
   isPlainObject,
+  InvalidValueError,
   serializeValue,
-  UnknownBlockTypeError,
-  UnknownDataTypeError,
-  UnknownReferenceError,
 } from "./value";
 import {
   findPageClass,
@@ -554,14 +551,8 @@ export function setPageBlocks(
     }
   } catch (error) {
     transaction.rollback();
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType<{ version: string }>(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference<{ version: string }>(error);
-    }
-    if (error instanceof UnknownBlockTypeError) {
-      return invalidConfig<{ version: string }>(error.message);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }
