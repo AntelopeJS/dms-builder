@@ -128,6 +128,23 @@ describe('moving a page with unsaved changes', () => {
 		expect(builder.session.value.pageRef).toBe('/reports/sales')
 		expect(names()).toContain('text')
 	})
+
+	it('keeps the stale banner up when a move is refused for another reason', async () => {
+		builder.addBlock('Text')
+		backend.save = {
+			ok: false,
+			error: { code: 'stale', ref: '/reports/sales', currentVersion: 'v-outside' },
+		}
+		await builder.save()
+		backend.answers['POST /api/builder/page/configure'] = {
+			ok: false,
+			error: { code: 'duplicate', ref: '/sales/sales', kind: 'page' },
+		}
+
+		await builder.movePage('sales')
+
+		expect(builder.session.value.conflict, 'the page is still stale').toBe(true)
+	})
 })
 
 describe('a request that gets no answer', () => {

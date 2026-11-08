@@ -218,7 +218,9 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 				{ category },
 				session.value.version ?? undefined,
 			)
-			session.value.conflict = !result.ok && result.error.code === 'stale'
+			if (!result.ok && result.error.code === 'stale') {
+				session.value.conflict = true
+			}
 			if (!report(result, 'Page moved', {
 				title: `Moved the page to ${categoryName(category)}`,
 				scope: 'menu',
