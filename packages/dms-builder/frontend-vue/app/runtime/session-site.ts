@@ -205,10 +205,14 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 	 * page's route, so changing it moves the file and rewrites the registration
 	 * — work that has no half-done state to hold. The new ref is returned so the
 	 * caller can follow the page to its new address.
+	 *
+	 * The move is checked against the version the draft was made on, so it
+	 * waits out a save: sent during one, it would be refused against the file
+	 * that save is writing.
 	 */
 	async function movePage(category: string): Promise<string | undefined> {
 		const pageRef = session.value.pageRef
-		if (!pageRef || session.value.pending.includes(pageRef)) {
+		if (!pageRef || session.value.saving || session.value.pending.includes(pageRef)) {
 			return undefined
 		}
 		startPending(pageRef)

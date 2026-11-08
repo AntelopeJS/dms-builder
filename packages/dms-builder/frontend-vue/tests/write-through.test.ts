@@ -129,6 +129,18 @@ describe('moving a page with unsaved changes', () => {
 		expect(names()).toContain('text')
 	})
 
+	it('does not move the page while a save is on its way', async () => {
+		builder.addBlock('Text')
+
+		const saving = builder.save()
+		const ref = await builder.movePage('sales')
+		await saving
+
+		expect(ref).toBe(undefined)
+		expect(backend.calledPaths()).not.toContain('POST /api/builder/page/configure')
+		expect(builder.session.value.conflict).toBe(false)
+	})
+
 	it('keeps the stale banner up when a move is refused for another reason', async () => {
 		builder.addBlock('Text')
 		backend.save = {

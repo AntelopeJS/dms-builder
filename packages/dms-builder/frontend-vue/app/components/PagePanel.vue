@@ -265,7 +265,7 @@ async function move(category: string): Promise<void> {
 					:items="categories"
 					value-key="value"
 					icon="i-ph-folder-light"
-					:disabled="moving"
+					:disabled="moving || session.saving"
 					:search-input="{
 						placeholder: 'Filter categories…',
 						icon: 'i-ph-magnifying-glass',
