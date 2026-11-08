@@ -59,3 +59,49 @@ export function categoryOptions(
 	walk(undefined, 0)
 	return options
 }
+
+/** The place a category is written with when it moves in the menu. */
+export interface CategoryPlace {
+	ref: string
+	order: number
+}
+
+/**
+ * The places to write so `ref` moves one step earlier (`-1`) or later (`1`)
+ * among its siblings, and nothing else. Two neighbours with places of their
+ * own swap them. Siblings that share a place or have none are all numbered
+ * again from 1, and only the ones whose number changes are returned.
+ */
+export function categoryMoves(
+	categories: CategorySummary[],
+	ref: string,
+	delta: -1 | 1,
+): CategoryPlace[] {
+	const category = categories.find((entry) => entry.ref === ref)
+	if (!category) {
+		return []
+	}
+	const siblings = categories
+		.filter((entry) => (entry.parent ?? undefined) === (category.parent ?? undefined))
+		.sort(byCategoryOrder)
+	const at = siblings.findIndex((entry) => entry.ref === ref)
+	const neighbour = siblings[at + delta]
+	if (!neighbour) {
+		return []
+	}
+	if (
+		category.order !== undefined &&
+		neighbour.order !== undefined &&
+		category.order !== neighbour.order
+	) {
+		return [
+			{ ref, order: neighbour.order },
+			{ ref: neighbour.ref, order: category.order },
+		]
+	}
+	const reordered = siblings.filter((entry) => entry.ref !== ref)
+	reordered.splice(at + delta, 0, category)
+	return reordered.flatMap((entry, index) =>
+		entry.order === index + 1 ? [] : [{ ref: entry.ref, order: index + 1 }],
+	)
+}
