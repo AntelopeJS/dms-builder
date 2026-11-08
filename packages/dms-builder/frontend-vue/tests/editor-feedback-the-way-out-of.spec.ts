@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextTick } from 'vue'
+import { h, nextTick } from 'vue'
 import Banners from '../app/components/Banners.vue'
 import Bar from '../app/components/Bar.vue'
 import Layers from '../app/components/Layers.vue'
@@ -98,12 +98,19 @@ describe('the keys', () => {
 		return (event) => listeners.at(-1)?.(event)
 	}
 
-	/** An element of the page as `closest` sees it: inside the canvas or not. */
-	function control(inCanvas: boolean): EventTarget {
-		return {
-			closest: (selector: string) =>
-				selector === '[data-path]' && !inCanvas ? null : {},
-		} as unknown as EventTarget
+	/** A switch of the panel, or a button a block renders on the canvas. */
+	function control(inCanvas: boolean): TestElement {
+		const { root } = mount({
+			render: () =>
+				inCanvas
+					? h('div', { 'data-path': 'title' }, [h('button', { type: 'button' })])
+					: h('div', [h('button', { role: 'switch', type: 'button' })]),
+		})
+		const button = findAll(root, (node) => node.tag === 'button')[0]
+		if (!button) {
+			throw new Error('no button rendered')
+		}
+		return asElement(button)
 	}
 
 	function key(
@@ -212,6 +219,6 @@ describe('the keys', () => {
 		expect(names()).toEqual(['title', 'outro', 'intro'])
 
 		press(key('Enter', focused))
-		expect(builder.session.value.inspector).toBe('config')
+		expect(builder.session.value.inspector, 'the settings open').toBe('block')
 	})
 })

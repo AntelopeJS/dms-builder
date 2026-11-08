@@ -192,6 +192,7 @@ function openMenu(event: MouseEvent, path: string): void {
 				<button
 					v-else
 					type="button"
+					data-block-keys
 					class="flex h-8 w-full items-center gap-2 rounded-md pr-8 text-left text-[13px]"
 					:class="
 						session.selection === row.path

@@ -95,14 +95,15 @@ const elementOf = (target: EventTarget | null): Element | null =>
  * The keys that act on the selected block are not for those. Backspace on a
  * switch the panel just toggled is not a request to remove the block the panel
  * is about, nor an arrow in a select one to move it. Inside a block — the
- * canvas renders real components, buttons included — the keys are the block's.
+ * canvas renders real components, buttons included — the keys are the block's,
+ * and so they are on the block's row in the layers, marked `data-block-keys`.
  */
 function isOnControl(target: EventTarget | null): boolean {
 	const element = elementOf(target)
 	return (
 		!!element &&
 		element.closest(CONTROLS) !== null &&
-		element.closest('[data-path]') === null
+		element.closest('[data-path], [data-block-keys]') === null
 	)
 }
 
