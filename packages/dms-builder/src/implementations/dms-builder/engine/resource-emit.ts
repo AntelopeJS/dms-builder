@@ -216,8 +216,13 @@ function resourceTableName(name: string): string {
   return pluralize(words(name).join("_"));
 }
 
+/** The ref a resource created under `name` is listed and bound by: its route without `/api/`. */
+export function resourceRef(name: string): string {
+  return words(name).join("-");
+}
+
 export function resourceRoute(name: string): string {
-  return `/api/${words(name).join("-")}`;
+  return `/api/${resourceRef(name)}`;
 }
 
 export function resourceNames(name: string): ResourceNames {
