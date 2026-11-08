@@ -5,7 +5,8 @@ import { describeSource, type SourceQuery } from '../runtime/data-source'
 import { findNode, walkDraft } from '../runtime/draft'
 import { blockKind, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
-import type { AddQueryInput, QueryPoint, QueryPreview } from '../runtime/types'
+import type { SeriesPoint } from '@antelopejs/interface-dms/base/query-response'
+import type { AddQueryInput, QueryPreview } from '../runtime/types'
 
 /**
  * The data sources of the page, a workspace of their own: each one read as a
@@ -209,23 +210,24 @@ watch(selected, () => {
 	preview.value = null
 })
 
-function isPoint(value: unknown): value is QueryPoint {
+function isPoint(value: unknown): value is SeriesPoint {
 	return (
 		value !== null &&
 		typeof value === 'object' &&
 		Object.hasOwn(value, 'x') &&
 		Object.hasOwn(value, 'y') &&
 		['number', 'string'].includes(typeof Reflect.get(value, 'x')) &&
-		typeof Reflect.get(value, 'y') === 'number'
+		(typeof Reflect.get(value, 'y') === 'number' || Reflect.get(value, 'y') === null)
 	)
 }
 
 /**
  * The groups of a preview's series, each as its label and measure. A `series`
  * body lists the points; a `card` body lists named series that hold them in
- * `data`, labelled with the series name when there is more than one.
+ * `data`, labelled with the series name when there is more than one. A group
+ * with nothing to measure keeps its row, with a null measure.
  */
-function seriesPoints(series: unknown): Array<[string, number]> {
+function seriesPoints(series: unknown): Array<[string, number | null]> {
 	if (!Array.isArray(series)) {
 		return []
 	}
@@ -242,7 +244,7 @@ function seriesPoints(series: unknown): Array<[string, number]> {
 	return named.flatMap(({ name, data }) =>
 		data
 			.filter(isPoint)
-			.map((point): [string, number] => [
+			.map((point): [string, number | null] => [
 				named.length > 1 ? `${String(name)} · ${String(point.x)}` : String(point.x),
 				point.y,
 			]),
@@ -260,7 +262,7 @@ const previewRows = computed<Array<[string, string]>>(() => {
 		rows.push(['Value', body.value.toLocaleString()])
 	}
 	for (const [label, y] of seriesPoints(body.series).slice(0, 12)) {
-		rows.push([label, y.toLocaleString()])
+		rows.push([label, y === null ? '—' : y.toLocaleString()])
 	}
 	const items = Array.isArray(body.items) ? body.items : []
 	for (const item of (items as Array<Record<string, unknown>>).slice(0, 12)) {

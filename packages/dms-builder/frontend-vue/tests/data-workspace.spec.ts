@@ -117,6 +117,7 @@ describe('the data sources', () => {
 		{ x: 'paid', y: 12 },
 		{ x: 'pending', y: 3 },
 		{ x: 'refunded', y: 3 },
+		{ x: 'cancelled', y: null },
 	]
 
 	it.each([
@@ -142,6 +143,7 @@ describe('the data sources', () => {
 			['paid', '12'],
 			['pending', '3'],
 			['refunded', '3'],
+			['cancelled', '—'],
 		])
 	})
 
