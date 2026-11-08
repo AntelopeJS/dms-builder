@@ -68,9 +68,9 @@ export interface CategoryPlace {
 
 /**
  * The places to write so `ref` moves one step earlier (`-1`) or later (`1`)
- * among its siblings, and nothing else. Two neighbours with places of their
- * own swap them. Siblings that share a place or have none are all numbered
- * again from 1, and only the ones whose number changes are returned.
+ * among its siblings, and nothing else. Two neighbours whose places no other
+ * sibling holds swap them. Otherwise the siblings are numbered again from 1,
+ * and only the ones whose number changes are returned.
  */
 export function categoryMoves(
 	categories: CategorySummary[],
@@ -89,14 +89,14 @@ export function categoryMoves(
 	if (!neighbour) {
 		return []
 	}
-	if (
-		category.order !== undefined &&
-		neighbour.order !== undefined &&
-		category.order !== neighbour.order
-	) {
+	const heldOnce = (order: number): boolean =>
+		siblings.filter((entry) => (entry.order ?? 0) === order).length === 1
+	const from = category.order
+	const to = neighbour.order
+	if (from !== undefined && to !== undefined && heldOnce(from) && heldOnce(to)) {
 		return [
-			{ ref, order: neighbour.order },
-			{ ref: neighbour.ref, order: category.order },
+			{ ref, order: to },
+			{ ref: neighbour.ref, order: from },
 		]
 	}
 	const reordered = siblings.filter((entry) => entry.ref !== ref)

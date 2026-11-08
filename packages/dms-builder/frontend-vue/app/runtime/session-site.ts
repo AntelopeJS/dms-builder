@@ -153,6 +153,7 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 	 * Put a category one place earlier or later among its siblings. The menu
 	 * shows the new order at once; the places that change are then written
 	 * one after the other, each a file of its own, and the tree is read back.
+	 * A write that fails puts the menu back as it was before the reload.
 	 */
 	async function moveCategory(ref: string, delta: -1 | 1): Promise<void> {
 		const category = session.value.categories.find((entry) => entry.ref === ref)
@@ -161,7 +162,8 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 			return
 		}
 		startPending(ref)
-		session.value.categories = session.value.categories.map((entry) => ({
+		const shown = session.value.categories
+		session.value.categories = shown.map((entry) => ({
 			...entry,
 			order: moves.find((move) => move.ref === entry.ref)?.order ?? entry.order,
 		}))
@@ -169,6 +171,7 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 			for (const move of moves) {
 				const result = await api.configureCategory(move.ref, { order: move.order })
 				if (!report(result, 'Menu reordered')) {
+					session.value.categories = shown
 					break
 				}
 			}

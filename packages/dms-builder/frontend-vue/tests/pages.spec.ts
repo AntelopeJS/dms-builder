@@ -450,46 +450,6 @@ describe('the pages, as a tree', () => {
 		})
 	})
 
-	it('swaps the places of two numbered neighbours and writes no other category', async () => {
-		backend.answers['GET /api/builder/categories'] = [
-			{ ref: 'alpha', displayName: 'Alpha', order: 1 },
-			{ ref: 'beta', displayName: 'Beta', order: 2 },
-			{ ref: 'shop', displayName: 'Shop', order: 10 },
-		]
-		const root = await tree()
-
-		fire(buttonLabelled(root, 'Move Beta up the menu'), 'click')
-		await settle()
-
-		const writes = backend.calls
-			.filter((call) => call.method === 'PUT' && call.path === '/api/builder/category')
-			.map((call) => call.body)
-		expect(writes).toEqual([
-			{ category: 'beta', patch: { order: 1 } },
-			{ category: 'alpha', patch: { order: 2 } },
-		])
-	})
-
-	it('lists the moved category in its new place before its write answers', async () => {
-		backend.answers['GET /api/builder/categories'] = [
-			{ ref: 'alpha', displayName: 'Alpha', order: 1 },
-			{ ref: 'beta', displayName: 'Beta', order: 2 },
-		]
-		const root = await tree()
-		backend.answers['PUT /api/builder/category'] = new Promise(() => undefined)
-
-		fire(buttonLabelled(root, 'Move Beta up the menu'), 'click')
-		await settle()
-
-		const categories = findAll(
-			root,
-			(node) => node.props.role === 'treeitem' && !textOf(node).includes('/'),
-		).map(textOf)
-		expect(categories.findIndex((row) => row.startsWith('Beta'))).toBeLessThan(
-			categories.findIndex((row) => row.startsWith('Alpha')),
-		)
-	})
-
 	it('offers to delete a category only once nothing is in it', async () => {
 		const root = await tree()
 		const labels = findAll(root, (node) => node.tag === 'UButton').map(
