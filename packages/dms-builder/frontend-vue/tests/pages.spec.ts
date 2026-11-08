@@ -561,6 +561,7 @@ describe("a page's settings", () => {
 		expect(sent('POST', '/api/builder/page/configure')).toEqual({
 			page: '/reports/sales',
 			patch: { category: 'shop' },
+			expectedVersion: 'v1',
 		})
 	})
 
