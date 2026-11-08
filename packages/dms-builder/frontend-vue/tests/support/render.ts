@@ -342,6 +342,48 @@ export function fire(
 	return event
 }
 
+/** Whether the node matches one compound selector: `button`, `a[href]`, `[role="tab"]`. */
+function matches(target: TestNode, selector: string): boolean {
+	const parsed = /^([a-z]*)((?:\[[^\]]+\])*)$/i.exec(selector.trim())
+	if (!parsed || target.kind !== 'element') {
+		return false
+	}
+	const [, tag = '', attributes = ''] = parsed
+	if (tag && target.tag !== tag) {
+		return false
+	}
+	const wanted = [...attributes.matchAll(/\[([^=\]]+)(?:="([^"]*)")?\]/g)]
+	return wanted.every(([, name = '', value]) => {
+		const actual = target.props[name]
+		if (actual === undefined || actual === null || actual === false) {
+			return false
+		}
+		return value === undefined || String(actual) === value
+	})
+}
+
+/**
+ * The node as a key handler sees the element a key was pressed on: its
+ * `closest`, over the rendered tree, for a list of compound selectors.
+ */
+export interface TestElement {
+	closest: (selectors: string) => TestElement | null
+}
+
+export function asElement(target: TestNode): TestElement {
+	const closest = (selectors: string): TestElement | null => {
+		const list = selectors.split(',')
+		for (let at: TestNode | null = target; at; at = at.parent) {
+			const candidate = at
+			if (list.some((selector) => matches(candidate, selector))) {
+				return asElement(candidate)
+			}
+		}
+		return null
+	}
+	return { closest }
+}
+
 export function hasHandler(target: TestNode, name: string): boolean {
 	const key = `on${name.charAt(0).toUpperCase()}${name.slice(1)}`
 	return typeof target.props[key] === 'function'

@@ -2,8 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 import Banners from '../app/components/Banners.vue'
 import Bar from '../app/components/Bar.vue'
+import Layers from '../app/components/Layers.vue'
 import Overlay from '../app/components/Overlay.vue'
-import { findAll, fire, mount, stub, type TestNode } from './support/render'
+import {
+	asElement,
+	findAll,
+	fire,
+	mount,
+	stub,
+	type TestElement,
+	type TestNode,
+} from './support/render'
 import {
 	builder,
 	openWith,
@@ -97,12 +106,17 @@ describe('the keys', () => {
 		} as unknown as EventTarget
 	}
 
-	function key(name: string, target: EventTarget | null = null): KeyboardEvent {
+	function key(
+		name: string,
+		target: EventTarget | TestElement | null = null,
+		modifiers: { altKey?: boolean; ctrlKey?: boolean } = {},
+	): KeyboardEvent {
 		return {
 			key: name,
 			target,
 			metaKey: false,
-			ctrlKey: false,
+			ctrlKey: modifiers.ctrlKey ?? false,
+			altKey: modifiers.altKey ?? false,
 			shiftKey: false,
 			defaultPrevented: false,
 			preventDefault: () => {},
@@ -161,5 +175,43 @@ describe('the keys', () => {
 		expect(builder.session.value.draft?.blocks.map((block) => block.name)).toEqual([
 			'intro',
 		])
+	})
+
+	it('acts on the selected block while a row of the layers has the focus', async () => {
+		await openWith([
+			editable('title', 'Text'),
+			editable('intro', 'Text'),
+			editable('outro', 'Text'),
+		])
+		const press = overlayKeys()
+		const { root } = mount(Layers)
+		const names = (): string[] | undefined =>
+			builder.session.value.draft?.blocks.map((block) => block.name)
+		// The row the click selected keeps the focus, as it does in a browser.
+		const row = findAll(
+			root,
+			(node) => node.tag === 'button' && typeof node.props.onMouseenter === 'function',
+		)[1]
+		if (!row) {
+			throw new Error('no row for the second block')
+		}
+		fire(row, 'click')
+		const focused = asElement(row)
+		expect(builder.session.value.selection).toBe('intro')
+
+		press(key('ArrowDown', focused))
+		expect(builder.session.value.selection).toBe('outro')
+
+		press(key('ArrowUp', focused, { altKey: true }))
+		expect(names()).toEqual(['title', 'outro', 'intro'])
+
+		press(key('d', focused, { ctrlKey: true }))
+		expect(names()).toHaveLength(4)
+
+		press(key('Delete', focused))
+		expect(names()).toEqual(['title', 'outro', 'intro'])
+
+		press(key('Enter', focused))
+		expect(builder.session.value.inspector).toBe('config')
 	})
 })
