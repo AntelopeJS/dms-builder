@@ -70,4 +70,34 @@ describe('the menu arrows', () => {
 
 		expect(menu()).toEqual(['Alpha', 'Beta'])
 	})
+
+	it('put back only what the failed move changed, keeping a move that finished meanwhile', async () => {
+		backend.answers['GET /api/builder/categories'] = [
+			{ ref: 'a', displayName: 'A', order: 1 },
+			{ ref: 'b', displayName: 'B', order: 2 },
+			{ ref: 'c', displayName: 'C', order: 3 },
+			{ ref: 'd', displayName: 'D', order: 4 },
+		]
+		await builder.loadSiteTree()
+		let failFirst: (value: unknown) => void = () => undefined
+		backend.answers['PUT /api/builder/category'] = new Promise((resolve) => {
+			failFirst = resolve
+		})
+		const first = builder.moveCategory('a', 1)
+		await settle()
+		backend.answers['PUT /api/builder/category'] = { ok: true, data: {}, changes: [] }
+		backend.answers['GET /api/builder/categories'] = [
+			{ ref: 'a', displayName: 'A', order: 1 },
+			{ ref: 'b', displayName: 'B', order: 2 },
+			{ ref: 'd', displayName: 'D', order: 3 },
+			{ ref: 'c', displayName: 'C', order: 4 },
+		]
+		await builder.moveCategory('d', -1)
+		backend.answers['GET /api/builder/categories'] = new Error('backend down')
+		failFirst({ ok: false, error: { code: 'not_found', ref: 'a' } })
+		await first
+		await settle()
+
+		expect(menu()).toEqual(['A', 'B', 'D', 'C'])
+	})
 })

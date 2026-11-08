@@ -42,6 +42,16 @@ describe('moving a category one step', () => {
 		expect(menuAfter(categories, 'zed', 1)).toEqual(['Alpha', 'Zed', 'Y'])
 	})
 
+	it('counts a missing place as 0 when it decides whether a place is shared', () => {
+		const categories = [
+			{ ref: 'b', displayName: 'B' },
+			{ ref: 'c', displayName: 'C', order: 0 },
+			{ ref: 'a', displayName: 'A', order: 1 },
+		]
+
+		expect(menuAfter(categories, 'c', 1)).toEqual(['B', 'A', 'C'])
+	})
+
 	it('moves exactly one step among siblings without places', () => {
 		const categories = [
 			{ ref: 'a', displayName: 'A' },
