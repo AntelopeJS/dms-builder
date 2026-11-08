@@ -290,12 +290,9 @@ export function previewRequestFromSearch(
       `"${queryParameter}" must be a query as JSON, naming its resource and template`,
     );
   }
-  const args: ConfigObject = {};
-  for (const [name, value] of search) {
-    if (name !== queryParameter) {
-      args[name] = value;
-    }
-  }
+  const args: ConfigObject = Object.fromEntries(
+    [...search].filter(([name]) => name !== queryParameter),
+  );
   return {
     ok: true,
     data: { query, args, tenant },

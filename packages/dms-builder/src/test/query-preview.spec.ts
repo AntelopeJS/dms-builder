@@ -359,6 +359,39 @@ describe("a preview asked for by address", () => {
     }
   });
 
+  it("runs a filter on a parameter named __proto__ the address supplied", async () => {
+    const filtered = {
+      ...query,
+      template: "count",
+      params: {
+        where: [
+          {
+            field: "amount",
+            op: "ge",
+            value: { $param: { name: "__proto__" } },
+          },
+        ],
+      },
+    };
+    const search = new URLSearchParams({ query: JSON.stringify(filtered) });
+    search.append("__proto__", "7");
+    const request = previewRequestFromSearch(search, "query", "acme");
+    expect(request.ok).to.equal(true);
+    if (!request.ok) {
+      return;
+    }
+    const result = await runPlanPreview(
+      tableAnswering(3),
+      request.data,
+      FIELDS,
+    );
+
+    expect(result).to.deep.include({ ok: true });
+    expect(request.data.args).to.deep.equal(
+      Object.fromEntries([["__proto__", "7"]]),
+    );
+  });
+
   it("refuses an address without a query it could run", () => {
     const missing = previewRequestFromSearch(
       new URLSearchParams(),
