@@ -87,7 +87,7 @@ The skill is not Trusted yet. It becomes Trusted when it passes a shadow run of 
 - The docs name the change list's undo control "Put this one back"; the UI button reads "Revert: <edit>" (dms-builder#151).
 - `CreatePage` places a page at `<category-folder>/<name>/page.ts` when a barrel sits beside the category's file, and at `src/<name>.ts` otherwise; journeys create a category first when they need the folder form.
 - `ResourceSummary.fieldCount` counts the generated `_id`.
-- Known findings at the integration head, each a failing journey with an issue draft: `resources/an-exported-field-is-written-with-its-import` (the `@Exported` import is missing, dms-builder#149), `queries/preview-validates-parameters-as-add-query-does` (PreviewQuery accepts an undeclared parameter, dms-builder#150), `tables/delete-the-table-removes-it-and-its-files-at-once` (the backend serves no `DELETE /api/builder/resource`, dms-builder#148), `data-sources/read-it-now-shows-one-row-per-group-known-finding` (a card-arranged source shows an undefined NaN row, dms-builder#152).
+- Known findings at the integration head, each a failing journey with an issue draft: `resources/an-exported-field-is-written-with-its-import` (the `@Exported` import is missing, dms-builder#149), `queries/preview-validates-parameters-as-add-query-does` (PreviewQuery accepts an undeclared parameter, dms-builder#150), `tables/delete-the-table-removes-it-and-its-files-at-once` (the backend serves no `DELETE /api/builder/resource`, dms-builder#148).
 
 ## Not driven
 

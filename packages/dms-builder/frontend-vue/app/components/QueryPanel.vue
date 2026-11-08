@@ -5,7 +5,7 @@ import { describeSource, type SourceQuery } from '../runtime/data-source'
 import { findNode, walkDraft } from '../runtime/draft'
 import { blockKind, blockTitle } from '../runtime/naming'
 import { useBuilder } from '../runtime/session'
-import type { AddQueryInput, QueryPreview } from '../runtime/types'
+import type { AddQueryInput, QueryPoint, QueryPreview } from '../runtime/types'
 
 /**
  * The data sources of the page, a workspace of their own: each one read as a
@@ -209,6 +209,46 @@ watch(selected, () => {
 	preview.value = null
 })
 
+function isPoint(value: unknown): value is QueryPoint {
+	return (
+		value !== null &&
+		typeof value === 'object' &&
+		Object.hasOwn(value, 'x') &&
+		Object.hasOwn(value, 'y') &&
+		['number', 'string'].includes(typeof Reflect.get(value, 'x')) &&
+		typeof Reflect.get(value, 'y') === 'number'
+	)
+}
+
+/**
+ * The groups of a preview's series, each as its label and measure. A `series`
+ * body lists the points; a `card` body lists named series that hold them in
+ * `data`, labelled with the series name when there is more than one.
+ */
+function seriesPoints(series: unknown): Array<[string, number]> {
+	if (!Array.isArray(series)) {
+		return []
+	}
+	if (series.every(isPoint)) {
+		return series.map((point) => [String(point.x), point.y])
+	}
+	const named = series.filter(
+		(entry): entry is { name: unknown; data: unknown[] } =>
+			entry !== null &&
+			typeof entry === 'object' &&
+			Object.hasOwn(entry, 'data') &&
+			Array.isArray(Reflect.get(entry, 'data')),
+	)
+	return named.flatMap(({ name, data }) =>
+		data
+			.filter(isPoint)
+			.map((point): [string, number] => [
+				named.length > 1 ? `${String(name)} · ${String(point.x)}` : String(point.x),
+				point.y,
+			]),
+	)
+}
+
 /** What the preview answered, as rows: its figure, then its series or its list. */
 const previewRows = computed<Array<[string, string]>>(() => {
 	const body = preview.value?.body
@@ -219,9 +259,8 @@ const previewRows = computed<Array<[string, string]>>(() => {
 	if (typeof body.value === 'number') {
 		rows.push(['Value', body.value.toLocaleString()])
 	}
-	const series = Array.isArray(body.series) ? body.series : []
-	for (const point of (series as Array<{ x: unknown; y: unknown }>).slice(0, 12)) {
-		rows.push([String(point.x), Number(point.y).toLocaleString()])
+	for (const [label, y] of seriesPoints(body.series).slice(0, 12)) {
+		rows.push([label, y.toLocaleString()])
 	}
 	const items = Array.isArray(body.items) ? body.items : []
 	for (const item of (items as Array<Record<string, unknown>>).slice(0, 12)) {

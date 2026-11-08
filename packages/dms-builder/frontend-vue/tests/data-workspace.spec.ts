@@ -113,6 +113,38 @@ describe('the data sources', () => {
 		expect(textOf(root)).toContain('point it elsewhere first')
 	})
 
+	const groups = [
+		{ x: 'paid', y: 12 },
+		{ x: 'pending', y: 3 },
+		{ x: 'refunded', y: 3 },
+	]
+
+	it.each([
+		['a chart card', 'card', { value: 18, series: [{ name: 'order', data: groups }] }],
+		['a series', 'series', { value: 18, series: groups }],
+	])('reads a source arranged as %s as its figure and one row per group', async (_, response, body) => {
+		backend.answers['POST /api/builder/query-preview'] = {
+			ok: true,
+			changes: [],
+			data: { output: 'series', response, truncated: false, body },
+		}
+		const root = await workspace()
+
+		fire(button(root, 'Read it now'), 'click')
+		await vi.advanceTimersByTimeAsync(0)
+		await nextTick()
+
+		const rows = findAll(root, (node) => node.tag === 'tr').map((row) =>
+			findAll(row, (node) => node.tag === 'td').map((cell) => textOf(cell).trim()),
+		)
+		expect(rows).toEqual([
+			['Value', '18'],
+			['paid', '12'],
+			['pending', '3'],
+			['refunded', '3'],
+		])
+	})
+
 	it('adds a new one to the draft, saved with the page', async () => {
 		const root = await workspace()
 
