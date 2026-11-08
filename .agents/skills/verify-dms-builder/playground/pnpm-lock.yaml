@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@antelopejs/dms':
         specifier: '>=0.17.0 <1.0.0'
-        version: 0.17.0(@antelopejs/core@1.21.1)(bare-buffer@3.7.1)
+        version: 0.18.2(@antelopejs/core@1.21.1)(bare-buffer@3.7.1)
       '@antelopejs/interface-api':
         specifier: '>=0.3.0 <1.0.0'
         version: 0.3.0(@antelopejs/interface-core@0.4.0)
@@ -78,11 +78,11 @@ packages:
     peerDependencies:
       '@antelopejs/core': '>=1.16.0 <2'
 
-  '@antelopejs/dms@0.17.0':
-    resolution: {integrity: sha512-28cAFiEddGzBdFLDAlZSpMppB84oH7n4TuzyfXXFZl7c9dCyxBGkRAEDshs6Pn8F10S63SOJeLOq32p5Gm7ImQ==}
+  '@antelopejs/dms@0.18.2':
+    resolution: {integrity: sha512-u6DFok+n0rkpMjq0GFd7g7Bb1dAw+L1ypwJg6qMH12tiMqyoqIrSKUso7DFB+CGOA05FaFTd1pyEqZY+fCL8eQ==}
     hasBin: true
     peerDependencies:
-      '@antelopejs/core': '>=1.20.0 <2'
+      '@antelopejs/core': '>=1.21.0 <2'
     peerDependenciesMeta:
       '@antelopejs/core':
         optional: true
@@ -122,8 +122,8 @@ packages:
     peerDependencies:
       '@antelopejs/interface-core': '>=0.2.4 <1.0.0'
 
-  '@antelopejs/interface-dms-automation@0.6.0':
-    resolution: {integrity: sha512-s/PnKGVBUq7JjY9qHWoOFwk6XlXrbAc40fgmImj3VU79I+8cIryKN61/f1BnJJ4TJDxG2pU1JUN9bBol9Ge2Cw==}
+  '@antelopejs/interface-dms-automation@0.6.1':
+    resolution: {integrity: sha512-cRi62vJRT3bTylFLMIom0aG3c6PImqV4vo/GYRMI1D8JYp4Sf+GbkslBELbjGS7WGwOt+iLpt8LCRh1V6JTToQ==}
     peerDependencies:
       '@antelopejs/interface-core': '>=0.2.4 <1.0.0'
 
@@ -1184,7 +1184,7 @@ snapshots:
       '@oxc-parser/binding-linux-x64-gnu': 0.95.0
       '@oxc-parser/binding-win32-x64-msvc': 0.95.0
 
-  '@antelopejs/dms@0.17.0(@antelopejs/core@1.21.1)(bare-buffer@3.7.1)':
+  '@antelopejs/dms@0.18.2(@antelopejs/core@1.21.1)(bare-buffer@3.7.1)':
     dependencies:
       2fa: 0.1.2
       '@antelopejs/interface-api': 0.3.0(@antelopejs/interface-core@0.4.0)
@@ -1209,7 +1209,7 @@ snapshots:
       zod: 3.24.4
     optionalDependencies:
       '@antelopejs/core': 1.21.1
-      '@antelopejs/interface-dms-automation': 0.6.0(@antelopejs/interface-core@0.4.0)
+      '@antelopejs/interface-dms-automation': 0.6.1(@antelopejs/interface-core@0.4.0)
       '@antelopejs/interface-redis': 0.0.9(@antelopejs/interface-core@0.4.0)
     transitivePeerDependencies:
       - bare-abort-controller
@@ -1250,7 +1250,7 @@ snapshots:
     dependencies:
       '@antelopejs/interface-core': 0.4.0
 
-  '@antelopejs/interface-dms-automation@0.6.0(@antelopejs/interface-core@0.4.0)':
+  '@antelopejs/interface-dms-automation@0.6.1(@antelopejs/interface-core@0.4.0)':
     dependencies:
       '@antelopejs/interface-core': 0.4.0
     optional: true
