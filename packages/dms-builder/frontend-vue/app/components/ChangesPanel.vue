@@ -174,7 +174,7 @@ const steps = computed<{ label: string; state: StepState }[]>(() => {
 						color="neutral"
 						variant="ghost"
 						:aria-label="`Revert: ${change.title}`"
-						title="Put this one back"
+						:title="`Revert: ${change.title}`"
 						@click="builder.revert(change)"
 					/>
 				</li>

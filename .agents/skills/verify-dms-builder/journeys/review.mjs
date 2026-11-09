@@ -18,7 +18,7 @@ async function retitleRevenue(tab, title) {
 export const journeys = guarded([
   {
     id: "the-change-list-names-the-edits-and-what-save-checks",
-    title: "The save status opens the change list with the unsaved edit in plain words under This page, the three steps Save runs, and Put this one back and Discard all…",
+    title: "The save status opens the change list with the unsaved edit in plain words under This page, the three steps Save runs, and Revert and Discard all…",
     entryPoint: "builder save status, change list",
     async run(/** @type {Ctx} */ ctx) {
       const tab = await ctx.tab();
