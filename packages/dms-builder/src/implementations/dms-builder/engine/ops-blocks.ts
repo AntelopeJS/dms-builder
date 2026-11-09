@@ -36,6 +36,7 @@ import {
   applyCategoryMove,
   planCategoryMove,
 } from "./page-category-move";
+import { contentVersion } from "./page-structure";
 import { resourceRefResolver } from "./resource-index";
 import { type CategoryRecord, joinSlug } from "./scan";
 import {
@@ -411,7 +412,7 @@ export function configurePage(
   ref: string,
   patch: Partial<EditablePageMeta>,
   opts?: MutationOpts,
-): OpResult<{ ref: string }> {
+): OpResult<{ ref: string; version: string }> {
   const context = openPage(ref);
   if (isError(context)) {
     return context;
@@ -456,17 +457,20 @@ export function configurePage(
   for (const importRef of imports) {
     applyImportRef(context.sourceFile, importRef);
   }
-  if (move) {
-    applyCategoryMove(
-      project,
-      context.sourceFile,
-      optionsArg,
-      move,
-      transaction,
-    );
-  }
+  const written = move
+    ? applyCategoryMove(
+        project,
+        context.sourceFile,
+        optionsArg,
+        move,
+        transaction,
+      )
+    : context.sourceFile;
   const newRef = move?.newRef ?? ref;
-  const result = commit(transaction, { ref: newRef });
+  const result = commit(transaction, {
+    ref: newRef,
+    version: contentVersion(written.getFullText()),
+  });
   if (result.ok && newRef !== ref) {
     invalidateSourceIndex();
     result.warnings = [

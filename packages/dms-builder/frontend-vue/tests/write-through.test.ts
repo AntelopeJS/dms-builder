@@ -50,14 +50,14 @@ describe('moving a page with unsaved changes', () => {
 	beforeEach(() => {
 		backend.answers['POST /api/builder/page/configure'] = {
 			ok: true,
-			data: { ref: '/sales/sales' },
+			data: { ref: '/sales/sales', version: 'v3' },
 			changes: [],
 		}
+		backend.structure = { ...backend.structure, version: 'v3' }
 	})
 
 	it('keeps the unsaved draft, and its undo', async () => {
 		builder.addBlock('Text')
-		backend.structure = { ...backend.structure, version: 'v3' }
 
 		await builder.movePage('sales')
 
@@ -73,7 +73,6 @@ describe('moving a page with unsaved changes', () => {
 		backend.structure = {
 			...backend.structure,
 			page: { ...backend.structure.page, ref: '/sales/sales', category: 'sales' },
-			version: 'v4',
 		}
 
 		const ref = await builder.movePage('sales')
@@ -89,8 +88,74 @@ describe('moving a page with unsaved changes', () => {
 		const saved = backend.calls.filter((call) => call.path === '/api/builder/page/blocks')
 		expect(saved.at(-1)?.body).toMatchObject({
 			page: '/sales/sales',
-			expectedVersion: 'v4',
+			expectedVersion: 'v3',
 		})
+	})
+
+	it('moves only the page the draft was made on', async () => {
+		builder.addBlock('Text')
+
+		await builder.movePage('sales')
+
+		const moved = backend.calls.filter((call) => call.path === '/api/builder/page/configure')
+		expect(moved.at(-1)?.body).toMatchObject({ page: '/reports/sales', expectedVersion: 'v1' })
+	})
+
+	it('says the page went stale when it changed outside between the move and the read after it', async () => {
+		builder.addBlock('Text')
+		backend.structure = { ...backend.structure, version: 'v-outside' }
+
+		await builder.movePage('sales')
+
+		expect(builder.session.value.conflict, 'the stale banner').toBe(true)
+		expect(names(), 'the draft is still there to keep').toContain('text')
+		await builder.save()
+		const saved = backend.calls.filter((call) => call.path === '/api/builder/page/blocks')
+		expect(saved.at(-1)?.body).toMatchObject({ expectedVersion: 'v3' })
+	})
+
+	it('says the page went stale, and stays put, when it changed outside before the move', async () => {
+		builder.addBlock('Text')
+		backend.answers['POST /api/builder/page/configure'] = {
+			ok: false,
+			error: { code: 'stale', ref: '/reports/sales', currentVersion: 'v-outside' },
+		}
+
+		const ref = await builder.movePage('sales')
+
+		expect(ref).toBe(undefined)
+		expect(builder.session.value.conflict, 'the stale banner').toBe(true)
+		expect(builder.session.value.pageRef).toBe('/reports/sales')
+		expect(names()).toContain('text')
+	})
+
+	it('does not move the page while a save is on its way', async () => {
+		builder.addBlock('Text')
+
+		const saving = builder.save()
+		const ref = await builder.movePage('sales')
+		await saving
+
+		expect(ref).toBe(undefined)
+		expect(backend.calledPaths()).not.toContain('POST /api/builder/page/configure')
+		expect(builder.session.value.conflict).toBe(false)
+	})
+
+	it('keeps the stale banner up when a move is refused for another reason', async () => {
+		builder.addBlock('Text')
+		backend.save = {
+			ok: false,
+			error: { code: 'stale', ref: '/reports/sales', currentVersion: 'v-outside' },
+		}
+		await builder.save()
+		backend.answers['POST /api/builder/page/configure'] = {
+			ok: false,
+			error: { code: 'duplicate', ref: '/sales/sales', kind: 'page' },
+		}
+
+		await builder.movePage('sales')
+
+		expect(builder.session.value.conflict, 'the page is still stale').toBe(true)
 	})
 })
 

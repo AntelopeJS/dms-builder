@@ -168,7 +168,7 @@ export async function ConfigurePage(
   ref: PageRef,
   patch: Partial<EditablePageMeta>,
   opts?: MutationOpts,
-): Promise<OpResult<{ ref: PageRef }>> {
+): Promise<OpResult<{ ref: PageRef; version: string }>> {
   return configurePage(ref, patch, opts);
 }
 
