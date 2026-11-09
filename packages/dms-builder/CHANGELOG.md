@@ -1,5 +1,61 @@
 # Changelog
 
+## v0.10.1
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.0...v0.10.1)
+
+### 🚀 Enhancements
+
+- **skills:** Add the verify-dms-builder verification skill ([#147](https://github.com/AntelopeJS/dms-builder/pull/147))
+
+### 🔥 Performance
+
+- **ci:** Run the engine specs in parallel across 4 balanced shards ([#165](https://github.com/AntelopeJS/dms-builder/pull/165))
+- **test:** Map the shop once per spec file and restore it for each test ([#170](https://github.com/AntelopeJS/dms-builder/pull/170))
+- **verify:** Plan against origin/main, and run every feature on a shared-file diff ([#171](https://github.com/AntelopeJS/dms-builder/pull/171))
+- **test:** Split the three longest engine specs and regroup the shards by measured duration ([#172](https://github.com/AntelopeJS/dms-builder/pull/172))
+
+### 🩹 Fixes
+
+- **verify:** Sync the playground lockfile with @antelopejs/core ^1.21.0 ([#169](https://github.com/AntelopeJS/dms-builder/pull/169))
+- **query-preview:** Read a GET parameter named __proto__ as an argument ([#174](https://github.com/AntelopeJS/dms-builder/pull/174))
+- **engine:** Keep a query's arrangement and comparison in ConfigureQuery ([#176](https://github.com/AntelopeJS/dms-builder/pull/176))
+- **frontend:** Label the change list's revert control Revert: <edit> on hover too ([#183](https://github.com/AntelopeJS/dms-builder/pull/183))
+- **frontend:** Show one preview row per group for a source arranged as a chart card ([#184](https://github.com/AntelopeJS/dms-builder/pull/184))
+- **engine:** Find a resource by the name it was created with as well as its ref ([#175](https://github.com/AntelopeJS/dms-builder/pull/175))
+- **editor:** Act on the selected block from a focused Layers row ([#178](https://github.com/AntelopeJS/dms-builder/pull/178))
+- **engine:** Refuse a nested block of unknown type as invalid_config ([#177](https://github.com/AntelopeJS/dms-builder/pull/177))
+- **frontend:** Move a category in the menu at once and write only the places that change ([#173](https://github.com/AntelopeJS/dms-builder/pull/173))
+- **routes:** Serve DELETE /api/builder/resource so the builder can delete a table ([#179](https://github.com/AntelopeJS/dms-builder/pull/179))
+- **engine:** Import every decorator a generated resource file names ([#182](https://github.com/AntelopeJS/dms-builder/pull/182))
+- **engine:** Refuse a write as stale when the file changed on disk ([#185](https://github.com/AntelopeJS/dms-builder/pull/185))
+- **queries:** Refuse undeclared template parameters in PreviewQuery as AddQuery does ([#181](https://github.com/AntelopeJS/dms-builder/pull/181))
+- **builder:** Keep the stale check across a page move with an unsaved draft ([#186](https://github.com/AntelopeJS/dms-builder/pull/186))
+
+### 📖 Documentation
+
+- **readme:** Link back to AntelopeJS DMS ([#187](https://github.com/AntelopeJS/dms-builder/pull/187))
+- **readme:** Open with the AntelopeJS DMS module kit ([#189](https://github.com/AntelopeJS/dms-builder/pull/189))
+
+### 📦 Build
+
+- **deps:** Bump @antelopejs packages to the 2026-11-06 releases ([#168](https://github.com/AntelopeJS/dms-builder/pull/168))
+- **deps:** Bump @antelopejs/dms to 0.18.2 and drop verify publish ([#188](https://github.com/AntelopeJS/dms-builder/pull/188))
+
+### 🏡 Chore
+
+- **verify:** Remove seeded runs from the verification skill ([#164](https://github.com/AntelopeJS/dms-builder/pull/164))
+- **ci:** Remove the weekly mutation caller ([#166](https://github.com/AntelopeJS/dms-builder/pull/166))
+- **release:** @antelopejs/interface-dms-builder v0.4.1 ([09b1e98](https://github.com/AntelopeJS/dms-builder/commit/09b1e98))
+
+### 🤖 CI
+
+- Call ci-node.yml@v1 ([#167](https://github.com/AntelopeJS/dms-builder/pull/167))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.10.0
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.9.1...v0.10.0)
