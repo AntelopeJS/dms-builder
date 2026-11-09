@@ -8,6 +8,8 @@
 
 **Edit the pages, tables and data sources of an AntelopeJS DMS project from the dashboard, as TypeScript that compiles.**
 
+[Documentation](https://dms.antelopejs.com/docs/modules/builder) · [All modules](https://github.com/AntelopeJS/dms#modules)
+
 </div>
 
 <img data-illustration alt="Screen recording from the AntelopeJS DMS film. Ctrl B opens the Builder on a dashboard and a TableView block is added from the block list under the caption Ctrl B. Edit it on the page. The block is saved, the whole project is typechecked, and the new TableView line appears in dashboard/page.ts under the caption Every save becomes TypeScript." src="https://raw.githubusercontent.com/AntelopeJS/dms/main/docs/media/builder.gif">
@@ -92,6 +94,28 @@ The playground (`packages/dms-builder/playground`) loads the builder with a demo
 - Each package releases on its own. `release-interface.yml` publishes `@antelopejs/interface-dms-builder`. `release.yml` then publishes `@antelopejs/dms-builder`, and refuses to run until the interface version in `packages/interface-dms-builder/package.json` is on npm.
 
 </details>
+
+## Part of AntelopeJS DMS
+
+This module installs into [AntelopeJS DMS](https://github.com/AntelopeJS/dms), the open-source back office. Every module adds its pages to the same dashboard, behind the same sign-in and roles.
+
+<!-- antelopejs-dms-modules:start -->
+
+| Module                                                           | What it adds                                                                             |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`dms-builder`](https://github.com/AntelopeJS/dms-builder)       | Edit pages, tables and data sources by clicking, as TypeScript that compiles             |
+| [`dms-ai`](https://github.com/AntelopeJS/dms-ai)                 | An assistant chat in the dashboard, on your own Claude Code or Codex                     |
+| [`dms-database`](https://github.com/AntelopeJS/dms-database)     | Schemas, relation diagrams, a data browser and a query console                           |
+| [`dms-api`](https://github.com/AntelopeJS/dms-api)               | API health, request logs, per-route statistics and a request tester                      |
+| [`dms-automation`](https://github.com/AntelopeJS/dms-automation) | Node-graph automations on schedules, webhooks and DMS events, with a trace for every run |
+| [`dms-mailing`](https://github.com/AntelopeJS/dms-mailing)       | E-mail templates in a block editor, versions, a send log and delivery metrics            |
+| [`dms-lang`](https://github.com/AntelopeJS/dms-lang)             | Translation coverage, a translation matrix and a translation queue                       |
+| [`dms-media`](https://github.com/AntelopeJS/dms-media)           | A media library with folders, per-folder permissions, image sizes and light editing      |
+| [`dms-saas`](https://github.com/AntelopeJS/dms-saas)             | Self-service sign-up, plans that gate features, and Stripe billing                       |
+| [`dms-marketing`](https://github.com/AntelopeJS/dms-marketing)   | Traffic, conversion funnels with A/B splits and click heatmaps, without cookies          |
+| [`dms-frontend`](https://github.com/AntelopeJS/dms-frontend)     | The `ajs dms` CLI, the Vue renderer and the SDK every frontend module builds on          |
+
+<!-- antelopejs-dms-modules:end -->
 
 ## License
 
