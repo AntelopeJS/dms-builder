@@ -53,8 +53,8 @@ export const journeys = guarded([
     },
   },
   {
-    id: "read-it-now-shows-one-row-per-group-known-finding",
-    title: "Read it now runs the page's chart-card source and shows one row per status, with no undefined or NaN row (known finding dms-builder#152)",
+    id: "read-it-now-shows-one-row-per-group",
+    title: "Read it now runs the page's chart-card source and shows one row per status, with no undefined or NaN row",
     entryPoint: "builder Data workspace, Read it now",
     async run(/** @type {Ctx} */ ctx) {
       const tab = await ctx.tab();

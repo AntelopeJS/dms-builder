@@ -209,6 +209,42 @@ watch(selected, () => {
 	preview.value = null
 })
 
+function groupLabel(x: unknown): string {
+	return x === null || x === undefined ? '—' : String(x)
+}
+
+/** One group as its label and measure; a group with nothing measured keeps its row. */
+function pointRow(point: unknown, series?: string): [string, number | null] {
+	const x: unknown = point !== null && typeof point === 'object' ? Reflect.get(point, 'x') : undefined
+	const y: unknown = point !== null && typeof point === 'object' ? Reflect.get(point, 'y') : undefined
+	const label = groupLabel(x)
+	return [series === undefined ? label : `${series} · ${label}`, typeof y === 'number' ? y : null]
+}
+
+function seriesData(entry: unknown): unknown[] | undefined {
+	const data: unknown = entry !== null && typeof entry === 'object' ? Reflect.get(entry, 'data') : undefined
+	return Array.isArray(data) ? data : undefined
+}
+
+/**
+ * The groups of a preview's series, each as its label and measure. A `series`
+ * body lists the points; a `card` body lists named series that hold them in
+ * `data`, labelled with the series name when there is more than one.
+ */
+function seriesPoints(series: unknown): Array<[string, number | null]> {
+	if (!Array.isArray(series)) {
+		return []
+	}
+	const named = series.filter((entry) => seriesData(entry) !== undefined)
+	if (named.length === 0) {
+		return series.map((point) => pointRow(point))
+	}
+	return named.flatMap((entry) => {
+		const name = named.length > 1 ? groupLabel(Reflect.get(entry, 'name')) : undefined
+		return (seriesData(entry) ?? []).map((point) => pointRow(point, name))
+	})
+}
+
 /** What the preview answered, as rows: its figure, then its series or its list. */
 const previewRows = computed<Array<[string, string]>>(() => {
 	const body = preview.value?.body
@@ -219,9 +255,8 @@ const previewRows = computed<Array<[string, string]>>(() => {
 	if (typeof body.value === 'number') {
 		rows.push(['Value', body.value.toLocaleString()])
 	}
-	const series = Array.isArray(body.series) ? body.series : []
-	for (const point of (series as Array<{ x: unknown; y: unknown }>).slice(0, 12)) {
-		rows.push([String(point.x), Number(point.y).toLocaleString()])
+	for (const [label, y] of seriesPoints(body.series).slice(0, 12)) {
+		rows.push([label, y === null ? '—' : y.toLocaleString()])
 	}
 	const items = Array.isArray(body.items) ? body.items : []
 	for (const item of (items as Array<Record<string, unknown>>).slice(0, 12)) {
