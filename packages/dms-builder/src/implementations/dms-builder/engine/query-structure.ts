@@ -21,7 +21,6 @@ import {
   parseModelMethod,
   type ParsedParams,
   type QueryParams,
-  type QueryTemplate,
 } from "./query-template";
 import { findResourceBySymbol, findResourceRecord } from "./resource-index";
 import { isPlainObject } from "./value";
@@ -483,19 +482,6 @@ function findModelMethod(
     .getSourceFile(record.databaseFile)
     ?.getClass(record.modelName)
     ?.getMethod(modelMethod);
-}
-
-/**
- * A template's params may only carry keys the template declares. The write path
- * checks this before compiling, so an `AddQuery` with an unknown key is refused
- * rather than emitted.
- */
-export function unknownParamKeys(
-  template: QueryTemplate,
-  params: QueryParams,
-): string[] {
-  const known = new Set(Object.keys(template.descriptor.params));
-  return Object.keys(params).filter((key) => !known.has(key));
 }
 
 /**

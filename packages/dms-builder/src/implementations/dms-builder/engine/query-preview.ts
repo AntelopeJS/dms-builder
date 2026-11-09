@@ -34,7 +34,11 @@ import {
 } from "./query-emit";
 import { executePlan, type PlanStream } from "./query-plan-execute";
 import type { QueryPlan } from "./query-plan";
-import { getQueryTemplate, isParamBinding } from "./query-template";
+import {
+  getQueryTemplate,
+  isParamBinding,
+  templateParamIssues,
+} from "./query-template";
 import { findResourceRecord, type ResourceRecord } from "./resource-index";
 import { resourceSchema } from "./resource-schema";
 import { buildResourceStructure } from "./resource-structure";
@@ -226,7 +230,7 @@ export async function runPlanPreview(
     );
   }
   const params = query.params ?? {};
-  const issues = template.validate(params, fields);
+  const issues = templateParamIssues(template, params, fields);
   if (issues.length > 0) {
     return { ok: false, error: { code: "invalid_config", issues } };
   }
