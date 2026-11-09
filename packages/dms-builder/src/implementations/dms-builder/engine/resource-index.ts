@@ -13,7 +13,11 @@ import {
 import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
 import { createModulesProject, moduleOfFile } from "./modules";
 import { sourcesChanged, stampSources } from "./project";
-import { CORE_SCHEMA_NAME_VALUE, routesFromRouteMap } from "./resource-emit";
+import {
+  CORE_SCHEMA_NAME_VALUE,
+  resourceRef,
+  routesFromRouteMap,
+} from "./resource-emit";
 import { type EmitContext, UnknownReferenceError } from "./value";
 
 export const CORE_SCHEMA_IDENTIFIER = "CORE_SCHEMA_NAME";
@@ -233,8 +237,13 @@ export function invalidateResourceIndex(): void {
   stamps = undefined;
 }
 
+/**
+ * The resource listed under `ref`, or else the one `CreateResource` made from `ref` as a name.
+ * Two names with one ref are refused at creation, so a name finds at most one resource.
+ */
 export function findResourceRecord(ref: string): ResourceRecord | undefined {
-  return getResourceIndex().get(ref);
+  const index = getResourceIndex();
+  return index.get(ref) ?? index.get(resourceRef(ref));
 }
 
 export function listResourceRecords(): ResourceRecord[] {

@@ -21,7 +21,7 @@ import {
   isResourceRoute,
   resourceClassName,
   resourceNames,
-  resourceRoute,
+  resourceRef,
   withDefaultIndex,
 } from "./resource-emit";
 import {
@@ -49,8 +49,6 @@ import { describeValue } from "./describe-value";
 import { mappedConnectionOfFile } from "./mapped-modules";
 import { moduleOfFile } from "./modules";
 import { RESERVED_FIELD_NAMES } from "./reserved-names";
-
-const API_ROUTE_PREFIX = "/api/";
 
 interface OpenResource {
   project: Project;
@@ -89,13 +87,6 @@ export function parseFieldPath(
     return undefined;
   }
   return { ref, field };
-}
-
-function refFromName(name: string): string {
-  const route = resourceRoute(name);
-  return route.startsWith(API_ROUTE_PREFIX)
-    ? route.slice(API_ROUTE_PREFIX.length)
-    : route;
 }
 
 type CreateData = { ref: ResourceRef; files: ResourceFiles };
@@ -213,7 +204,7 @@ export function createResource(
       "resource name must contain at least one alphanumeric character",
     );
   }
-  const ref = refFromName(input.name);
+  const ref = resourceRef(input.name);
   if (findResourceRecord(ref)) {
     return duplicate<{ ref: ResourceRef; files: ResourceFiles }>(
       input.name,

@@ -30,6 +30,7 @@ describe("the pages reading a table", () => {
       ["intake", "Intake"],
       ["quiet", "Quiet"],
       ["odd", "Odd"],
+      ["named", "Named"],
     ] as const) {
       expectOk(
         await CreatePage({ name, displayName, category: "pages.shop" }),
@@ -200,6 +201,50 @@ describe("the pages reading a table", () => {
         name,
       ).to.deep.equal([
         { page: "/shop/odd", displayName: "Odd", blocks: 1, queries: 0 },
+      ]);
+    }
+  });
+
+  it("binds a table by the name it was created with, as well as by its ref", async function () {
+    this.timeout(120_000);
+    const created = [
+      ["myTicket", "my-ticket"],
+      ["toString", "to-string"],
+    ] as const;
+    for (const [name, ref] of created) {
+      const resource = expectOk(
+        await CreateResource({
+          name,
+          fields: [{ name: "title", dataType: { $dataType: "string" } }],
+        }),
+        `CreateResource ${name}`,
+      );
+      expect(resource.ref).to.equal(ref);
+    }
+    const named = expectOk(await GetPageStructure("/shop/named"), "named");
+    expectOk(
+      await SetPageBlocks(
+        "/shop/named",
+        {
+          blocks: created.map(([name]) => ({
+            name: `${name}View`,
+            type: "TableView",
+            controller: name,
+            config: {},
+          })),
+        },
+        { expectedVersion: named.version },
+      ),
+      "SetPageBlocks named",
+    );
+
+    const readers = tableReaders();
+    for (const [, ref] of created) {
+      expect(
+        Object.getOwnPropertyDescriptor(readers, ref)?.value,
+        ref,
+      ).to.deep.equal([
+        { page: "/shop/named", displayName: "Named", blocks: 1, queries: 0 },
       ]);
     }
   });
