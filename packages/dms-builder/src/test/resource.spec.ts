@@ -99,6 +99,67 @@ describe("resources and their fields", () => {
     expect(field.dataType).to.deep.equal({ $dataType: "string" });
   });
 
+  it("adds a field the CSV export includes", async function () {
+    this.timeout(OP_TIMEOUT);
+    expectOk(
+      await AddField("order", {
+        name: "reference",
+        dataType: { $dataType: "string" },
+        exported: true,
+      }),
+      "AddField",
+    );
+
+    expect((await fieldNamed("reference")).exported).to.equal(true);
+  });
+
+  it("adds a field mandatory on the routes it names", async function () {
+    this.timeout(OP_TIMEOUT);
+    expectOk(
+      await AddField("order", {
+        name: "customer",
+        dataType: { $dataType: "string" },
+        mandatory: ["new"],
+      }),
+      "AddField",
+    );
+
+    expect((await fieldNamed("customer")).mandatory).to.deep.equal(["new"]);
+  });
+
+  it("adds the field an archive marks", async function () {
+    this.timeout(OP_TIMEOUT);
+    expectOk(
+      await AddField("order", {
+        name: "archived",
+        dataType: { $dataType: "boolean" },
+        archiveField: true,
+      }),
+      "AddField",
+    );
+
+    expect((await fieldNamed("archived")).archiveField).to.equal(true);
+  });
+
+  it("creates a resource whose field the CSV export includes", async function () {
+    this.timeout(OP_TIMEOUT);
+    expectOk(
+      await CreateResource({
+        name: "invoice",
+        fields: [
+          { name: "title", dataType: { $dataType: "string" }, exported: true },
+        ],
+      }),
+      "CreateResource",
+    );
+
+    const title = expectOk(
+      await GetResourceStructure("invoice"),
+      "GetResourceStructure",
+    ).fields.find((field) => field.name === "title");
+    expect(title?.exported).to.equal(true);
+  });
+
   it("changes one aspect without rewriting the rest of the field", async function () {
     this.timeout(OP_TIMEOUT);
     expectOk(
