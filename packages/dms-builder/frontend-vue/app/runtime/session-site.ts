@@ -1,5 +1,5 @@
 import { forgetDraft } from './draft-store'
-import { byCategoryOrder } from './categories'
+import { categoryMoves } from './categories'
 import type { CreateCategoryInput, CreatePageInput, FieldSpec } from './types'
 import {
 	sessionState,
@@ -151,35 +151,32 @@ export function createSite(scope: SessionCore & ReturnType<typeof createDerived>
 
 	/**
 	 * Put a category one place earlier or later among its siblings. The menu
-	 * reads places as numbers, so every sibling is numbered again in its new
-	 * place, and only those whose number changes are written — one after the
-	 * other, each a file of its own.
+	 * shows the new order at once; the places that change are then written
+	 * one after the other, each a file of its own, and the tree is read back.
+	 * A write that fails puts back the places this move changed, before the
+	 * reload.
 	 */
 	async function moveCategory(ref: string, delta: -1 | 1): Promise<void> {
 		const category = session.value.categories.find((entry) => entry.ref === ref)
-		if (!category || session.value.pending.includes(ref)) {
+		const moves = categoryMoves(session.value.categories, ref, delta)
+		if (!category || !moves.length || session.value.pending.includes(ref)) {
 			return
 		}
-		const siblings = session.value.categories
-			.filter((entry) => (entry.parent ?? undefined) === (category.parent ?? undefined))
-			.sort(byCategoryOrder)
-		const at = siblings.findIndex((entry) => entry.ref === ref)
-		const to = at + delta
-		if (at === -1 || to < 0 || to >= siblings.length) {
-			return
-		}
-		const reordered = [...siblings]
-		reordered.splice(at, 1)
-		reordered.splice(to, 0, category)
 		startPending(ref)
+		const shown = session.value.categories
+		session.value.categories = shown.map((entry) => ({
+			...entry,
+			order: moves.find((move) => move.ref === entry.ref)?.order ?? entry.order,
+		}))
 		try {
-			for (const [index, entry] of reordered.entries()) {
-				const order = index + 1
-				if (entry.order === order) {
-					continue
-				}
-				const result = await api.configureCategory(entry.ref, { order })
+			for (const move of moves) {
+				const result = await api.configureCategory(move.ref, { order: move.order })
 				if (!report(result, 'Menu reordered')) {
+					session.value.categories = session.value.categories.map((entry) =>
+						moves.some((placed) => placed.ref === entry.ref)
+							? (shown.find((before) => before.ref === entry.ref) ?? entry)
+							: entry,
+					)
 					break
 				}
 			}
