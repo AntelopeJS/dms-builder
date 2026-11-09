@@ -19,11 +19,7 @@ import {
   listCategoryRecords,
   listPageRecords,
 } from "./source-index";
-import {
-  createImportCollector,
-  UnknownDataTypeError,
-  UnknownReferenceError,
-} from "./value";
+import { createImportCollector, InvalidValueError } from "./value";
 import {
   findImporters,
   getWritableProject,
@@ -38,8 +34,7 @@ import {
   commit,
   duplicate,
   moduleError,
-  invalidDataType,
-  invalidReference,
+  invalidValue,
   notFound,
   unsupported,
 } from "./ops";
@@ -178,11 +173,8 @@ export function configureCategory(
     applyPatch(optionsArg, optionsPatch(scalar), false, ctx);
   } catch (error) {
     transaction.rollback();
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference(error);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }

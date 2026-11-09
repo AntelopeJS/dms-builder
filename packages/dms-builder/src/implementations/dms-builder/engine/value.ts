@@ -18,19 +18,22 @@ export interface EmitContext {
   resolveRef?(ref: RefSentinel["$ref"]): RefResolution;
 }
 
-export class UnknownDataTypeError extends Error {
+/** An author's value that cannot be serialized: the operation refuses it as `invalid_config`. */
+export class InvalidValueError extends Error {}
+
+export class UnknownDataTypeError extends InvalidValueError {
   constructor(public readonly id: string) {
     super(`unknown dataType "${id}"`);
   }
 }
 
-export class UnknownReferenceError extends Error {
+export class UnknownReferenceError extends InvalidValueError {
   constructor(public readonly resource: string) {
     super(`unknown resource reference "${resource}"`);
   }
 }
 
-export class UnknownBlockTypeError extends Error {
+class UnknownBlockTypeError extends InvalidValueError {
   constructor(public readonly type: string) {
     super(`unknown block type "${type}"`);
   }

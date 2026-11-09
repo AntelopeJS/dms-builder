@@ -31,6 +31,7 @@ import { findPageRecord, invalidateSourceIndex } from "./source-index";
 import {
   createImportCollector,
   type EmitContext,
+  InvalidValueError,
   serializeValue,
   UnknownDataTypeError,
   UnknownReferenceError,
@@ -95,9 +96,7 @@ export function invalidDataType<T = void>(
   };
 }
 
-export function invalidReference<T = void>(
-  error: UnknownReferenceError,
-): OpResult<T> {
+function invalidReference<T = void>(error: UnknownReferenceError): OpResult<T> {
   return {
     ok: false,
     error: {
@@ -110,6 +109,17 @@ export function invalidReference<T = void>(
       ],
     },
   };
+}
+
+/** The refusal for an author's value that cannot be serialized. */
+export function invalidValue(error: InvalidValueError): OpResult<never> {
+  if (error instanceof UnknownDataTypeError) {
+    return invalidDataType<never>(error);
+  }
+  if (error instanceof UnknownReferenceError) {
+    return invalidReference<never>(error);
+  }
+  return invalidConfig<never>(error.message);
 }
 
 export interface PageContext {
@@ -375,11 +385,8 @@ export function configureBlock(
     }
   } catch (error) {
     transaction.rollback();
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference(error);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }
@@ -481,17 +488,18 @@ export function stageBlock(
     resolveRef: resourceRefResolver(),
   });
   let valueText: string;
+  let childText: string | undefined;
   try {
     const controllerText = input.controller
       ? serializeValue({ $ref: { resource: input.controller } }, ctx)
       : undefined;
     valueText = blockCallText(input.type, input.config, ctx, controllerText);
+    childText = parentTarget
+      ? childArgText(input.name, valueText, ctx, input.slot, input.meta)
+      : undefined;
   } catch (error) {
-    if (error instanceof UnknownDataTypeError) {
-      return invalidDataType<never>(error);
-    }
-    if (error instanceof UnknownReferenceError) {
-      return invalidReference<never>(error);
+    if (error instanceof InvalidValueError) {
+      return invalidValue(error);
     }
     throw error;
   }
@@ -500,14 +508,10 @@ export function stageBlock(
   for (const importRef of imports) {
     applyImportRef(sourceFile, importRef);
   }
-  if (parentTarget) {
+  if (parentTarget && childText !== undefined) {
     const args = childArgsOf(parentTarget);
     const clamped = clampIndex(input.index ?? args.length, args.length);
-    args.splice(
-      clamped.index,
-      0,
-      childArgText(input.name, valueText, ctx, input.slot, input.meta),
-    );
+    args.splice(clamped.index, 0, childText);
     setChildren(parentTarget, args);
     return {
       path: `${input.parent}/${input.name}`,
