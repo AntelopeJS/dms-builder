@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import {
   AddQuery,
+  ConfigureQuery,
   CreateCategory,
   CreatePage,
   CreateResource,
@@ -231,6 +232,46 @@ describe("how a query's answer is arranged", () => {
         (await queryNamed("revenueCard"))?.compare,
         "a card that does not compare says nothing of it",
       ).to.equal(undefined);
+    });
+
+    it("keeps the arrangement and the comparison when only the parameters change", async function () {
+      this.timeout(OP_TIMEOUT);
+      expectOk(
+        await ConfigureQuery(`${PAGE}@revenueTrend`, {
+          params: { ...MONTHLY.params, where: PERIOD_BOUNDS, limit: 12 },
+        }),
+        "ConfigureQuery",
+      );
+
+      const page = app.read(PAGE_FILE);
+      expect(page).to.contain(
+        "chartCardData(await model.revenueTrend(new Date(from), new Date(to))",
+      );
+      expect(page).to.contain(
+        "previous: await model.revenueTrend(new Date(compareFrom), new Date(compareTo))",
+      );
+      const trend = await queryNamed("revenueTrend");
+      expect(trend?.params).to.include({ limit: 12 });
+      expect(trend?.response).to.equal("card");
+      expect(trend?.compare).to.equal(true);
+    });
+
+    it("rearranges a query and drops its comparison when asked to", async function () {
+      this.timeout(OP_TIMEOUT);
+      expectOk(
+        await ConfigureQuery(`${PAGE}@revenueTrend`, {
+          response: "items",
+          compare: false,
+        }),
+        "ConfigureQuery",
+      );
+
+      const page = app.read(PAGE_FILE);
+      expect(page).to.contain("topListData(await model.revenueTrend(");
+      expect(page).to.not.contain("previous: await model.revenueTrend");
+      const trend = await queryNamed("revenueTrend");
+      expect(trend?.response).to.equal("items");
+      expect(trend?.compare).to.equal(undefined);
     });
 
     it("declines to compare a calculation whose dates are baked in", async function () {

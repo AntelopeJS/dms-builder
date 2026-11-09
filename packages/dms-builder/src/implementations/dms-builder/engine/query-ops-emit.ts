@@ -262,6 +262,8 @@ export function configureQuery(
     resource: patch.resource ?? resource,
     template: patch.template ?? template,
     params: patch.params ?? current.params,
+    response: patch.response ?? current.response,
+    compare: patch.compare ?? current.compare,
     endpoint: patch.endpoint ?? route.endpoint,
   };
   const record = findResourceRecord(input.resource);
