@@ -41,7 +41,7 @@ export const journeys = guarded([
   },
   {
     id: "delete-the-table-removes-it-and-its-files-at-once",
-    title: "Delete the table and its rows, enabled by the typed key, deletes the table's files and rows at once (known finding: the UI calls DELETE /api/builder/resource, which the backend does not serve)",
+    title: "Delete the table and its rows, enabled by the typed key, deletes the table's files and rows at once",
     entryPoint: "builder Tables workspace, Settings tab, DELETE /api/builder/resource",
     async run(/** @type {Ctx} */ ctx) {
       await operation(ctx, "a table", "CreateResource", { name: "invoice", fields: [{ name: "title", dataType: { $dataType: "string" } }] });

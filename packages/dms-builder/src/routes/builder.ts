@@ -289,6 +289,14 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
     );
   }
 
+  @Delete(ROUTES.resource)
+  async deleteResource(
+    @AuthTenantOwner() _user: User,
+    @Parameter("ref", "query") ref: string,
+  ) {
+    return engine.DeleteResource(ref);
+  }
+
   @Post(ROUTES.fields)
   async addField(@AuthTenantOwner() _user: User, @JSONBody() body: FieldBody) {
     return engine.AddField(
