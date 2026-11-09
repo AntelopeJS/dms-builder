@@ -154,18 +154,17 @@ export function checkVersion(
   if (!opts?.expectedVersion) {
     return undefined;
   }
-  const current = contentVersion(sourceFile.getFullText());
-  if (current !== opts.expectedVersion) {
-    return {
-      ok: false,
-      error: {
-        code: "stale",
-        ref: sourceFile.getFilePath(),
-        currentVersion: current,
-      },
-    };
-  }
-  return undefined;
+  const text = sourceFile.getFullText();
+  return contentVersion(text) === opts.expectedVersion
+    ? undefined
+    : stale(sourceFile.getFilePath(), text);
+}
+
+function stale(ref: string, text: string): OpResult<never> {
+  return {
+    ok: false,
+    error: { code: "stale", ref, currentVersion: contentVersion(text) },
+  };
 }
 
 export function commit<T>(
@@ -180,6 +179,11 @@ export function commit<T>(
       ok: false,
       error: { code: "typecheck_failed", diagnostics: errors },
     };
+  }
+  const changed = transaction.changedOnDisk();
+  if (changed) {
+    transaction.rollback();
+    return stale(changed.path, changed.text);
   }
   const changes = transaction.flush();
   invalidateSourceIndex();

@@ -11,10 +11,10 @@
 (* (its options, category, imports): a save rewrites only the blocks.     *)
 (*                                                                         *)
 (* The engine runs one operation at a time: every mutation is synchronous *)
-(* from refreshFromDisk to Transaction.flush (engine/writable.ts:52,443), *)
+(* from refreshFromDisk to Transaction.flush (engine/writable.ts:52,464), *)
 (* so no other operation of the process runs in between. Only a writer in *)
 (* another process can act between the refresh and the flush, the window  *)
-(* that holds the typecheck (engine/ops.ts:166).                           *)
+(* that holds the typecheck (engine/ops.ts:165).                           *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, TLC
 
@@ -53,6 +53,7 @@ TypeOK ==
   /\ next \in 1..(MaxIds + 1)
   /\ eng.pc \in {"idle", "busy"}
   /\ eng.mem \subseteq Ids
+  /\ eng.read \subseteq Ids
   /\ eng.from \in Editors \cup {None}
   /\ eng.kind \in {"none", "save", "move", "edit"}
   /\ \A e \in Editors :
@@ -69,7 +70,7 @@ Init ==
   /\ outside = 0
   /\ module = 0
   /\ moves = 0
-  /\ eng = [pc |-> "idle", mem |-> {}, from |-> None, kind |-> "none"]
+  /\ eng = [pc |-> "idle", mem |-> {}, read |-> {}, from |-> None, kind |-> "none"]
   /\ ed = [e \in Editors |-> [pc |-> "closed", draft |-> {}, base |-> {}, acked |-> {}]]
 
 Dirty(e) == ed[e].draft # ed[e].base
@@ -131,7 +132,7 @@ RefreshAfterMove(e) ==
   /\ UNCHANGED <<disk, ever, blockIds, next, outside, module, moves, eng>>
 
 (* setPageBlocks: openPage refreshes from disk (engine/ops.ts:132), checkVersion   *)
-(* compares (engine/ops.ts:147), and the draft's blocks replace the page's; the  *)
+(* compares (engine/ops.ts:148), and the draft's blocks replace the page's; the  *)
 (* rest of the file is the text just read (engine/page-draft.ts:542, the draft   *)
 (* carries only the page options the tab changed, runtime/draft.ts:62).          *)
 BeginSave(e) ==
@@ -140,7 +141,7 @@ BeginSave(e) ==
   /\ IF CheckVersion /\ ed[e].base # disk
        THEN /\ ed' = [ed EXCEPT ![e].pc = "stale"]
             /\ UNCHANGED eng
-       ELSE /\ eng' = [pc |-> "busy", mem |-> (ed[e].draft \cap blockIds) \cup (disk \ blockIds), from |-> e, kind |-> "save"]
+       ELSE /\ eng' = [pc |-> "busy", mem |-> (ed[e].draft \cap blockIds) \cup (disk \ blockIds), read |-> disk, from |-> e, kind |-> "save"]
             /\ UNCHANGED ed
   /\ UNCHANGED <<disk, ever, blockIds, next, outside, module, moves>>
 
@@ -149,7 +150,7 @@ BeginMove(e) ==
   /\ eng.pc = "idle"
   /\ ed[e].pc = "moving"
   /\ next <= MaxIds
-  /\ eng' = [pc |-> "busy", mem |-> disk \cup {next}, from |-> e, kind |-> "move"]
+  /\ eng' = [pc |-> "busy", mem |-> disk \cup {next}, read |-> disk, from |-> e, kind |-> "move"]
   /\ next' = next + 1
   /\ UNCHANGED <<disk, ever, blockIds, outside, module, moves, ed>>
 
@@ -159,18 +160,20 @@ BeginModuleEdit ==
   /\ eng.pc = "idle"
   /\ module < MaxModule
   /\ next <= MaxIds
-  /\ eng' = [pc |-> "busy", mem |-> disk \cup {next}, from |-> None, kind |-> "edit"]
+  /\ eng' = [pc |-> "busy", mem |-> disk \cup {next}, read |-> disk, from |-> None, kind |-> "edit"]
   /\ \E inBlock \in BOOLEAN : blockIds' = IF inBlock THEN blockIds \cup {next} ELSE blockIds
   /\ next' = next + 1
   /\ module' = module + 1
   /\ UNCHANGED <<disk, ever, outside, moves, ed>>
 
-Idle == [pc |-> "idle", mem |-> {}, from |-> None, kind |-> "none"]
+Idle == [pc |-> "idle", mem |-> {}, read |-> {}, from |-> None, kind |-> "none"]
 
-(* commit: the typecheck passes and flush writes the text (engine/ops.ts:174). *)
+(* commit: the typecheck passes, the file still holds the text the operation *)
+(* read (engine/writable.ts:426), and flush writes the text (engine/ops.ts:178). *)
 (* A save answers the version of what it wrote (engine/page-draft.ts:607).     *)
 Write ==
   /\ eng.pc = "busy"
+  /\ disk = eng.read
   /\ disk' = eng.mem
   /\ ever' = ever \cup eng.mem
   /\ eng' = Idle
@@ -181,11 +184,24 @@ Write ==
              [] OTHER -> ed
   /\ UNCHANGED <<next, outside, module, moves>>
 
-(* commit: the typecheck fails and the transaction rolls back; nothing is written (engine/ops.ts:168). *)
+(* commit: the typecheck fails and the transaction rolls back; nothing is written (engine/ops.ts:167). *)
 Rollback ==
   /\ eng.pc = "busy"
   /\ eng' = Idle
   /\ ed' = IF eng.from = None THEN ed ELSE [ed EXCEPT ![eng.from].pc = "idle"]
+  /\ UNCHANGED <<disk, ever, blockIds, next, outside, module, moves>>
+
+(* commit: the file no longer holds the text the operation read, so the     *)
+(* transaction rolls back and answers stale; nothing is written (engine/ops.ts:173). *)
+(* A save raises the stale banner (runtime/session-lifecycle.ts:296); a move   *)
+(* reports the refusal and leaves the tab as it was (runtime/session-site.ts:217). *)
+Refuse ==
+  /\ eng.pc = "busy"
+  /\ disk # eng.read
+  /\ eng' = Idle
+  /\ ed' = CASE eng.kind = "save" -> [ed EXCEPT ![eng.from].pc = "stale"]
+             [] eng.kind = "move" -> [ed EXCEPT ![eng.from].pc = "idle"]
+             [] OTHER -> ed
   /\ UNCHANGED <<disk, ever, blockIds, next, outside, module, moves>>
 
 (* An editor outside the builder saves the file. *)
@@ -205,7 +221,7 @@ Next ==
        Open(e) \/ Edit(e) \/ RequestSave(e) \/ RequestMove(e)
        \/ KeepMine(e) \/ ReloadPage(e) \/ RefreshAfterMove(e)
        \/ BeginSave(e) \/ BeginMove(e)
-  \/ BeginModuleEdit \/ Write \/ Rollback \/ OutsideWrite
+  \/ BeginModuleEdit \/ Write \/ Refuse \/ Rollback \/ OutsideWrite
 
 Spec == Init /\ [][Next]_vars
 
