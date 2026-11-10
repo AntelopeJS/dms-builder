@@ -11,8 +11,12 @@ import {
   type SourceFile,
 } from "ts-morph";
 import { getCalleeName, getExtendsCall, stringLiteralValue } from "./literals";
-import { createModulesProject, moduleOfFile } from "./modules";
-import { sourcesChanged, stampSources } from "./project";
+import {
+  type IndexedProject,
+  indexedProject,
+  invalidateIndexedProject,
+} from "./indexed-project";
+import { moduleOfFile } from "./modules";
 import {
   CORE_SCHEMA_NAME_VALUE,
   resourceRef,
@@ -214,8 +218,9 @@ class ResourceScanner {
   }
 }
 
-let cached: Map<string, ResourceRecord> | undefined;
-let stamps: Map<string, number> | undefined;
+let cached:
+  | { indexed: IndexedProject; records: Map<string, ResourceRecord> }
+  | undefined;
 
 /**
  * The app's resources, as its files are right now. Rescanned when one of them
@@ -223,18 +228,16 @@ let stamps: Map<string, number> | undefined;
  * scan is — see `getSourceIndex`.
  */
 function getResourceIndex(): Map<string, ResourceRecord> {
-  if (cached && stamps && !sourcesChanged(stamps)) {
-    return cached;
+  const indexed = indexedProject();
+  if (cached?.indexed !== indexed) {
+    cached = { indexed, records: new ResourceScanner(indexed.project).scan() };
   }
-  const project = createModulesProject();
-  cached = new ResourceScanner(project).scan();
-  stamps = stampSources(project);
-  return cached;
+  return cached.records;
 }
 
 export function invalidateResourceIndex(): void {
   cached = undefined;
-  stamps = undefined;
+  invalidateIndexedProject();
 }
 
 /**
