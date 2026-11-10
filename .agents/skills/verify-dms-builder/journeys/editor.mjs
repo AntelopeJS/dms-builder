@@ -52,6 +52,7 @@ export const journeys = guarded([
       await tab.signIn("admin");
       await openBuilder(ctx, tab);
       await tab.page.getByRole("tab", { name: "Layers" }).click();
+      await tab.visible({ role: "treeitem", name: /^Chart card 3/ }, { timeoutMs: 20_000 });
       const tree = tab.page.getByRole("tree", { name: "Blocks of the page" });
       const titles = (await tree.getByRole("treeitem").allInnerTexts()).map((row) => row.replace(/\s*Actions for.*$/s, "").trim());
       await ctx.verify("the tree lists the page's blocks in order", [check("eleven blocks and the page", titles.slice(1).join("|") === ["Period selector", "Tabs", "Placeholder", "form", "Placeholder", ...BLOCKS.slice(4)].join("|"), titles)]);
