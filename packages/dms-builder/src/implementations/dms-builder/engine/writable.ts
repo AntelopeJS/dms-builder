@@ -137,18 +137,32 @@ export function referencedImportNames(sourceFile: SourceFile): Set<string> {
   return names;
 }
 
+/**
+ * Whether the file uses the binding the specifier imports. Only the file is
+ * searched: a project-wide search finds the same uses here, after reading
+ * every other file.
+ */
 function isReferenced(
   sourceFile: SourceFile,
   specifier: ImportSpecifier,
 ): boolean {
-  return specifier
-    .getNameNode()
-    .findReferencesAsNodes()
-    .some(
-      (node) =>
-        node.getSourceFile() === sourceFile &&
-        node.getFirstAncestorByKind(SyntaxKind.ImportDeclaration) === undefined,
-    );
+  const binding = specifier.getAliasNode() ?? specifier.getNameNode();
+  const fileName = sourceFile.getFilePath();
+  const highlights =
+    sourceFile
+      .getProject()
+      .getLanguageService()
+      .compilerObject.getDocumentHighlights(fileName, binding.getStart(), [
+        fileName,
+      ]) ?? [];
+  return highlights.some((highlight) =>
+    highlight.highlightSpans.some(
+      (span) =>
+        sourceFile
+          .getDescendantAtPos(span.textSpan.start)
+          ?.getFirstAncestorByKind(SyntaxKind.ImportDeclaration) === undefined,
+    ),
+  );
 }
 
 /**
