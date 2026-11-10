@@ -11,6 +11,7 @@ export const journeys = guarded([
     async run(/** @type {Ctx} */ ctx) {
       const connections = await builder(ctx, "connections", "GET", "/database/connections");
       const project = await builder(ctx, "project", "GET", "/database/project");
+      const modules = pick(project.body, "modules");
       const analysis = await builder(ctx, "analysis of an unknown connection", "GET", "/database/analysis?connection=nope");
       const analysisById = await builder(ctx, "analysis by an unknown id", "GET", "/database/analysis?id=nope");
       const connection = await builder(ctx, "an unknown connection", "GET", "/database/connection?connection=nope");
@@ -18,7 +19,7 @@ export const journeys = guarded([
       const mapping = await builder(ctx, "mapping of an unknown connection", "GET", "/database/mapping?connection=nope&module=nope");
       await ctx.verify("the reads", [
         check("connections is an empty list", connections.status === 200 && Array.isArray(connections.body) && connections.body.length === 0, connections),
-        check("project answers modules", project.status === 200 && Array.isArray(pick(project.body, "modules")) && (/** @type {unknown[]} */ (pick(project.body, "modules"))).includes("dms-builder"), project),
+        check("project answers modules", project.status === 200 && Array.isArray(modules) && modules.includes("dms-builder"), project),
         check("an unknown analysis connection is 404", analysis.status === 404, analysis),
         check("an unknown analysis id answers a not_found OpResult", pick(analysisById.body, "ok") === false && text(analysisById.body, "error", "code") === "not_found", analysisById),
         check("an unknown connection is 404", connection.status === 404, connection),

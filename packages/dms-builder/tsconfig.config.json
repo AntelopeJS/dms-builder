@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "sourceMap": false,
+    "rootDir": ".",
+    "outDir": "node_modules/.cache/tsconfig-config",
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig-config/.tsbuildinfo"
+  },
+  "include": ["./knip.config.ts"]
+}

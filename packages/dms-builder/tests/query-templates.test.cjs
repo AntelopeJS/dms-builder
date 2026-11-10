@@ -1,16 +1,23 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const { Project } = require("ts-morph");
+const {
+  exposesQueryOps,
+  exposesQueryTemplates,
+} = require("./helpers/built-exports.js");
 
 /**
  * The built-in templates are registered by the implementation entry as it
  * loads; loading it is what must fill the registry, or `ListQueryTemplates`
  * comes back empty and every `AddQuery` is rejected.
  */
+/** @type {unknown} */
 const builder = require("../dist/implementations/dms-builder/index.js");
-const {
-  compileQuery,
-} = require("../dist/implementations/dms-builder/engine/query-ops.js");
+/** @type {unknown} */
+const queryOps = require("../dist/implementations/dms-builder/engine/query-ops.js");
+assert.ok(exposesQueryTemplates(builder));
+assert.ok(exposesQueryOps(queryOps));
+const { compileQuery } = queryOps;
 
 /** A resource record with no fields: enough for templates without params. */
 function emptyResource() {

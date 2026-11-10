@@ -45,7 +45,7 @@ export const journeys = guarded([
         check("no message holds an @", enKeys.every((key) => !String(key).includes("@")), enKeys.length),
       ]);
       const placeholders = (/** @type {Record<string, unknown>} */ catalogue, /** @type {string} */ key) => {
-        let node = /** @type {unknown} */ (catalogue.dms_builder);
+        let node = catalogue.dms_builder;
         for (const part of key.split(".")) node = isRow(node) ? node[part] : undefined;
         return isText(node) ? (node.match(/\{[a-zA-Z0-9_]+\}/g) ?? []).filter((item, index, all) => all.indexOf(item) === index).sort().join() : "";
       };
