@@ -2,8 +2,12 @@ import type {
   CategorySummary,
   PageSummary,
 } from "@antelopejs/interface-dms-builder";
-import { createModulesProject, moduleOfFile } from "./modules";
-import { sourcesChanged, stampSources } from "./project";
+import {
+  type IndexedProject,
+  indexedProject,
+  invalidateIndexedProject,
+} from "./indexed-project";
+import { moduleOfFile } from "./modules";
 import {
   type CategoryRecord,
   type PageRecord,
@@ -11,8 +15,7 @@ import {
   scanProject,
 } from "./scan";
 
-let cached: ScanResult | undefined;
-let stamps: Map<string, number> | undefined;
+let cached: { indexed: IndexedProject; scan: ScanResult } | undefined;
 
 /**
  * The pages and categories of the app, as its files are right now.
@@ -26,18 +29,16 @@ let stamps: Map<string, number> | undefined;
  * against a file the builder itself was never shown.
  */
 function getSourceIndex(): ScanResult {
-  if (cached && stamps && !sourcesChanged(stamps)) {
-    return cached;
+  const indexed = indexedProject();
+  if (cached?.indexed !== indexed) {
+    cached = { indexed, scan: scanProject(indexed.project) };
   }
-  const project = createModulesProject();
-  cached = scanProject(project);
-  stamps = stampSources(project);
-  return cached;
+  return cached.scan;
 }
 
 export function invalidateSourceIndex(): void {
   cached = undefined;
-  stamps = undefined;
+  invalidateIndexedProject();
 }
 
 export function findPageRecord(ref: string): PageRecord | undefined {

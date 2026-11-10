@@ -11,6 +11,7 @@ covers:
   - packages/dms-builder/src/implementations/dms-builder/engine/paths.ts
   - packages/dms-builder/src/implementations/dms-builder/engine/permissions.ts
   - packages/dms-builder/src/implementations/dms-builder/engine/scan.ts
+  - packages/dms-builder/src/implementations/dms-builder/engine/indexed-project.ts
   - packages/dms-builder/src/implementations/dms-builder/engine/source-index.ts
   - packages/dms-builder/src/implementations/dms-builder/engine/source-options.ts
   - packages/interface-dms-builder/src/compose.ts
