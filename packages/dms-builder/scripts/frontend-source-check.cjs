@@ -88,12 +88,12 @@ function flatten(messages, prefix = "") {
   const entries = new Map();
   for (const [key, value] of Object.entries(messages)) {
     const name = prefix ? `${prefix}.${key}` : key;
-    if (value instanceof Object) {
+    if (isString(value)) {
+      entries.set(name, value);
+    } else {
       for (const [nested, text] of flatten(value, name)) {
         entries.set(nested, text);
       }
-    } else {
-      entries.set(name, value);
     }
   }
   return entries;
