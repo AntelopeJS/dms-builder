@@ -319,9 +319,21 @@ function diagnosticToError(diagnostic: Diagnostic): TypecheckError {
   };
 }
 
+/**
+ * The diagnostics of the program's own files, imported ones included. Each
+ * file is checked on its own: the whole program's diagnostics would also check
+ * every declaration file in `node_modules`, whose errors are never reported.
+ */
 function relevantDiagnostics(project: Project): TypecheckError[] {
   return project
-    .getPreEmitDiagnostics()
+    .getProgram()
+    .compilerObject.getSourceFiles()
+    .flatMap((file) => {
+      const sourceFile = project.getSourceFile(file.fileName);
+      return sourceFile && !sourceFile.isInNodeModules()
+        ? sourceFile.getPreEmitDiagnostics()
+        : [];
+    })
     .filter((diagnostic) => {
       const file = diagnostic.getSourceFile();
       return file !== undefined && !file.isInNodeModules();
