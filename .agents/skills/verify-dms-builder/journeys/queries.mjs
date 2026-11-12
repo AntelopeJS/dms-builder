@@ -170,7 +170,7 @@ export const journeys = guarded([
   },
   {
     id: "a-period-bound-series-and-a-comparison-card-typecheck-and-answer-over-http",
-    title: "AddQuery accepts a series bound by from and to and a card that compares, the page reads both bounds as QueryValue, and after a rebuild the owner's GETs answer the seeded orders of the period and of the one before it",
+    title: "AddQuery accepts a series bound by from and to and a card that compares, the page declares its bounds as string | true | undefined, and after a rebuild the owner's GETs answer the seeded orders of the period and of the one before it",
     entryPoint: "AddQuery, GetPageStructure, the generated routes",
     async run(/** @type {Ctx} */ ctx) {
       await operation(ctx, "page", "CreatePage", { name: "lab", displayName: "Lab", category: "pages.shop" });
@@ -186,11 +186,12 @@ export const journeys = guarded([
         check("the routes are under the page", text(series.data, "route") === "/dms/pages/shop/lab/stats/period-orders" && text(card.data, "route") === "/dms/pages/shop/lab/stats/period-revenue", [series.data, card.data]),
       ], { critical: true });
       const source = readProject(ctx, "page", PAGE).text;
-      await ctx.verify("the bounds are read as QueryValue and parsed as dates", [
-        check("from and to are QueryValue", /@Parameter\("from", "query"\) from: QueryValue/.test(source) && /@Parameter\("to", "query"\) to: QueryValue/.test(source), source),
-        check("the comparison bounds are QueryValue", /@Parameter\("compareFrom", "query"\) compareFrom: QueryValue/.test(source) && /@Parameter\("compareTo", "query"\) compareTo: QueryValue/.test(source), source),
+      const admits = (/** @type {string[]} */ names) => names.every((name) => source.includes(`@Parameter("${name}", "query") ${name}: string | true | undefined,`));
+      await ctx.verify("the bounds admit a query value and are parsed as dates", [
+        check("from and to admit string | true | undefined", admits(["from", "to"]), source),
+        check("the comparison bounds admit string | true | undefined", admits(["compareFrom", "compareTo"]), source),
         check("each bound becomes a Date through String", /new Date\(String\(from\)\)/.test(source) && /new Date\(String\(compareTo\)\)/.test(source), source),
-        check("QueryValue is imported", /import[^;]*\bQueryValue\b[^;]*from "@antelopejs\/interface-api"/.test(source), source),
+        check("the page imports no QueryValue", !/\bQueryValue\b/.test(source), source),
       ]);
       await ctx.verify("the project compiles and the backend serves the routes", [await rebuild(ctx)], { critical: true });
       const route = (/** @type {string} */ name, /** @type {Record<string, string>} */ query) => ctx.api(`GET ${name}`, { method: "GET", path: `/dms/pages/shop/lab/stats/${name}?${new URLSearchParams(query)}` });
