@@ -53,7 +53,7 @@ Start the backend with `ajs project dev -w`, then the frontend with `ajs dms dev
 
 | Package                                  | Supported         | Tested with |
 | ---------------------------------------- | ----------------- | ----------- |
-| `@antelopejs/interface-api`              | `>=0.3.0 <1.0.0`  | `0.3.0`     |
+| `@antelopejs/interface-api`              | `>=0.3.2 <1.0.0`  | `0.3.2`     |
 | `@antelopejs/interface-core`             | `>=0.4.0 <1.0.0`  | `0.4.0`     |
 | `@antelopejs/interface-database`         | `>=0.3.0 <1.0.0`  | `0.3.0`     |
 | `@antelopejs/interface-database-catalog` | `>=0.0.3 <1.0.0`  | `0.0.3`     |

@@ -1,5 +1,5 @@
 import { guarded } from "../guard.mjs";
-import { check, failsWith, list, operation, pick, readProject, text } from "../builder.mjs";
+import { check, failsWith, list, operation, pick, readProject, rebuild, text } from "../builder.mjs";
 
 /** @typedef {import("../builder.mjs").Ctx} Ctx */
 
@@ -165,6 +165,49 @@ export const journeys = guarded([
         check("no route left", !left.includes("/stats/paid-count"), left),
         check("no model method left", !/paidCount\(/.test(readProject(ctx, "the model", "src/order/database.ts").text), "database.ts"),
         failsWith("removing again is not_found", missing, "not_found"),
+      ]);
+    },
+  },
+  {
+    id: "a-period-bound-series-and-a-comparison-card-typecheck-and-answer-over-http",
+    title: "AddQuery accepts a series bound by from and to and a card that compares, the page declares its bounds as string | true | undefined, and after a rebuild the owner's GETs answer the seeded orders of the period and of the one before it",
+    entryPoint: "AddQuery, GetPageStructure, the generated routes",
+    async run(/** @type {Ctx} */ ctx) {
+      await operation(ctx, "page", "CreatePage", { name: "lab", displayName: "Lab", category: "pages.shop" });
+      const period = [
+        { field: "createdAt", op: "ge", value: { $param: { name: "from" } } },
+        { field: "createdAt", op: "le", value: { $param: { name: "to" } } },
+      ];
+      const series = await operation(ctx, "a series bound by from and to", "AddQuery", "/shop/lab", { name: "periodOrders", resource: "order", template: "series", params: { groupBy: "status", where: period } });
+      const card = await operation(ctx, "a card that compares", "AddQuery", "/shop/lab", { name: "periodRevenue", resource: "order", template: "series", params: { op: "sum", field: "amount", groupBy: "createdAt", bucket: "month", where: period }, response: "card", compare: true });
+      await ctx.verify("the engine typechecks both pages of generated code", [
+        check("the series is added", series.ok, series.raw),
+        check("the comparison card is added", card.ok, card.raw),
+        check("the routes are under the page", text(series.data, "route") === "/dms/pages/shop/lab/stats/period-orders" && text(card.data, "route") === "/dms/pages/shop/lab/stats/period-revenue", [series.data, card.data]),
+      ], { critical: true });
+      const source = readProject(ctx, "page", PAGE).text;
+      const admits = (/** @type {string[]} */ names) => names.every((name) => source.includes(`@Parameter("${name}", "query") ${name}: string | true | undefined,`));
+      await ctx.verify("the bounds admit a query value and are parsed as dates", [
+        check("from and to admit string | true | undefined", admits(["from", "to"]), source),
+        check("the comparison bounds admit string | true | undefined", admits(["compareFrom", "compareTo"]), source),
+        check("each bound becomes a Date through String", /new Date\(String\(from\)\)/.test(source) && /new Date\(String\(compareTo\)\)/.test(source), source),
+        check("the page imports no QueryValue", !/\bQueryValue\b/.test(source), source),
+      ]);
+      await ctx.verify("the project compiles and the backend serves the routes", [await rebuild(ctx)], { critical: true });
+      const route = (/** @type {string} */ name, /** @type {Record<string, string>} */ query) => ctx.api(`GET ${name}`, { method: "GET", path: `/dms/pages/shop/lab/stats/${name}?${new URLSearchParams(query)}` });
+      const days = (/** @type {number} */ ago) => new Date(Date.now() - ago * 24 * 60 * 60 * 1000).toISOString();
+      const ranged = await route("period-orders", { from: days(50), to: days(20) });
+      const recent = await route("period-orders", { from: days(20), to: days(0) });
+      const compared = await route("period-revenue", { from: days(50), to: days(20), compareFrom: days(80), compareTo: days(50) });
+      const points = (/** @type {import("../builder.mjs").Answer} */ answer) => list(answer.body, "series").map((point) => `${String(point.x)}=${String(point.y)}`).join(",");
+      const total = (/** @type {import("../builder.mjs").Answer} */ answer, /** @type {string} */ key) => list(list(answer.body, key)[0], "data").reduce((sum, point) => sum + Number(point.y), 0);
+      await ctx.verify("the owner reads the seeded orders of each period", [
+        check("the three routes answer 200", ranged.status === 200 && recent.status === 200 && compared.status === 200, [ranged.status, recent.status, compared.status]),
+        check("50 to 20 days ago holds 420 and 230 paid and 55 refunded", points(ranged) === "paid=2,refunded=1", ranged.body),
+        check("the last 20 days hold 380 and 195 paid and 110 pending", points(recent) === "paid=2,pending=1", recent.body),
+        check("the card value is 420 + 230 + 55", pick(compared.body, "value") === 705 && total(compared, "series") === 705, compared.body),
+        check("the previous value is 260 + 180 + 90", pick(compared.body, "previousValue") === 530 && total(compared, "comparisonSeries") === 530, compared.body),
+        check("the delta is the change in percent", Math.abs(Number(pick(compared.body, "delta")) - 33.0189) < 0.001, compared.body),
       ]);
     },
   },

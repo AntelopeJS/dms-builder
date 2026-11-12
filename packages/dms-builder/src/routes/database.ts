@@ -5,6 +5,7 @@ import {
   JSONBody,
   Parameter,
   Post,
+  type QueryValue,
 } from "@antelopejs/interface-api";
 import type { SampleRequest } from "@antelopejs/interface-database-catalog";
 import { AuthTenantOwner } from "@antelopejs/interface-dms/guards";
@@ -17,6 +18,7 @@ import type {
 } from "@antelopejs/interface-dms-builder";
 import { DEFAULT_ROUTE_PREFIX, ROUTES } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
+import { queryText } from "./query-text";
 import {
   catalogOf,
   listCatalogConnections,
@@ -123,13 +125,14 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.databaseAnalysis)
   async analysis(
     @AuthTenantOwner() _user: User,
-    @Parameter("id", "query") id: string | undefined,
-    @Parameter("connection", "query") connection: string | undefined,
+    @Parameter("id", "query") id: QueryValue,
+    @Parameter("connection", "query") connection: QueryValue,
   ) {
-    if (id) {
-      return engine.GetAnalysis(id);
+    const analysisId = queryText(id);
+    if (analysisId) {
+      return engine.GetAnalysis(analysisId);
     }
-    const latest = latestAnalysis(connection ?? "");
+    const latest = latestAnalysis(queryText(connection) ?? "");
     if (!latest.ok) {
       return new HTTPResult(HTTP_NOT_FOUND, latest.error);
     }
@@ -147,10 +150,13 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.databaseMapping)
   async mapping(
     @AuthTenantOwner() _user: User,
-    @Parameter("connection", "query") connection: string,
-    @Parameter("module", "query") module: string,
+    @Parameter("connection", "query") connection: QueryValue,
+    @Parameter("module", "query") module: QueryValue,
   ) {
-    return engine.GetMapping(connection, module);
+    return engine.GetMapping(
+      queryText(connection) ?? "",
+      queryText(module) ?? "",
+    );
   }
 
   @Get(ROUTES.databaseProject)
@@ -178,14 +184,15 @@ export class DatabaseController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.databaseConnection)
   async connection(
     @AuthTenantOwner() _user: User,
-    @Parameter("connection", "query") connection: string,
+    @Parameter("connection", "query") connection: QueryValue,
   ) {
+    const ref = queryText(connection) ?? "";
     try {
-      const wiring = connectionWiring(connection);
+      const wiring = connectionWiring(ref);
       if (!wiring) {
         return new HTTPResult(HTTP_NOT_FOUND, {
           code: "not_found",
-          ref: connection,
+          ref,
         });
       }
       const details = connectionDetails(wiring);

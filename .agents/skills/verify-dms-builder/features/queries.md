@@ -28,6 +28,7 @@ docs:
 - `preview-query-answers-exact-figures-from-the-seeded-orders`
 - `preview-validates-parameters-as-add-query-does`
 - `add-configure-and-remove-a-query-write-a-route-and-a-model-method`
+- `a-period-bound-series-and-a-comparison-card-typecheck-and-answer-over-http`
 
 ## Driving it with dms-control
 

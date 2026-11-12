@@ -16,5 +16,8 @@ Docs: `6.queries.md`, `9.drafts-and-preview.md`, `10.a-chart-without-code.md`. J
 | interface-dms-builder/docs/6.queries.md:79 | name, endpoint, expression and path-parameter rules | same | duplicate_name scope query; invalid_config x4; duplicate endpoint; not_found |
 | interface-dms-builder/docs/6.queries.md:147 | a bound value is a declared route parameter | same | Parameter decorator and Number() |
 | interface-dms-builder/docs/6.queries.md:305 | RemoveQuery removes route and model method | same | both gone; again not_found |
-| interface-dms-builder/docs/6.queries.md:247 | response arrangements and compare | - | Not driven: the helpers are exercised only through the Board chart (editor); the card/value/items bodies are not asserted |
+| interface-dms-builder/docs/6.queries.md:147 | a route declares a bound query value as string | true | undefined and parses it with String | a-period-bound-series-and-a-comparison-card-typecheck-and-answer-over-http | AddQuery typechecks on interface-api 0.3.2; `from`, `to`, `compareFrom`, `compareTo` are `string | true | undefined`; `new Date(String(from))`; no QueryValue import |
+| interface-dms-builder/docs/6.queries.md:247 | a series bound by from and to answers the orders of the period | same | after a rebuild, paid=2,refunded=1 for 50 to 20 days ago and paid=2,pending=1 for the last 20 days |
+| interface-dms-builder/docs/6.queries.md:247 | the card shape and compare over the preceding period | same | value 705, previousValue 530, delta 33.02, comparisonSeries 530 |
+| interface-dms-builder/docs/6.queries.md:247 | the value and items shapes | - | Not driven: the helpers are exercised only through the Board chart (editor); the value and items bodies are not asserted |
 | interface-dms-builder/docs/6.queries.md:289 | opaque queries and hand-written routes | - | Not driven: the playground has no hand-edited query |

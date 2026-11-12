@@ -8,6 +8,7 @@ import {
   Parameter,
   Post,
   Put,
+  type QueryValue,
   type RequestContext,
 } from "@antelopejs/interface-api";
 import { AuthTenantOwner } from "@antelopejs/interface-dms/guards";
@@ -33,6 +34,7 @@ import {
   ROUTES,
 } from "../constants/routes";
 import * as engine from "../implementations/dms-builder";
+import { queryText } from "./query-text";
 import { resolveProjectRoot } from "../implementations/dms-builder/engine/project";
 import { pageAccess } from "../implementations/dms-builder/engine/page-access";
 import { listPermissions } from "../implementations/dms-builder/engine/permissions";
@@ -148,17 +150,17 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Delete(ROUTES.category)
   async deleteCategory(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    return engine.DeleteCategory(ref);
+    return engine.DeleteCategory(queryText(ref) ?? "");
   }
 
   @Get(ROUTES.page)
   async pageStructure(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    return engine.GetPageStructure(ref);
+    return engine.GetPageStructure(queryText(ref) ?? "");
   }
 
   @Post(ROUTES.pages)
@@ -184,9 +186,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Delete(ROUTES.page)
   async deletePage(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    return engine.DeletePage(ref);
+    return engine.DeletePage(queryText(ref) ?? "");
   }
 
   @Post(ROUTES.preview)
@@ -218,10 +220,11 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.pageImpact)
   async pageImpact(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    const impact = pageImpact(ref);
-    return impact ?? new HTTPResult(404, { code: "not_found", ref });
+    const page = queryText(ref) ?? "";
+    const impact = pageImpact(page);
+    return impact ?? new HTTPResult(404, { code: "not_found", ref: page });
   }
 
   /**
@@ -234,15 +237,16 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   async pageAccess(
     @AuthTenantOwner() _user: User,
     @Context() context: RequestContext,
-    @Parameter("ref", "query") ref: string,
-    @Parameter("permission", "query") permission?: string,
+    @Parameter("ref", "query") ref: QueryValue,
+    @Parameter("permission", "query") permission: QueryValue,
   ) {
+    const page = queryText(ref) ?? "";
     const access = await pageAccess(
-      ref,
+      page,
       getRequestTenantId(context),
-      permission,
+      queryText(permission),
     );
-    return access ?? new HTTPResult(404, { code: "not_found", ref });
+    return access ?? new HTTPResult(404, { code: "not_found", ref: page });
   }
 
   /**
@@ -264,9 +268,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.resource)
   async resource(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    return engine.GetResourceStructure(ref);
+    return engine.GetResourceStructure(queryText(ref) ?? "");
   }
 
   @Post(ROUTES.resources)
@@ -292,9 +296,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Delete(ROUTES.resource)
   async deleteResource(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    return engine.DeleteResource(ref);
+    return engine.DeleteResource(queryText(ref) ?? "");
   }
 
   @Post(ROUTES.fields)
@@ -321,9 +325,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Delete(ROUTES.fields)
   async removeField(
     @AuthTenantOwner() _user: User,
-    @Parameter("path", "query") path: string,
+    @Parameter("path", "query") path: QueryValue,
   ) {
-    return engine.RemoveField(path);
+    return engine.RemoveField(queryText(path) ?? "");
   }
 
   /**
@@ -377,9 +381,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Get(ROUTES.dataSources)
   async dataSources(
     @AuthTenantOwner() _user: User,
-    @Parameter("responseKind", "query") response?: string,
+    @Parameter("responseKind", "query") response: QueryValue,
   ) {
-    return engine.ListDataSources(response);
+    return engine.ListDataSources(queryText(response));
   }
 
   @Get(ROUTES.queryTemplates)
@@ -407,9 +411,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
   @Delete(ROUTES.queries)
   async removeQuery(
     @AuthTenantOwner() _user: User,
-    @Parameter("ref", "query") ref: string,
+    @Parameter("ref", "query") ref: QueryValue,
   ) {
-    return engine.RemoveQuery(ref);
+    return engine.RemoveQuery(queryText(ref) ?? "");
   }
 
   @Post(ROUTES.refresh)

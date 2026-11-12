@@ -38,6 +38,7 @@ covers:
   - packages/interface-dms-builder/src/mapping.ts
   - packages/interface-dms-builder/src/project.ts
   - packages/dms-builder/src/routes/database.ts
+  - packages/dms-builder/src/routes/query-text.ts
   - packages/dms-builder/frontend-vue/app/components/ConnectPrompt.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseApplied.vue
   - packages/dms-builder/frontend-vue/app/components/DatabaseApplySummary.vue

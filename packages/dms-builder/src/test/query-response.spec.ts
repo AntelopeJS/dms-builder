@@ -132,6 +132,38 @@ describe("how a query's answer is arranged", () => {
     });
   }
 
+  it("reads a text query parameter as text and keeps a path parameter a string", () => {
+    const spec: CompiledQuery = {
+      name: "byStatus",
+      endpoint: "/orders/:region",
+      template: "count",
+      params: {},
+      chain: {
+        body: "{ return 0; }",
+        parameters: [
+          { name: "status", routeName: "status", type: "string", in: "query" },
+          { name: "region", routeName: "region", type: "string", in: "param" },
+        ],
+      },
+      naming: { measure: "count", label: "Order" },
+    };
+    const route = queryRouteMethodText(
+      spec,
+      "Order",
+      "main",
+      "byStatus",
+      "BoardPage",
+    );
+
+    expect(route.text).to.contain(
+      '@Parameter("status", "query") status: string | true | undefined,',
+    );
+    expect(route.text).to.contain(
+      '@Parameter("region", "param") region: string,',
+    );
+    expect(route.text).to.contain("model.byStatus(String(status), region)");
+  });
+
   it("builds a card's headline figure from the same points", async function () {
     this.timeout(OP_TIMEOUT);
     expectOk(
@@ -197,6 +229,27 @@ describe("how a query's answer is arranged", () => {
     expect(card?.params).to.include({ op: "sum" });
   });
 
+  it("writes a period-bound query whose route typechecks on the installed interface-api", async function () {
+    this.timeout(OP_TIMEOUT);
+    expectOk(
+      await AddQuery(PAGE, {
+        ...MONTHLY,
+        name: "revenueInPeriod",
+        params: { ...MONTHLY.params, where: PERIOD_BOUNDS },
+      }),
+      "AddQuery",
+    );
+    expect(app.read(PAGE_FILE)).to.contain(
+      "model.revenueInPeriod(new Date(String(from)), new Date(String(to)))",
+    );
+    const query = await queryNamed("revenueInPeriod");
+    expect(
+      query?.template,
+      "the narrowed bounds read back as the period's parameters",
+    ).to.equal("series");
+    expect(query?.opaque).to.not.equal(true);
+  });
+
   describe("comparing against the period before", () => {
     it("asks the same calculation twice, with the bounds the route received", async function () {
       this.timeout(OP_TIMEOUT);
@@ -215,12 +268,20 @@ describe("how a query's answer is arranged", () => {
       expect(
         page,
         "the preceding period is a parameter, not a guess",
-      ).to.contain('@Parameter("compareFrom", "query") compareFrom: string,');
-      expect(page).to.contain(
-        '@Parameter("compareTo", "query") compareTo: string,',
+      ).to.contain(
+        '@Parameter("compareFrom", "query") compareFrom: string | true | undefined,',
       );
       expect(page).to.contain(
-        "previous: await model.revenueTrend(new Date(compareFrom), new Date(compareTo))",
+        '@Parameter("compareTo", "query") compareTo: string | true | undefined,',
+      );
+      expect(
+        page,
+        "the period's own bounds admit what a query string gives",
+      ).to.contain(
+        '@Parameter("from", "query") from: string | true | undefined,',
+      );
+      expect(page).to.contain(
+        "previous: await model.revenueTrend(new Date(String(compareFrom)), new Date(String(compareTo)))",
       );
     });
 
@@ -245,10 +306,10 @@ describe("how a query's answer is arranged", () => {
 
       const page = app.read(PAGE_FILE);
       expect(page).to.contain(
-        "chartCardData(await model.revenueTrend(new Date(from), new Date(to))",
+        "chartCardData(await model.revenueTrend(new Date(String(from)), new Date(String(to)))",
       );
       expect(page).to.contain(
-        "previous: await model.revenueTrend(new Date(compareFrom), new Date(compareTo))",
+        "previous: await model.revenueTrend(new Date(String(compareFrom)), new Date(String(compareTo)))",
       );
       const trend = await queryNamed("revenueTrend");
       expect(trend?.params).to.include({ limit: 12 });
