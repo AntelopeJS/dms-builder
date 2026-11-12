@@ -31,6 +31,19 @@ describe("reading whether a route compares", () => {
     expect(call?.compare).to.equal(true);
   });
 
+  it("reads a card whose bounds are narrowed from the query string as comparing", () => {
+    const call = parseQueryRouteCall(
+      routeMethod(
+        'return chartCardData(await model.revenue(new Date(String(from)), new Date(String(to))), { measure: "sum", label: "Amount", previous: await model.revenue(new Date(String(compareFrom)), new Date(String(compareTo))) });',
+      ),
+    );
+    expect(call?.args).to.deep.equal([
+      { kind: "param", name: "from", coerce: "date" },
+      { kind: "param", name: "to", coerce: "date" },
+    ]);
+    expect(call?.compare).to.equal(true);
+  });
+
   it("reads a card without one as not comparing", () => {
     const call = parseQueryRouteCall(
       routeMethod(
