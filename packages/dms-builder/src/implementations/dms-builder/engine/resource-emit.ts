@@ -156,6 +156,7 @@ export const DECORATOR_IMPORTS = {
   Table: DB_MODULE,
   Get: API_MODULE,
   Parameter: API_MODULE,
+  QueryValue: API_MODULE,
   TenantScopedModel: TENANT_MODEL_MODULE,
   AuthUserWithPermission: GUARDS_MODULE,
   User: AUTH_DB_MODULE,
