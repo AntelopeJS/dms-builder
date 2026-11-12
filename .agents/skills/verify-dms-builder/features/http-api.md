@@ -2,6 +2,7 @@
 covers:
   - packages/dms-builder/src/routes/builder.ts
   - packages/dms-builder/src/routes/index.ts
+  - packages/dms-builder/src/routes/query-text.ts
   - packages/dms-builder/src/constants/routes.ts
   - packages/dms-builder/src/config.ts
   - packages/dms-builder/src/frontend-module.ts
