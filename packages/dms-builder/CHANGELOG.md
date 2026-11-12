@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.10.3
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.2...v0.10.3)
+
+### 🩹 Fixes
+
+- **engine:** Emit query parameters that admit QueryValue ([#196](https://github.com/AntelopeJS/dms-builder/pull/196))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.10.2
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.1...v0.10.2)
