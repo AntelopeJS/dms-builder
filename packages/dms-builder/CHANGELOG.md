@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.10.2
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.1...v0.10.2)
+
+### 🔥 Performance
+
+- **engine:** Typecheck a save over the project's own files only ([#191](https://github.com/AntelopeJS/dms-builder/pull/191))
+- **engine:** Look for an import's uses in its own file only ([#193](https://github.com/AntelopeJS/dms-builder/pull/193))
+- **engine:** Parse the project once for the page and resource indexes ([#192](https://github.com/AntelopeJS/dms-builder/pull/192))
+
+### 🩹 Fixes
+
+- **release:** Regenerate the module README table when the interface bumps ([#195](https://github.com/AntelopeJS/dms-builder/pull/195))
+
+### 📦 Build
+
+- **deps:** Move to @antelopejs/tooling-configs 0.5.0 ([#190](https://github.com/AntelopeJS/dms-builder/pull/190))
+- **deps:** Bump @antelopejs/tooling-configs to 0.5.1 ([#194](https://github.com/AntelopeJS/dms-builder/pull/194))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.10.1
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.0...v0.10.1)
