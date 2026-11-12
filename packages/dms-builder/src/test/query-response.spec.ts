@@ -6,6 +6,7 @@ import {
   CreatePage,
   CreateResource,
   GetPageStructure,
+  RemoveQuery,
 } from "../implementations/dms-builder";
 import type { AddQueryInput } from "@antelopejs/interface-dms-builder";
 import {
@@ -131,6 +132,39 @@ describe("how a query's answer is arranged", () => {
       ).to.not.include(response);
     });
   }
+
+  it("reads a text query parameter as text and keeps a path parameter a string", () => {
+    const spec: CompiledQuery = {
+      name: "byStatus",
+      endpoint: "/orders/:region",
+      template: "count",
+      params: {},
+      chain: {
+        body: "{ return 0; }",
+        parameters: [
+          { name: "status", routeName: "status", type: "string", in: "query" },
+          { name: "region", routeName: "region", type: "string", in: "param" },
+        ],
+      },
+      naming: { measure: "count", label: "Order" },
+    };
+    const route = queryRouteMethodText(
+      spec,
+      "Order",
+      "main",
+      "byStatus",
+      "BoardPage",
+    );
+
+    expect(route.text).to.contain(
+      '@Parameter("status", "query") status: QueryValue,',
+    );
+    expect(route.text).to.contain(
+      '@Parameter("region", "param") region: string,',
+    );
+    expect(route.text).to.contain("model.byStatus(String(status), region)");
+    expect(route.symbols.map((symbol) => symbol.name)).to.include("QueryValue");
+  });
 
   it("builds a card's headline figure from the same points", async function () {
     this.timeout(OP_TIMEOUT);
@@ -313,6 +347,17 @@ describe("how a query's answer is arranged", () => {
       expect(app.read(PAGE_FILE)).to.not.contain(
         "previous: await model.revenueFixed",
       );
+    });
+
+    it("drops the QueryValue import with the last route reading the query string", async function () {
+      this.timeout(OP_TIMEOUT);
+      expectOk(await RemoveQuery(`${PAGE}@revenueTrend`), "RemoveQuery");
+      expect(
+        app.read(PAGE_FILE),
+        "one period-bound route still reads it",
+      ).to.contain("QueryValue");
+      expectOk(await RemoveQuery(`${PAGE}@revenueInPeriod`), "RemoveQuery");
+      expect(app.read(PAGE_FILE)).to.not.contain("QueryValue");
     });
   });
 });

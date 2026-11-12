@@ -44,6 +44,13 @@ describe("reading whether a route compares", () => {
     expect(call?.compare).to.equal(true);
   });
 
+  it("reads a text bound narrowed from the query string as its parameter", () => {
+    const call = parseQueryRouteCall(
+      routeMethod("return { value: await model.revenue(String(from)) };"),
+    );
+    expect(call?.args).to.deep.equal([{ kind: "param", name: "from" }]);
+  });
+
   it("reads a card without one as not comparing", () => {
     const call = parseQueryRouteCall(
       routeMethod(
