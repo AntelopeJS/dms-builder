@@ -321,7 +321,6 @@ export function configureQuery(
   }
   pruneUnusedImports(context.sourceFile, [
     "Parameter",
-    "QueryValue",
     ...MODEL_DECORATORS,
     ...ROUTE_GUARD_SYMBOLS,
     ...modelClassNames(previous.resource),
@@ -366,7 +365,6 @@ export function removeQuery(query: QueryRef, opts?: MutationOpts): OpResult {
   pruneUnusedImports(context.sourceFile, [
     "Get",
     "Parameter",
-    "QueryValue",
     ...MODEL_DECORATORS,
     ...ROUTE_GUARD_SYMBOLS,
     ...(binding ? modelClassNames(binding.resource) : []),

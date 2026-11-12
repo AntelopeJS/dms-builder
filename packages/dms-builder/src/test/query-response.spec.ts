@@ -6,7 +6,6 @@ import {
   CreatePage,
   CreateResource,
   GetPageStructure,
-  RemoveQuery,
 } from "../implementations/dms-builder";
 import type { AddQueryInput } from "@antelopejs/interface-dms-builder";
 import {
@@ -157,13 +156,12 @@ describe("how a query's answer is arranged", () => {
     );
 
     expect(route.text).to.contain(
-      '@Parameter("status", "query") status: QueryValue,',
+      '@Parameter("status", "query") status: string | true | undefined,',
     );
     expect(route.text).to.contain(
       '@Parameter("region", "param") region: string,',
     );
     expect(route.text).to.contain("model.byStatus(String(status), region)");
-    expect(route.symbols.map((symbol) => symbol.name)).to.include("QueryValue");
   });
 
   it("builds a card's headline figure from the same points", async function () {
@@ -244,10 +242,12 @@ describe("how a query's answer is arranged", () => {
     expect(app.read(PAGE_FILE)).to.contain(
       "model.revenueInPeriod(new Date(String(from)), new Date(String(to)))",
     );
+    const query = await queryNamed("revenueInPeriod");
     expect(
-      (await queryNamed("revenueInPeriod"))?.opaque,
+      query?.template,
       "the narrowed bounds read back as the period's parameters",
-    ).to.not.equal(true);
+    ).to.equal("series");
+    expect(query?.opaque).to.not.equal(true);
   });
 
   describe("comparing against the period before", () => {
@@ -269,15 +269,17 @@ describe("how a query's answer is arranged", () => {
         page,
         "the preceding period is a parameter, not a guess",
       ).to.contain(
-        '@Parameter("compareFrom", "query") compareFrom: QueryValue,',
+        '@Parameter("compareFrom", "query") compareFrom: string | true | undefined,',
       );
       expect(page).to.contain(
-        '@Parameter("compareTo", "query") compareTo: QueryValue,',
+        '@Parameter("compareTo", "query") compareTo: string | true | undefined,',
       );
       expect(
         page,
         "the period's own bounds admit what a query string gives",
-      ).to.contain('@Parameter("from", "query") from: QueryValue,');
+      ).to.contain(
+        '@Parameter("from", "query") from: string | true | undefined,',
+      );
       expect(page).to.contain(
         "previous: await model.revenueTrend(new Date(String(compareFrom)), new Date(String(compareTo)))",
       );
@@ -347,17 +349,6 @@ describe("how a query's answer is arranged", () => {
       expect(app.read(PAGE_FILE)).to.not.contain(
         "previous: await model.revenueFixed",
       );
-    });
-
-    it("drops the QueryValue import with the last route reading the query string", async function () {
-      this.timeout(OP_TIMEOUT);
-      expectOk(await RemoveQuery(`${PAGE}@revenueTrend`), "RemoveQuery");
-      expect(
-        app.read(PAGE_FILE),
-        "one period-bound route still reads it",
-      ).to.contain("QueryValue");
-      expectOk(await RemoveQuery(`${PAGE}@revenueInPeriod`), "RemoveQuery");
-      expect(app.read(PAGE_FILE)).to.not.contain("QueryValue");
     });
   });
 });

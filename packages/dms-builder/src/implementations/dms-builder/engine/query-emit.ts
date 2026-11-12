@@ -305,6 +305,12 @@ function routeArgument(
   return param.type === "Date" ? `new Date(${text})` : text;
 }
 
+/**
+ * What a route declares for a query-string parameter: interface-api's `QueryValue`,
+ * spelled out so the route needs no import that interface-api 0.3.0 lacks.
+ */
+const QUERY_VALUE_TYPE = "string | true | undefined";
+
 /** The route parameters a comparison reads the preceding period's bounds from. */
 export const COMPARISON_PARAMETERS = ["compareFrom", "compareTo"] as const;
 
@@ -378,11 +384,8 @@ export function queryRouteMethodText(
     `${indent}@${modelDecorator}(${modelName}) model: ${modelName},`,
   ];
   const routeParameter = (param: Pick<MethodParam, "routeName" | "in">) => {
-    const type = param.in === "query" ? "QueryValue" : "string";
+    const type = param.in === "query" ? QUERY_VALUE_TYPE : "string";
     symbols.push(decoratorImport("Parameter"));
-    if (type === "QueryValue") {
-      symbols.push(decoratorImport(type));
-    }
     parameters.push(
       `${indent}@Parameter(${JSON.stringify(param.routeName)}, ${JSON.stringify(param.in)}) ${param.routeName}: ${type},`,
     );
