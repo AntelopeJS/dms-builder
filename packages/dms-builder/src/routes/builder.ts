@@ -222,8 +222,9 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
     @AuthTenantOwner() _user: User,
     @Parameter("ref", "query") ref: QueryValue,
   ) {
-    const impact = pageImpact(queryText(ref) ?? "");
-    return impact ?? new HTTPResult(404, { code: "not_found", ref });
+    const page = queryText(ref) ?? "";
+    const impact = pageImpact(page);
+    return impact ?? new HTTPResult(404, { code: "not_found", ref: page });
   }
 
   /**
@@ -239,12 +240,13 @@ export class BuilderController extends Controller(DEFAULT_ROUTE_PREFIX) {
     @Parameter("ref", "query") ref: QueryValue,
     @Parameter("permission", "query") permission: QueryValue,
   ) {
+    const page = queryText(ref) ?? "";
     const access = await pageAccess(
-      queryText(ref) ?? "",
+      page,
       getRequestTenantId(context),
       queryText(permission),
     );
-    return access ?? new HTTPResult(404, { code: "not_found", ref });
+    return access ?? new HTTPResult(404, { code: "not_found", ref: page });
   }
 
   /**
