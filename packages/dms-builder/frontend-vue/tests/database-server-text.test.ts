@@ -3,7 +3,6 @@ import { lossyText } from '../app/runtime/database-server-text'
 import { setTestLocale } from './stubs/frontend-module'
 
 /** The reasons the MySQL driver words, as it words them, read in the catalog's French. */
-
 const MYSQL_REASONS: [reason: string, french: string][] = [
 	[
 		'a BIGINT beyond 2^53 loses precision as a number; declare it string to read it exactly',
