@@ -101,7 +101,7 @@ The playground (`packages/dms-builder/playground`) loads the builder with a demo
 
 - The backend registers the builder's frontend module at priority 100, and only when the builder is on. `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the client plugin only when the backend's manifest entry carries `dmsBuilder.enabled === true`. Check that layer with `pnpm --dir packages/dms-builder/frontend-vue typecheck` and `lint`.
 - The module implements the interface, so its dependency range on the interface is `>=<interface version> <0.<minor + 1>.0`. A breaking interface minor never reaches a module that does not implement it. Inside the workspace, pnpm resolves that range to the sibling package.
-- Each package releases on its own. `release-interface.yml` publishes `@antelopejs/interface-dms-builder`. `release.yml` then publishes `@antelopejs/dms-builder`, and refuses to run until the interface version in `packages/interface-dms-builder/package.json` is on npm.
+- `release.yml` publishes `@antelopejs/dms-builder`, and refuses to run until the interface version in `packages/interface-dms-builder/package.json` is on npm. `@antelopejs/interface-dms-builder` is published from the AntelopeJS/dms repo.
 
 </details>
 

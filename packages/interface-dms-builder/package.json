@@ -1,7 +1,7 @@
 {
   "name": "@antelopejs/interface-dms-builder",
   "version": "0.4.1",
-  "description": "Deprecated here: @antelopejs/interface-dms-builder now lives in the AntelopeJS/dms repo.",
+  "description": "AntelopeJS interface for the DMS builder: create and edit pages, blocks, resources and queries in a DMS project from another module.",
   "keywords": [
     "antelopejs",
     "builder",
