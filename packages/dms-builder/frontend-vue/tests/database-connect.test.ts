@@ -203,6 +203,12 @@ describe('the wiring of a MySQL or MariaDB database', () => {
 		expect(connectVariables(mysql())[0]?.value).not.toContain('ssl')
 	})
 
+	it('refuses a socket path as its host, which mysql2 would look up as a host name', () => {
+		expect(fieldProblem('mysql', { ...mysql().fields, host: '/var/run/mysqld/mysqld.sock' })).toMatch(/path/)
+		expect(fieldProblem('mysql', { ...mysql().fields, host: '/var/run/mysqld' })).toMatch(/path/)
+		expect(fieldProblem('mysql', { ...mysql().fields, host: '::1' })).toBeUndefined()
+	})
+
 	it('advises the account in the catalog\'s words', () => {
 		expect(accountAdvice('mysql')).toMatch(/^An account with SELECT/)
 		expect(accountAdvice('mysql')).not.toContain('mysql_account')
@@ -305,7 +311,7 @@ describe('a connection URL', () => {
 		const fields = { ...form().fields, database: 'sales$2024' }
 		expect(connectionUrl('postgres', fields)).toBe('postgres://reader:s3cret@db.example:5432/sales$2024')
 		expect(parseConnectionUrl('postgres', 'postgres://u@h/sales%242024').database).toBe('sales%242024')
-		expect(fieldProblem({ ...fields, database: 'a?b' })).toMatch(/\?/)
+		expect(fieldProblem('postgres', { ...fields, database: 'a?b' })).toMatch(/\?/)
 	})
 
 	it('writes a socket directory as one host, and an IPv6 address in brackets', () => {
@@ -313,8 +319,9 @@ describe('a connection URL', () => {
 			'postgres://reader:s3cret@%2Fvar%2Frun%2Fpostgresql/erp',
 		)
 		expect(connectionUrl('postgres', { ...form().fields, host: '::1' })).toBe('postgres://reader:s3cret@[::1]:5432/erp')
-		expect(fieldProblem({ ...form().fields, host: 'db.example ' })).toBeUndefined()
-		expect(fieldProblem({ ...form().fields, host: 'db.example:5433' })).toMatch(/port/)
+		expect(fieldProblem('postgres', { ...form().fields, host: '/var/run/postgresql' })).toBeUndefined()
+		expect(fieldProblem('postgres', { ...form().fields, host: 'db.example ' })).toBeUndefined()
+		expect(fieldProblem('postgres', { ...form().fields, host: 'db.example:5433' })).toMatch(/port/)
 	})
 
 	it('is recognised by its scheme when pasted into the host', () => {
