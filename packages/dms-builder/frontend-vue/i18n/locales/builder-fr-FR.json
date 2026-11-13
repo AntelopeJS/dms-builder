@@ -292,6 +292,7 @@
 			},
 			"engines": {
 				"postgres_account": "Un rôle avec SELECT sur les schémas à associer, et des droits d’écriture uniquement là où les pages modifient les données.",
+				"mysql_account": "Un compte avec SELECT sur la base de données à associer, et INSERT, UPDATE et DELETE uniquement sur les tables que les pages modifient.",
 				"mongodb_account": "Un utilisateur avec le rôle intégré read, et des droits d’écriture uniquement sur les collections que les pages modifient.",
 				"rethinkdb_account": "Un utilisateur avec la permission de lecture sur la base de données, et d’écriture uniquement sur les tables que les pages modifient.",
 				"not_url": "ce n’est pas une URL {engine}"
@@ -426,7 +427,11 @@
 					"real": "un real converti en nombre n’est pas la décimale telle qu’elle a été écrite",
 					"microseconds": "les microsecondes sont tronquées en millisecondes",
 					"json": "le json est lu comme du jsonb : les clés en double, l’ordre des clés et les espaces ne sont pas conservés",
-					"timestamp": "un timestamp sans fuseau horaire est lu en UTC ; {rest}"
+					"timestamp": "un timestamp sans fuseau horaire est lu en UTC ; {rest}",
+					"decimal": "un decimal perd en précision comme nombre ; déclarez-le en chaîne pour le lire exactement",
+					"float": "un float converti en nombre n’est pas la décimale telle qu’elle a été écrite",
+					"datetime": "un datetime ne contient pas de fuseau horaire et est lu en UTC",
+					"datetime_and": "un datetime ne contient pas de fuseau horaire et est lu en UTC ; {rest}"
 				},
 				"trait": {
 					"identifier-like": "type identifiant",

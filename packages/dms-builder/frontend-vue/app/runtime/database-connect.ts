@@ -30,7 +30,7 @@ const SSL_DEFAULT_MODE = 'require'
 const SSL_MODES = new Set(['require', 'verify-ca', 'verify-full'])
 const STRICT_SSL_MODES = new Set(['verify-ca', 'verify-full'])
 
-export type DatabaseEngine = 'postgres' | 'mongodb' | 'rethinkdb'
+export type DatabaseEngine = 'postgres' | 'mysql' | 'mongodb' | 'rethinkdb'
 
 /** How to reach a database, field by field. `options` holds the URL parameters no field covers. */
 export interface ConnectionFields {
@@ -65,6 +65,15 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		port: '5432',
 		schemes: ['postgres:', 'postgresql:'],
 		sslMode: true,
+		separateDatabase: false,
+	},
+	mysql: {
+		label: 'MySQL / MariaDB',
+		package: '@antelopejs/mysql',
+		version: '>=0.1.0 <1.0.0',
+		port: '3306',
+		schemes: ['mysql:'],
+		sslMode: false,
 		separateDatabase: false,
 	},
 	mongodb: {

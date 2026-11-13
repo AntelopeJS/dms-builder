@@ -13,9 +13,17 @@ const LOSSY_READINGS: ReadonlyArray<readonly [reason: string, key: string]> = [
 	['a real widened to a number is not the decimal it was written as', 'real'],
 	['microseconds are truncated to milliseconds', 'microseconds'],
 	['json is read as jsonb: duplicate keys, key order and whitespace are not kept', 'json'],
+	['a BIGINT beyond 2^53 loses precision as a number; declare it string to read it exactly', 'bigint'],
+	['a DECIMAL loses precision as a number; declare it string to read it exactly', 'decimal'],
+	['a FLOAT widened to a number is not the decimal it was written as', 'float'],
+	['a DATETIME holds no time zone and is read as UTC', 'datetime'],
 ]
 
-const TIMESTAMP_PREFIX = 'a timestamp without time zone is read as UTC; '
+/** The openings of a longer reason, each with the key of the text that words it and takes the rest of the reason as `{rest}`. */
+const LOSSY_PREFIXES: ReadonlyArray<readonly [prefix: string, key: string]> = [
+	['a timestamp without time zone is read as UTC; ', 'timestamp'],
+	['a DATETIME holds no time zone and is read as UTC; ', 'datetime_and'],
+]
 
 const TRAITS: ReadonlySet<string> = new Set(['identifier-like', 'enum-like', 'measure', 'time-axis', 'label-candidate'])
 
@@ -43,8 +51,10 @@ export function questionText(item: OpenItem): string {
 export function lossyText(reason: string): string {
 	const known = LOSSY_READINGS.find(([text]) => text === reason)
 	if (known) return t(`database.server.lossy.${known[1]}`)
-	if (reason.startsWith(TIMESTAMP_PREFIX)) {
-		return t('database.server.lossy.timestamp', { rest: lossyText(reason.slice(TIMESTAMP_PREFIX.length)) })
+	const opening = LOSSY_PREFIXES.find(([prefix]) => reason.startsWith(prefix))
+	if (opening) {
+		const [prefix, key] = opening
+		return t(`database.server.lossy.${key}`, { rest: lossyText(reason.slice(prefix.length)) })
 	}
 	return reason
 }

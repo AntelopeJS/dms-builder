@@ -292,6 +292,7 @@
 			},
 			"engines": {
 				"postgres_account": "A role with SELECT on the schemas to map, and writes only where pages edit.",
+				"mysql_account": "An account with SELECT on the database to map, and INSERT, UPDATE and DELETE only on the tables pages edit.",
 				"mongodb_account": "A user with the built-in read role, and writes only on the collections pages edit.",
 				"rethinkdb_account": "A user with read permission on the database, and write only on the tables pages edit.",
 				"not_url": "not a {engine} URL"
@@ -426,7 +427,11 @@
 					"real": "a real widened to a number is not the decimal it was written as",
 					"microseconds": "microseconds are truncated to milliseconds",
 					"json": "json is read as jsonb: duplicate keys, key order and whitespace are not kept",
-					"timestamp": "a timestamp without time zone is read as UTC; {rest}"
+					"timestamp": "a timestamp without time zone is read as UTC; {rest}",
+					"decimal": "a decimal loses precision as a number; declare it string to read it exactly",
+					"float": "a float widened to a number is not the decimal it was written as",
+					"datetime": "a datetime holds no time zone and is read as UTC",
+					"datetime_and": "a datetime holds no time zone and is read as UTC; {rest}"
 				},
 				"trait": {
 					"identifier-like": "identifier-like",
