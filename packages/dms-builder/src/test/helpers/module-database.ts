@@ -37,7 +37,10 @@ export function installModuleDatabase(
 function table(answer) {
   const handle = {
     then: (resolve) => resolve(answer.points),
-    count: () => ({ then: (resolve) => resolve(answer.count) }),
+    count: () => ({
+      then: (resolve) => resolve(answer.count),
+      run: () => Promise.resolve(answer.count),
+    }),
   };
   for (const step of ["filter", "map", "group", "orderBy", "slice"]) {
     handle[step] = () => handle;
