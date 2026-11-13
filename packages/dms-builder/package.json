@@ -1,7 +1,7 @@
 {
   "name": "@antelopejs/dms-builder",
   "version": "0.11.0",
-  "description": "Visual and programmatic editing of an AntelopeJS DMS project: every page edit is an AST rewrite of the project sources, typechecked before it is written.",
+  "description": "Deprecated: the builder now ships in @antelopejs/dms core and the AI assistant in @antelopejs/dms-assistant.",
   "keywords": [
     "antelopejs",
     "builder",

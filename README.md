@@ -12,6 +12,16 @@
 
 </div>
 
+> [!WARNING]
+> **Deprecated.** This is the last release of `@antelopejs/dms-builder`. The builder engine, the MCP server and the mockups now ship in `@antelopejs/dms` core, active in development only. `@antelopejs/interface-dms-builder` now lives in the [AntelopeJS/dms](https://github.com/AntelopeJS/dms) repo. `@antelopejs/dms-assistant` brings the AI assistant and its onboarding.
+>
+> To upgrade:
+>
+> 1. Add `@antelopejs/dms-assistant` to your project.
+> 2. Set `disabled: true` on the `dms-ai` and `dms-builder` modules.
+> 3. Start the project once. `dms-assistant` moves their connections, `projectRoot` and `api.enabled` onto the `dms` entry.
+> 4. Remove `dms-ai` and `dms-builder`.
+
 <img data-illustration alt="Screen recording from the AntelopeJS DMS film. Ctrl B opens the Builder on a dashboard and a TableView block is added from the block list under the caption Ctrl B. Edit it on the page. The block is saved, the whole project is typechecked, and the new TableView line appears in dashboard/page.ts under the caption Every save becomes TypeScript." src="https://raw.githubusercontent.com/AntelopeJS/dms/main/docs/media/builder.gif">
 
 ## What it does
