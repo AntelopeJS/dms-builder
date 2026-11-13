@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
 	type ConnectForm,
+	accountAdvice,
 	connectSteps,
 	connectVariables,
 	connectionUrl,
@@ -158,7 +159,59 @@ describe('the wiring of a document database', () => {
 		expect(() => parseConnectionUrl('mongodb', 'postgres://db.example/erp')).toThrow(/not a MongoDB URL/)
 		expect(engineOfScheme('rethinkdb')).toBe('rethinkdb')
 		expect(engineOfScheme('postgresql:')).toBe('postgres')
-		expect(engineOfScheme('mysql')).toBeUndefined()
+		expect(engineOfScheme('mysql')).toBe('mysql')
+		expect(engineOfScheme('mariadb')).toBeUndefined()
+	})
+})
+
+describe('the wiring of a MySQL or MariaDB database', () => {
+	const mysql = (overrides: Partial<ConnectForm> = {}) =>
+		form({
+			engine: 'mysql',
+			fields: { ...emptyFields('mysql'), host: 'db.example', database: 'erp', user: 'reader', password: 's3cret' },
+			...overrides,
+		})
+
+	it('wires the driver in external mode with its URL only, and disables no export', () => {
+		const [driver] = connectSteps(mysql(), { modules: [] })
+		expect(driver.entry).toMatchObject({
+			source: { type: 'package', package: '@antelopejs/mysql', version: '>=0.1.0 <1.0.0' },
+			config: { mode: 'external' },
+			env: { url: 'BUILDER_DB_ERP_URL' },
+		})
+		expect(driver.entry).not.toHaveProperty('disabledExports')
+		expect(driver.entry?.env).not.toHaveProperty('database')
+	})
+
+	it('writes the database in the URL path and no variable of its own', () => {
+		expect(connectVariables(mysql())).toEqual([
+			{ name: 'BUILDER_DB_ERP_URL', value: 'mysql://reader:s3cret@db.example:3306/erp' },
+		])
+		expect(missingField(mysql({ overrides: { databaseVariable: ' ' } }))).toBeUndefined()
+	})
+
+	it('reads a pasted URL with the default port, and keeps its parameters as options', () => {
+		expect(parseConnectionUrl('mysql', 'mysql://u@h/erp')).toMatchObject({ port: '3306', database: 'erp', ssl: false })
+		const pasted = 'mysql://u:p@h:3307/erp?connectTimeout=5000&ssl=%7B%22rejectUnauthorized%22%3Atrue%7D'
+		const fields = parseConnectionUrl('mysql', pasted)
+		expect(fields.options).toEqual({ connectTimeout: '5000', ssl: '{"rejectUnauthorized":true}' })
+		expect(connectionUrl('mysql', fields)).toBe(pasted)
+	})
+
+	it('never writes sslmode into its URL', () => {
+		expect(connectionUrl('mysql', mysql().fields)).not.toContain('sslmode')
+		expect(connectVariables(mysql())[0]?.value).not.toContain('ssl')
+	})
+
+	it('refuses a socket path as its host, which mysql2 would look up as a host name', () => {
+		expect(fieldProblem('mysql', { ...mysql().fields, host: '/var/run/mysqld/mysqld.sock' })).toMatch(/path/)
+		expect(fieldProblem('mysql', { ...mysql().fields, host: '/var/run/mysqld' })).toMatch(/path/)
+		expect(fieldProblem('mysql', { ...mysql().fields, host: '::1' })).toBeUndefined()
+	})
+
+	it('advises the account in the catalog\'s words', () => {
+		expect(accountAdvice('mysql')).toMatch(/^An account with SELECT/)
+		expect(accountAdvice('mysql')).not.toContain('mysql_account')
 	})
 })
 
@@ -258,7 +311,7 @@ describe('a connection URL', () => {
 		const fields = { ...form().fields, database: 'sales$2024' }
 		expect(connectionUrl('postgres', fields)).toBe('postgres://reader:s3cret@db.example:5432/sales$2024')
 		expect(parseConnectionUrl('postgres', 'postgres://u@h/sales%242024').database).toBe('sales%242024')
-		expect(fieldProblem({ ...fields, database: 'a?b' })).toMatch(/\?/)
+		expect(fieldProblem('postgres', { ...fields, database: 'a?b' })).toMatch(/\?/)
 	})
 
 	it('writes a socket directory as one host, and an IPv6 address in brackets', () => {
@@ -266,8 +319,9 @@ describe('a connection URL', () => {
 			'postgres://reader:s3cret@%2Fvar%2Frun%2Fpostgresql/erp',
 		)
 		expect(connectionUrl('postgres', { ...form().fields, host: '::1' })).toBe('postgres://reader:s3cret@[::1]:5432/erp')
-		expect(fieldProblem({ ...form().fields, host: 'db.example ' })).toBeUndefined()
-		expect(fieldProblem({ ...form().fields, host: 'db.example:5433' })).toMatch(/port/)
+		expect(fieldProblem('postgres', { ...form().fields, host: '/var/run/postgresql' })).toBeUndefined()
+		expect(fieldProblem('postgres', { ...form().fields, host: 'db.example ' })).toBeUndefined()
+		expect(fieldProblem('postgres', { ...form().fields, host: 'db.example:5433' })).toMatch(/port/)
 	})
 
 	it('is recognised by its scheme when pasted into the host', () => {

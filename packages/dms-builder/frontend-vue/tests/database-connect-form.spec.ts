@@ -134,6 +134,34 @@ describe('connecting a database', () => {
 		expect(name().props['model-value']).toBe('Accounts')
 	})
 
+	it('offers MySQL / MariaDB, writes its URL alone into .env and shows no SSL switch', async () => {
+		backend.answers['GET /api/builder/database/project'] = { modules: [] }
+		backend.answers['POST /api/builder/database/project'] = { ok: true, data: { files: [] }, changes: [] }
+		const mounted = mount(DatabaseConnect, { components: COMPONENTS })
+		unmount = mounted.unmount
+		await settle()
+		const select = findAll(mounted.root, (node) => node.tag === 'USelect')[0]
+		expect((select!.props.items as { label: string }[]).map((item) => item.label)).toContain('MySQL / MariaDB')
+		expect(findAll(mounted.root, (node) => node.tag === 'USwitch')).toHaveLength(1)
+		fire(select!, 'update:modelValue', 'mysql' as never)
+		await settle()
+		expect(findAll(mounted.root, (node) => node.tag === 'USwitch')).toHaveLength(0)
+		const [name, , host, port, database, user, password] = inputs(mounted.root)
+		expect(port!.props.modelValue).toBe('3306')
+		for (const [input, value] of [[name, 'erp'], [host, 'db'], [database, 'erp_staging'], [user, 'reader'], [password, 'pw']] as const) {
+			fire(input!, 'update:modelValue', value as never)
+		}
+		await settle()
+		fire(button(mounted.root, 'Connect'), 'click')
+		await settle()
+		const written = backend.calls.filter(
+			(call) => call.method === 'POST' && call.path === '/api/builder/database/project' && call.body?.variables,
+		)
+		expect(written.map((call) => call.body?.variables)).toEqual([
+			[{ name: 'BUILDER_DB_ERP_URL', value: 'mysql://reader:pw@db:3306/erp_staging' }],
+		])
+	})
+
 	it('writes a MongoDB database name into .env beside its URL, both by the variables named', async () => {
 		backend.answers['GET /api/builder/database/project'] = { modules: [] }
 		backend.answers['POST /api/builder/database/project'] = { ok: true, data: { files: [] }, changes: [] }

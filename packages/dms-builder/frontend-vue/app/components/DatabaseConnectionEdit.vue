@@ -36,7 +36,7 @@ const extraOptions = computed(() => Object.entries(fields.value?.options ?? {}))
 const keepsPassword = computed(
 	() => !!saved && !!fields.value && !!props.info.details?.hasPassword && keepsServer(saved, fields.value),
 )
-const invalid = computed(() => (fields.value ? fieldProblem(fields.value) : undefined))
+const invalid = computed(() => (fields.value ? fieldProblem(engine, fields.value) : undefined))
 const needsPassword = computed(
 	() =>
 		!!fields.value &&

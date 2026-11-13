@@ -30,7 +30,7 @@ const SSL_DEFAULT_MODE = 'require'
 const SSL_MODES = new Set(['require', 'verify-ca', 'verify-full'])
 const STRICT_SSL_MODES = new Set(['verify-ca', 'verify-full'])
 
-export type DatabaseEngine = 'postgres' | 'mongodb' | 'rethinkdb'
+export type DatabaseEngine = 'postgres' | 'mysql' | 'mongodb' | 'rethinkdb'
 
 /** How to reach a database, field by field. `options` holds the URL parameters no field covers. */
 export interface ConnectionFields {
@@ -51,6 +51,8 @@ interface EngineSpec {
 	schemes: string[]
 	/** Whether the URL's `sslmode` parameter is what the SSL switch stands for. */
 	sslMode: boolean
+	/** Whether the driver reads a host that starts with `/` as a socket path. */
+	socketHost: boolean
 	/** The raw-client interface the driver implements, which core must never offer from it. */
 	rawInterface?: string
 	/** Whether the driver reads the database from a variable of its own, beside the URL. */
@@ -65,6 +67,17 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		port: '5432',
 		schemes: ['postgres:', 'postgresql:'],
 		sslMode: true,
+		socketHost: true,
+		separateDatabase: false,
+	},
+	mysql: {
+		label: 'MySQL / MariaDB',
+		package: '@antelopejs/mysql',
+		version: '>=0.1.0 <1.0.0',
+		port: '3306',
+		schemes: ['mysql:'],
+		sslMode: false,
+		socketHost: false,
 		separateDatabase: false,
 	},
 	mongodb: {
@@ -74,6 +87,7 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		port: '27017',
 		schemes: ['mongodb:'],
 		sslMode: false,
+		socketHost: true,
 		rawInterface: '@antelopejs/interface-mongodb',
 		separateDatabase: true,
 	},
@@ -84,6 +98,7 @@ export const ENGINES: Record<DatabaseEngine, EngineSpec> = {
 		port: '28015',
 		schemes: ['rethinkdb:'],
 		sslMode: false,
+		socketHost: true,
 		rawInterface: '@antelopejs/interface-rethinkdb',
 		separateDatabase: false,
 	},
@@ -226,9 +241,10 @@ function hostText(host: string): string {
 }
 
 /** What keeps the fields from making a URL the driver reads as they say, if anything. */
-export function fieldProblem(fields: ConnectionFields): string | undefined {
+export function fieldProblem(engine: DatabaseEngine, fields: ConnectionFields): string | undefined {
 	const host = fields.host.trim()
-	const written = [SOCKET_DIRECTORY, IPV6, BRACKETED_IPV6, HOST_NAME].some((pattern) => pattern.test(host))
+	const hosts = ENGINES[engine].socketHost ? [SOCKET_DIRECTORY, IPV6, BRACKETED_IPV6, HOST_NAME] : [IPV6, BRACKETED_IPV6, HOST_NAME]
+	const written = hosts.some((pattern) => pattern.test(host))
 	if (host && !written) {
 		return t('database.connect.problem_host')
 	}
