@@ -99,7 +99,7 @@ const config: VerifyConfig = {
       why: "these decide who may rewrite the project's sources and whether the builder is reachable at all",
     },
     publish: {
-      globs: [`${MODULE}/package.json`, `${INTERFACE}/package.json`, `${MODULE}/.release-it.json`, `${INTERFACE}/.release-it.json`, `${MODULE}/changelogen.config.json`, `${INTERFACE}/changelogen.config.json`, ".github/workflows/release.yml", ".github/workflows/release-interface.yml"],
+      globs: [`${MODULE}/package.json`, `${INTERFACE}/package.json`, `${MODULE}/.release-it.json`, `${INTERFACE}/.release-it.json`, `${MODULE}/changelogen.config.json`, `${INTERFACE}/changelogen.config.json`, ".github/workflows/release.yml"],
       funnels: [],
       why: "the package names, their files and the release workflows claim @antelopejs/dms-builder and @antelopejs/interface-dms-builder in the npm registry",
     },

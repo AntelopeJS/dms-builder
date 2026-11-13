@@ -17,7 +17,7 @@ The playground's `page.ts` files are written back by the builder, so oxfmt ignor
 
 ## Versioning
 
-`release.yml` publishes the module and refuses to run until the version in `packages/interface-dms-builder/package.json` is on npm. Release the interface first, with `release-interface.yml`.
+`release.yml` publishes the module and refuses to run until the version in `packages/interface-dms-builder/package.json` is on npm. The interface is published from the AntelopeJS/dms repo, never from here.
 
 ## Tests that `checks` does not run
 

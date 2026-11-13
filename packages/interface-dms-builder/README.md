@@ -11,6 +11,9 @@ The AntelopeJS interface that edits the pages, blocks, resources and queries of 
 
 </div>
 
+> [!WARNING]
+> **Moved.** `@antelopejs/interface-dms-builder` now lives in the [AntelopeJS/dms](https://github.com/AntelopeJS/dms) repo and is published from there. This copy is no longer released. The builder engine, the MCP server and the mockups now ship in `@antelopejs/dms` core, active in development only. `@antelopejs/dms-assistant` brings the AI assistant and its onboarding.
+
 ## What it does
 
 - Creates and edits pages, categories and their block trees with operations such as `CreatePage`, `AddBlock`, `ConfigureBlock`, `MoveBlock` and `SetPageBlocks`.
