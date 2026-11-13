@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.11.0
+
+[compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.4...v0.11.0)
+
+### 🚀 Enhancements
+
+- **connect:** Connect a MySQL or MariaDB database ([#198](https://github.com/AntelopeJS/dms-builder/pull/198))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.10.4
 
 [compare changes](https://github.com/AntelopeJS/dms-builder/compare/v0.10.3...v0.10.4)
