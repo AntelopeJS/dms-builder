@@ -21,10 +21,6 @@ import { Column, Relation } from "./helpers/shop-orders";
 import { MODULE, OP_TIMEOUT } from "./mapped-database";
 import { reloadedAtOnce } from "./reload-stub";
 
-/**
- * The COLUMN_TYPE a MySQL or MariaDB catalog writes as `native`, a reference column against the
- * key it holds: the pairs differ in their spelling and agree on the kind of value they hold.
- */
 const SAME_KIND: [reference: string, key: string][] = [
   ["int", "int unsigned"],
   ["int(11)", "bigint(20) unsigned"],

@@ -19,7 +19,6 @@ const LOSSY_READINGS: ReadonlyArray<readonly [reason: string, key: string]> = [
 	['a DATETIME holds no time zone and is read as UTC', 'datetime'],
 ]
 
-/** The openings of a longer reason, each with the key of the text that words it and takes the rest of the reason as `{rest}`. */
 const LOSSY_PREFIXES: ReadonlyArray<readonly [prefix: string, key: string]> = [
 	['a timestamp without time zone is read as UTC; ', 'timestamp'],
 	['a DATETIME holds no time zone and is read as UTC; ', 'datetime_and'],
