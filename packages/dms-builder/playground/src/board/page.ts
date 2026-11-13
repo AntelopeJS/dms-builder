@@ -142,7 +142,7 @@ export class PageShopBoard extends PageController("board", {
     @AuthUserWithPermission(PageShopBoard) _user: User,
     @Model(OrderModel) model: OrderModel,
   ): Promise<ChartCardData> {
-    return chartCardData(await model.chartCard(), { measure: "count", label: "order" });
+    return chartCardData(await model.chartCard().run(), { measure: "count", label: "order" });
   }
 
   @Get("/stats/chart-card2")
@@ -150,6 +150,6 @@ export class PageShopBoard extends PageController("board", {
     @AuthUserWithPermission(PageShopBoard) _user: User,
     @Model(OrderModel) model: OrderModel,
   ): Promise<ChartCardData> {
-    return chartCardData(await model.chartCard2(), { measure: "count", label: "order" });
+    return chartCardData(await model.chartCard2().run(), { measure: "count", label: "order" });
   }
 }
