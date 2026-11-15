@@ -13,7 +13,7 @@
 </div>
 
 > [!WARNING]
-> **Deprecated.** This is the last release of `@antelopejs/dms-builder`. The builder engine, the MCP server and the mockups now ship in `@antelopejs/dms` core, active in development only. `@antelopejs/interface-dms-builder` now lives in the [AntelopeJS/dms](https://github.com/AntelopeJS/dms) repo. `@antelopejs/dms-assistant` brings the AI assistant and its onboarding.
+> **Deprecated.** `@antelopejs/dms-builder` is deprecated on npm and replaced by `@antelopejs/dms-assistant` (0.2.1, on `@antelopejs/dms` 0.20.1). The builder engine, the MCP server and the mockups now ship in `@antelopejs/dms` core, active in development only. `@antelopejs/dms-assistant` brings the AI assistant and its onboarding. `@antelopejs/interface-dms-builder` is not deprecated: it lives on in the [AntelopeJS DMS repository](https://github.com/AntelopeJS/dms) and is released from there.
 >
 > To upgrade:
 >
@@ -101,7 +101,7 @@ The playground (`packages/dms-builder/playground`) loads the builder with a demo
 
 - The backend registers the builder's frontend module at priority 100, and only when the builder is on. `frontend-vue/dms.frontend.ts` registers the `DmsBuilder` components and the client plugin only when the backend's manifest entry carries `dmsBuilder.enabled === true`. Check that layer with `pnpm --dir packages/dms-builder/frontend-vue typecheck` and `lint`.
 - The module implements the interface, so its dependency range on the interface is `>=<interface version> <0.<minor + 1>.0`. A breaking interface minor never reaches a module that does not implement it. Inside the workspace, pnpm resolves that range to the sibling package.
-- `release.yml` publishes `@antelopejs/dms-builder`, and refuses to run until the interface version in `packages/interface-dms-builder/package.json` is on npm. `@antelopejs/interface-dms-builder` is published from the AntelopeJS/dms repo.
+- `release.yml` publishes `@antelopejs/dms-builder`, and refuses to run until the interface version in `packages/interface-dms-builder/package.json` is on npm. `@antelopejs/interface-dms-builder` is released from the [AntelopeJS DMS repository](https://github.com/AntelopeJS/dms).
 
 </details>
 
