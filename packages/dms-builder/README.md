@@ -12,7 +12,7 @@
 </div>
 
 > [!WARNING]
-> **Deprecated.** `@antelopejs/dms-builder` is deprecated on npm and replaced by `@antelopejs/dms-assistant` (0.2.1, on `@antelopejs/dms` 0.20.1). The builder engine, the MCP server and the mockups now ship in `@antelopejs/dms` core, active in development only. `@antelopejs/dms-assistant` brings the AI assistant and its onboarding. `@antelopejs/interface-dms-builder` is not deprecated: it lives on in the [AntelopeJS DMS repository](https://github.com/AntelopeJS/dms) and is released from there.
+> **Deprecated.** `@antelopejs/dms-builder` is deprecated on npm and replaced by `@antelopejs/dms-assistant`. The builder engine, the MCP server and the mockups now ship in `@antelopejs/dms` core, active in development only. `@antelopejs/dms-assistant` brings the AI assistant and its onboarding. `@antelopejs/interface-dms-builder` is not deprecated: it lives on in the [AntelopeJS DMS repository](https://github.com/AntelopeJS/dms) and is released from there.
 >
 > To upgrade:
 >
