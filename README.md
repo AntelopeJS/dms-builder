@@ -1,7 +1,7 @@
 <a href="https://github.com/AntelopeJS/dms"><img data-illustration src="./.github/readme/strip-builder.svg" width="100%" alt="DMS BUILDER: part of AntelopeJS DMS, the open-source back office. A glowing button reads Star AntelopeJS DMS."></a>
 
 > [!IMPORTANT]
-> **`@antelopejs/dms-builder` is replaced.** The page Builder now ships in [`@antelopejs/dms`](https://github.com/AntelopeJS/dms), and the assistant and its onboarding in [`@antelopejs/dms-assistant`](https://github.com/AntelopeJS/dms-assistant). This package gets no more releases. [Builder docs](https://dms.antelopejs.com/docs/interfaces/builder/introduction)
+> **`@antelopejs/dms-builder` is replaced.** Its engine now ships in [`@antelopejs/dms`](https://github.com/AntelopeJS/dms), and you build pages through the assistant in [`@antelopejs/dms-assistant`](https://github.com/AntelopeJS/dms-assistant). This package gets no more releases. [Assistant docs](https://dms.antelopejs.com/docs/modules/assistant)
 
 <div align="center">
 
