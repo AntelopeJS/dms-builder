@@ -1,15 +1,13 @@
 name: ci
 
 on:
-  push:
-    branches:
-      - main
-  # No branch filter: the lint wave stacks pull requests on top of one another,
-  # and filtering on `main` left every intermediate step ungated -- only the
-  # secret scanner ran.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [next]
+  schedule:
+    - cron: "17 2 * * *"
   workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -24,7 +22,7 @@ jobs:
   # format, knip, the node, Vue unit and component suites, size and
   # sync.
   ci:
-    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1
+    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v2
     with:
       docs-files: |
         README.md
@@ -114,4 +112,5 @@ jobs:
     permissions:
       contents: write
       actions: write
-    uses: AntelopeJS/.github/.github/workflows/ci-renovate-sync.yml@v1
+      statuses: write
+    uses: AntelopeJS/.github/.github/workflows/ci-renovate-sync.yml@v2
